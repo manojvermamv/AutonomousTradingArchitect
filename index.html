@@ -130,7 +130,7 @@
         .nav-btn:focus-visible, .review-nav summary:focus-visible, .doc-actions a:focus-visible, .doc-actions button:focus-visible { outline: 2px solid #93c5fd; outline-offset: 3px; }
         .content-section { scroll-margin-top: 124px; }
         .review-content { scroll-margin-top: 180px; }
-        .review-nav { top: 120px; margin: 16px 0 22px; border-color: rgba(148,163,184,.16); box-shadow: 0 12px 30px rgba(0,0,0,.2); }
+        .review-nav { top: 120px; margin: 16px 0 36px; border-color: rgba(148,163,184,.16); box-shadow: 0 12px 30px rgba(0,0,0,.2); }
         .review-nav .nav-tabs { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
         .review-nav .nav-btn { justify-content:center; padding-left:10px; padding-right:10px; }
         .audit-index { display:grid; grid-template-columns: repeat(auto-fit,minmax(210px,1fr)); gap:12px; margin: 22px 0; }
@@ -184,6 +184,7 @@
         .disclosure-trigger:hover { background:rgba(148,163,184,.06) !important; }
         #review-issues [id^="issue-"] > div, #review-roadmap [id^="rec-rec"] > div > div { grid-template-columns:repeat(auto-fit,minmax(220px,1fr)) !important; }
         .roadmap-filter-chip { min-height:36px !important; padding:7px 14px !important; border-radius:999px !important; }
+        #review-roadmap ol { list-style:none; padding-left:0; }
         @media (max-width:700px) { .issues-grid { grid-template-columns:minmax(0,1fr); } }
         @media (max-width:700px) {
             .header-content,.nav-content,main { padding-left:14px; padding-right:14px; }
@@ -201,7 +202,7 @@
 <style>
     .review-content { display: none; animation: fadeIn 0.3s ease; }
     .review-content.active { display: block; }
-    .review-nav { position: sticky; top: 120px; z-index: 20; border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 4px 12px; background: rgba(13,18,32,0.96); backdrop-filter: blur(16px); }
+    .review-nav { position: static; top: auto; z-index: auto; border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 4px 12px; background: rgba(13,18,32,0.98); }
     .review-nav .nav-tabs { padding: 4px 0; }
     .mermaid { min-height: 160px; background: rgba(0,0,0,0.25); padding: 20px; border-radius: 8px; margin-bottom: 15px; overflow: auto; }
     .mermaid svg { max-width: none; }
@@ -244,7 +245,7 @@
                     startOnLoad: false,
                     theme: 'dark',
                     securityLevel: 'strict',
-                    flowchart: { useMaxWidth: true, htmlLabels: true }
+                    flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'stepAfter' }
                 });
             }
         });
