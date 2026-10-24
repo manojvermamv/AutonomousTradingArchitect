@@ -293,93 +293,1450 @@
             </div>
         </section>
 
+        
         <section id="review" class="content-section">
             <h2 class="section-title">Architecture Review Status</h2>
             <p class="section-subtitle">Current auditing state for planned Master README.md</p>
             
+            <!-- Executive Summary -->
+            <div class="card">
+                <h3>Executive Summary</h3>
+                <p>Your architecture demonstrates <strong style="color: #22c55e;">strong foundational thinking</strong> with clear separation of concerns between Tier1 (execution) and Tier2 (cognition), hash-chained ledger integrity, and a well-designed simulation/production code sharing model. However, several <strong style="color: #ef4444;">critical resilience gaps</strong> and <strong style="color: #f97316;">transaction safety concerns</strong> must be addressed before production deployment. The architecture is conceptually sound but needs hardening for real-money operation.</p>
+            </div>
+
+            <!-- Key Metrics -->
+            <div class="features-grid">
+                <div class="feature-card"><h3><i class="fa-solid fa-cubes"></i> Modules</h3><p><strong style="font-size: 24px; color: white;">9</strong><br><span style="font-size: 12px; opacity: 0.9;">Distinct boundaries</span></p></div>
+                <div class="feature-card" style="background: linear-gradient(135deg, rgba(239,68,68,0.15) 0%, rgba(220,38,38,0.15) 100%); border-color: rgba(239,68,68,0.3);"><h3><i class="fa-solid fa-triangle-exclamation"></i> Issues</h3><p><strong style="font-size: 24px; color: #ef4444;">1 Critical</strong>, <strong style="color: #f97316;">4 High</strong><br><span style="font-size: 12px; opacity: 0.9;">12 Total</span></p></div>
+                <div class="feature-card" style="background: linear-gradient(135deg, rgba(34,197,94,0.15) 0%, rgba(22,163,74,0.15) 100%); border-color: rgba(34,197,94,0.3);"><h3><i class="fa-solid fa-lightbulb"></i> Recommendations</h3><p><strong style="font-size: 24px; color: #22c55e;">8</strong><br><span style="font-size: 12px; opacity: 0.9;">2 Immediate</span></p></div>
+                <div class="feature-card" style="background: linear-gradient(135deg, rgba(139,92,246,0.15) 0%, rgba(124,58,237,0.15) 100%); border-color: rgba(139,92,246,0.3);"><h3><i class="fa-solid fa-layer-group"></i> Layers</h3><p><strong style="font-size: 24px; color: #a78bfa;">8</strong><br><span style="font-size: 12px; opacity: 0.9;">End-to-end coverage</span></p></div>
+            </div>
+
+            <!-- Architecture Strengths -->
+            <div class="card">
+                <h3>Architecture Strengths</h3>
+                <ul>
+                    <li>Sole execution ownership eliminates ambiguity in the kernel</li>
+                    <li>Hash-chained ledger provides tamper-evident financial records</li>
+                    <li>Clear Tier1/Tier2 separation prevents cognition from direct execution</li>
+                    <li>Shared code between production and simulation reduces divergence</li>
+                    <li>Supervisor is proposal-only, preserving kernel authority</li>
+                    <li>Immutable research bundles with content hashes ensure reproducibility</li>
+                    <li>WAL-aware backup ensures consistent recovery points</li>
+                    <li>Versioned planning port enables safe evolution</li>
+                </ul>
+            </div>
+
+            <!-- Critical Gaps -->
+            <div class="card">
+                <h3>Critical Gaps</h3>
+                <ul>
+                    <li>Single kernel SPOF with no automatic failover mechanism</li>
+                    <li>Missing idempotency guarantees at transaction boundaries</li>
+                    <li>Single broker vendor dependency (OpenAlgo) with no fallback</li>
+                    <li>Ambiguous result handling lacks formal state machine</li>
+                    <li>Simulation disarming not formally verified</li>
+                    <li>No backpressure mechanism in market data pipeline</li>
+                    <li>Owner governance is single-person dependency</li>
+                    <li>SQLite scalability ceiling for growing transaction volumes</li>
+                </ul>
+            </div>
+
+            <!-- Issue Analysis Component -->
             <h3>Architecture Issues Summary</h3>
-            <div class="issues-grid">
+            <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
+                <div style="background: #334155; padding: 8px 16px; border-radius: 20px; color: #e2e8f0; font-size: 13px;">
+                    <strong>Severity:</strong>
+                    <span style="margin-left: 8px; padding: 4px 8px; border-radius: 15px; background: #475569; color: #fff;">All</span>
+                    <span style="margin-left: 8px; padding: 4px 8px; border-radius: 15px; background: rgba(239,68,68,0.2); color: #ef4444;">Critical</span>
+                    <span style="margin-left: 8px; padding: 4px 8px; border-radius: 15px; background: rgba(249,115,22,0.2); color: #f97316;">High</span>
+                    <span style="margin-left: 8px; padding: 4px 8px; border-radius: 15px; background: rgba(234,179,8,0.2); color: #eab308;">Medium</span>
+                    <span style="margin-left: 8px; padding: 4px 8px; border-radius: 15px; background: rgba(59,130,246,0.2); color: #60a5fa;">Low</span>
+                </div>
+                <div style="background: #334155; padding: 8px 16px; border-radius: 20px; color: #e2e8f0; font-size: 13px;">
+                    <strong>Category:</strong>
+                    <select style="margin-left: 8px; background: transparent; border: none; color: #94a3b8; outline: none; cursor: pointer;">
+                        <option value="all">All Categories</option>
+                        <option value="Resilience">Resilience</option>
+                        <option value="Extensibility">Extensibility</option>
+                        <option value="Scalability">Scalability</option>
+                        <option value="Stability">Stability</option>
+                        <option value="Transaction Safety">Transaction Safety</option>
+                        <option value="Governance">Governance</option>
+                        <option value="Safety">Safety</option>
+                        <option value="Operations">Operations</option>
+                    </select>
+                </div>
+            </div>
+            <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 16px;">
                 
-                <div class="issue-card critical">
-                    <h4><i class="fa-solid fa-triangle-exclamation"></i> Single Kernel Point of Failure</h4>
-                    <span class="issue-severity">critical</span>
-                    <div class="issue-category">Resilience</div>
-                    <p>The production Tier1 kernel is the sole execution owner with no visible hot standby or failover mechanism.</p>
+                <div style="border-radius: 16px; overflow: hidden; border-left: 4px solid #ef4444; background: rgba(13,18,32,0.6); transition: all 0.3s;">
+                    <button onclick="toggleIssue('spo1')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
+                        <div style="width: 40px; height: 40px; border-radius: 12px; background: rgba(239,68,68,0.1); display: flex; align-items: center; justify-content: center;">
+                            <i class="fa-solid circle-exclamation" style="color: #ef4444; font-size: 18px;"></i>
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                <h4 style="color: #f1f5f9; font-size: 15px;">Single Kernel Point of Failure</h4>
+                                <span style="font-size: 11px; padding: 4px 10px; border-radius: 20px; background: rgba(239,68,68,0.1); color: #ef4444; font-weight: 700; text-transform: uppercase;">critical</span>
+                            </div>
+                            <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">The production Tier1 kernel is the sole execution owner with no visible hot standby or failover mechanism. If the kernel process crashes or becomes unresponsive, all live trading halts with no automatic recovery.</p>
+                            <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;">
+                                <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(51,65,85,0.5); color: #94a3b8;">Resilience</span>
+                                <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(31,41,55,0.3); color: #64748b;">kernel</span><span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(31,41,55,0.3); color: #64748b;">ledger</span><span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(31,41,55,0.3); color: #64748b;">operations</span>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-chevron-down" style="color: #64748b; font-size: 14px; margin-top: 14px;"></i>
+                    </button>
+                    <div id="issue-spo1" style="display: none; border-top: 1px solid rgba(255,255,255,0.05);">
+                        <div style="padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div>
+                                <h4 style="color: #94a3b8; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Description</h4>
+                                <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">The production Tier1 kernel is the sole execution owner with no visible hot standby or failover mechanism. If the kernel process crashes or becomes unresponsive, all live trading halts with no automatic recovery.</p>
+                                <h4 style="color: #ef4444; font-size: 12px; font-weight: 600; text-transform: uppercase; margin: 20px 0 8px 0;">Impact</h4>
+                                <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Complete trading halt during kernel failure. Recovery depends on manual intervention and the backup/restore path which has non-trivial RTO.</p>
+                            </div>
+                            <div>
+                                <h4 style="color: #22c55e; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Recommendation</h4>
+                                <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Implement active-passive kernel replication with automatic failover.</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 
-                <div class="issue-card high">
-                    <h4><i class="fa-solid fa-triangle-exclamation"></i> Single Broker Vendor Lock-in</h4>
-                    <span class="issue-severity">high</span>
-                    <div class="issue-category">Extensibility</div>
-                    <p>OpenAlgo is the sole broker boundary with no adapter abstraction visible.</p>
+                <div style="border-radius: 16px; overflow: hidden; border-left: 4px solid #f97316; background: rgba(13,18,32,0.6); transition: all 0.3s;">
+                    <button onclick="toggleIssue('spo2')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
+                        <div style="width: 40px; height: 40px; border-radius: 12px; background: rgba(249,115,22,0.1); display: flex; align-items: center; justify-content: center;">
+                            <i class="fa-solid exclamation" style="color: #f97316; font-size: 18px;"></i>
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                <h4 style="color: #f1f5f9; font-size: 15px;">Single Broker Vendor Lock-in</h4>
+                                <span style="font-size: 11px; padding: 4px 10px; border-radius: 20px; background: rgba(249,115,22,0.1); color: #f97316; font-weight: 700; text-transform: uppercase;">high</span>
+                            </div>
+                            <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">OpenAlgo is the sole broker boundary with no adapter abstraction visible. This creates complete dependency on OpenAlgo availability, API stability, and business continuity.</p>
+                            <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;">
+                                <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(51,65,85,0.5); color: #94a3b8;">Extensibility</span>
+                                <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(31,41,55,0.3); color: #64748b;">broker</span><span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(31,41,55,0.3); color: #64748b;">kernel</span>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-chevron-down" style="color: #64748b; font-size: 14px; margin-top: 14px;"></i>
+                    </button>
+                    <div id="issue-spo2" style="display: none; border-top: 1px solid rgba(255,255,255,0.05);">
+                        <div style="padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div>
+                                <h4 style="color: #94a3b8; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Description</h4>
+                                <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">OpenAlgo is the sole broker boundary with no adapter abstraction visible. This creates complete dependency on OpenAlgo availability, API stability, and business continuity.</p>
+                                <h4 style="color: #ef4444; font-size: 12px; font-weight: 600; text-transform: uppercase; margin: 20px 0 8px 0;">Impact</h4>
+                                <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">If OpenAlgo service is down, changes API, or goes out of business, the entire execution path is blocked. No fallback execution capability exists.</p>
+                            </div>
+                            <div>
+                                <h4 style="color: #22c55e; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Recommendation</h4>
+                                <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Introduce a BrokerAdapter port with multiple implementations.</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 
-                <div class="issue-card high">
-                    <h4><i class="fa-solid fa-triangle-exclamation"></i> SQLite Scalability Ceiling</h4>
-                    <span class="issue-severity">high</span>
-                    <div class="issue-category">Scalability</div>
-                    <p>SQLite WAL has fundamental limitations for high-throughput financial workloads.</p>
+                <div style="border-radius: 16px; overflow: hidden; border-left: 4px solid #f97316; background: rgba(13,18,32,0.6); transition: all 0.3s;">
+                    <button onclick="toggleIssue('db1')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
+                        <div style="width: 40px; height: 40px; border-radius: 12px; background: rgba(249,115,22,0.1); display: flex; align-items: center; justify-content: center;">
+                            <i class="fa-solid exclamation" style="color: #f97316; font-size: 18px;"></i>
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                <h4 style="color: #f1f5f9; font-size: 15px;">SQLite Scalability Ceiling</h4>
+                                <span style="font-size: 11px; padding: 4px 10px; border-radius: 20px; background: rgba(249,115,22,0.1); color: #f97316; font-weight: 700; text-transform: uppercase;">high</span>
+                            </div>
+                            <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">SQLite WAL, while excellent for single-node deployments, has fundamental limitations: single writer, file-level locking, no built-in replication, and practical size limits for high-throughput financial workloads.</p>
+                            <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;">
+                                <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(51,65,85,0.5); color: #94a3b8;">Scalability</span>
+                                <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(31,41,55,0.3); color: #64748b;">ledger</span><span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(31,41,55,0.3); color: #64748b;">operations</span>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-chevron-down" style="color: #64748b; font-size: 14px; margin-top: 14px;"></i>
+                    </button>
+                    <div id="issue-db1" style="display: none; border-top: 1px solid rgba(255,255,255,0.05);">
+                        <div style="padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div>
+                                <h4 style="color: #94a3b8; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Description</h4>
+                                <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">SQLite WAL, while excellent for single-node deployments, has fundamental limitations: single writer, file-level locking, no built-in replication, and practical size limits for high-throughput financial workloads.</p>
+                                <h4 style="color: #ef4444; font-size: 12px; font-weight: 600; text-transform: uppercase; margin: 20px 0 8px 0;">Impact</h4>
+                                <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">As transaction volume grows, write contention will become a bottleneck. No path to horizontal scaling or multi-region deployment.</p>
+                            </div>
+                            <div>
+                                <h4 style="color: #22c55e; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Recommendation</h4>
+                                <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Consider a migration path to PostgreSQL with logical replication.</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 
-                <div class="issue-card medium">
-                    <h4><i class="fa-solid fa-triangle-exclamation"></i> Cognition-Decision Feedback Oscillation</h4>
-                    <span class="issue-severity">medium</span>
-                    <div class="issue-category">Stability</div>
-                    <p>The bidirectional flow creates potential for oscillation.</p>
+                <div style="border-radius: 16px; overflow: hidden; border-left: 4px solid #eab308; background: rgba(13,18,32,0.6); transition: all 0.3s;">
+                    <button onclick="toggleIssue('cog1')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
+                        <div style="width: 40px; height: 40px; border-radius: 12px; background: rgba(234,179,8,0.1); display: flex; align-items: center; justify-content: center;">
+                            <i class="fa-solid exclamation" style="color: #f97316; font-size: 18px;"></i>
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                <h4 style="color: #f1f5f9; font-size: 15px;">Cognition-Decision Feedback Oscillation</h4>
+                                <span style="font-size: 11px; padding: 4px 10px; border-radius: 20px; background: rgba(234,179,8,0.1); color: #eab308; font-weight: 700; text-transform: uppercase;">medium</span>
+                            </div>
+                            <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">The bidirectional flow between Tier2 cognition and the decision layer creates potential for oscillation: cognition proposes changes → decision applies → new state triggers new cognition → potentially contradictory proposals.</p>
+                            <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;">
+                                <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(51,65,85,0.5); color: #94a3b8;">Stability</span>
+                                <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(31,41,55,0.3); color: #64748b;">cognition</span><span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(31,41,55,0.3); color: #64748b;">kernel</span>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-chevron-down" style="color: #64748b; font-size: 14px; margin-top: 14px;"></i>
+                    </button>
+                    <div id="issue-cog1" style="display: none; border-top: 1px solid rgba(255,255,255,0.05);">
+                        <div style="padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div>
+                                <h4 style="color: #94a3b8; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Description</h4>
+                                <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">The bidirectional flow between Tier2 cognition and the decision layer creates potential for oscillation: cognition proposes changes → decision applies → new state triggers new cognition → potentially contradictory proposals.</p>
+                                <h4 style="color: #ef4444; font-size: 12px; font-weight: 600; text-transform: uppercase; margin: 20px 0 8px 0;">Impact</h4>
+                                <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Rapid oscillation between proposals could lead to excessive trading activity, missed signals, or resource exhaustion in the cognitive layer.</p>
+                            </div>
+                            <div>
+                                <h4 style="color: #22c55e; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Recommendation</h4>
+                                <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Implement explicit cooldown periods between cognition cycles.</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 
-                <div class="issue-card high">
-                    <h4><i class="fa-solid fa-triangle-exclamation"></i> Missing Idempotency Guarantees</h4>
-                    <span class="issue-severity">high</span>
-                    <div class="issue-category">Transaction Safety</div>
-                    <p>The architecture does not explicitly show idempotency keys at transaction boundaries.</p>
+                <div style="border-radius: 16px; overflow: hidden; border-left: 4px solid #f97316; background: rgba(13,18,32,0.6); transition: all 0.3s;">
+                    <button onclick="toggleIssue('tx1')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
+                        <div style="width: 40px; height: 40px; border-radius: 12px; background: rgba(249,115,22,0.1); display: flex; align-items: center; justify-content: center;">
+                            <i class="fa-solid exclamation" style="color: #f97316; font-size: 18px;"></i>
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                <h4 style="color: #f1f5f9; font-size: 15px;">Missing Idempotency Guarantees</h4>
+                                <span style="font-size: 11px; padding: 4px 10px; border-radius: 20px; background: rgba(249,115,22,0.1); color: #f97316; font-weight: 700; text-transform: uppercase;">high</span>
+                            </div>
+                            <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">While the ledger is hash-chained, the architecture does not explicitly show idempotency keys at transaction boundaries. Network retries, process restarts, or duplicate observations could lead to double-execution.</p>
+                            <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;">
+                                <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(51,65,85,0.5); color: #94a3b8;">Transaction Safety</span>
+                                <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(31,41,55,0.3); color: #64748b;">kernel</span><span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(31,41,55,0.3); color: #64748b;">broker</span><span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(31,41,55,0.3); color: #64748b;">ledger</span>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-chevron-down" style="color: #64748b; font-size: 14px; margin-top: 14px;"></i>
+                    </button>
+                    <div id="issue-tx1" style="display: none; border-top: 1px solid rgba(255,255,255,0.05);">
+                        <div style="padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div>
+                                <h4 style="color: #94a3b8; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Description</h4>
+                                <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">While the ledger is hash-chained, the architecture does not explicitly show idempotency keys at transaction boundaries. Network retries, process restarts, or duplicate observations could lead to double-execution.</p>
+                                <h4 style="color: #ef4444; font-size: 12px; font-weight: 600; text-transform: uppercase; margin: 20px 0 8px 0;">Impact</h4>
+                                <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Duplicate orders, double-fills, or inconsistent state between kernel and broker. Financial loss potential.</p>
+                            </div>
+                            <div>
+                                <h4 style="color: #22c55e; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Recommendation</h4>
+                                <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Implement idempotency keys at every external boundary.</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 
-                <div class="issue-card high">
-                    <h4><i class="fa-solid fa-triangle-exclamation"></i> Ambiguous Result Taxonomy Incomplete</h4>
-                    <span class="issue-severity">high</span>
-                    <div class="issue-category">Transaction Safety</div>
-                    <p>The result taxonomy needs formal specification.</p>
+                <div style="border-radius: 16px; overflow: hidden; border-left: 4px solid #f97316; background: rgba(13,18,32,0.6); transition: all 0.3s;">
+                    <button onclick="toggleIssue('tx2')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
+                        <div style="width: 40px; height: 40px; border-radius: 12px; background: rgba(249,115,22,0.1); display: flex; align-items: center; justify-content: center;">
+                            <i class="fa-solid exclamation" style="color: #f97316; font-size: 18px;"></i>
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                <h4 style="color: #f1f5f9; font-size: 15px;">Ambiguous Result Taxonomy Incomplete</h4>
+                                <span style="font-size: 11px; padding: 4px 10px; border-radius: 20px; background: rgba(249,115,22,0.1); color: #f97316; font-weight: 700; text-transform: uppercase;">high</span>
+                            </div>
+                            <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">The "ACK, rejection, not sent, or ambiguous" result taxonomy needs formal specification. Ambiguous results (timeout, partial network failure) are the hardest to handle correctly and require explicit reconciliation protocols.</p>
+                            <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;">
+                                <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(51,65,85,0.5); color: #94a3b8;">Transaction Safety</span>
+                                <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(31,41,55,0.3); color: #64748b;">broker</span><span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(31,41,55,0.3); color: #64748b;">kernel</span>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-chevron-down" style="color: #64748b; font-size: 14px; margin-top: 14px;"></i>
+                    </button>
+                    <div id="issue-tx2" style="display: none; border-top: 1px solid rgba(255,255,255,0.05);">
+                        <div style="padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div>
+                                <h4 style="color: #94a3b8; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Description</h4>
+                                <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">The "ACK, rejection, not sent, or ambiguous" result taxonomy needs formal specification. Ambiguous results (timeout, partial network failure) are the hardest to handle correctly and require explicit reconciliation protocols.</p>
+                                <h4 style="color: #ef4444; font-size: 12px; font-weight: 600; text-transform: uppercase; margin: 20px 0 8px 0;">Impact</h4>
+                                <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Ambiguous results without clear resolution protocol can lead to phantom positions, missed fills, or incorrect P&L calculations.</p>
+                            </div>
+                            <div>
+                                <h4 style="color: #22c55e; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Recommendation</h4>
+                                <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Define a formal result state machine with explicit transitions.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="border-radius: 16px; overflow: hidden; border-left: 4px solid #eab308; background: rgba(13,18,32,0.6); transition: all 0.3s;">
+                    <button onclick="toggleIssue('sec1')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
+                        <div style="width: 40px; height: 40px; border-radius: 12px; background: rgba(234,179,8,0.1); display: flex; align-items: center; justify-content: center;">
+                            <i class="fa-solid exclamation" style="color: #f97316; font-size: 18px;"></i>
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                <h4 style="color: #f1f5f9; font-size: 15px;">Owner Governance Single Point</h4>
+                                <span style="font-size: 11px; padding: 4px 10px; border-radius: 20px; background: rgba(234,179,8,0.1); color: #eab308; font-weight: 700; text-transform: uppercase;">medium</span>
+                            </div>
+                            <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">Authenticated owner governance is the sole source of policy approval and session candidates. If the owner is unavailable, no new policies can be deployed and no emergency interventions can occur.</p>
+                            <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;">
+                                <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(51,65,85,0.5); color: #94a3b8;">Governance</span>
+                                <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(31,41,55,0.3); color: #64748b;">kernel</span>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-chevron-down" style="color: #64748b; font-size: 14px; margin-top: 14px;"></i>
+                    </button>
+                    <div id="issue-sec1" style="display: none; border-top: 1px solid rgba(255,255,255,0.05);">
+                        <div style="padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div>
+                                <h4 style="color: #94a3b8; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Description</h4>
+                                <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Authenticated owner governance is the sole source of policy approval and session candidates. If the owner is unavailable, no new policies can be deployed and no emergency interventions can occur.</p>
+                                <h4 style="color: #ef4444; font-size: 12px; font-weight: 600; text-transform: uppercase; margin: 20px 0 8px 0;">Impact</h4>
+                                <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">System may be unable to respond to market events requiring policy changes. Emergency close or cancel operations may be blocked.</p>
+                            </div>
+                            <div>
+                                <h4 style="color: #22c55e; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Recommendation</h4>
+                                <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Implement multi-signature governance with defined quorum.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="border-radius: 16px; overflow: hidden; border-left: 4px solid #eab308; background: rgba(13,18,32,0.6); transition: all 0.3s;">
+                    <button onclick="toggleIssue('sim1')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
+                        <div style="width: 40px; height: 40px; border-radius: 12px; background: rgba(234,179,8,0.1); display: flex; align-items: center; justify-content: center;">
+                            <i class="fa-solid exclamation" style="color: #f97316; font-size: 18px;"></i>
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                <h4 style="color: #f1f5f9; font-size: 15px;">Simulation Disarming Verification Gap</h4>
+                                <span style="font-size: 11px; padding: 4px 10px; border-radius: 20px; background: rgba(234,179,8,0.1); color: #eab308; font-weight: 700; text-transform: uppercase;">medium</span>
+                            </div>
+                            <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">The "disarmed" simulation kernel must be guaranteed to never have live execution capability. However, the architecture shows shared code paths, and the disarming mechanism is not formally specified or verified.</p>
+                            <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;">
+                                <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(51,65,85,0.5); color: #94a3b8;">Safety</span>
+                                <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(31,41,55,0.3); color: #64748b;">simulation</span><span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(31,41,55,0.3); color: #64748b;">kernel</span>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-chevron-down" style="color: #64748b; font-size: 14px; margin-top: 14px;"></i>
+                    </button>
+                    <div id="issue-sim1" style="display: none; border-top: 1px solid rgba(255,255,255,0.05);">
+                        <div style="padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div>
+                                <h4 style="color: #94a3b8; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Description</h4>
+                                <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">The "disarmed" simulation kernel must be guaranteed to never have live execution capability. However, the architecture shows shared code paths, and the disarming mechanism is not formally specified or verified.</p>
+                                <h4 style="color: #ef4444; font-size: 12px; font-weight: 600; text-transform: uppercase; margin: 20px 0 8px 0;">Impact</h4>
+                                <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">If disarming fails or is bypassed (configuration error, code change), simulation could accidentally execute live trades. Catastrophic financial risk.</p>
+                            </div>
+                            <div>
+                                <h4 style="color: #22c55e; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Recommendation</h4>
+                                <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Implement formal capability-based security for simulation.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="border-radius: 16px; overflow: hidden; border-left: 4px solid #eab308; background: rgba(13,18,32,0.6); transition: all 0.3s;">
+                    <button onclick="toggleIssue('obs1')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
+                        <div style="width: 40px; height: 40px; border-radius: 12px; background: rgba(234,179,8,0.1); display: flex; align-items: center; justify-content: center;">
+                            <i class="fa-solid exclamation" style="color: #f97316; font-size: 18px;"></i>
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                <h4 style="color: #f1f5f9; font-size: 15px;">Missing Backpressure & Rate Limiting</h4>
+                                <span style="font-size: 11px; padding: 4px 10px; border-radius: 20px; background: rgba(234,179,8,0.1); color: #eab308; font-weight: 700; text-transform: uppercase;">medium</span>
+                            </div>
+                            <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">The market data ingestion path has no visible backpressure mechanism. During high-volatility events, data volume can spike dramatically, potentially overwhelming the pipeline.</p>
+                            <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;">
+                                <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(51,65,85,0.5); color: #94a3b8;">Resilience</span>
+                                <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(31,41,55,0.3); color: #64748b;">market</span><span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(31,41,55,0.3); color: #64748b;">kernel</span>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-chevron-down" style="color: #64748b; font-size: 14px; margin-top: 14px;"></i>
+                    </button>
+                    <div id="issue-obs1" style="display: none; border-top: 1px solid rgba(255,255,255,0.05);">
+                        <div style="padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div>
+                                <h4 style="color: #94a3b8; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Description</h4>
+                                <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">The market data ingestion path has no visible backpressure mechanism. During high-volatility events, data volume can spike dramatically, potentially overwhelming the pipeline.</p>
+                                <h4 style="color: #ef4444; font-size: 12px; font-weight: 600; text-transform: uppercase; margin: 20px 0 8px 0;">Impact</h4>
+                                <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Pipeline saturation leads to stale data, missed signals, or cascading failures. The "quality cutoff" may be triggered too late.</p>
+                            </div>
+                            <div>
+                                <h4 style="color: #22c55e; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Recommendation</h4>
+                                <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Implement explicit backpressure at each pipeline stage.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="border-radius: 16px; overflow: hidden; border-left: 4px solid #eab308; background: rgba(13,18,32,0.6); transition: all 0.3s;">
+                    <button onclick="toggleIssue('rec1')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
+                        <div style="width: 40px; height: 40px; border-radius: 12px; background: rgba(234,179,8,0.1); display: flex; align-items: center; justify-content: center;">
+                            <i class="fa-solid exclamation" style="color: #f97316; font-size: 18px;"></i>
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                <h4 style="color: #f1f5f9; font-size: 15px;">Recovery Fence Complexity</h4>
+                                <span style="font-size: 11px; padding: 4px 10px; border-radius: 20px; background: rgba(234,179,8,0.1); color: #eab308; font-weight: 700; text-transform: uppercase;">medium</span>
+                            </div>
+                            <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">The recovery path requires proving the old host is "incapable" before activating the new one. This distributed consensus problem (preventing split-brain) is notoriously difficult to implement correctly.</p>
+                            <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;">
+                                <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(51,65,85,0.5); color: #94a3b8;">Operations</span>
+                                <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(31,41,55,0.3); color: #64748b;">operations</span><span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(31,41,55,0.3); color: #64748b;">kernel</span>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-chevron-down" style="color: #64748b; font-size: 14px; margin-top: 14px;"></i>
+                    </button>
+                    <div id="issue-rec1" style="display: none; border-top: 1px solid rgba(255,255,255,0.05);">
+                        <div style="padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div>
+                                <h4 style="color: #94a3b8; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Description</h4>
+                                <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">The recovery path requires proving the old host is "incapable" before activating the new one. This distributed consensus problem (preventing split-brain) is notoriously difficult to implement correctly.</p>
+                                <h4 style="color: #ef4444; font-size: 12px; font-weight: 600; text-transform: uppercase; margin: 20px 0 8px 0;">Impact</h4>
+                                <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">If fence verification fails or has edge cases, both old and new kernels could operate simultaneously, leading to double-trading or state corruption.</p>
+                            </div>
+                            <div>
+                                <h4 style="color: #22c55e; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Recommendation</h4>
+                                <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Use a well-tested distributed lock service for fencing.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="border-radius: 16px; overflow: hidden; border-left: 4px solid #eab308; background: rgba(13,18,32,0.6); transition: all 0.3s;">
+                    <button onclick="toggleIssue('mon1')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
+                        <div style="width: 40px; height: 40px; border-radius: 12px; background: rgba(234,179,8,0.1); display: flex; align-items: center; justify-content: center;">
+                            <i class="fa-solid exclamation" style="color: #f97316; font-size: 18px;"></i>
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                <h4 style="color: #f1f5f9; font-size: 15px;">Observability Architecture Under-specified</h4>
+                                <span style="font-size: 11px; padding: 4px 10px; border-radius: 20px; background: rgba(234,179,8,0.1); color: #eab308; font-weight: 700; text-transform: uppercase;">medium</span>
+                            </div>
+                            <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">The "Operator UI and observability" receives asynchronous telemetry but the metrics, traces, and alerting architecture is not detailed. For a financial system, comprehensive observability is critical.</p>
+                            <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;">
+                                <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(51,65,85,0.5); color: #94a3b8;">Operations</span>
+                                <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(31,41,55,0.3); color: #64748b;">operations</span>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-chevron-down" style="color: #64748b; font-size: 14px; margin-top: 14px;"></i>
+                    </button>
+                    <div id="issue-mon1" style="display: none; border-top: 1px solid rgba(255,255,255,0.05);">
+                        <div style="padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div>
+                                <h4 style="color: #94a3b8; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Description</h4>
+                                <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">The "Operator UI and observability" receives asynchronous telemetry but the metrics, traces, and alerting architecture is not detailed. For a financial system, comprehensive observability is critical.</p>
+                                <h4 style="color: #ef4444; font-size: 12px; font-weight: 600; text-transform: uppercase; margin: 20px 0 8px 0;">Impact</h4>
+                                <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Without proper observability, issues may go undetected until they cause financial loss. Debugging production issues becomes extremely difficult.</p>
+                            </div>
+                            <div>
+                                <h4 style="color: #22c55e; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Recommendation</h4>
+                                <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Implement structured logging with correlation IDs.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="border-radius: 16px; overflow: hidden; border-left: 4px solid #3b82f6; background: rgba(13,18,32,0.6); transition: all 0.3s;">
+                    <button onclick="toggleIssue('api1')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
+                        <div style="width: 40px; height: 40px; border-radius: 12px; background: rgba(59,130,246,0.1); display: flex; align-items: center; justify-content: center;">
+                            <i class="fa-solid exclamation" style="color: #f97316; font-size: 18px;"></i>
+                        </div>
+                        <div style="flex: 1;">
+                            <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
+                                <h4 style="color: #f1f5f9; font-size: 15px;">No API Versioning Strategy</h4>
+                                <span style="font-size: 11px; padding: 4px 10px; border-radius: 20px; background: rgba(59,130,246,0.1); color: #60a5fa; font-weight: 700; text-transform: uppercase;">low</span>
+                            </div>
+                            <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">The OpenAlgo adapter and internal ports lack explicit versioning strategy. As the system evolves, breaking changes to interfaces could cause coordination failures.</p>
+                            <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;">
+                                <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(51,65,85,0.5); color: #94a3b8;">Extensibility</span>
+                                <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(31,41,55,0.3); color: #64748b;">broker</span><span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(31,41,55,0.3); color: #64748b;">kernel</span><span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(31,41,55,0.3); color: #64748b;">simulation</span>
+                            </div>
+                        </div>
+                        <i class="fa-solid fa-chevron-down" style="color: #64748b; font-size: 14px; margin-top: 14px;"></i>
+                    </button>
+                    <div id="issue-api1" style="display: none; border-top: 1px solid rgba(255,255,255,0.05);">
+                        <div style="padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                            <div>
+                                <h4 style="color: #94a3b8; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Description</h4>
+                                <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">The OpenAlgo adapter and internal ports lack explicit versioning strategy. As the system evolves, breaking changes to interfaces could cause coordination failures.</p>
+                                <h4 style="color: #ef4444; font-size: 12px; font-weight: 600; text-transform: uppercase; margin: 20px 0 8px 0;">Impact</h4>
+                                <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Difficulty upgrading components independently. Risk of breaking production during deployments.</p>
+                            </div>
+                            <div>
+                                <h4 style="color: #22c55e; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Recommendation</h4>
+                                <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Implement semantic versioning for all ports and adapters.</p>
+                            </div>
+                        </div>
+                    </div>
                 </div>
                 
             </div>
 
-            <h3>Review Recommendations</h3>
-            <div class="card">
-                <h3>Immediate Actions</h3>
-                <ul>
-                    <li><strong>Implement Broker Adapter Abstraction:</strong> Create a formal BrokerAdapter port to enable multi-broker support and eliminate single-vendor dependency</li>
-                    <li><strong>Add Idempotency Layer:</strong> Implement idempotency keys at every external boundary to prevent duplicate execution</li>
-                </ul>
+            <!-- Architecture Scorecard Component -->
+            <h3>Architecture Scorecard</h3>
+            <div style="background: rgba(13,18,32,0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 32px; margin-bottom: 30px;">
+                <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 40px;">
+                    <div style="position: relative; width: 120px; height: 120px;">
+                        <svg style="width: 100%; height: 100%; transform: rotate(-90deg);">
+                            <circle cx="60" cy="60" r="52" stroke="#334155" stroke-width="10" fill="none"></circle>
+                            <circle cx="60" cy="60" r="52" stroke="#ef4444" stroke-width="10" fill="none" stroke-dasharray="179.85000000000002 327" stroke-linecap="round"></circle>
+                        </svg>
+                        <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); text-align: center;">
+                            <span style="font-size: 32px; font-weight: 700; color: #ef4444;">5.5</span>
+                            <div style="font-size: 12px; color: #64748b;">/ 10.0</div>
+                        </div>
+                    </div>
+                    <div style="flex: 1; min-width: 250px;">
+                        <div style="font-size: 36px; font-weight: 700; color: #ef4444; margin-bottom: 8px;">Grade D</div>
+                        <div style="font-size: 16px; color: #cbd5e1; margin-bottom: 16px;">Not Ready</div>
+                        <div style="display: flex; gap: 20px; font-size: 13px; color: #94a3b8;">
+                            <div><span style="color: #ef4444; font-weight: 700;">1</span> Critical</div>
+                            <div><span style="color: #f97316; font-weight: 700;">4</span> High</div>
+                            <div><span style="color: #e2e8f0; font-weight: 700;">12</span> Total Issues</div>
+                            <div><span style="color: #22c55e; font-weight: 700;">8</span> Recommendations</div>
+                        </div>
+                    </div>
+                    <div style="background: rgba(51,65,85,0.3); border-radius: 12px; padding: 20px; flex: 1; min-width: 300px;">
+                        <p style="font-size: 13px; color: #94a3b8; margin-bottom: 12px;">Production Readiness Summary</p>
+                        <p style="font-size: 14px; color: #e2e8f0; line-height: 1.6; max-width: 100%;">Strong conceptual architecture with clear boundaries. Critical gaps in resilience (HA), transaction safety (idempotency), and scalability must be addressed before live trading.</p>
+                    </div>
+                </div>
             </div>
 
-            <div class="card">
-                <h3>Short-Term Improvements</h3>
-                <ul>
-                    <li><strong>Kernel High Availability:</strong> Implement active-passive kernel replication with automatic failover</li>
-                    <li><strong>Formal Simulation Isolation:</strong> Implement capability-based security to guarantee simulation cannot access live broker credentials</li>
-                    <li><strong>Comprehensive Observability Stack:</strong> Implement structured logging, OpenTelemetry tracing, and alerting rules</li>
-                </ul>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; margin-bottom: 30px;">
+                
+                <div style="background: rgba(13,18,32,0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+                        <h4 style="color: #e2e8f0; font-size: 14px; font-weight: 600;">Separation of Concerns</h4>
+                        <span style="font-size: 18px; font-weight: 700; color: #22c55e;">8.5</span>
+                    </div>
+                    <div style="width: 100%; height: 10px; background: rgba(51,65,85,0.5); border-radius: 5px; overflow: hidden; margin-bottom: 12px;">
+                        <div style="width: 85%; height: 100%; background: #10B981; border-radius: 5px; transition: all 0.5s;"></div>
+                    </div>
+                    <p style="font-size: 12px; color: #94a3b8; margin-bottom: 16px;">undefined</p>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        
+                        <div style="display: flex; align-items: flex-start; gap: 8px; font-size: 11px;">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #22c55e; margin-top: 3px;"></span>
+                            <div>
+                                <span style="color: #e2e8f0;">Tier1/Tier2 boundary</span>
+                                <span style="display: block; color: #64748b;">✓ </span>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; align-items: flex-start; gap: 8px; font-size: 11px;">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #22c55e; margin-top: 3px;"></span>
+                            <div>
+                                <span style="color: #e2e8f0;">Supervisor independence</span>
+                                <span style="display: block; color: #64748b;">✓ </span>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; align-items: flex-start; gap: 8px; font-size: 11px;">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #eab308; margin-top: 3px;"></span>
+                            <div>
+                                <span style="color: #e2e8f0;">Simulation isolation</span>
+                                <span style="display: block; color: #64748b;">⚠ needs attention</span>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; align-items: flex-start; gap: 8px; font-size: 11px;">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #22c55e; margin-top: 3px;"></span>
+                            <div>
+                                <span style="color: #e2e8f0;">Module count</span>
+                                <span style="display: block; color: #64748b;">✓ </span>
+                            </div>
+                        </div>
+                        
+                    </div>
+                </div>
+                
+                <div style="background: rgba(13,18,32,0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+                        <h4 style="color: #e2e8f0; font-size: 14px; font-weight: 600;">Transaction Safety</h4>
+                        <span style="font-size: 18px; font-weight: 700; color: #f97316;">5.5</span>
+                    </div>
+                    <div style="width: 100%; height: 10px; background: rgba(51,65,85,0.5); border-radius: 5px; overflow: hidden; margin-bottom: 12px;">
+                        <div style="width: 55.00000000000001%; height: 100%; background: #EF4444; border-radius: 5px; transition: all 0.5s;"></div>
+                    </div>
+                    <p style="font-size: 12px; color: #94a3b8; margin-bottom: 16px;">undefined</p>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        
+                        <div style="display: flex; align-items: flex-start; gap: 8px; font-size: 11px;">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #ef4444; margin-top: 3px;"></span>
+                            <div>
+                                <span style="color: #e2e8f0;">Idempotency guarantees</span>
+                                <span style="display: block; color: #64748b;">✗ fails</span>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; align-items: flex-start; gap: 8px; font-size: 11px;">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #22c55e; margin-top: 3px;"></span>
+                            <div>
+                                <span style="color: #e2e8f0;">Atomic reservations</span>
+                                <span style="display: block; color: #64748b;">✓ </span>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; align-items: flex-start; gap: 8px; font-size: 11px;">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #ef4444; margin-top: 3px;"></span>
+                            <div>
+                                <span style="color: #e2e8f0;">Ambiguous result handling</span>
+                                <span style="display: block; color: #64748b;">✗ fails</span>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; align-items: flex-start; gap: 8px; font-size: 11px;">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #22c55e; margin-top: 3px;"></span>
+                            <div>
+                                <span style="color: #e2e8f0;">Hash-chained integrity</span>
+                                <span style="display: block; color: #64748b;">✓ </span>
+                            </div>
+                        </div>
+                        
+                    </div>
+                </div>
+                
+                <div style="background: rgba(13,18,32,0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+                        <h4 style="color: #e2e8f0; font-size: 14px; font-weight: 600;">Resilience & HA</h4>
+                        <span style="font-size: 18px; font-weight: 700; color: #f97316;">4.0</span>
+                    </div>
+                    <div style="width: 100%; height: 10px; background: rgba(51,65,85,0.5); border-radius: 5px; overflow: hidden; margin-bottom: 12px;">
+                        <div style="width: 40%; height: 100%; background: #EF4444; border-radius: 5px; transition: all 0.5s;"></div>
+                    </div>
+                    <p style="font-size: 12px; color: #94a3b8; margin-bottom: 16px;">undefined</p>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        
+                        <div style="display: flex; align-items: flex-start; gap: 8px; font-size: 11px;">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #ef4444; margin-top: 3px;"></span>
+                            <div>
+                                <span style="color: #e2e8f0;">Kernel redundancy</span>
+                                <span style="display: block; color: #64748b;">✗ fails</span>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; align-items: flex-start; gap: 8px; font-size: 11px;">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #ef4444; margin-top: 3px;"></span>
+                            <div>
+                                <span style="color: #e2e8f0;">Broker redundancy</span>
+                                <span style="display: block; color: #64748b;">✗ fails</span>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; align-items: flex-start; gap: 8px; font-size: 11px;">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #ef4444; margin-top: 3px;"></span>
+                            <div>
+                                <span style="color: #e2e8f0;">Backpressure</span>
+                                <span style="display: block; color: #64748b;">✗ fails</span>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; align-items: flex-start; gap: 8px; font-size: 11px;">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #eab308; margin-top: 3px;"></span>
+                            <div>
+                                <span style="color: #e2e8f0;">Recovery path</span>
+                                <span style="display: block; color: #64748b;">⚠ needs attention</span>
+                            </div>
+                        </div>
+                        
+                    </div>
+                </div>
+                
+                <div style="background: rgba(13,18,32,0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+                        <h4 style="color: #e2e8f0; font-size: 14px; font-weight: 600;">Scalability</h4>
+                        <span style="font-size: 18px; font-weight: 700; color: #f97316;">5.0</span>
+                    </div>
+                    <div style="width: 100%; height: 10px; background: rgba(51,65,85,0.5); border-radius: 5px; overflow: hidden; margin-bottom: 12px;">
+                        <div style="width: 50%; height: 100%; background: #F59E0B; border-radius: 5px; transition: all 0.5s;"></div>
+                    </div>
+                    <p style="font-size: 12px; color: #94a3b8; margin-bottom: 16px;">undefined</p>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        
+                        <div style="display: flex; align-items: flex-start; gap: 8px; font-size: 11px;">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #ef4444; margin-top: 3px;"></span>
+                            <div>
+                                <span style="color: #e2e8f0;">Database scaling</span>
+                                <span style="display: block; color: #64748b;">✗ fails</span>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; align-items: flex-start; gap: 8px; font-size: 11px;">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #ef4444; margin-top: 3px;"></span>
+                            <div>
+                                <span style="color: #e2e8f0;">Horizontal scaling</span>
+                                <span style="display: block; color: #64748b;">✗ fails</span>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; align-items: flex-start; gap: 8px; font-size: 11px;">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #ef4444; margin-top: 3px;"></span>
+                            <div>
+                                <span style="color: #e2e8f0;">Multi-region</span>
+                                <span style="display: block; color: #64748b;">✗ fails</span>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; align-items: flex-start; gap: 8px; font-size: 11px;">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #22c55e; margin-top: 3px;"></span>
+                            <div>
+                                <span style="color: #e2e8f0;">Code evolution</span>
+                                <span style="display: block; color: #64748b;">✓ </span>
+                            </div>
+                        </div>
+                        
+                    </div>
+                </div>
+                
+                <div style="background: rgba(13,18,32,0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 20px;">
+                    <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
+                        <h4 style="color: #e2e8f0; font-size: 14px; font-weight: 600;">Observability</h4>
+                        <span style="font-size: 18px; font-weight: 700; color: #f97316;">4.5</span>
+                    </div>
+                    <div style="width: 100%; height: 10px; background: rgba(51,65,85,0.5); border-radius: 5px; overflow: hidden; margin-bottom: 12px;">
+                        <div style="width: 45%; height: 100%; background: #F59E0B; border-radius: 5px; transition: all 0.5s;"></div>
+                    </div>
+                    <p style="font-size: 12px; color: #94a3b8; margin-bottom: 16px;">undefined</p>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                        
+                        <div style="display: flex; align-items: flex-start; gap: 8px; font-size: 11px;">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #eab308; margin-top: 3px;"></span>
+                            <div>
+                                <span style="color: #e2e8f0;">Structured logging</span>
+                                <span style="display: block; color: #64748b;">⚠ needs attention</span>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; align-items: flex-start; gap: 8px; font-size: 11px;">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #ef4444; margin-top: 3px;"></span>
+                            <div>
+                                <span style="color: #e2e8f0;">Metrics & tracing</span>
+                                <span style="display: block; color: #64748b;">✗ fails</span>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; align-items: flex-start; gap: 8px; font-size: 11px;">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #ef4444; margin-top: 3px;"></span>
+                            <div>
+                                <span style="color: #e2e8f0;">Alerting rules</span>
+                                <span style="display: block; color: #64748b;">✗ fails</span>
+                            </div>
+                        </div>
+                        
+                        <div style="display: flex; align-items: flex-start; gap: 8px; font-size: 11px;">
+                            <span style="width: 8px; height: 8px; border-radius: 50%; background: #eab308; margin-top: 3px;"></span>
+                            <div>
+                                <span style="color: #e2e8f0;">Operator dashboard</span>
+                                <span style="display: block; color: #64748b;">⚠ needs attention</span>
+                            </div>
+                        </div>
+                        
+                    </div>
+                </div>
+                
             </div>
 
-            <div class="card">
-                <h3>Medium-Term Enhancements</h3>
-                <ul>
-                    <li><strong>Database Migration Path:</strong> Plan migration from SQLite to PostgreSQL or distributed database</li>
-                    <li><strong>Cognitive Layer Stability:</strong> Add cooldown periods and proposal deduplication to prevent oscillation</li>
-                    <li><strong>Multi-Signature Governance:</strong> Evolve owner governance to support multi-signature approval</li>
-                </ul>
+            <!-- Module Coverage -->
+            <div style="background: rgba(13,18,32,0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 24px; margin-bottom: 30px;">
+                <h4 style="color: #e2e8f0; font-size: 14px; font-weight: 600; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+                    <i class="fa-solid fa-cubes-stacked" style="color: #60a5fa; font-size: 16px;"></i>
+                    Module Coverage Analysis
+                </h4>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px;">
+                    
+                        <div style="background: rgba(34,197,94,0.05); border: 1px solid #22c55e33; border-radius: 10px; padding: 12px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                                <span style="font-size: 12px; font-weight: 500; color: #e2e8f0;">Market Data & Canvas</span>
+                                <span style="font-size: 11px; color: #22c55e;">1 issues</span>
+                            </div>
+                            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                                
+                                
+                                
+                            </div>
+                        </div>
+                        
+                        <div style="background: rgba(34,197,94,0.05); border: 1px solid #22c55e33; border-radius: 10px; padding: 12px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                                <span style="font-size: 12px; font-weight: 500; color: #e2e8f0;">Tier2 Cognition</span>
+                                <span style="font-size: 11px; color: #22c55e;">1 issues</span>
+                            </div>
+                            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                                
+                                
+                                
+                            </div>
+                        </div>
+                        
+                        <div style="background: rgba(239,68,68,0.05); border: 1px solid #ef444433; border-radius: 10px; padding: 12px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                                <span style="font-size: 12px; font-weight: 500; color: #e2e8f0;">Production Tier1 Kernel</span>
+                                <span style="font-size: 11px; color: #ef4444;">10 issues</span>
+                            </div>
+                            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                                <span style="font-size: 10px; padding: 2px 8px; border-radius: 12px; background: rgba(239,68,68,0.1); color: #ef4444; border: 1px solid rgba(239,68,68,0.2);">1 critical</span>
+                                <span style="font-size: 10px; padding: 2px 8px; border-radius: 12px; background: rgba(249,115,22,0.1); color: #f97316; border: 1px solid rgba(249,115,22,0.2);">3 high</span>
+                                
+                            </div>
+                        </div>
+                        
+                        <div style="background: rgba(249,115,22,0.05); border: 1px solid #f9731633; border-radius: 10px; padding: 12px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                                <span style="font-size: 12px; font-weight: 500; color: #e2e8f0;">OpenAlgo Broker Boundary</span>
+                                <span style="font-size: 11px; color: #f97316;">4 issues</span>
+                            </div>
+                            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                                
+                                <span style="font-size: 10px; padding: 2px 8px; border-radius: 12px; background: rgba(249,115,22,0.1); color: #f97316; border: 1px solid rgba(249,115,22,0.2);">3 high</span>
+                                
+                            </div>
+                        </div>
+                        
+                        <div style="background: rgba(239,68,68,0.05); border: 1px solid #ef444433; border-radius: 10px; padding: 12px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                                <span style="font-size: 12px; font-weight: 500; color: #e2e8f0;">SQLite WAL Ledger</span>
+                                <span style="font-size: 11px; color: #ef4444;">3 issues</span>
+                            </div>
+                            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                                <span style="font-size: 10px; padding: 2px 8px; border-radius: 12px; background: rgba(239,68,68,0.1); color: #ef4444; border: 1px solid rgba(239,68,68,0.2);">1 critical</span>
+                                <span style="font-size: 10px; padding: 2px 8px; border-radius: 12px; background: rgba(249,115,22,0.1); color: #f97316; border: 1px solid rgba(249,115,22,0.2);">2 high</span>
+                                
+                            </div>
+                        </div>
+                        
+                        <div style="background: rgba(34,197,94,0.05); border: 1px solid #22c55e33; border-radius: 10px; padding: 12px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                                <span style="font-size: 12px; font-weight: 500; color: #e2e8f0;">Protection & Reconciliation</span>
+                                <span style="font-size: 11px; color: #22c55e;">0 issues</span>
+                            </div>
+                            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                                
+                                
+                                <span style="font-size: 10px; padding: 2px 8px; border-radius: 12px; background: rgba(34,197,94,0.1); color: #22c55e; border: 1px solid rgba(34,197,94,0.2);">healthy</span>
+                            </div>
+                        </div>
+                        
+                        <div style="background: rgba(234,179,8,0.05); border: 1px solid #eab30833; border-radius: 10px; padding: 12px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                                <span style="font-size: 12px; font-weight: 500; color: #e2e8f0;">Disarmed Simulation</span>
+                                <span style="font-size: 11px; color: #eab308;">2 issues</span>
+                            </div>
+                            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                                
+                                
+                                
+                            </div>
+                        </div>
+                        
+                        <div style="background: rgba(34,197,94,0.05); border: 1px solid #22c55e33; border-radius: 10px; padding: 12px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                                <span style="font-size: 12px; font-weight: 500; color: #e2e8f0;">Research & Promotion</span>
+                                <span style="font-size: 11px; color: #22c55e;">0 issues</span>
+                            </div>
+                            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                                
+                                
+                                <span style="font-size: 10px; padding: 2px 8px; border-radius: 12px; background: rgba(34,197,94,0.1); color: #22c55e; border: 1px solid rgba(34,197,94,0.2);">healthy</span>
+                            </div>
+                        </div>
+                        
+                        <div style="background: rgba(239,68,68,0.05); border: 1px solid #ef444433; border-radius: 10px; padding: 12px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                                <span style="font-size: 12px; font-weight: 500; color: #e2e8f0;">Operations & Recovery</span>
+                                <span style="font-size: 11px; color: #ef4444;">4 issues</span>
+                            </div>
+                            <div style="display: flex; gap: 6px; flex-wrap: wrap;">
+                                <span style="font-size: 10px; padding: 2px 8px; border-radius: 12px; background: rgba(239,68,68,0.1); color: #ef4444; border: 1px solid rgba(239,68,68,0.2);">1 critical</span>
+                                <span style="font-size: 10px; padding: 2px 8px; border-radius: 12px; background: rgba(249,115,22,0.1); color: #f97316; border: 1px solid rgba(249,115,22,0.2);">1 high</span>
+                                
+                            </div>
+                        </div>
+                        
+                </div>
             </div>
 
-            <div class="card">
-                <h3>Review Summary</h3>
-                <p><strong>Total Issues Found:</strong> 6<br>
-                <strong>Critical:</strong> 1<br>
-                <strong>High:</strong> 4<br>
-                <strong>Medium:</strong> 1<br>
-                <strong>Low:</strong> 0</p>
+            <!-- Final Verdict -->
+            <div style="background: linear-gradient(90deg, rgba(59,130,246,0.05) 0%, rgba(139,92,246,0.05) 100%); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 24px; margin-bottom: 30px;">
+                <h4 style="color: #e2e8f0; font-size: 14px; font-weight: 600; margin-bottom: 20px; display: flex; align-items: center; gap: 10px;">
+                    <i class="fa-solid fa-gavel" style="color: #f59e0b; font-size: 16px;"></i>
+                    Final Verdict & Path Forward
+                </h4>
+                <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px;">
+                    <div style="background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2); border-radius: 10px; padding: 16px;">
+                        <h5 style="color: #ef4444; font-size: 12px; font-weight: 700; margin-bottom: 10px; text-transform: uppercase;">Must Fix Before Live</h5>
+                        <ul style="margin-left: 16px; font-size: 13px; color: #e2e8f0; line-height: 1.6;">
+                            <li>Idempotency at all external boundaries</li>
+                            <li>Formal ambiguous result resolution</li>
+                            <li>Kernel failover mechanism</li>
+                            <li>Simulation disarming verification</li>
+                        </ul>
+                    </div>
+                    <div style="background: rgba(249,115,22,0.1); border: 1px solid rgba(249,115,22,0.2); border-radius: 10px; padding: 16px;">
+                        <h5 style="color: #f97316; font-size: 12px; font-weight: 700; margin-bottom: 10px; text-transform: uppercase;">Should Fix Soon</h5>
+                        <ul style="margin-left: 16px; font-size: 13px; color: #e2e8f0; line-height: 1.6;">
+                            <li>Comprehensive observability stack</li>
+                            <li>Backpressure & rate limiting</li>
+                            <li>Multi-sig governance</li>
+                            <li>RTO/RPO targets & testing</li>
+                        </ul>
+                    </div>
+                    <div style="background: rgba(59,130,246,0.1); border: 1px solid rgba(59,130,246,0.2); border-radius: 10px; padding: 16px;">
+                        <h5 style="color: #60a5fa; font-size: 12px; font-weight: 700; margin-bottom: 10px; text-transform: uppercase;">Future Enhancement</h5>
+                        <ul style="margin-left: 16px; font-size: 13px; color: #e2e8f0; line-height: 1.6;">
+                            <li>Multi-broker adapter abstraction</li>
+                            <li>Database scaling migration</li>
+                            <li>Horizontal kernel scaling</li>
+                            <li>API versioning strategy</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Improvement Roadmap Component -->
+            <h3>Improvement Roadmap</h3>
+            <div style="margin-bottom: 20px;">
+                <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px;">
+                    <button style="padding: 8px 16px; border-radius: 20px; border: 1px solid #475569; background: #334155; color: #e2e8f0; font-size: 13px; font-weight: 500; cursor: pointer;">All Priorities</button>
+                    <button style="padding: 8px 16px; border-radius: 20px; border: 1px solid rgba(239,68,68,0.3); background: rgba(239,68,68,0.1); color: #ef4444; font-size: 13px; font-weight: 500; cursor: pointer;">Immediate</button>
+                    <button style="padding: 8px 16px; border-radius: 20px; border: 1px solid rgba(249,115,22,0.3); background: rgba(249,115,22,0.1); color: #f97316; font-size: 13px; font-weight: 500; cursor: pointer;">Short-term</button>
+                    <button style="padding: 8px 16px; border-radius: 20px; border: 1px solid rgba(59,130,246,0.3); background: rgba(59,130,246,0.1); color: #60a5fa; font-size: 13px; font-weight: 500; cursor: pointer;">Medium-term</button>
+                </div>
+            </div>
+            <div style="margin-bottom: 30px;">
+                
+                <div style="position: relative; margin-bottom: 24px;">
+                    <div style="position: absolute; left: 28px; top: 60px; bottom: 0; width: 2px; background: rgba(255,255,255,0.1);"></div>
+                    <div style="border-radius: 16px; overflow: hidden; background: rgba(13,18,32,0.6); border: 1px solid rgba(239,68,68,0.3);">
+                        <button onclick="toggleRecommendation('rec1')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
+                            <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(239,68,68,0.1); display: flex; align-items: center; justify-content: center;">
+                                <i class="fa-solid bolt" style="color: #ef4444; font-size: 18px;"></i>
+                            </div>
+                            <div style="flex: 1;">
+                                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                                    <h4 style="color: #e2e8f0; font-size: 15px;">Implement Broker Adapter Abstraction</h4>
+                                    <span style="font-size: 11px; padding: 4px 10px; border-radius: 20px; background: rgba(239,68,68,0.1); color: #ef4444; font-weight: 700; text-transform: uppercase;">Immediate</span>
+                                </div>
+                                <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5;">Create a formal BrokerAdapter port that abstracts execution, observation, and lifecycle operations.</p>
+                                <div style="display: flex; gap: 8px; margin-top: 10px;">
+                                    <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(51,65,85,0.5); color: #94a3b8;">Extensibility</span>
+                                    <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(34,197,94,0.1); color: #22c55e;">4 benefits</span>
+                                    <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(249,115,22,0.1); color: #f97316;">3 tradeoffs</span>
+                                </div>
+                            </div>
+                            <i class="fa-solid fa-chevron-down" style="color: #64748b; font-size: 14px; margin-top: 14px;"></i>
+                        </button>
+                        <div id="rec-rec1" style="display: none; border-top: 1px solid rgba(255,255,255,0.05);">
+                            <div style="padding: 20px;">
+                                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
+                                    <div>
+                                        <h5 style="color: #60a5fa; font-size: 12px; font-weight: 600; margin-bottom: 10px;">Implementation Steps</h5>
+                                        <ol style="margin-left: 20px; font-size: 13px; color: #e2e8f0; line-height: 1.6;">
+                                            <li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">1</span> Define BrokerAdapter interface with execute, observe, reconcile, and lifecycle methods</li><li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">2</span> Create OpenAlgoAdapter as the first implementation</li><li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">3</span> Add adapter registry with health checking and failover logic</li><li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">4</span> Implement circuit breaker pattern per adapter</li><li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">5</span> Add integration test suite that all adapters must pass</li>
+                                        </ol>
+                                    </div>
+                                    <div>
+                                        <h5 style="color: #22c55e; font-size: 12px; font-weight: 600; margin-bottom: 10px;">Benefits</h5>
+                                        <ul style="margin-left: 20px; font-size: 13px; color: #e2e8f0; line-height: 1.6;">
+                                            <li style="margin-bottom: 6px;">Eliminates single broker dependency</li><li style="margin-bottom: 6px;">Enables broker diversification for risk management</li><li style="margin-bottom: 6px;">Simplifies testing with mock adapters</li><li style="margin-bottom: 6px;">Future-proofs against broker API changes</li>
+                                        </ul>
+                                    </div>
+                                    <div>
+                                        <h5 style="color: #f97316; font-size: 12px; font-weight: 600; margin-bottom: 10px;">Tradeoffs</h5>
+                                        <ul style="margin-left: 20px; font-size: 13px; color: #e2e8f0; line-height: 1.6;">
+                                            <li style="margin-bottom: 6px;">Abstraction may not capture all broker-specific features</li><li style="margin-bottom: 6px;">Additional complexity in adapter management</li><li style="margin-bottom: 6px;">Testing matrix grows with each adapter</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="position: relative; margin-bottom: 24px;">
+                    <div style="position: absolute; left: 28px; top: 60px; bottom: 0; width: 2px; background: rgba(255,255,255,0.1);"></div>
+                    <div style="border-radius: 16px; overflow: hidden; background: rgba(13,18,32,0.6); border: 1px solid rgba(239,68,68,0.3);">
+                        <button onclick="toggleRecommendation('rec2')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
+                            <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(239,68,68,0.1); display: flex; align-items: center; justify-content: center;">
+                                <i class="fa-solid bolt" style="color: #ef4444; font-size: 18px;"></i>
+                            </div>
+                            <div style="flex: 1;">
+                                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                                    <h4 style="color: #e2e8f0; font-size: 15px;">Add Idempotency Layer</h4>
+                                    <span style="font-size: 11px; padding: 4px 10px; border-radius: 20px; background: rgba(239,68,68,0.1); color: #ef4444; font-weight: 700; text-transform: uppercase;">Immediate</span>
+                                </div>
+                                <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5;">Implement idempotency keys at every external boundary to prevent duplicate execution from retries.</p>
+                                <div style="display: flex; gap: 8px; margin-top: 10px;">
+                                    <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(51,65,85,0.5); color: #94a3b8;">Transaction Safety</span>
+                                    <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(34,197,94,0.1); color: #22c55e;">4 benefits</span>
+                                    <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(249,115,22,0.1); color: #f97316;">3 tradeoffs</span>
+                                </div>
+                            </div>
+                            <i class="fa-solid fa-chevron-down" style="color: #64748b; font-size: 14px; margin-top: 14px;"></i>
+                        </button>
+                        <div id="rec-rec2" style="display: none; border-top: 1px solid rgba(255,255,255,0.05);">
+                            <div style="padding: 20px;">
+                                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
+                                    <div>
+                                        <h5 style="color: #60a5fa; font-size: 12px; font-weight: 600; margin-bottom: 10px;">Implementation Steps</h5>
+                                        <ol style="margin-left: 20px; font-size: 13px; color: #e2e8f0; line-height: 1.6;">
+                                            <li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">1</span> Generate UUID idempotency keys at intent creation</li><li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">2</span> Store keys in ledger before external calls</li><li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">3</span> Check idempotency store before every broker call</li><li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">4</span> Implement idempotent observation ingestion</li><li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">5</span> Add reconciliation queries for ambiguous results</li>
+                                        </ol>
+                                    </div>
+                                    <div>
+                                        <h5 style="color: #22c55e; font-size: 12px; font-weight: 600; margin-bottom: 10px;">Benefits</h5>
+                                        <ul style="margin-left: 20px; font-size: 13px; color: #e2e8f0; line-height: 1.6;">
+                                            <li style="margin-bottom: 6px;">Prevents duplicate orders and fills</li><li style="margin-bottom: 6px;">Enables safe retries without side effects</li><li style="margin-bottom: 6px;">Simplifies error recovery</li><li style="margin-bottom: 6px;">Provides audit trail for all operations</li>
+                                        </ul>
+                                    </div>
+                                    <div>
+                                        <h5 style="color: #f97316; font-size: 12px; font-weight: 600; margin-bottom: 10px;">Tradeoffs</h5>
+                                        <ul style="margin-left: 20px; font-size: 13px; color: #e2e8f0; line-height: 1.6;">
+                                            <li style="margin-bottom: 6px;">Additional storage for idempotency keys</li><li style="margin-bottom: 6px;">Slight latency increase for key lookup</li><li style="margin-bottom: 6px;">Key expiry/cleanup strategy needed</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="position: relative; margin-bottom: 24px;">
+                    <div style="position: absolute; left: 28px; top: 60px; bottom: 0; width: 2px; background: rgba(255,255,255,0.1);"></div>
+                    <div style="border-radius: 16px; overflow: hidden; background: rgba(13,18,32,0.6); border: 1px solid rgba(59,130,246,0.3);">
+                        <button onclick="toggleRecommendation('rec3')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
+                            <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(59,130,246,0.1); display: flex; align-items: center; justify-content: center;">
+                                <i class="fa-solid calendar" style="color: #60a5fa; font-size: 18px;"></i>
+                            </div>
+                            <div style="flex: 1;">
+                                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                                    <h4 style="color: #e2e8f0; font-size: 15px;">Kernel High Availability</h4>
+                                    <span style="font-size: 11px; padding: 4px 10px; border-radius: 20px; background: rgba(59,130,246,0.1); color: #60a5fa; font-weight: 700; text-transform: uppercase;">Medium-term</span>
+                                </div>
+                                <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5;">Implement active-passive kernel replication with automatic failover to eliminate the single kernel SPOF.</p>
+                                <div style="display: flex; gap: 8px; margin-top: 10px;">
+                                    <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(51,65,85,0.5); color: #94a3b8;">Resilience</span>
+                                    <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(34,197,94,0.1); color: #22c55e;">4 benefits</span>
+                                    <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(249,115,22,0.1); color: #f97316;">3 tradeoffs</span>
+                                </div>
+                            </div>
+                            <i class="fa-solid fa-chevron-down" style="color: #64748b; font-size: 14px; margin-top: 14px;"></i>
+                        </button>
+                        <div id="rec-rec3" style="display: none; border-top: 1px solid rgba(255,255,255,0.05);">
+                            <div style="padding: 20px;">
+                                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
+                                    <div>
+                                        <h5 style="color: #60a5fa; font-size: 12px; font-weight: 600; margin-bottom: 10px;">Implementation Steps</h5>
+                                        <ol style="margin-left: 20px; font-size: 13px; color: #e2e8f0; line-height: 1.6;">
+                                            <li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">1</span> Design passive kernel that replays ledger to maintain state</li><li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">2</span> Implement leader election using distributed lock service</li><li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">3</span> Add health checking and automatic failover triggers</li><li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">4</span> Define RTO (< 30s) and RPO (0 for committed transactions) targets</li><li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">5</span> Test failover scenarios regularly with chaos engineering</li>
+                                        </ol>
+                                    </div>
+                                    <div>
+                                        <h5 style="color: #22c55e; font-size: 12px; font-weight: 600; margin-bottom: 10px;">Benefits</h5>
+                                        <ul style="margin-left: 20px; font-size: 13px; color: #e2e8f0; line-height: 1.6;">
+                                            <li style="margin-bottom: 6px;">Eliminates single kernel SPOF</li><li style="margin-bottom: 6px;">Near-zero downtime for kernel failures</li><li style="margin-bottom: 6px;">Enables rolling upgrades without trading halt</li><li style="margin-bottom: 6px;">Improves overall system resilience</li>
+                                        </ul>
+                                    </div>
+                                    <div>
+                                        <h5 style="color: #f97316; font-size: 12px; font-weight: 600; margin-bottom: 10px;">Tradeoffs</h5>
+                                        <ul style="margin-left: 20px; font-size: 13px; color: #e2e8f0; line-height: 1.6;">
+                                            <li style="margin-bottom: 6px;">Increased infrastructure complexity</li><li style="margin-bottom: 6px;">Replication lag must be monitored</li><li style="margin-bottom: 6px;">Failover testing requires careful coordination</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="position: relative; margin-bottom: 24px;">
+                    <div style="position: absolute; left: 28px; top: 60px; bottom: 0; width: 2px; background: rgba(255,255,255,0.1);"></div>
+                    <div style="border-radius: 16px; overflow: hidden; background: rgba(13,18,32,0.6); border: 1px solid rgba(59,130,246,0.3);">
+                        <button onclick="toggleRecommendation('rec4')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
+                            <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(59,130,246,0.1); display: flex; align-items: center; justify-content: center;">
+                                <i class="fa-solid calendar" style="color: #60a5fa; font-size: 18px;"></i>
+                            </div>
+                            <div style="flex: 1;">
+                                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                                    <h4 style="color: #e2e8f0; font-size: 15px;">Formal Simulation Isolation</h4>
+                                    <span style="font-size: 11px; padding: 4px 10px; border-radius: 20px; background: rgba(59,130,246,0.1); color: #60a5fa; font-weight: 700; text-transform: uppercase;">Medium-term</span>
+                                </div>
+                                <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5;">Implement capability-based security to formally guarantee simulation cannot access live broker credentials.</p>
+                                <div style="display: flex; gap: 8px; margin-top: 10px;">
+                                    <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(51,65,85,0.5); color: #94a3b8;">Safety</span>
+                                    <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(34,197,94,0.1); color: #22c55e;">4 benefits</span>
+                                    <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(249,115,22,0.1); color: #f97316;">3 tradeoffs</span>
+                                </div>
+                            </div>
+                            <i class="fa-solid fa-chevron-down" style="color: #64748b; font-size: 14px; margin-top: 14px;"></i>
+                        </button>
+                        <div id="rec-rec4" style="display: none; border-top: 1px solid rgba(255,255,255,0.05);">
+                            <div style="padding: 20px;">
+                                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
+                                    <div>
+                                        <h5 style="color: #60a5fa; font-size: 12px; font-weight: 600; margin-bottom: 10px;">Implementation Steps</h5>
+                                        <ol style="margin-left: 20px; font-size: 13px; color: #e2e8f0; line-height: 1.6;">
+                                            <li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">1</span> Separate simulation into distinct process/container</li><li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">2</span> Remove all broker credentials from simulation environment</li><li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">3</span> Add compile-time capability checks</li><li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">4</span> Implement runtime assertions for network access restrictions</li><li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">5</span> Add automated verification in CI/CD pipeline</li>
+                                        </ol>
+                                    </div>
+                                    <div>
+                                        <h5 style="color: #22c55e; font-size: 12px; font-weight: 600; margin-bottom: 10px;">Benefits</h5>
+                                        <ul style="margin-left: 20px; font-size: 13px; color: #e2e8f0; line-height: 1.6;">
+                                            <li style="margin-bottom: 6px;">Formal guarantee against accidental live execution</li><li style="margin-bottom: 6px;">Simplifies compliance and audit</li><li style="margin-bottom: 6px;">Enables safer experimentation</li><li style="margin-bottom: 6px;">Reduces operational risk</li>
+                                        </ul>
+                                    </div>
+                                    <div>
+                                        <h5 style="color: #f97316; font-size: 12px; font-weight: 600; margin-bottom: 10px;">Tradeoffs</h5>
+                                        <ul style="margin-left: 20px; font-size: 13px; color: #e2e8f0; line-height: 1.6;">
+                                            <li style="margin-bottom: 6px;">More complex build/deployment pipeline</li><li style="margin-bottom: 6px;">Cannot share some optimizations between prod/sim</li><li style="margin-bottom: 6px;">Additional testing for isolation guarantees</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="position: relative; margin-bottom: 24px;">
+                    <div style="position: absolute; left: 28px; top: 60px; bottom: 0; width: 2px; background: rgba(255,255,255,0.1);"></div>
+                    <div style="border-radius: 16px; overflow: hidden; background: rgba(13,18,32,0.6); border: 1px solid rgba(59,130,246,0.3);">
+                        <button onclick="toggleRecommendation('rec5')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
+                            <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(59,130,246,0.1); display: flex; align-items: center; justify-content: center;">
+                                <i class="fa-solid calendar" style="color: #60a5fa; font-size: 18px;"></i>
+                            </div>
+                            <div style="flex: 1;">
+                                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                                    <h4 style="color: #e2e8f0; font-size: 15px;">Comprehensive Observability Stack</h4>
+                                    <span style="font-size: 11px; padding: 4px 10px; border-radius: 20px; background: rgba(59,130,246,0.1); color: #60a5fa; font-weight: 700; text-transform: uppercase;">Medium-term</span>
+                                </div>
+                                <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5;">Implement structured observability with metrics, distributed tracing, and intelligent alerting.</p>
+                                <div style="display: flex; gap: 8px; margin-top: 10px;">
+                                    <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(51,65,85,0.5); color: #94a3b8;">Operations</span>
+                                    <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(34,197,94,0.1); color: #22c55e;">4 benefits</span>
+                                    <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(249,115,22,0.1); color: #f97316;">3 tradeoffs</span>
+                                </div>
+                            </div>
+                            <i class="fa-solid fa-chevron-down" style="color: #64748b; font-size: 14px; margin-top: 14px;"></i>
+                        </button>
+                        <div id="rec-rec5" style="display: none; border-top: 1px solid rgba(255,255,255,0.05);">
+                            <div style="padding: 20px;">
+                                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
+                                    <div>
+                                        <h5 style="color: #60a5fa; font-size: 12px; font-weight: 600; margin-bottom: 10px;">Implementation Steps</h5>
+                                        <ol style="margin-left: 20px; font-size: 13px; color: #e2e8f0; line-height: 1.6;">
+                                            <li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">1</span> Add structured logging with correlation IDs at all boundaries</li><li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">2</span> Implement OpenTelemetry for distributed tracing</li><li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">3</span> Define key metrics: latency percentiles, throughput, error rates per stage</li><li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">4</span> Create alerting rules for critical conditions</li><li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">5</span> Build operator dashboard with real-time system health view</li>
+                                        </ol>
+                                    </div>
+                                    <div>
+                                        <h5 style="color: #22c55e; font-size: 12px; font-weight: 600; margin-bottom: 10px;">Benefits</h5>
+                                        <ul style="margin-left: 20px; font-size: 13px; color: #e2e8f0; line-height: 1.6;">
+                                            <li style="margin-bottom: 6px;">Rapid issue detection and diagnosis</li><li style="margin-bottom: 6px;">Data-driven performance optimization</li><li style="margin-bottom: 6px;">Improved incident response time</li><li style="margin-bottom: 6px;">Better capacity planning</li>
+                                        </ul>
+                                    </div>
+                                    <div>
+                                        <h5 style="color: #f97316; font-size: 12px; font-weight: 600; margin-bottom: 10px;">Tradeoffs</h5>
+                                        <ul style="margin-left: 20px; font-size: 13px; color: #e2e8f0; line-height: 1.6;">
+                                            <li style="margin-bottom: 6px;">Additional infrastructure for metrics/traces</li><li style="margin-bottom: 6px;">Performance overhead from instrumentation</li><li style="margin-bottom: 6px;">Alert fatigue risk if not tuned carefully</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="position: relative; margin-bottom: 24px;">
+                    <div style="position: absolute; left: 28px; top: 60px; bottom: 0; width: 2px; background: rgba(255,255,255,0.1);"></div>
+                    <div style="border-radius: 16px; overflow: hidden; background: rgba(13,18,32,0.6); border: 1px solid rgba(59,130,246,0.3);">
+                        <button onclick="toggleRecommendation('rec6')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
+                            <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(59,130,246,0.1); display: flex; align-items: center; justify-content: center;">
+                                <i class="fa-solid calendar" style="color: #60a5fa; font-size: 18px;"></i>
+                            </div>
+                            <div style="flex: 1;">
+                                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                                    <h4 style="color: #e2e8f0; font-size: 15px;">Database Migration Path</h4>
+                                    <span style="font-size: 11px; padding: 4px 10px; border-radius: 20px; background: rgba(59,130,246,0.1); color: #60a5fa; font-weight: 700; text-transform: uppercase;">Medium-term</span>
+                                </div>
+                                <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5;">Plan and implement a migration path from SQLite to a more scalable database.</p>
+                                <div style="display: flex; gap: 8px; margin-top: 10px;">
+                                    <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(51,65,85,0.5); color: #94a3b8;">Scalability</span>
+                                    <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(34,197,94,0.1); color: #22c55e;">4 benefits</span>
+                                    <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(249,115,22,0.1); color: #f97316;">3 tradeoffs</span>
+                                </div>
+                            </div>
+                            <i class="fa-solid fa-chevron-down" style="color: #64748b; font-size: 14px; margin-top: 14px;"></i>
+                        </button>
+                        <div id="rec-rec6" style="display: none; border-top: 1px solid rgba(255,255,255,0.05);">
+                            <div style="padding: 20px;">
+                                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
+                                    <div>
+                                        <h5 style="color: #60a5fa; font-size: 12px; font-weight: 600; margin-bottom: 10px;">Implementation Steps</h5>
+                                        <ol style="margin-left: 20px; font-size: 13px; color: #e2e8f0; line-height: 1.6;">
+                                            <li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">1</span> Evaluate PostgreSQL vs. distributed DB (CockroachDB, FoundationDB)</li><li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">2</span> Implement dual-write phase with consistency verification</li><li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">3</span> Migrate read paths first, then write paths</li><li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">4</span> Add replication for multi-region deployment</li><li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">5</span> Maintain hash-chaining as application-level integrity check</li>
+                                        </ol>
+                                    </div>
+                                    <div>
+                                        <h5 style="color: #22c55e; font-size: 12px; font-weight: 600; margin-bottom: 10px;">Benefits</h5>
+                                        <ul style="margin-left: 20px; font-size: 13px; color: #e2e8f0; line-height: 1.6;">
+                                            <li style="margin-bottom: 6px;">Removes write bottleneck</li><li style="margin-bottom: 6px;">Enables horizontal scaling</li><li style="margin-bottom: 6px;">Supports multi-region deployment</li><li style="margin-bottom: 6px;">Better concurrent access patterns</li>
+                                        </ul>
+                                    </div>
+                                    <div>
+                                        <h5 style="color: #f97316; font-size: 12px; font-weight: 600; margin-bottom: 10px;">Tradeoffs</h5>
+                                        <ul style="margin-left: 20px; font-size: 13px; color: #e2e8f0; line-height: 1.6;">
+                                            <li style="margin-bottom: 6px;">Migration complexity and risk</li><li style="margin-bottom: 6px;">Increased operational overhead</li><li style="margin-bottom: 6px;">Additional infrastructure costs</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="position: relative; margin-bottom: 24px;">
+                    <div style="position: absolute; left: 28px; top: 60px; bottom: 0; width: 2px; background: rgba(255,255,255,0.1);"></div>
+                    <div style="border-radius: 16px; overflow: hidden; background: rgba(13,18,32,0.6); border: 1px solid rgba(59,130,246,0.3);">
+                        <button onclick="toggleRecommendation('rec7')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
+                            <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(59,130,246,0.1); display: flex; align-items: center; justify-content: center;">
+                                <i class="fa-solid calendar" style="color: #60a5fa; font-size: 18px;"></i>
+                            </div>
+                            <div style="flex: 1;">
+                                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                                    <h4 style="color: #e2e8f0; font-size: 15px;">Cognitive Layer Stability Controls</h4>
+                                    <span style="font-size: 11px; padding: 4px 10px; border-radius: 20px; background: rgba(59,130,246,0.1); color: #60a5fa; font-weight: 700; text-transform: uppercase;">Medium-term</span>
+                                </div>
+                                <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5;">Add explicit stability controls to the cognition-decision feedback loop.</p>
+                                <div style="display: flex; gap: 8px; margin-top: 10px;">
+                                    <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(51,65,85,0.5); color: #94a3b8;">Stability</span>
+                                    <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(34,197,94,0.1); color: #22c55e;">4 benefits</span>
+                                    <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(249,115,22,0.1); color: #f97316;">3 tradeoffs</span>
+                                </div>
+                            </div>
+                            <i class="fa-solid fa-chevron-down" style="color: #64748b; font-size: 14px; margin-top: 14px;"></i>
+                        </button>
+                        <div id="rec-rec7" style="display: none; border-top: 1px solid rgba(255,255,255,0.05);">
+                            <div style="padding: 20px;">
+                                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
+                                    <div>
+                                        <h5 style="color: #60a5fa; font-size: 12px; font-weight: 600; margin-bottom: 10px;">Implementation Steps</h5>
+                                        <ol style="margin-left: 20px; font-size: 13px; color: #e2e8f0; line-height: 1.6;">
+                                            <li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">1</span> Implement cooldown periods between cognition cycles</li><li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">2</span> Add proposal deduplication with similarity threshold</li><li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">3</span> Define maximum proposal rate limits per time window</li><li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">4</span> Add proposal confidence scoring with minimum threshold</li><li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">5</span> Implement circuit breaker for cognition layer</li>
+                                        </ol>
+                                    </div>
+                                    <div>
+                                        <h5 style="color: #22c55e; font-size: 12px; font-weight: 600; margin-bottom: 10px;">Benefits</h5>
+                                        <ul style="margin-left: 20px; font-size: 13px; color: #e2e8f0; line-height: 1.6;">
+                                            <li style="margin-bottom: 6px;">Prevents oscillation and excessive proposals</li><li style="margin-bottom: 6px;">Improves signal quality</li><li style="margin-bottom: 6px;">Protects against resource exhaustion</li><li style="margin-bottom: 6px;">Enables graceful degradation</li>
+                                        </ul>
+                                    </div>
+                                    <div>
+                                        <h5 style="color: #f97316; font-size: 12px; font-weight: 600; margin-bottom: 10px;">Tradeoffs</h5>
+                                        <ul style="margin-left: 20px; font-size: 13px; color: #e2e8f0; line-height: 1.6;">
+                                            <li style="margin-bottom: 6px;">May slow response to genuine opportunities</li><li style="margin-bottom: 6px;">Tuning parameters require experimentation</li><li style="margin-bottom: 6px;">Additional complexity in cognition runtime</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div style="position: relative; margin-bottom: 24px;">
+                    
+                    <div style="border-radius: 16px; overflow: hidden; background: rgba(13,18,32,0.6); border: 1px solid rgba(59,130,246,0.3);">
+                        <button onclick="toggleRecommendation('rec8')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
+                            <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(59,130,246,0.1); display: flex; align-items: center; justify-content: center;">
+                                <i class="fa-solid calendar" style="color: #60a5fa; font-size: 18px;"></i>
+                            </div>
+                            <div style="flex: 1;">
+                                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
+                                    <h4 style="color: #e2e8f0; font-size: 15px;">Multi-Signature Governance</h4>
+                                    <span style="font-size: 11px; padding: 4px 10px; border-radius: 20px; background: rgba(59,130,246,0.1); color: #60a5fa; font-weight: 700; text-transform: uppercase;">Medium-term</span>
+                                </div>
+                                <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5;">Evolve owner governance to support multi-signature approval and emergency protocols.</p>
+                                <div style="display: flex; gap: 8px; margin-top: 10px;">
+                                    <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(51,65,85,0.5); color: #94a3b8;">Governance</span>
+                                    <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(34,197,94,0.1); color: #22c55e;">4 benefits</span>
+                                    <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(249,115,22,0.1); color: #f97316;">3 tradeoffs</span>
+                                </div>
+                            </div>
+                            <i class="fa-solid fa-chevron-down" style="color: #64748b; font-size: 14px; margin-top: 14px;"></i>
+                        </button>
+                        <div id="rec-rec8" style="display: none; border-top: 1px solid rgba(255,255,255,0.05);">
+                            <div style="padding: 20px;">
+                                <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 20px;">
+                                    <div>
+                                        <h5 style="color: #60a5fa; font-size: 12px; font-weight: 600; margin-bottom: 10px;">Implementation Steps</h5>
+                                        <ol style="margin-left: 20px; font-size: 13px; color: #e2e8f0; line-height: 1.6;">
+                                            <li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">1</span> Define governance roles with different permission levels</li><li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">2</span> Implement multi-sig approval for policy changes</li><li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">3</span> Add pre-approved emergency policies with activation conditions</li><li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">4</span> Implement time-locked delegation for owner absence</li><li style="margin-bottom: 8px; position: relative;"><span style="position: absolute; left: -18px; top: 1px; font-size: 9px; color: #60a5fa;">5</span> Add comprehensive audit trail for all governance actions</li>
+                                        </ol>
+                                    </div>
+                                    <div>
+                                        <h5 style="color: #22c55e; font-size: 12px; font-weight: 600; margin-bottom: 10px;">Benefits</h5>
+                                        <ul style="margin-left: 20px; font-size: 13px; color: #e2e8f0; line-height: 1.6;">
+                                            <li style="margin-bottom: 6px;">Eliminates single-person dependency</li><li style="margin-bottom: 6px;">Enables faster emergency response</li><li style="margin-bottom: 6px;">Improved security through separation of duties</li><li style="margin-bottom: 6px;">Better compliance and audit capabilities</li>
+                                        </ul>
+                                    </div>
+                                    <div>
+                                        <h5 style="color: #f97316; font-size: 12px; font-weight: 600; margin-bottom: 10px;">Tradeoffs</h5>
+                                        <ul style="margin-left: 20px; font-size: 13px; color: #e2e8f0; line-height: 1.6;">
+                                            <li style="margin-bottom: 6px;">Slower policy changes due to approval process</li><li style="margin-bottom: 6px;">More complex governance configuration</li><li style="margin-bottom: 6px;">Risk of governance deadlock in edge cases</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+            </div>
+
+            <!-- Architecture Layers Component -->
+            <h3>Architecture Layers & Boundaries</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 30px;">
+                
+                <div style="background: #3B82F608; border: 1px solid #3B82F633; border-radius: 10px; padding: 16px;">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+                        <div style="width: 12px; height: 12px; border-radius: 50%; background: #3B82F6;"></div>
+                        <span style="font-size: 13px; font-weight: 600; color: #e2e8f0;">Market Data & Canvas</span>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;">
+                        <span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">Ingest</span><span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">Validate</span><span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">Normalize</span><span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">Store</span><span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">MarketView</span>
+                        <span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #64748b;">+3</span>
+                    </div>
+                    <p style="font-size: 10px; color: #64748b; line-height: 1.4;">Unidirectional: Input → View → Canvas → Tools → Render</p>
+                </div>
+                
+                <div style="background: #8B5CF608; border: 1px solid #8B5CF633; border-radius: 10px; padding: 16px;">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+                        <div style="width: 12px; height: 12px; border-radius: 50%; background: #8B5CF6;"></div>
+                        <span style="font-size: 13px; font-weight: 600; color: #e2e8f0;">Tier2 Cognition</span>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;">
+                        <span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">Blueprint</span><span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">CognitiveAgentRuntime</span><span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">Memory</span><span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">Workflow</span><span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">Review</span>
+                        <span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #64748b;">+1</span>
+                    </div>
+                    <p style="font-size: 10px; color: #64748b; line-height: 1.4;">Bidirectional with Decision: Proposals ↔ Application</p>
+                </div>
+                
+                <div style="background: #EF444408; border: 1px solid #EF444433; border-radius: 10px; padding: 16px;">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+                        <div style="width: 12px; height: 12px; border-radius: 50%; background: #EF4444;"></div>
+                        <span style="font-size: 13px; font-weight: 600; color: #e2e8f0;">Production Tier1 Kernel</span>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;">
+                        <span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">Strategy</span><span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">Planning</span><span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">Admission</span><span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">Reservation</span><span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">Coordinator</span>
+                        <span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #64748b;">+2</span>
+                    </div>
+                    <p style="font-size: 10px; color: #64748b; line-height: 1.4;">Strict pipeline: Strategy → Plan → Admit → Reserve → Execute → Lifecycle</p>
+                </div>
+                
+                <div style="background: #F59E0B08; border: 1px solid #F59E0B33; border-radius: 10px; padding: 16px;">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+                        <div style="width: 12px; height: 12px; border-radius: 50%; background: #F59E0B;"></div>
+                        <span style="font-size: 13px; font-weight: 600; color: #e2e8f0;">Broker Boundary</span>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;">
+                        <span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">OpenAlgo Adapter</span><span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">Effects</span><span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">Observations</span><span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">Results</span>
+                        
+                    </div>
+                    <p style="font-size: 10px; color: #64748b; line-height: 1.4;">Request-Response with async observations</p>
+                </div>
+                
+                <div style="background: #10B98108; border: 1px solid #10B98133; border-radius: 10px; padding: 16px;">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+                        <div style="width: 12px; height: 12px; border-radius: 50%; background: #10B981;"></div>
+                        <span style="font-size: 13px; font-weight: 600; color: #e2e8f0;">Ledger & State</span>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;">
+                        <span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">SQLite WAL</span><span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">Hash Chain</span><span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">Projections</span><span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">Backup</span>
+                        
+                    </div>
+                    <p style="font-size: 10px; color: #64748b; line-height: 1.4;">Append-only writes with verified read projections</p>
+                </div>
+                
+                <div style="background: #6B728008; border: 1px solid #6B728033; border-radius: 10px; padding: 16px;">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+                        <div style="width: 12px; height: 12px; border-radius: 50%; background: #6B7280;"></div>
+                        <span style="font-size: 13px; font-weight: 600; color: #e2e8f0;">Disarmed Simulation</span>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;">
+                        <span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">Recorded Clock</span><span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">Sim Strategy</span><span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">Sim Planning</span><span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">Sim Broker</span><span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">Sim Ledger</span>
+                        
+                    </div>
+                    <p style="font-size: 10px; color: #64748b; line-height: 1.4;">Mirrors production but fully isolated and disarmed</p>
+                </div>
+                
+                <div style="background: #EC489908; border: 1px solid #EC489933; border-radius: 10px; padding: 16px;">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+                        <div style="width: 12px; height: 12px; border-radius: 50%; background: #EC4899;"></div>
+                        <span style="font-size: 13px; font-weight: 600; color: #e2e8f0;">Research & Promotion</span>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;">
+                        <span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">Export</span><span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">Bundles</span><span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">Custody</span><span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">Experiments</span><span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">RL</span>
+                        <span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #64748b;">+2</span>
+                    </div>
+                    <p style="font-size: 10px; color: #64748b; line-height: 1.4;">Evidence pipeline: Ledger → Bundles → Custody → Experiments → Promotion</p>
+                </div>
+                
+                <div style="background: #14B8A608; border: 1px solid #14B8A633; border-radius: 10px; padding: 16px;">
+                    <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 12px;">
+                        <div style="width: 12px; height: 12px; border-radius: 50%; background: #14B8A6;"></div>
+                        <span style="font-size: 13px; font-weight: 600; color: #e2e8f0;">Operations & Recovery</span>
+                    </div>
+                    <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px;">
+                        <span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">Backup</span><span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">Restore</span><span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">Fence</span><span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">Observability</span><span style="font-size: 10px; padding: 4px 8px; border-radius: 6px; background: rgba(51,65,85,0.5); color: #94a3b8;">UI</span>
+                        
+                    </div>
+                    <p style="font-size: 10px; color: #64748b; line-height: 1.4;">Async telemetry with manual recovery activation</p>
+                </div>
+                
+            </div>
+
+            <!-- Transaction Readiness Assessment -->
+            <h3>Transaction Readiness Assessment</h3>
+            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 16px; margin-bottom: 30px;">
+                <div style="background: rgba(34,197,94,0.05); border: 1px solid rgba(34,197,94,0.2); border-radius: 12px; padding: 20px;">
+                    <h5 style="color: #22c55e; font-size: 13px; font-weight: 600; margin-bottom: 12px;">Currently Ready</h5>
+                    <ul style="margin-left: 20px; font-size: 13px; color: #e2e8f0; line-height: 1.6;">
+                        <li>Market data ingestion with provenance</li>
+                        <li>Hash-chained ledger integrity</li>
+                        <li>Simulation/production code sharing</li>
+                        <li>Supervisor independence model</li>
+                        <li>Typed proposal/review system</li>
+                    </ul>
+                </div>
+                <div style="background: rgba(234,179,8,0.05); border: 1px solid rgba(234,179,8,0.2); border-radius: 12px; padding: 20px;">
+                    <h5 style="color: #eab308; font-size: 13px; font-weight: 600; margin-bottom: 12px;">Needs Hardening</h5>
+                    <ul style="margin-left: 20px; font-size: 13px; color: #e2e8f0; line-height: 1.6;">
+                        <li>Idempotency at all boundaries</li>
+                        <li>Ambiguous result resolution</li>
+                        <li>Backpressure & rate limiting</li>
+                        <li>Observability & alerting</li>
+                        <li>Formal simulation isolation</li>
+                    </ul>
+                </div>
+                <div style="background: rgba(239,68,68,0.05); border: 1px solid rgba(239,68,68,0.2); border-radius: 12px; padding: 20px;">
+                    <h5 style="color: #ef4444; font-size: 13px; font-weight: 600; margin-bottom: 12px;">Not Ready</h5>
+                    <ul style="margin-left: 20px; font-size: 13px; color: #e2e8f0; line-height: 1.6;">
+                        <li>Kernel high availability</li>
+                        <li>Multi-broker support</li>
+                        <li>Database scaling path</li>
+                        <li>Multi-signature governance</li>
+                        <li>Disaster recovery automation</li>
+                    </ul>
+                </div>
             </div>
         </section>
+
     </main>
 
     <footer>
