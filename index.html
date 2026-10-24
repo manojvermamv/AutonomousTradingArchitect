@@ -33,7 +33,12 @@
         .nav-tabs::-webkit-scrollbar { display: none; }
         .nav-btn { display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 8px; border: 1px solid transparent; font-size: 13px; font-weight: 500; color: #94a3b8; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
         .nav-btn:hover { color: #e2e8f0; background: rgba(255,255,255,0.05); }
-        .nav-btn.active { background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%); color: white; border-color: rgba(59,130,246,0.5); box-shadow: 0 2px 8px rgba(59,130,246,0.3); }
+        .nav-btn.active {
+        background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%);
+        color: white;
+        border-color: rgba(59,130,246,0.5);
+        box-shadow: 0 2px 8px rgba(59,130,246,0.3);
+    }
         
         /* Content */
         main { max-width: 1600px; margin: 0 auto; padding: 24px 24px; }
@@ -118,6 +123,30 @@
     .review-content { display: none; animation: fadeIn 0.3s ease; }
     .review-content.active { display: block; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+</style>
+
+
+<style>
+    /* Improved navigation buttons for dark theme */
+    .nav-btn.active {
+        background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%);
+        color: white;
+        border-color: rgba(59,130,246,0.5);
+        box-shadow: 0 2px 8px rgba(59,130,246,0.3);
+    }
+    .nav-btn.active:hover {
+        background: linear-gradient(135deg, #2563eb 0%, #3b82f6 100%);
+    }
+    /* Review sub-tab buttons */
+    .review-nav-btn.active {
+        background: linear-gradient(135deg, #8b5cf6 0%, #a78bfa 100%);
+        color: white;
+        border-color: rgba(139,92,246,0.5);
+        box-shadow: 0 2px 8px rgba(139,92,246,0.3);
+    }
+    .review-nav-btn.active:hover {
+        background: linear-gradient(135deg, #7c3aed 0%, #8b5cf6 100%);
+    }
 </style>
 
 </head>
@@ -206,11 +235,14 @@
             </div>
         </section>
 
-        <section id="diagrams" class="content-section">
-            <h2 class="section-title">Architecture Diagrams</h2>
-            <div class="diagram-card">
-                <h3>Primary Target Diagram 1 - Higher-Level Architecture</h3>
-                <pre>flowchart TB
+        
+            <section id="diagrams" class="content-section">
+                <h2 class="section-title">Architecture Diagrams</h2>
+                <p class="section-subtitle">Raw Mermaid code diagrams - interactive rendering available</p>
+                
+                <div class="mermaid-diagram">
+                    <h3>Primary Target Diagram 1 - Higher-Level Architecture</h3>
+                    <pre class="mermaid-code">flowchart TB
     INPUT[Validated licensed live market inputs] --> MARKET[Live MarketView and deterministic Canvas]
     MARKET --> DECIDE[Live strategies and bounded review application]
     MARKET --> COG[Tier2 scoped cognition without financial credentials]
@@ -229,10 +261,11 @@
     SKERNEL <--> SLEDGER[Separate simulation run ledger]
     SKERNEL --> SBROKER[Local simulated broker no live capability]
     SBROKER --> SKERNEL</pre>
-            </div>
-            <div class="diagram-card">
-                <h3>Primary Target Diagram 2 - Detailed End-to-End Architecture</h3>
-                <pre>flowchart TB
+                </div>
+
+                <div class="mermaid-diagram">
+                    <h3>Primary Target Diagram 2 - Detailed End-to-End Architecture</h3>
+                    <pre class="mermaid-code">flowchart TB
     subgraph M[Production market and Canvas]
         INPUT --> INGEST[Validate normalize and retain]
         INGEST --> STORE[Canonical records]
@@ -264,42 +297,210 @@
         SBROKER --> SLIFE[Sim lifecycle]
         SLIFE --> SLEDGER[Sim ledger]
     end</pre>
-            </div>
-        </section>
+                </div>
 
-        <section id="repository" class="content-section">
-            <h2 class="section-title">Repository Structure</h2>
-            <div class="card">
-                <h3>Project Layout</h3>
-                <p>The repository follows a clean, modular structure designed for maintainability and scalability:</p>
-            </div>
-            <div class="file-tree">
-                <pre>AutonomousTrading/
-├── pyproject.toml
-├── requirements.lock
-├── README.md
-├── LICENSE
-├── .gitignore
-├── config/
-├── src/
-│   └── autonomous_trading/
-│       ├── contracts/
-│       ├── market/
-│       ├── strategies/
-│       ├── cognition/
-│       ├── kernel/
-│       ├── adapters/
-│       ├── research/
-│       ├── operations/
-│       └── interfaces/
-├── schemas/
-├── deploy/
-├── scripts/
-├── tests/
-└── docs/</pre>
-            </div>
-        </section>
+                <div class="arch-section">
+                    <h3>How to View Interactive Diagrams</h3>
+                    <p>Copy the Mermaid code from the above blocks and paste it into:</p>
+                    <ul>
+                        <li><a href="https://mermaid.live/" target="_blank" style="color: #60a5fa;">Mermaid Live Editor</a> - Online interactive editor</li>
+                        <li>VS Code with Mermaid extension - Local rendering</li>
+                        <li>Any Markdown editor supporting Mermaid</li>
+                    </ul>
+                </div>
+            </section>
 
+
+        
+            <section id="repository" class="content-section">
+                <h2 class="section-title">Repository Structure</h2>
+                <div class="arch-section">
+                    <h3>Project Layout</h3>
+                    <p>The repository follows a clean, modular structure designed for maintainability and scalability:</p>
+                </div>
+```text
+AutonomousTrading/                         # Recompose existing behavior into one application
+├── pyproject.toml                         # Discover packages and declare optional extras
+├── requirements.lock                      # Pin tested deployment dependencies
+├── README.md                              # Explain boundaries and operator entrypoints
+├── LICENSE                                # State owner-selected licensing terms
+├── .gitignore                             # Exclude secrets state and generated files
+├── .pre-commit-config.yaml                # Preserve secret and source hygiene guards
+├── .github/                               # Repository automation
+│   └── workflows/                         # Isolated verification workflows
+│       └── verify.yml                     # Check artifacts contracts and secret hygiene
+├── config/                                # Nonsecret typed configuration inputs
+│   ├── defaults.yaml                      # Ship explicit runtime defaults
+│   ├── live.example.yaml                  # Show live composition without credentials
+│   ├── simulation.yaml                    # Select structurally disarmed composition
+│   ├── research.yaml                      # Set isolated stores and resource quotas
+│   ├── teams.yaml                         # Pin blueprints capabilities and budgets
+│   └── policies.example.yaml              # Illustrate owner-managed policy schema
+├── src/                                   # Installable source root
+│   └── autonomous_trading/                # Single unambiguous Python namespace
+│       ├── __init__.py                    # Export version and public contracts
+│       ├── __main__.py                    # Invoke operator CLI
+│       ├── bootstrap.py                   # Compose mode-specific capabilities explicitly
+│       ├── contracts/                     # Shared types without authority or I/O
+│       │   ├── __init__.py                # Export stable contract types
+│       │   ├── identity.py                # Define account session candidate and command IDs
+│       │   ├── market.py                  # Define records views quality and availability
+│       │   ├── decisions.py               # Define intent review and advice envelopes
+│       │   ├── execution.py               # Define plan action observation and outcomes
+│       │   ├── evidence.py                # Define causal references and artifact digests
+│       │   └── clock.py                   # Define injected clock interfaces
+│       ├── settings/                      # Single configuration owner
+│       │   ├── loader.py                  # Resolve defaults profiles and scoped overrides
+│       │   ├── schema.py                  # Validate units schemas and compositions
+│       │   └── secrets.py                 # Resolve service credentials without propagation
+│       ├── market/                        # Canonical market ingestion and views
+│       │   ├── ingest.py                  # Validate order and retain incoming records
+│       │   ├── providers.py               # Preserve provider dependency contracts
+│       │   ├── store.py                   # Retain records and provenance
+│       │   ├── sources.py                 # Implement live and historical input sources
+│       │   ├── view.py                    # Reuse indexed causal MarketView behavior
+│       │   ├── quality.py                 # Expose gaps corrections finality and stale joins
+│       │   └── canvas/                    # Deterministic scratchpad over MarketView
+│       │       ├── facts.py               # Define versioned geometry and availability
+│       │       ├── algorithms.py          # Compute initial swings levels trends and ranges
+│       │       ├── tools.py               # Expose bounded as-of sketch operations
+│       │       ├── annotations.py         # Retain attributable subjective interpretations
+│       │       └── history.py             # Resolve causal fact and annotation versions
+│       ├── strategies/                    # Intent-producing implementations
+│       │   ├── registry.py                # Preserve kinds families and version identity
+│       │   ├── worker.py                  # Reuse source-neutral worker host and SDK
+│       │   ├── buyer_edge.py              # Wrap existing score behavior unchanged
+│       │   ├── ema_cross.py               # Retain deterministic example strategy
+│       │   └── model_strategy.py          # Convert bounded advisor output into intent
+│       ├── cognition/                     # Tier2 analytical coordination and proposals
+│       │   ├── runtime.py                 # Reuse bounded CognitiveAgentRuntime behavior
+│       │   ├── blueprint.py               # Validate roles dependencies budgets and versions
+│       │   ├── tools.py                   # Enforce role-scoped read capabilities
+│       │   ├── providers.py               # Wrap existing model and advisor backends
+│       │   ├── review.py                  # Preserve entry and unavailable application
+│       │   ├── advice.py                  # Record advice with human application seam
+│       │   ├── records.py                 # Retain typed run role and application evidence
+│       │   ├── memory.py                  # Partition causal working outcome and research memory
+│       │   └── reflection.py              # Produce experiments and candidate proposals
+│       ├── kernel/                        # Sole internal financial authority boundary
+│       │   ├── authority.py               # Authenticate requests and own writer scope
+│       │   ├── policy.py                  # Interpret owner-approved financial policy
+│       │   ├── planner.py                 # Dispatch existing versioned planning implementations
+│       │   ├── selection.py               # Preserve instrument selection and sizing
+│       │   ├── admission.py               # Validate exact plans against canonical state
+│       │   ├── reservations.py            # Account for pending and uncertain commitments
+│       │   ├── lifecycle.py               # Fold order leg structure and settlement transitions
+│       │   ├── protection.py              # Reuse stop trail and residual decisions
+│       │   ├── safety.py                  # Apply explicit condition and action precedence
+│       │   ├── coordinator.py             # Persist attempts and classify uncertain effects
+│       │   ├── reconciliation.py          # Validate observations and resolve obligations
+│       │   ├── recovery.py                # Enforce read-only restore fencing and activation
+│       │   ├── ports.py                   # Define broker observation and owner boundaries
+│       │   └── ledger/                    # Financial events and verified read models
+│       │       ├── runtime.py             # Verify loaded SQLite and effective WAL settings
+│       │       ├── envelope.py            # Canonicalize events and chain digests
+│       │       ├── store.py               # Serialize event identity and projection transactions
+│       │       ├── schema.py              # Validate version and apply owned migrations
+│       │       ├── projections.py         # Rebuild and compare authoritative read models
+│       │       └── export.py              # Publish committed causal evidence asynchronously
+│       ├── adapters/                      # Concrete boundary implementations
+│       │   ├── openalgo.py                # Retain sole live execution and observation adapter
+│       │   ├── simulated_broker.py        # Model orders fills costs and uncertainty
+│       │   ├── unix_channel.py            # Preserve authenticated local authority transport
+│       │   ├── clocks.py                  # Implement live and recorded clocks
+│       │   └── compatibility.py           # Read legacy schemas and expose migration views
+│       ├── research/                      # Experiments without execution authority
+│       │   ├── bundles.py                 # Validate licenses and publish immutable inputs
+│       │   ├── datasets.py                # Build causal partitioned features and labels
+│       │   ├── custody.py                 # Own global evidence roles aliases and consumption
+│       │   ├── trials.py                  # Retain every attempt and selection history
+│       │   ├── replay.py                  # Drive shared engine with recorded inputs
+│       │   ├── evaluation.py              # Measure costs robustness regimes and parity
+│       │   ├── candidates.py              # Freeze exact code model prompt and data identities
+│       │   ├── promotion.py               # Stage governed next-session bindings
+│       │   ├── jobs.py                    # Reuse durable leases limits and containment
+│       │   └── rl/                        # Optional offline learning capability
+│       │       ├── environment.py         # Reuse causal Gymnasium observation and action seam
+│       │       ├── reward.py              # Version experiment reward and economics
+│       │       ├── training.py            # Wrap existing SB3 seeds trials and artifacts
+│       │       └── policy.py              # Verify frozen inference bundles and abstention
+│       ├── operations/                    # Supervision recovery and resource isolation
+│       │   ├── supervisor.py              # Observe protection and propose actions independently
+│       │   ├── deployment.py              # Verify release convergence and exclusive cutover
+│       │   ├── backup.py                  # Produce consistent retained off-box artifacts
+│       │   ├── restore.py                 # Verify clean-host recovery without activation
+│       │   ├── isolation.py               # Validate workspace credential store and resource scope
+│       │   ├── verification.py            # Record observations without global work gates
+│       │   └── telemetry.py               # Emit bounded asynchronous diagnostics
+│       └── interfaces/                    # Human and bounded tool entrypoints
+│           ├── cli.py                     # Preserve operator commands through compatibility names
+│           ├── api.py                     # Serve authenticated owner operations and read models
+│           ├── mcp.py                     # Expose scoped cognition and research tools
+│           └── authorization.py           # Mediate caller scope and human-only commands
+├── schemas/                               # Versioned wire and persistence specifications
+│   ├── events.schema.json                 # Define canonical event envelope versions
+│   ├── candidates.schema.json             # Define frozen identity manifests
+│   ├── canvas.schema.json                 # Define facts annotations and tool responses
+│   └── migrations/                        # Ordered financial database migrations
+│       └── 001_initial.sql                # Establish extracted audited schema baseline
+├── operator_ui/                           # Reuse existing operator frontend
+│   ├── package.json                       # Pin UI and chart dependencies
+│   └── src/                               # Operational read models and governed commands
+│       ├── app.tsx                        # Compose retained operational screens
+│       ├── api.ts                         # Consume authenticated typed contracts
+│       └── canvas.tsx                     # Render geometry annotations and evidence
+├── deploy/                                # Small-host installation templates
+│   ├── install.py                         # Render pinned service identities and paths
+│   └── systemd/                           # Independently supervised services
+│       ├── at-kernel.service              # Run sole writer with scoped credential
+│       ├── at-market.service              # Collect canonical market inputs
+│       ├── at-supervisor.service          # Propose protection and reconciliation independently
+│       ├── at-cognition.service           # Run bounded proposal-only cognition
+│       ├── at-research.service            # Run isolated research queue workers
+│       ├── at-research.slice              # Cap aggregate research CPU memory tasks and I/O
+│       ├── at-operator.service            # Serve authenticated operator interface
+│       ├── at-backup.service              # Run consistent retained backup work
+│       └── at-backup.timer                # Schedule backup without activation rights
+├── scripts/                               # Thin development and operations launchers
+│   ├── isolated_work.py                   # Start work with verified isolation
+│   ├── safe_tests.py                      # Reuse resource and production-store test protection
+│   ├── migrate_legacy.py                  # Import verified historical identities and events
+│   ├── compare_parity.py                  # Compare behavior across compositions
+│   ├── verify_recovery.py                 # Exercise isolated crash and restore acceptance
+│   └── check_release.py                   # Observe artifact and process convergence
+├── tests/                                 # Future checks preserving existing coverage
+│   ├── unit/                              # Pure deterministic domain checks
+│   │   ├── test_planner_parity.py          # Pin selection sizing stops and refusal behavior
+│   │   ├── test_canvas_causality.py        # Reject future bars repainting and false availability
+│   │   └── test_review_semantics.py        # Pin unavailable timeout and review application
+│   ├── contracts/                         # Compatibility and authority checks
+│   │   ├── test_legacy_schemas.py          # Preserve historic readers and command shapes
+│   │   ├── test_installed_artifact.py      # Verify wheel outside checkout
+│   │   └── test_capabilities.py            # Deny unauthorized tools credentials and writes
+│   ├── integration/                       # Isolated component exercises
+│   │   ├── test_shared_engine.py           # Compare live-style paper and replay transitions
+│   │   ├── test_openalgo_contract.py       # Use permitted recorded interface observations
+│   │   └── test_custody_promotion.py       # Preserve one-use evidence and activation identity
+│   ├── recovery/                          # Durable fault campaigns
+│   │   ├── test_crash_boundaries.py        # Crash around each irreversible boundary
+│   │   ├── test_restore_fencing.py         # Exclude old writers and preserve unknown obligations
+│   │   └── test_projection_integrity.py    # Detect altered indexes and stale views
+│   ├── isolation/                         # Host and evidence independence checks
+│   │   └── test_resource_storage_scope.py  # Deny native descendants production and OOS mutation
+│   └── fixtures/                          # Synthetic or permitted reproducible inputs
+│       └── manifests.json                 # Identify provenance licenses and hashes
+└── docs/                                  # Concise durable decisions and operations knowledge
+    ├── architecture.md                    # Maintain boundaries contracts and diagrams
+    ├── decisions.md                       # Record owner and measured engineering choices
+    ├── operations.md                      # Explain releases recovery and emergency actions
+    ├── research.md                        # Explain custody evaluation and promotion claims
+    ├── routine-verifications.md           # Keep observations separate from action gates
+    └── migration.md                       # Track parity ownership cutover and rollback proof
+```
+            </section>
+
+
+        
         
         
         <section id="review" class="content-section">
@@ -308,23 +509,21 @@
             
             <!-- Review Sub-Tabs Navigation -->
             <nav class="nav-tabs">
-                <button class="nav-btn active" onclick="showReviewTab('executive')"><i class="fa-solid fa-clipboard-list"></i> Executive Summary</button>
-                <button class="nav-btn" onclick="showReviewTab('issues')"><i class="fa-solid fa-triangle-exclamation"></i> Issues Analysis</button>
-                <button class="nav-btn" onclick="showReviewTab('scorecard')"><i class="fa-solid fa-chart-bar"></i> Scorecard</button>
-                <button class="nav-btn" onclick="showReviewTab('roadmap')"><i class="fa-solid fa-road"></i> Improvement Roadmap</button>
-                <button class="nav-btn" onclick="showReviewTab('layers')"><i class="fa-solid fa-layer-group"></i> Architecture Layers</button>
-                <button class="nav-btn" onclick="showReviewTab('readiness')"><i class="fa-solid fa-clipboard-check"></i> Readiness</button>
+                <button class="nav-btn review-nav-btn active" onclick="showReviewTab('executive')"><i class="fa-solid fa-clipboard-list"></i> Executive Summary</button>
+                <button class="nav-btn review-nav-btn" onclick="showReviewTab('issues')"><i class="fa-solid fa-triangle-exclamation"></i> Issues Analysis</button>
+                <button class="nav-btn review-nav-btn" onclick="showReviewTab('scorecard')"><i class="fa-solid fa-chart-bar"></i> Scorecard</button>
+                <button class="nav-btn review-nav-btn" onclick="showReviewTab('roadmap')"><i class="fa-solid fa-road"></i> Improvement Roadmap</button>
+                <button class="nav-btn review-nav-btn" onclick="showReviewTab('layers')"><i class="fa-solid fa-layer-group"></i> Architecture Layers</button>
+                <button class="nav-btn review-nav-btn" onclick="showReviewTab('readiness')"><i class="fa-solid fa-clipboard-check"></i> Readiness</button>
             </nav>
             
             <!-- Executive Summary Sub-Section -->
             <div id="review-executive" class="review-content active">
-                <!-- Executive Summary -->
                 <div class="card">
                     <h3>Executive Summary</h3>
-                    <p>Your architecture demonstrates <strong style="color: #22c55e;">strong foundational thinking</strong> with clear separation of concerns between Tier1 (execution) and Tier2 (cognition), hash-chained ledger integrity, and a well-designed simulation/production code sharing model. However, several <strong style="color: #ef4444;">critical resilience gaps</strong> and <strong style="color: #f97316;">transaction safety concerns</strong> must be addressed before production deployment. The architecture is conceptually sound but needs hardening for real-money operation.</p>
+                    <p>Your architecture demonstrates <strong style="color: #22c55e;">strong foundational thinking</strong> with clear separation of concerns between Tier1 (execution) and Tier2 (cognition), hash-chained ledger integrity, and a well-designed simulation/production code sharing model. However, several <strong style="color: #ef4444;">critical resilience gaps</strong> and <strong style="color: #f97316;">transaction safety concerns</strong> must be addressed before production deployment.</p>
                 </div>
 
-                <!-- Key Metrics -->
                 <div class="features-grid">
                     <div class="feature-card"><h3><i class="fa-solid fa-cubes"></i> Modules</h3><p><strong style="font-size: 24px; color: white;">9</strong><br><span style="font-size: 12px; opacity: 0.9;">Distinct boundaries</span></p></div>
                     <div class="feature-card" style="background: linear-gradient(135deg, rgba(239,68,68,0.15) 0%, rgba(220,38,38,0.15) 100%); border-color: rgba(239,68,68,0.3);"><h3><i class="fa-solid fa-triangle-exclamation"></i> Issues</h3><p><strong style="font-size: 24px; color: #ef4444;">1 Critical</strong>, <strong style="color: #f97316;">4 High</strong><br><span style="font-size: 12px; opacity: 0.9;">12 Total</span></p></div>
@@ -332,7 +531,6 @@
                     <div class="feature-card" style="background: linear-gradient(135deg, rgba(139,92,246,0.15) 0%, rgba(124,58,237,0.15) 100%); border-color: rgba(139,92,246,0.3);"><h3><i class="fa-solid fa-layer-group"></i> Layers</h3><p><strong style="font-size: 24px; color: #a78bfa;">8</strong><br><span style="font-size: 12px; opacity: 0.9;">End-to-end coverage</span></p></div>
                 </div>
 
-                <!-- Architecture Strengths -->
                 <div class="card">
                     <h3>Architecture Strengths</h3>
                     <ul>
@@ -347,7 +545,6 @@
                     </ul>
                 </div>
 
-                <!-- Critical Gaps -->
                 <div class="card">
                     <h3>Critical Gaps</h3>
                     <ul>
@@ -420,7 +617,7 @@
                                 </div>
                                 <div>
                                     <h4 style="color: #22c55e; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Recommendation</h4>
-                                    <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Implement active-passive kernel replication with automatic failover.</p>
+                                    <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Implement active-passive kernel replication.</p>
                                 </div>
                             </div>
                         </div>
@@ -454,7 +651,7 @@
                                 </div>
                                 <div>
                                     <h4 style="color: #22c55e; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Recommendation</h4>
-                                    <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Introduce a BrokerAdapter port with multiple implementations.</p>
+                                    <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Introduce a BrokerAdapter port.</p>
                                 </div>
                             </div>
                         </div>
@@ -488,7 +685,7 @@
                                 </div>
                                 <div>
                                     <h4 style="color: #22c55e; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Recommendation</h4>
-                                    <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Consider a migration path to PostgreSQL with logical replication.</p>
+                                    <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Consider a migration path to PostgreSQL.</p>
                                 </div>
                             </div>
                         </div>
@@ -522,7 +719,7 @@
                                 </div>
                                 <div>
                                     <h4 style="color: #22c55e; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Recommendation</h4>
-                                    <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Implement explicit cooldown periods and proposal deduplication.</p>
+                                    <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Implement explicit cooldown periods.</p>
                                 </div>
                             </div>
                         </div>
@@ -590,7 +787,7 @@
                                 </div>
                                 <div>
                                     <h4 style="color: #22c55e; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Recommendation</h4>
-                                    <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Define a formal result state machine with explicit transitions.</p>
+                                    <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Define a formal result state machine.</p>
                                 </div>
                             </div>
                         </div>
@@ -624,7 +821,7 @@
                                 </div>
                                 <div>
                                     <h4 style="color: #22c55e; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Recommendation</h4>
-                                    <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Implement multi-signature governance with defined quorum.</p>
+                                    <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Implement multi-signature governance.</p>
                                 </div>
                             </div>
                         </div>
@@ -640,7 +837,7 @@
                                     <h4 style="color: #f1f5f9; font-size: 15px;">Simulation Disarming Verification Gap</h4>
                                     <span style="font-size: 11px; padding: 4px 10px; border-radius: 20px; background: rgba(234,179,8,0.1); color: #eab308; font-weight: 700; text-transform: uppercase;">medium</span>
                                 </div>
-                                <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">The disarming mechanism is not formally specified or verified.</p>
+                                <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5; max-width: 100%; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">The disarming mechanism is not formally specified.</p>
                                 <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px;">
                                     <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(51,65,85,0.5); color: #94a3b8;">Safety</span>
                                     <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(31,41,55,0.3); color: #64748b;">simulation</span><span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(31,41,55,0.3); color: #64748b;">kernel</span>
@@ -652,13 +849,13 @@
                             <div style="padding: 20px; display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
                                 <div>
                                     <h4 style="color: #94a3b8; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Description</h4>
-                                    <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">The disarming mechanism is not formally specified or verified.</p>
+                                    <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">The disarming mechanism is not formally specified.</p>
                                     <h4 style="color: #ef4444; font-size: 12px; font-weight: 600; text-transform: uppercase; margin: 20px 0 8px 0;">Impact</h4>
                                     <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Simulation could accidentally execute live trades.</p>
                                 </div>
                                 <div>
                                     <h4 style="color: #22c55e; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Recommendation</h4>
-                                    <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Implement formal capability-based security for simulation.</p>
+                                    <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Implement formal capability-based security.</p>
                                 </div>
                             </div>
                         </div>
@@ -692,7 +889,7 @@
                                 </div>
                                 <div>
                                     <h4 style="color: #22c55e; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Recommendation</h4>
-                                    <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Implement explicit backpressure at each pipeline stage.</p>
+                                    <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Implement explicit backpressure.</p>
                                 </div>
                             </div>
                         </div>
@@ -726,7 +923,7 @@
                                 </div>
                                 <div>
                                     <h4 style="color: #22c55e; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Recommendation</h4>
-                                    <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Use a well-tested distributed lock service for fencing.</p>
+                                    <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Use a well-tested distributed lock service.</p>
                                 </div>
                             </div>
                         </div>
@@ -760,7 +957,7 @@
                                 </div>
                                 <div>
                                     <h4 style="color: #22c55e; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Recommendation</h4>
-                                    <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Implement structured logging with correlation IDs.</p>
+                                    <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Implement structured logging.</p>
                                 </div>
                             </div>
                         </div>
@@ -794,7 +991,7 @@
                                 </div>
                                 <div>
                                     <h4 style="color: #22c55e; font-size: 12px; font-weight: 600; text-transform: uppercase; margin-bottom: 8px;">Recommendation</h4>
-                                    <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Implement semantic versioning for all ports.</p>
+                                    <p style="color: #e2e8f0; font-size: 14px; line-height: 1.6;">Implement semantic versioning.</p>
                                 </div>
                             </div>
                         </div>
@@ -1249,7 +1446,7 @@
                                         <h4 style="color: #e2e8f0; font-size: 15px;">Implement Broker Adapter Abstraction</h4>
                                         <span style="font-size: 11px; padding: 4px 10px; border-radius: 20px; background: rgba(239,68,68,0.1); color: #ef4444; font-weight: 700; text-transform: uppercase;">Immediate</span>
                                     </div>
-                                    <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5;">Create a formal BrokerAdapter port that abstracts execution, observation, and lifecycle operations.</p>
+                                    <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5;">Create a formal BrokerAdapter port.</p>
                                     <div style="display: flex; gap: 8px; margin-top: 10px;">
                                         <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(51,65,85,0.5); color: #94a3b8;">Extensibility</span>
                                         <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(34,197,94,0.1); color: #22c55e;">4 benefits</span>
@@ -1297,7 +1494,7 @@
                                         <h4 style="color: #e2e8f0; font-size: 15px;">Add Idempotency Layer</h4>
                                         <span style="font-size: 11px; padding: 4px 10px; border-radius: 20px; background: rgba(239,68,68,0.1); color: #ef4444; font-weight: 700; text-transform: uppercase;">Immediate</span>
                                     </div>
-                                    <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5;">Implement idempotency keys at every external boundary to prevent duplicate execution.</p>
+                                    <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5;">Implement idempotency keys at every external boundary.</p>
                                     <div style="display: flex; gap: 8px; margin-top: 10px;">
                                         <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(51,65,85,0.5); color: #94a3b8;">Transaction Safety</span>
                                         <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(34,197,94,0.1); color: #22c55e;">4 benefits</span>
@@ -1393,7 +1590,7 @@
                                         <h4 style="color: #e2e8f0; font-size: 15px;">Formal Simulation Isolation</h4>
                                         <span style="font-size: 11px; padding: 4px 10px; border-radius: 20px; background: rgba(59,130,246,0.1); color: #60a5fa; font-weight: 700; text-transform: uppercase;">Medium-term</span>
                                     </div>
-                                    <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5;">Implement capability-based security to guarantee simulation cannot access live credentials.</p>
+                                    <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5;">Implement capability-based security for simulation.</p>
                                     <div style="display: flex; gap: 8px; margin-top: 10px;">
                                         <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(51,65,85,0.5); color: #94a3b8;">Safety</span>
                                         <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(34,197,94,0.1); color: #22c55e;">4 benefits</span>
@@ -1441,7 +1638,7 @@
                                         <h4 style="color: #e2e8f0; font-size: 15px;">Comprehensive Observability Stack</h4>
                                         <span style="font-size: 11px; padding: 4px 10px; border-radius: 20px; background: rgba(59,130,246,0.1); color: #60a5fa; font-weight: 700; text-transform: uppercase;">Medium-term</span>
                                     </div>
-                                    <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5;">Implement structured observability with metrics, distributed tracing, and alerting.</p>
+                                    <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5;">Implement structured observability with metrics and tracing.</p>
                                     <div style="display: flex; gap: 8px; margin-top: 10px;">
                                         <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(51,65,85,0.5); color: #94a3b8;">Operations</span>
                                         <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(34,197,94,0.1); color: #22c55e;">4 benefits</span>
@@ -1489,7 +1686,7 @@
                                         <h4 style="color: #e2e8f0; font-size: 15px;">Database Migration Path</h4>
                                         <span style="font-size: 11px; padding: 4px 10px; border-radius: 20px; background: rgba(59,130,246,0.1); color: #60a5fa; font-weight: 700; text-transform: uppercase;">Medium-term</span>
                                     </div>
-                                    <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5;">Plan and implement a migration path from SQLite to a more scalable database.</p>
+                                    <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5;">Plan and implement a migration path from SQLite.</p>
                                     <div style="display: flex; gap: 8px; margin-top: 10px;">
                                         <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(51,65,85,0.5); color: #94a3b8;">Scalability</span>
                                         <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(34,197,94,0.1); color: #22c55e;">4 benefits</span>
@@ -1585,7 +1782,7 @@
                                         <h4 style="color: #e2e8f0; font-size: 15px;">Multi-Signature Governance</h4>
                                         <span style="font-size: 11px; padding: 4px 10px; border-radius: 20px; background: rgba(59,130,246,0.1); color: #60a5fa; font-weight: 700; text-transform: uppercase;">Medium-term</span>
                                     </div>
-                                    <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5;">Evolve owner governance to support multi-signature approval and emergency protocols.</p>
+                                    <p style="color: #cbd5e1; font-size: 13px; line-height: 1.5;">Evolve owner governance to support multi-signature approval.</p>
                                     <div style="display: flex; gap: 8px; margin-top: 10px;">
                                         <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(51,65,85,0.5); color: #94a3b8;">Governance</span>
                                         <span style="font-size: 11px; padding: 4px 10px; border-radius: 10px; background: rgba(34,197,94,0.1); color: #22c55e;">4 benefits</span>
@@ -1765,6 +1962,7 @@
                 </div>
             </div>
         </section>
+
 
 
     </main>
