@@ -17,6 +17,8 @@
 
 ## Audit evidence and roadmap
 
+- When auditing the target architecture against an implementation, inspect the relevant available local directory and GitHub repository as the primary evidence sources. If neither is available in context, use the [target architecture review](https://manojvermamv.github.io/AutonomousTradingArchitect/) diagrams and ongoing documents for architectural clarity; treat them as design context, not proof of implementation behavior.
+- For audit-only requests, default to reporting findings in the final response without editing files. Then ask whether the user wants to apply findings point by point, using short, friendly explanations, helpful examples where useful, and a recommended option. Make edits only when the user explicitly asks to apply them.
 - Record audit dates with timezone, source branch, full source revision, scope, source artifacts, and evidence limits. A downloaded file's modification time is provenance metadata, not proof of when its claims were made.
 - Separate code-verified findings from dashboard assessments, target proposals, and unknowns. Do not silently promote an attachment's recommendation into a confirmed defect or an approved financial policy.
 - Keep dated audit snapshots and status changes traceable. When new evidence changes direction, record the date, previous status, new status, evidence, and reason; do not erase prior conclusions.
