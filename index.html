@@ -150,6 +150,21 @@
     }
 </style>
 
+
+    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            if (typeof mermaid !== 'undefined') {
+                mermaid.initialize({
+                    startOnLoad: true,
+                    theme: 'dark',
+                    securityLevel: 'loose',
+                    flowchart: { useMaxWidth: true, htmlLabels: true }
+                });
+            }
+        });
+    </script>
+    
 </head>
 <body>
     <header>
@@ -237,13 +252,37 @@
         </section>
 
         
+            
             <section id="diagrams" class="content-section">
                 <h2 class="section-title">Architecture Diagrams</h2>
-                <p class="section-subtitle">Raw Mermaid code diagrams - interactive rendering available</p>
+                <p class="section-subtitle">Visual architecture flows with interactive rendering & raw code</p>
                 
-                <div class="mermaid-diagram">
-                    <h3>Primary Target Diagram 1 - Higher-Level Architecture</h3>
-                    <pre class="mermaid-code">flowchart TB
+                <div class="diagram-card">
+                    <h3>Primary Target Diagram 1 — Higher-Level Architecture</h3>
+                    <div class="mermaid" style="background: rgba(0,0,0,0.4); padding: 20px; border-radius: 8px; margin-bottom: 15px; overflow-x: auto;">
+flowchart TB
+    INPUT[Validated licensed live market inputs] --> MARKET[Live MarketView and deterministic Canvas]
+    MARKET --> DECIDE[Live strategies and bounded review application]
+    MARKET --> COG[Tier2 scoped cognition without financial credentials]
+    COG -. typed proposals reviews and advice .-> DECIDE
+    DECIDE --> KERNEL[Production Tier1 kernel and sole live execution owner]
+    OWNER[Authenticated owner governance] -. approved policy and session candidates .-> KERNEL
+    KERNEL <--> LEDGER[Production SQLite WAL financial ledger]
+    KERNEL --> OA[OpenAlgo sole live broker boundary]
+    OA --> EFFECT[Broker effects or OpenAlgo analyzer sandbox]
+    OBS[Validated account order and trade observations] --> SUP[Independent protection and reconciliation supervisor]
+    SUP -. action proposals only .-> KERNEL
+    CODE[Shared versioned deterministic engine code] -. instantiated in production .-> KERNEL
+    DEV[Permitted immutable research dataset] --> SVIEW[Simulation MarketView and Canvas with recorded clock]
+    SVIEW --> SDEC[Simulation strategy and recorded or isolated review]
+    SDEC --> SKERNEL[Disarmed simulation kernel and execution owner]
+    SKERNEL <--> SLEDGER[Separate simulation run ledger]
+    SKERNEL --> SBROKER[Local simulated broker no live capability]
+    SBROKER --> SKERNEL
+                    </div>
+                    <details style="margin-top: 10px;">
+                        <summary style="cursor: pointer; color: #60a5fa; font-size: 13px; margin-bottom: 8px;">View Raw Mermaid Code</summary>
+                        <pre class="mermaid-code">flowchart TB
     INPUT[Validated licensed live market inputs] --> MARKET[Live MarketView and deterministic Canvas]
     MARKET --> DECIDE[Live strategies and bounded review application]
     MARKET --> COG[Tier2 scoped cognition without financial credentials]
@@ -262,54 +301,102 @@
     SKERNEL <--> SLEDGER[Separate simulation run ledger]
     SKERNEL --> SBROKER[Local simulated broker no live capability]
     SBROKER --> SKERNEL</pre>
+                    </details>
                 </div>
 
-                <div class="mermaid-diagram">
-                    <h3>Primary Target Diagram 2 - Detailed End-to-End Architecture</h3>
-                    <pre class="mermaid-code">flowchart TB
+                <div class="diagram-card">
+                    <h3>Primary Target Diagram 2 — Detailed End-to-End Architecture</h3>
+                    <div class="mermaid" style="background: rgba(0,0,0,0.4); padding: 20px; border-radius: 8px; margin-bottom: 15px; overflow-x: auto;">
+flowchart TB
     subgraph M[Production market and Canvas]
-        INPUT --> INGEST[Validate normalize and retain]
-        INGEST --> STORE[Canonical records]
-        STORE --> VIEW[Live causal MarketView]
-        VIEW --> CANVAS[Canvas facts and evidence]
-        CANVAS --> TOOLS[Bounded tools]
-        CANVAS --> RENDER[Charts render]
+        INPUT[Market Inputs] --> INGEST[Validate and Retain]
+        INGEST --> STORE[Canonical Records]
+        STORE --> VIEW[Live Causal MarketView]
+        VIEW --> CANVAS[Canvas Facts]
+        CANVAS --> TOOLS[Bounded Tools]
+        CANVAS --> RENDER[Charts Render]
     end
-    subgraph F[Production Tier1 kernel]
-        VIEW --> STRAT[Strategy intent]
-        STRAT --> PLAN[Planning port]
-        PLAN --> ADMIT[Admission checks]
-        ADMIT --> RESERVE[Atomic reservation]
-        RESERVE --> COORD[Execution coordinator]
-        COORD --> OA[OpenAlgo adapter]
-        OA --> RESULT[ACK/rejection]
-        RESULT --> LIFE[Live lifecycle]
-        OA --> BOBS[Validated observations]
-        BOBS --> ACCOUNT
+    subgraph F[Production Tier1 Kernel]
+        VIEW --> STRAT[Strategy Intent]
+        STRAT --> PLAN[Planning Port]
+        PLAN --> ADMIT[Admission Checks]
+        ADMIT --> RESERVE[Atomic Reservation]
+        RESERVE --> COORD[Execution Coordinator]
+        COORD --> OA[OpenAlgo Adapter]
+        OA --> RESULT[ACK Rejection]
+        RESULT --> LIFE[Live Lifecycle]
+        OA --> BOBS[Validated Observations]
+        BOBS --> ACCOUNT[Account State]
         ACCOUNT --> LEDGER[SQLite WAL]
     end
     subgraph S[Disarmed Simulation]
-        HIST --> SVIEW[Sim MarketView]
-        SVIEW --> SSTRAT[Sim strategy]
-        SSTRAT --> SPLAN[Sim planning]
-        SPLAN --> SADMIT[Sim admission]
-        SADMIT --> SCOORD[Sim coordinator]
-        SCOORD --> SBROKER[Sim broker]
-        SBROKER --> SLIFE[Sim lifecycle]
-        SLIFE --> SLEDGER[Sim ledger]
+        HIST[Historical Data] --> SVIEW[Sim MarketView]
+        SVIEW --> SSTRAT[Sim Strategy]
+        SSTRAT --> SPLAN[Sim Planning]
+        SPLAN --> SADMIT[Sim Admission]
+        SADMIT --> SCOORD[Sim Coordinator]
+        SCOORD --> SBROKER[Sim Broker]
+        SBROKER --> SLIFE[Sim Lifecycle]
+        SLIFE --> SLEDGER[Sim Ledger]
+    end
+                    </div>
+                    <details style="margin-top: 10px;">
+                        <summary style="cursor: pointer; color: #60a5fa; font-size: 13px; margin-bottom: 8px;">View Raw Mermaid Code</summary>
+                        <pre class="mermaid-code">flowchart TB
+    subgraph M[Production market and Canvas]
+        INPUT[OHLCV ticks bid ask spot chain Greeks optional depth] --> INGEST[Validate normalize order and retain provenance]
+        INGEST --> STORE[Canonical records event and availability times]
+        STORE --> VIEW[Live causal MarketView with cutoff and quality]
+        VIEW --> CANVAS[Canvas versioned facts geometry and evidence]
+        CANVAS --> TOOLS[Bounded as of overlay and timeframe tools]
+        CANVAS --> RENDER[Charts render facts and attributable annotations]
+    end
+    subgraph C[Tier2 cognition without financial credentials]
+        BLUEPRINT[Pinned roles budgets dependencies and deadlines] --> COG[CognitiveAgentRuntime]
+        TOOLS --> COG
+        MEMORY[Partitioned working outcome and research memory] <--> COG
+        WF[Optional CognitiveWorkflowPort] -. schedules bounded cognition .-> COG
+        COG --> REVIEW[Typed entry review exit advice and candidate proposals]
+        REVIEW --> APPLY[Live review application preserving unavailable policy]
+    end
+    subgraph F[Production Tier1 kernel and live financial state]
+        VIEW --> STRAT[Strategy decision and typed Intent]
+        STRAT --> APPLY
+        APPLY --> PLAN[Authoritative planning port with versioned implementations]
+        SESSION[Bound policy candidate identity and live clock] --> PLAN
+        PLAN --> ADMIT[Tier1 exact plan admission and safety checks]
+        ACCOUNT[Reconciled account and pending obligations] --> ADMIT
+        HUMAN[Authenticated owner commands] -. validated selective cancel and close .-> ADMIT
+        ADMIT --> RESERVE[Atomic reservation identity and command commit]
+        RESERVE --> COORD[Sole live ExecutionCoordinator]
+        COORD --> ATTEMPT[Durable send intent then one adapter invocation]
+        ATTEMPT --> OA[OpenAlgo execution adapter and API]
+        OA --> EFFECT[Broker or OpenAlgo analyzer effects]
+        OA --> RESULT[ACK rejection not sent or ambiguous]
+        RESULT --> LIFE[Live lifecycle partial fills protection and settlement]
+        OA --> BOBS[Validated observations identity freshness completeness]
+        BOBS --> ACCOUNT
+        BOBS --> LIFE
+        LIFE --> ACCOUNT
+        LEDGER[Production hash chained ledger and verified projections] <--> RESERVE
+        LEDGER <--> RESULT
+        LEDGER <--> LIFE
+        BOBS --> SUP[Independent protection and reconciliation supervisor]
+        SUP -. action proposals only .-> ADMIT
     end</pre>
+                    </details>
                 </div>
 
-                <div class="arch-section">
-                    <h3>How to View Interactive Diagrams</h3>
-                    <p>Copy the Mermaid code from the above blocks and paste it into:</p>
-                    <ul>
-                        <li><a href="https://mermaid.live/" target="_blank" style="color: #60a5fa;">Mermaid Live Editor</a> - Online interactive editor</li>
-                        <li>VS Code with Mermaid extension - Local rendering</li>
-                        <li>Any Markdown editor supporting Mermaid</li>
+                <div class="card" style="margin-top: 20px;">
+                    <h3>Interactive Diagram Tools</h3>
+                    <p style="color: #cbd5e1; margin-bottom: 12px;">You can also copy the Mermaid definitions and explore them in:</p>
+                    <ul style="color: #94a3b8; font-size: 13px;">
+                        <li><a href="https://mermaid.live/" target="_blank" style="color: #60a5fa; text-decoration: underline;">Mermaid Live Editor</a> — Full interactive editor with SVG export</li>
+                        <li>VS Code with the <em>Markdown Preview Mermaid Support</em> extension</li>
                     </ul>
                 </div>
             </section>
+
 
 
         
@@ -1977,15 +2064,76 @@ AutonomousTrading/                         # Recompose existing behavior into on
 
     <script>
         function showTab(tabId) {
-            document.querySelectorAll('.content-section').forEach(section => section.classList.remove('active'));
-            document.getElementById(tabId).classList.add('active');
-            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
-            const buttons = document.querySelectorAll('.nav-btn');
+            // Hide all main content sections
+            document.querySelectorAll('.content-section').forEach(section => {
+                section.classList.remove('active');
+            });
+            // Show selected section
+            const targetSection = document.getElementById(tabId);
+            if (targetSection) {
+                targetSection.classList.add('active');
+            }
+            // Update main nav buttons
+            document.querySelectorAll('nav:not(.review-nav) .nav-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            const buttons = document.querySelectorAll('nav:not(.review-nav) .nav-btn');
             const sections = ['overview', 'architecture', 'diagrams', 'repository', 'review'];
             const index = sections.indexOf(tabId);
-            if (index >= 0 && buttons[index]) buttons[index].classList.add('active');
+            if (index >= 0 && buttons[index]) {
+                buttons[index].classList.add('active');
+            }
         }
+
+        function showReviewTab(tabId) {
+            // Hide all review sub-sections
+            document.querySelectorAll('.review-content').forEach(section => {
+                section.classList.remove('active');
+            });
+            // Show selected sub-section
+            const target = document.getElementById('review-' + tabId);
+            if (target) {
+                target.classList.add('active');
+            }
+            // Update review sub-tab buttons
+            document.querySelectorAll('.review-nav-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            const buttons = document.querySelectorAll('.review-nav-btn');
+            const sections = ['executive', 'issues', 'scorecard', 'roadmap', 'layers', 'readiness'];
+            const index = sections.indexOf(tabId);
+            if (index >= 0 && buttons[index]) {
+                buttons[index].classList.add('active');
+            }
+        }
+
+        function toggleIssue(issueId) {
+            const el = document.getElementById('issue-' + issueId);
+            if (el) {
+                el.style.display = el.style.display === 'none' || el.style.display === '' ? 'block' : 'none';
+            }
+        }
+
+        function toggleRecommendation(recId) {
+            const el = document.getElementById('rec-' + recId);
+            if (el) {
+                el.style.display = el.style.display === 'none' || el.style.display === '' ? 'block' : 'none';
+            }
+        }
+
+        function filterRecommendations(priority) {
+            console.log('Filter by priority:', priority);
+        }
+
+        // Initialize first tabs on load
+        document.addEventListener('DOMContentLoaded', function() {
+            showTab('overview');
+            showReviewTab('executive');
+        });
+        
+        // Also call directly in case DOM is already loaded
         showTab('overview');
+        showReviewTab('executive');
     </script>
 </body>
 </html>
