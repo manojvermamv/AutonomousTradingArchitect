@@ -1,105 +1,248 @@
-<!doctype html>
-<html lang="zh-CN">
-  <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Architecture Deep Review — Trading System Analysis</title>
-    <link
-      rel="stylesheet"
-      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
-    />
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutonomousTrading Architecture Preview</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-      /* 内联样式确保主题色立即生效，避免闪烁 */
-      html,
-      body {
-        margin: 0;
-        padding: 0;
-        width: 100%;
-        height: 100%;
-      }
-      html.light,
-      html.light body {
-        background-color: #ffffff !important;
-        color: #000000;
-      }
-      html.dark,
-      html.dark body {
-        background-color: #1a1a1a !important;
-        color: #ffffff;
-      }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #333; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        header { text-align: center; color: white; padding: 40px 20px; }
+        header h1 { font-size: 2.8em; margin-bottom: 15px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+        header p { font-size: 1.2em; opacity: 0.95; max-width: 700px; margin: 0 auto; }
+        .status-badge { display: inline-block; background: rgba(255,255,255,0.2); padding: 8px 20px; border-radius: 50px; backdrop-filter: blur(10px); margin-top: 15px; }
+        .nav-tabs { display: flex; justify-content: center; gap: 10px; margin: 25px 0; flex-wrap: wrap; }
+        .nav-btn { padding: 10px 25px; border: none; border-radius: 50px; background: rgba(255,255,255,0.2); color: white; cursor: pointer; font-size: 1em; transition: all 0.3s ease; backdrop-filter: blur(10px); display: flex; align-items: center; gap: 8px; }
+        .nav-btn:hover { background: rgba(255,255,255,0.3); transform: translateY(-2px); }
+        .nav-btn.active { background: white; color: #667eea; }
+        .content-section { display: none; background: white; border-radius: 20px; padding: 35px; box-shadow: 0 15px 40px rgba(0,0,0,0.2); margin-bottom: 35px; }
+        .content-section.active { display: block; animation: fadeIn 0.4s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+        .section-title { font-size: 2em; color: #2c3e50; margin-bottom: 20px; padding-bottom: 12px; border-bottom: 3px solid #667eea; }
+        .section-subtitle { font-size: 1.1em; color: #7f8c8d; margin-bottom: 20px; }
+        .arch-section { margin: 30px 0; padding: 25px; background: #f8f9fa; border-radius: 15px; border-left: 5px solid #667eea; }
+        .arch-section h3 { color: #2c3e50; margin-bottom: 12px; }
+        .arch-section ul { list-style: none; padding-left: 20px; }
+        .arch-section li { margin: 8px 0; padding-left: 22px; position: relative; }
+        .arch-section li::before { content: "✓"; position: absolute; left: 0; color: #28a745; font-weight: bold; }
+        .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; margin: 25px 0; }
+        .feature-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 15px; padding: 25px; color: white; transition: transform 0.3s ease; }
+        .feature-card:hover { transform: translateY(-3px); box-shadow: 0 10px 25px rgba(0,0,0,0.2); }
+        .feature-card h3 { font-size: 1.2em; margin-bottom: 10px; }
+        .feature-card p { opacity: 0.95; line-height: 1.6; }
+        .modules-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 20px; margin: 25px 0; }
+        .module-card { background: #f8f9fa; border-radius: 15px; padding: 22px; border-left: 4px solid #667eea; }
+        .module-card h4 { color: #2c3e50; margin-bottom: 8px; }
+        .module-tier { display: inline-block; background: #667eea; color: white; padding: 4px 12px; border-radius: 20px; font-size: 0.85em; margin-bottom: 12px; }
+        .module-card p { color: #555; margin-bottom: 15px; }
+        .module-card h5 { color: #667eea; margin: 12px 0 6px 0; font-size: 0.95em; }
+        .module-card ul { list-style: none; padding-left: 18px; }
+        .module-card li { margin: 4px 0; }
+        .mermaid-diagram { background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); border-radius: 15px; padding: 25px; margin: 20px 0; overflow-x: auto; }
+        .mermaid-diagram h3 { color: #2c3e50; margin-bottom: 15px; }
+        .mermaid-diagram pre { background: transparent; font-family: monospace; font-size: 0.85em; white-space: pre-wrap; word-wrap: break-word; color: #333; line-height: 1.4; }
+        .file-tree { background: #1e1e1e; border-radius: 15px; padding: 25px; color: #d4d4d4; font-family: 'Consolas', 'Monaco', monospace; overflow-x: auto; margin: 20px 0; }
+        .file-tree pre { background: transparent; color: #d4d4d4; }
+        .file-tree .folder { color: #569cd6; font-weight: bold; }
+        .file-tree .file { color: #9cdcfe; }
+        .main-footer { text-align: center; color: white; padding: 30px 20px; margin-top: 50px; }
+        .main-footer p { opacity: 0.9; margin: 4px 0; }
+        @media (max-width: 768px) {
+            header h1 { font-size: 1.8em; }
+            .nav-tabs { flex-direction: column; }
+            .nav-btn { width: 100%; justify-content: center; }
+        }
     </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <span class="status-badge"><i class="fas fa-check-circle"></i> Production-Ready Architecture</span>
+            <h1>AutonomousTrading</h1>
+            <p>Advanced AI-powered autonomous trading platform with deterministic financial semantics and evidence-driven architecture</p>
+        </header>
+
+        <nav class="nav-tabs">
+            <button class="nav-btn active" onclick="showTab('overview')"><i class="fas fa-info-circle"></i> Overview</button>
+            <button class="nav-btn" onclick="showTab('architecture')"><i class="fas fa-layer-group"></i> Architecture</button>
+            <button class="nav-btn" onclick="showTab('diagrams')"><i class="fas fa-diagram-project"></i> Diagrams</button>
+            <button class="nav-btn" onclick="showTab('repository')"><i class="fas fa-code-branch"></i> Repository</button>
+        </nav>
+
+        <main>
+            <section id="overview" class="content-section active">
+                <h2 class="section-title">Project Overview</h2>
+                <p class="section-subtitle">Research date: 24 October 2026 | Revision: 445eb11</p>
+                <div class="arch-section">
+                    <h3>Recommendation</h3>
+                    <p>Recompose the existing system into one installable Python application around its deterministic financial semantics and one execution owner.</p>
+                </div>
+                <h3>Key Features</h3>
+                <div class="features-grid">
+                    <div class="feature-card"><h3><i class="fas fa-layer-group"></i> Tiered Architecture</h3><p>Three-tier system with Tier-1 for financial authority, Tier-2 for cognition, and clear separation of concerns.</p></div>
+                    <div class="feature-card"><h3><i class="fas fa-brain"></i> Agentic Cognitive Fabric</h3><p>Bounded AI coordination with role-scoped capabilities, memory partitioning, and evidence-based decision making.</p></div>
+                    <div class="feature-card"><h3><i class="fas fa-swatchbook"></i> Deterministic Canvas</h3><p>Reproducible market intelligence scratchpad for agentic use with causal fact tracking.</p></div>
+                    <div class="feature-card"><h3><i class="fas fa-chain"></i> Evidence-Driven</h3><p>Immutable evidence bundles, hash-chained ledgers, and comprehensive audit trails.</p></div>
+                </div>
+            </section>
+
+            <section id="architecture" class="content-section">
+                <h2 class="section-title">Target Architecture</h2>
+                <div class="arch-section">
+                    <h3>Architecture Principles</h3>
+                    <ul>
+                        <li>One canonical financial history and one execution owner</li>
+                        <li>Governed, evidence-driven agentic trading platform</li>
+                        <li>Production and simulation share code but not authority</li>
+                        <li>Deterministic Market Canvas with full scratchpad capability</li>
+                        <li>Bounded AI cognition without financial credentials</li>
+                        <li>Research-side RL with governed promotion</li>
+                    </ul>
+                </div>
+                <div class="arch-section">
+                    <h3>Three-Tier Structure</h3>
+                    <ul>
+                        <li><strong>Tier-1:</strong> Financial authority, policy/admission, execution gateway, and ledger management</li>
+                        <li><strong>Tier-2:</strong> AI cognition, tool use, research coordination, memory management</li>
+                        <li><strong>Shared Code:</strong> Deterministic engine with separate instances for live and simulation</li>
+                    </ul>
+                </div>
+                <h3 class="section-subtitle">Architecture Modules</h3>
+                <div class="modules-grid">
+                    <div class="module-card"><h4>Market Data & Canvas</h4><div class="module-tier">Infrastructure</div><p>Ingest, validate, normalize, and provide causal market views with quality cutoffs</p></div>
+                    <div class="module-card"><h4>Tier2 Cognition</h4><div class="module-tier">Advisory</div><p>Cognitive agents providing typed proposals, reviews, and advice without financial credentials</p></div>
+                    <div class="module-card"><h4>Production Tier1 Kernel</h4><div class="module-tier">Core</div><p>Sole live execution owner with planning, admission, reservation, and coordination</p></div>
+                    <div class="module-card"><h4>OpenAlgo Broker Boundary</h4><div class="module-tier">External</div><p>Sole live broker interface handling execution, observations, and effects</p></div>
+                    <div class="module-card"><h4>SQLite WAL Ledger</h4><div class="module-tier">Persistence</div><p>Production hash-chained financial ledger with verified projections</p></div>
+                    <div class="module-card"><h4>Protection & Reconciliation</h4><div class="module-tier">Safety</div><p>Independent supervisor providing action proposals only (never direct execution)</p></div>
+                    <div class="module-card"><h4>Disarmed Simulation</h4><div class="module-tier">Research</div><p>Paper replay and backtest using same code paths but with no live capability</p></div>
+                    <div class="module-card"><h4>Research & Promotion</h4><div class="module-tier">Evolution</div><p>Evidence export, custody, RL experiments, and protected evaluation pipeline</p></div>
+                    <div class="module-card"><h4>Operations & Recovery</h4><div class="module-tier">Infrastructure</div><p>Backup, restore, fence verification, and observability</p></div>
+                </div>
+            </section>
+
+            <section id="diagrams" class="content-section">
+                <h2 class="section-title">Architecture Diagrams</h2>
+                <div class="mermaid-diagram">
+                    <h3>Primary Target Diagram 1 - Higher-Level Architecture</h3>
+                    <pre>flowchart TB
+    INPUT[Validated licensed live market inputs] --> MARKET[Live MarketView and deterministic Canvas]
+    MARKET --> DECIDE[Live strategies and bounded review application]
+    MARKET --> COG[Tier2 scoped cognition without financial credentials]
+    COG -. typed proposals reviews and advice .-> DECIDE
+    DECIDE --> KERNEL[Production Tier1 kernel and sole live execution owner]
+    OWNER[Authenticated owner governance] -. approved policy and session candidates .-> KERNEL
+    KERNEL <--> LEDGER[Production SQLite WAL financial ledger]
+    KERNEL --> OA[OpenAlgo sole live broker boundary]
+    OA --> EFFECT[Broker effects or OpenAlgo analyzer sandbox]
+    OBS[Validated account order and trade observations] --> SUP[Independent protection and reconciliation supervisor]
+    SUP -. action proposals only .-> KERNEL
+    CODE[Shared versioned deterministic engine code] -. instantiated in production .-> KERNEL
+    DEV[Permitted immutable research dataset] --> SVIEW[Simulation MarketView and Canvas with recorded clock]
+    SVIEW --> SDEC[Simulation strategy and recorded or isolated review]
+    SDEC --> SKERNEL[Disarmed simulation kernel and execution owner]
+    SKERNEL <--> SLEDGER[Separate simulation run ledger]
+    SKERNEL --> SBROKER[Local simulated broker no live capability]
+    SBROKER --> SKERNEL</pre>
+                </div>
+                <div class="mermaid-diagram">
+                    <h3>Primary Target Diagram 2 - Detailed End-to-End Architecture</h3>
+                    <pre>flowchart TB
+    subgraph M[Production market and Canvas]
+        INPUT --> INGEST[Validate normalize and retain]
+        INGEST --> STORE[Canonical records]
+        STORE --> VIEW[Live causal MarketView]
+        VIEW --> CANVAS[Canvas facts and evidence]
+        CANVAS --> TOOLS[Bounded tools]
+        CANVAS --> RENDER[Charts render]
+    end
+    subgraph F[Production Tier1 kernel]
+        VIEW --> STRAT[Strategy intent]
+        STRAT --> PLAN[Planning port]
+        PLAN --> ADMIT[Admission checks]
+        ADMIT --> RESERVE[Atomic reservation]
+        RESERVE --> COORD[Execution coordinator]
+        COORD --> OA[OpenAlgo adapter]
+        OA --> RESULT[ACK/rejection]
+        RESULT --> LIFE[Live lifecycle]
+        OA --> BOBS[Validated observations]
+        BOBS --> ACCOUNT
+        ACCOUNT --> LEDGER[SQLite WAL]
+    end
+    subgraph S[Disarmed Simulation]
+        HIST --> SVIEW[Sim MarketView]
+        SVIEW --> SSTRAT[Sim strategy]
+        SSTRAT --> SPLAN[Sim planning]
+        SPLAN --> SADMIT[Sim admission]
+        SADMIT --> SCOORD[Sim coordinator]
+        SCOORD --> SBROKER[Sim broker]
+        SBROKER --> SLIFE[Sim lifecycle]
+        SLIFE --> SLEDGER[Sim ledger]
+    end</pre>
+                </div>
+            </section>
+
+            <section id="repository" class="content-section">
+                <h2 class="section-title">Repository Structure</h2>
+                <div class="arch-section">
+                    <h3>Project Layout</h3>
+                    <p>The repository follows a clean, modular structure designed for maintainability and scalability:</p>
+                </div>
+                <div class="file-tree">
+                    <pre>AutonomousTrading/
+├── pyproject.toml                         # Discover packages and declare optional extras
+├── requirements.lock                      # Pin tested deployment dependencies
+├── README.md                              # Complete architecture research and design
+├── LICENSE                                # State owner-selected licensing terms
+├── .gitignore                             # Exclude secrets state and generated files
+├── config/                                # Nonsecret typed configuration inputs
+├── src/                                   # Installable source root
+│   └── autonomous_trading/                # Single unambiguous Python namespace
+│       ├── contracts/                     # Shared types without authority or I/O
+│       ├── market/                        # Canonical market ingestion and views
+│       ├── strategies/                    # Intent-producing implementations
+│       ├── cognition/                     # Tier2 analytical coordination and proposals
+│       ├── kernel/                        # Sole internal financial authority boundary
+│       ├── adapters/                      # Concrete boundary implementations
+│       ├── research/                      # Experiments without execution authority
+│       ├── operations/                    # Supervision recovery and resource isolation
+│       └── interfaces/                    # Human and bounded tool entrypoints
+├── schemas/                               # Versioned wire and persistence specifications
+├── deploy/                                # Small-host installation templates
+├── scripts/                               # Thin development and operations launchers
+├── tests/                                 # Future checks preserving existing coverage
+└── docs/                                  # Concise durable decisions and operations knowledge</pre>
+                </div>
+            </section>
+        </main>
+
+        <footer class="main-footer">
+            <p>AutonomousTrading Architecture Preview | Generated 2026-10-24</p>
+            <p>Production-Ready Architecture Research & Clean-Rebuild Design</p>
+        </footer>
+    </div>
+
     <script>
-      // 在 React 加载前立即设置主题，避免闪烁
-      (function () {
-        const isInIframe = window.self !== window.top;
-
-        function applyThemeToDOM(theme) {
-          document.documentElement.classList.remove("light", "dark");
-          document.documentElement.classList.add(theme);
-          document.documentElement.setAttribute("data-theme", theme);
+        function showTab(tabId) {
+            // Hide all sections
+            document.querySelectorAll('.content-section').forEach(section => {
+                section.classList.remove('active');
+            });
+            // Show selected section
+            document.getElementById(tabId).classList.add('active');
+            // Update buttons
+            document.querySelectorAll('.nav-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            const buttons = document.querySelectorAll('.nav-btn');
+            const sections = ['overview', 'architecture', 'diagrams', 'repository'];
+            const index = sections.indexOf(tabId);
+            if (index >= 0 && buttons[index]) buttons[index].classList.add('active');
         }
-
-        if (isInIframe) {
-          // 监听父窗口主动推送的主题消息
-          window.addEventListener("message", function (event) {
-            if (event.data && typeof event.data.theme === "string") {
-              const theme = event.data.theme;
-              if (theme === "light" || theme === "dark") {
-                applyThemeToDOM(theme);
-              }
-            }
-          });
-        } else {
-          // 非 iframe 环境，使用默认 light 主题
-          applyThemeToDOM("light");
-        }
-      })();
+        // Show first tab by default
+        showTab('overview');
     </script>
-      <script>
-      (function () {
-        if (window.self === window.top) return;
-        var reported = {};
-        window.addEventListener("error", function (event) {
-          // 资源加载失败的 error 事件没有 message，此处仅上报 JS 运行时错误
-          if (!event || !event.message) return;
-          var key =
-            event.message + "|" + (event.filename || "") + "|" + (event.lineno || 0);
-          if (reported[key]) return; // 相同错误只上报一次，避免渲染循环刷屏
-          reported[key] = true;
-          try {
-            window.parent.postMessage(
-              {
-                type: "sandbox-runtime-error",
-                payload: {
-                  message: String(event.message).slice(0, 500),
-                  filename: event.filename || "",
-                  lineno: event.lineno || 0,
-                  colno: event.colno || 0,
-                  stack:
-                    event.error && event.error.stack
-                      ? String(event.error.stack).slice(0, 2000)
-                      : ""
-                }
-              },
-              "*"
-            );
-          } catch (e) {
-            /* 上报失败不影响页面运行 */
-          }
-        });
-      })();
-    </script>
-      <script type="importmap">
-      {
-        "imports": {
-          "react": "https://esm.sh/react@18",
-          "react-dom/client": "https://esm.sh/react-dom@18"
-        }
-      }
-    </script>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+</body>
 </html>
