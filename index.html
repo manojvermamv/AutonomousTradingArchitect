@@ -129,8 +129,10 @@
         .review-nav-btn.active { background: linear-gradient(135deg,#6d4bd1,#8b6ee8); border-color: rgba(196,181,253,.4); box-shadow: 0 5px 18px rgba(109,75,209,.22), inset 0 1px rgba(255,255,255,.12); }
         .nav-btn:focus-visible, .review-nav summary:focus-visible, .doc-actions a:focus-visible, .doc-actions button:focus-visible { outline: 2px solid #93c5fd; outline-offset: 3px; }
         .content-section { scroll-margin-top: 124px; }
+        .review-content { scroll-margin-top: 180px; }
         .review-nav { top: 120px; margin: 16px 0 22px; border-color: rgba(148,163,184,.16); box-shadow: 0 12px 30px rgba(0,0,0,.2); }
-        .review-nav .nav-tabs { flex-wrap: wrap; }
+        .review-nav .nav-tabs { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:6px; }
+        .review-nav .nav-btn { justify-content:center; padding-left:10px; padding-right:10px; }
         .audit-index { display:grid; grid-template-columns: repeat(auto-fit,minmax(210px,1fr)); gap:12px; margin: 22px 0; }
         .audit-index a { display:flex; gap:12px; align-items:center; min-height:64px; padding:14px 16px; color:#dbeafe; text-decoration:none; background:linear-gradient(145deg,rgba(30,41,59,.78),rgba(15,23,42,.8)); border:1px solid rgba(148,163,184,.16); border-radius:12px; transition:transform .18s,border-color .18s,background .18s; }
         .audit-index a:hover { transform:translateY(-2px); border-color:rgba(96,165,250,.55); background:rgba(30,58,95,.55); }
@@ -167,6 +169,22 @@
         .copy-source { margin:12px 0 8px; padding:8px 12px; color:#dbeafe; border:1px solid rgba(148,163,184,.22); border-radius:8px; background:#15243b; cursor:pointer; }
         .copy-source:hover { border-color:#60a5fa; background:#1d3557; }
         .diagram-render-fallback { min-height:unset; padding:16px; color:#fbbf24; border:1px solid rgba(251,191,36,.25); }
+        .filter-chip { min-height:32px; padding:4px 10px; border:1px solid transparent; border-radius:999px; color:#cbd5e1; background:rgba(51,65,85,.55); font:inherit; font-size:12px; cursor:pointer; }
+        .filter-chip:hover { border-color:rgba(148,163,184,.4); }
+        .filter-chip[aria-pressed="true"] { border-color:#60a5fa; color:#eff6ff; background:rgba(37,99,235,.26); box-shadow:0 0 0 1px rgba(96,165,250,.12); }
+        .issue-filter-bar select { min-height:32px; padding:4px 28px 4px 10px; border:1px solid rgba(148,163,184,.24) !important; border-radius:8px; color:#dbeafe !important; background:#111c30 !important; }
+        .issue-filter-bar select option { color:#e2e8f0; background:#111827; }
+        .filter-result-count { color:#94a3b8; font-size:12px; align-self:center; }
+        .review-evidence-note { margin:14px 0 18px; padding:12px 15px; color:#cbd5e1; background:rgba(59,130,246,.08); border:1px solid rgba(96,165,250,.22); border-left:3px solid #60a5fa; border-radius:9px; font-size:13px; line-height:1.6; }
+        .review-evidence-note a { color:#93c5fd; font-weight:600; text-underline-offset:3px; }
+        .disclosure-trigger { color:inherit; font:inherit; }
+        .disclosure-trigger:focus-visible { outline:2px solid #93c5fd; outline-offset:-4px; border-radius:8px; }
+        .disclosure-trigger[aria-expanded="true"] > i.fa-chevron-down { transform:rotate(180deg); }
+        .disclosure-trigger > i.fa-chevron-down { transition:transform .2s ease; }
+        .disclosure-trigger:hover { background:rgba(148,163,184,.06) !important; }
+        #review-issues [id^="issue-"] > div, #review-roadmap [id^="rec-rec"] > div > div { grid-template-columns:repeat(auto-fit,minmax(220px,1fr)) !important; }
+        .roadmap-filter-chip { min-height:36px !important; padding:7px 14px !important; border-radius:999px !important; }
+        @media (max-width:700px) { .issues-grid { grid-template-columns:minmax(0,1fr); } }
         @media (max-width:700px) {
             .header-content,.nav-content,main { padding-left:14px; padding-right:14px; }
             .header-main { height:auto; min-height:64px; }
@@ -174,7 +192,7 @@
             .nav-tabs { gap:5px; }
             .nav-btn { min-height:38px; padding:8px 11px; font-size:12px; }
             .review-nav { top:112px; padding:4px 8px; }
-            .review-nav .nav-tabs { flex-wrap:nowrap; }
+            .review-nav .nav-tabs { display:flex; flex-wrap:nowrap; }
             .markdown-preview { padding:18px; }
             .markdown-preview h1 { font-size:1.55rem; }
         }
@@ -247,8 +265,8 @@
                 <div class="severity-bar">
                     <div class="severity-item"><div class="severity-dot critical" style="animation-duration: 2s;"></div><span style="color: #94a3b8;">1 Critical</span></div>
                     <div class="severity-item"><div class="severity-dot high"></div><span style="color: #94a3b8;">4 High</span></div>
-                    <div class="severity-item"><div class="severity-dot medium"></div><span style="color: #94a3b8;">1 Medium</span></div>
-                    <div class="severity-item"><div class="severity-dot low"></div><span style="color: #94a3b8;">0 Low</span></div>
+                    <div class="severity-item"><div class="severity-dot medium"></div><span style="color: #94a3b8;">6 Medium</span></div>
+                    <div class="severity-item"><div class="severity-dot low"></div><span style="color: #94a3b8;">1 Low</span></div>
                 </div>
             </div>
         </div>
@@ -369,6 +387,7 @@
         <section id="review" class="content-section">
             <h2 class="section-title">Architecture Review Status</h2>
             <p class="section-subtitle">Current auditing state for planned Master README.md</p>
+            <aside class="review-evidence-note" role="note">This review preserves the supplied presentation bundle's scorecard and issue language. Those labels are presentation claims, not code verification. Use the <a href="#readme" onclick="showTab('readme'); return false;">Master README</a> for source-cited findings and the evidence limits.</aside>
             
             <!-- Review Sub-Tabs Navigation -->
             <nav class="review-nav" aria-label="Review sections">
@@ -429,17 +448,17 @@
             <div id="review-issues" class="review-content">
                 <h3>Architecture Issues Summary</h3>
                 <div style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap;">
-                    <div style="background: #334155; padding: 8px 16px; border-radius: 20px; color: #e2e8f0; font-size: 13px;">
+                    <div class="issue-filter-bar" style="background: #334155; padding: 8px 16px; border-radius: 20px; color: #e2e8f0; font-size: 13px;">
                         <strong>Severity:</strong>
-                        <span style="margin-left: 8px; padding: 4px 8px; border-radius: 15px; background: #475569; color: #fff;">All</span>
-                        <span style="margin-left: 8px; padding: 4px 8px; border-radius: 15px; background: rgba(239,68,68,0.2); color: #ef4444;">Critical</span>
-                        <span style="margin-left: 8px; padding: 4px 8px; border-radius: 15px; background: rgba(249,115,22,0.2); color: #f97316;">High</span>
-                        <span style="margin-left: 8px; padding: 4px 8px; border-radius: 15px; background: rgba(234,179,8,0.2); color: #eab308;">Medium</span>
-                        <span style="margin-left: 8px; padding: 4px 8px; border-radius: 15px; background: rgba(59,130,246,0.2); color: #60a5fa;">Low</span>
+                        <button class="filter-chip" type="button" data-issue-severity="all" aria-pressed="true">All</button>
+                        <button class="filter-chip" type="button" data-issue-severity="critical" aria-pressed="false">Critical</button>
+                        <button class="filter-chip" type="button" data-issue-severity="high" aria-pressed="false">High</button>
+                        <button class="filter-chip" type="button" data-issue-severity="medium" aria-pressed="false">Medium</button>
+                        <button class="filter-chip" type="button" data-issue-severity="low" aria-pressed="false">Low</button>
                     </div>
-                    <div style="background: #334155; padding: 8px 16px; border-radius: 20px; color: #e2e8f0; font-size: 13px;">
+                    <div class="issue-filter-bar" style="background: #334155; padding: 8px 16px; border-radius: 20px; color: #e2e8f0; font-size: 13px;">
                         <strong>Category:</strong>
-                        <select style="margin-left: 8px; background: transparent; border: none; color: #94a3b8; outline: none; cursor: pointer;">
+                        <select id="issue-category-filter" aria-label="Filter issues by category" style="margin-left: 8px; background: transparent; border: none; color: #94a3b8; outline: none; cursor: pointer;">
                             <option value="all">All Categories</option>
                             <option value="Resilience">Resilience</option>
                             <option value="Extensibility">Extensibility</option>
@@ -451,13 +470,14 @@
                             <option value="Operations">Operations</option>
                         </select>
                     </div>
+                    <span id="issue-filter-count" class="filter-result-count" role="status" aria-live="polite"></span>
                 </div>
                 <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 16px;">
                     
                     <div style="border-radius: 16px; overflow: hidden; border-left: 4px solid #ef4444; background: rgba(13,18,32,0.6); transition: all 0.3s;">
                         <button onclick="toggleIssue('spo1')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
                             <div style="width: 40px; height: 40px; border-radius: 12px; background: rgba(239,68,68,0.1); display: flex; align-items: center; justify-content: center;">
-                                <i class="fa-solid circle-exclamation" style="color: #ef4444; font-size: 18px;"></i>
+                            <i class="fa-solid fa-circle-exclamation" style="color: #ef4444; font-size: 18px;"></i>
                             </div>
                             <div style="flex: 1;">
                                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
@@ -491,7 +511,7 @@
                     <div style="border-radius: 16px; overflow: hidden; border-left: 4px solid #f97316; background: rgba(13,18,32,0.6); transition: all 0.3s;">
                         <button onclick="toggleIssue('spo2')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
                             <div style="width: 40px; height: 40px; border-radius: 12px; background: rgba(249,115,22,0.1); display: flex; align-items: center; justify-content: center;">
-                                <i class="fa-solid exclamation" style="color: #f97316; font-size: 18px;"></i>
+                            <i class="fa-solid fa-triangle-exclamation" style="color: #f97316; font-size: 18px;"></i>
                             </div>
                             <div style="flex: 1;">
                                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
@@ -525,7 +545,7 @@
                     <div style="border-radius: 16px; overflow: hidden; border-left: 4px solid #f97316; background: rgba(13,18,32,0.6); transition: all 0.3s;">
                         <button onclick="toggleIssue('db1')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
                             <div style="width: 40px; height: 40px; border-radius: 12px; background: rgba(249,115,22,0.1); display: flex; align-items: center; justify-content: center;">
-                                <i class="fa-solid exclamation" style="color: #f97316; font-size: 18px;"></i>
+                            <i class="fa-solid fa-triangle-exclamation" style="color: #f97316; font-size: 18px;"></i>
                             </div>
                             <div style="flex: 1;">
                                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
@@ -559,7 +579,7 @@
                     <div style="border-radius: 16px; overflow: hidden; border-left: 4px solid #eab308; background: rgba(13,18,32,0.6); transition: all 0.3s;">
                         <button onclick="toggleIssue('cog1')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
                             <div style="width: 40px; height: 40px; border-radius: 12px; background: rgba(234,179,8,0.1); display: flex; align-items: center; justify-content: center;">
-                                <i class="fa-solid exclamation" style="color: #f97316; font-size: 18px;"></i>
+                            <i class="fa-solid fa-triangle-exclamation" style="color: #f97316; font-size: 18px;"></i>
                             </div>
                             <div style="flex: 1;">
                                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
@@ -593,7 +613,7 @@
                     <div style="border-radius: 16px; overflow: hidden; border-left: 4px solid #f97316; background: rgba(13,18,32,0.6); transition: all 0.3s;">
                         <button onclick="toggleIssue('tx1')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
                             <div style="width: 40px; height: 40px; border-radius: 12px; background: rgba(249,115,22,0.1); display: flex; align-items: center; justify-content: center;">
-                                <i class="fa-solid exclamation" style="color: #f97316; font-size: 18px;"></i>
+                            <i class="fa-solid fa-triangle-exclamation" style="color: #f97316; font-size: 18px;"></i>
                             </div>
                             <div style="flex: 1;">
                                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
@@ -627,7 +647,7 @@
                     <div style="border-radius: 16px; overflow: hidden; border-left: 4px solid #f97316; background: rgba(13,18,32,0.6); transition: all 0.3s;">
                         <button onclick="toggleIssue('tx2')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
                             <div style="width: 40px; height: 40px; border-radius: 12px; background: rgba(249,115,22,0.1); display: flex; align-items: center; justify-content: center;">
-                                <i class="fa-solid exclamation" style="color: #f97316; font-size: 18px;"></i>
+                            <i class="fa-solid fa-triangle-exclamation" style="color: #f97316; font-size: 18px;"></i>
                             </div>
                             <div style="flex: 1;">
                                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
@@ -661,7 +681,7 @@
                     <div style="border-radius: 16px; overflow: hidden; border-left: 4px solid #eab308; background: rgba(13,18,32,0.6); transition: all 0.3s;">
                         <button onclick="toggleIssue('sec1')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
                             <div style="width: 40px; height: 40px; border-radius: 12px; background: rgba(234,179,8,0.1); display: flex; align-items: center; justify-content: center;">
-                                <i class="fa-solid exclamation" style="color: #f97316; font-size: 18px;"></i>
+                            <i class="fa-solid fa-triangle-exclamation" style="color: #f97316; font-size: 18px;"></i>
                             </div>
                             <div style="flex: 1;">
                                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
@@ -695,7 +715,7 @@
                     <div style="border-radius: 16px; overflow: hidden; border-left: 4px solid #eab308; background: rgba(13,18,32,0.6); transition: all 0.3s;">
                         <button onclick="toggleIssue('sim1')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
                             <div style="width: 40px; height: 40px; border-radius: 12px; background: rgba(234,179,8,0.1); display: flex; align-items: center; justify-content: center;">
-                                <i class="fa-solid exclamation" style="color: #f97316; font-size: 18px;"></i>
+                            <i class="fa-solid fa-triangle-exclamation" style="color: #f97316; font-size: 18px;"></i>
                             </div>
                             <div style="flex: 1;">
                                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
@@ -729,7 +749,7 @@
                     <div style="border-radius: 16px; overflow: hidden; border-left: 4px solid #eab308; background: rgba(13,18,32,0.6); transition: all 0.3s;">
                         <button onclick="toggleIssue('obs1')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
                             <div style="width: 40px; height: 40px; border-radius: 12px; background: rgba(234,179,8,0.1); display: flex; align-items: center; justify-content: center;">
-                                <i class="fa-solid exclamation" style="color: #f97316; font-size: 18px;"></i>
+                            <i class="fa-solid fa-triangle-exclamation" style="color: #f97316; font-size: 18px;"></i>
                             </div>
                             <div style="flex: 1;">
                                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
@@ -763,7 +783,7 @@
                     <div style="border-radius: 16px; overflow: hidden; border-left: 4px solid #eab308; background: rgba(13,18,32,0.6); transition: all 0.3s;">
                         <button onclick="toggleIssue('rec1')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
                             <div style="width: 40px; height: 40px; border-radius: 12px; background: rgba(234,179,8,0.1); display: flex; align-items: center; justify-content: center;">
-                                <i class="fa-solid exclamation" style="color: #f97316; font-size: 18px;"></i>
+                            <i class="fa-solid fa-triangle-exclamation" style="color: #f97316; font-size: 18px;"></i>
                             </div>
                             <div style="flex: 1;">
                                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
@@ -797,7 +817,7 @@
                     <div style="border-radius: 16px; overflow: hidden; border-left: 4px solid #eab308; background: rgba(13,18,32,0.6); transition: all 0.3s;">
                         <button onclick="toggleIssue('mon1')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
                             <div style="width: 40px; height: 40px; border-radius: 12px; background: rgba(234,179,8,0.1); display: flex; align-items: center; justify-content: center;">
-                                <i class="fa-solid exclamation" style="color: #f97316; font-size: 18px;"></i>
+                            <i class="fa-solid fa-triangle-exclamation" style="color: #f97316; font-size: 18px;"></i>
                             </div>
                             <div style="flex: 1;">
                                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
@@ -831,7 +851,7 @@
                     <div style="border-radius: 16px; overflow: hidden; border-left: 4px solid #3b82f6; background: rgba(13,18,32,0.6); transition: all 0.3s;">
                         <button onclick="toggleIssue('api1')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
                             <div style="width: 40px; height: 40px; border-radius: 12px; background: rgba(59,130,246,0.1); display: flex; align-items: center; justify-content: center;">
-                                <i class="fa-solid exclamation" style="color: #f97316; font-size: 18px;"></i>
+                            <i class="fa-solid fa-triangle-exclamation" style="color: #f97316; font-size: 18px;"></i>
                             </div>
                             <div style="flex: 1;">
                                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 8px;">
@@ -871,7 +891,7 @@
                 <div style="background: rgba(13,18,32,0.6); border: 1px solid rgba(255,255,255,0.1); border-radius: 16px; padding: 32px; margin-bottom: 30px;">
                     <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 40px;">
                         <div style="position: relative; width: 120px; height: 120px;">
-                            <svg style="width: 100%; height: 100%; transform: rotate(-90deg);">
+                            <svg aria-hidden="true" style="width: 100%; height: 100%; transform: rotate(-90deg);">
                                 <circle cx="60" cy="60" r="52" stroke="#334155" stroke-width="10" fill="none"></circle>
                                 <circle cx="60" cy="60" r="52" stroke="#ef4444" stroke-width="10" fill="none" stroke-dasharray="179.85000000000002 327" stroke-linecap="round"></circle>
                             </svg>
@@ -1291,10 +1311,11 @@
                 <h3>Improvement Roadmap</h3>
                 <div style="margin-bottom: 20px;">
                     <div style="display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 24px;">
-                        <button style="padding: 8px 16px; border-radius: 20px; border: 1px solid #475569; background: #334155; color: #e2e8f0; font-size: 13px; font-weight: 500; cursor: pointer;">All Priorities</button>
-                        <button style="padding: 8px 16px; border-radius: 20px; border: 1px solid rgba(239,68,68,0.3); background: rgba(239,68,68,0.1); color: #ef4444; font-size: 13px; font-weight: 500; cursor: pointer;">Immediate</button>
-                        <button style="padding: 8px 16px; border-radius: 20px; border: 1px solid rgba(249,115,22,0.3); background: rgba(249,115,22,0.1); color: #f97316; font-size: 13px; font-weight: 500; cursor: pointer;">Short-term</button>
-                        <button style="padding: 8px 16px; border-radius: 20px; border: 1px solid rgba(59,130,246,0.3); background: rgba(59,130,246,0.1); color: #60a5fa; font-size: 13px; font-weight: 500; cursor: pointer;">Medium-term</button>
+                        <button class="roadmap-filter-chip filter-chip" type="button" data-recommendation-priority="all" aria-pressed="true">All Priorities</button>
+                        <button class="roadmap-filter-chip filter-chip" type="button" data-recommendation-priority="immediate" aria-pressed="false">Immediate</button>
+                        <button class="roadmap-filter-chip filter-chip" type="button" data-recommendation-priority="short-term" aria-pressed="false">Short-term</button>
+                        <button class="roadmap-filter-chip filter-chip" type="button" data-recommendation-priority="medium-term" aria-pressed="false">Medium-term</button>
+                        <span id="recommendation-filter-count" class="filter-result-count" role="status" aria-live="polite"></span>
                     </div>
                 </div>
                 <div style="margin-bottom: 30px;">
@@ -1304,7 +1325,7 @@
                         <div style="border-radius: 16px; overflow: hidden; background: rgba(13,18,32,0.6); border: 1px solid rgba(239,68,68,0.3);">
                             <button onclick="toggleRecommendation('rec1')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
                                 <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(239,68,68,0.1); display: flex; align-items: center; justify-content: center;">
-                                    <i class="fa-solid bolt" style="color: #ef4444; font-size: 18px;"></i>
+                                <i class="fa-solid fa-bolt" style="color: #ef4444; font-size: 18px;"></i>
                                 </div>
                                 <div style="flex: 1;">
                                     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
@@ -1352,7 +1373,7 @@
                         <div style="border-radius: 16px; overflow: hidden; background: rgba(13,18,32,0.6); border: 1px solid rgba(239,68,68,0.3);">
                             <button onclick="toggleRecommendation('rec2')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
                                 <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(239,68,68,0.1); display: flex; align-items: center; justify-content: center;">
-                                    <i class="fa-solid bolt" style="color: #ef4444; font-size: 18px;"></i>
+                                <i class="fa-solid fa-bolt" style="color: #ef4444; font-size: 18px;"></i>
                                 </div>
                                 <div style="flex: 1;">
                                     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
@@ -1400,7 +1421,7 @@
                         <div style="border-radius: 16px; overflow: hidden; background: rgba(13,18,32,0.6); border: 1px solid rgba(59,130,246,0.3);">
                             <button onclick="toggleRecommendation('rec3')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
                                 <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(59,130,246,0.1); display: flex; align-items: center; justify-content: center;">
-                                    <i class="fa-solid calendar" style="color: #60a5fa; font-size: 18px;"></i>
+                                <i class="fa-solid fa-calendar" style="color: #60a5fa; font-size: 18px;"></i>
                                 </div>
                                 <div style="flex: 1;">
                                     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
@@ -1448,7 +1469,7 @@
                         <div style="border-radius: 16px; overflow: hidden; background: rgba(13,18,32,0.6); border: 1px solid rgba(59,130,246,0.3);">
                             <button onclick="toggleRecommendation('rec4')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
                                 <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(59,130,246,0.1); display: flex; align-items: center; justify-content: center;">
-                                    <i class="fa-solid calendar" style="color: #60a5fa; font-size: 18px;"></i>
+                                <i class="fa-solid fa-calendar" style="color: #60a5fa; font-size: 18px;"></i>
                                 </div>
                                 <div style="flex: 1;">
                                     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
@@ -1496,7 +1517,7 @@
                         <div style="border-radius: 16px; overflow: hidden; background: rgba(13,18,32,0.6); border: 1px solid rgba(59,130,246,0.3);">
                             <button onclick="toggleRecommendation('rec5')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
                                 <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(59,130,246,0.1); display: flex; align-items: center; justify-content: center;">
-                                    <i class="fa-solid calendar" style="color: #60a5fa; font-size: 18px;"></i>
+                                <i class="fa-solid fa-calendar" style="color: #60a5fa; font-size: 18px;"></i>
                                 </div>
                                 <div style="flex: 1;">
                                     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
@@ -1544,7 +1565,7 @@
                         <div style="border-radius: 16px; overflow: hidden; background: rgba(13,18,32,0.6); border: 1px solid rgba(59,130,246,0.3);">
                             <button onclick="toggleRecommendation('rec6')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
                                 <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(59,130,246,0.1); display: flex; align-items: center; justify-content: center;">
-                                    <i class="fa-solid calendar" style="color: #60a5fa; font-size: 18px;"></i>
+                                <i class="fa-solid fa-calendar" style="color: #60a5fa; font-size: 18px;"></i>
                                 </div>
                                 <div style="flex: 1;">
                                     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
@@ -1592,7 +1613,7 @@
                         <div style="border-radius: 16px; overflow: hidden; background: rgba(13,18,32,0.6); border: 1px solid rgba(59,130,246,0.3);">
                             <button onclick="toggleRecommendation('rec7')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
                                 <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(59,130,246,0.1); display: flex; align-items: center; justify-content: center;">
-                                    <i class="fa-solid calendar" style="color: #60a5fa; font-size: 18px;"></i>
+                                <i class="fa-solid fa-calendar" style="color: #60a5fa; font-size: 18px;"></i>
                                 </div>
                                 <div style="flex: 1;">
                                     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
@@ -1640,7 +1661,7 @@
                         <div style="border-radius: 16px; overflow: hidden; background: rgba(13,18,32,0.6); border: 1px solid rgba(59,130,246,0.3);">
                             <button onclick="toggleRecommendation('rec8')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
                                 <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(59,130,246,0.1); display: flex; align-items: center; justify-content: center;">
-                                    <i class="fa-solid calendar" style="color: #60a5fa; font-size: 18px;"></i>
+                                <i class="fa-solid fa-calendar" style="color: #60a5fa; font-size: 18px;"></i>
                                 </div>
                                 <div style="flex: 1;">
                                     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 8px;">
@@ -1882,7 +1903,10 @@
                 button.tabIndex = active ? 0 : -1;
             });
             if (tabId === 'review') showReviewTab(activeReviewSection, false);
-            if (updateUrl) history.pushState(null, '', tabId === 'review' ? '#review/' + activeReviewSection : '#' + tabId);
+            if (updateUrl) {
+                history.pushState(null, '', tabId === 'review' ? '#review/' + activeReviewSection : '#' + tabId);
+                requestAnimationFrame(() => document.getElementById(tabId)?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+            }
         }
 
         function showReviewTab(tabId, updateUrl = true) {
@@ -1904,6 +1928,7 @@
             });
             if (updateUrl && document.getElementById('review').classList.contains('active')) {
                 history.pushState(null, '', '#review/' + tabId);
+                requestAnimationFrame(() => document.getElementById('review')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
             }
         }
 
@@ -1941,9 +1966,11 @@
                 showReviewTab(reviewSections.includes(sub) ? sub : 'executive', false);
             }
             showTab(selectedMain, false);
-            if ((selectedMain === 'readme' || selectedMain === 'roadmap') && sub) {
-                requestAnimationFrame(() => document.getElementById(sub)?.scrollIntoView({ block: 'start' }));
-            }
+            requestAnimationFrame(() => {
+                if ((selectedMain === 'readme' || selectedMain === 'roadmap') && sub) document.getElementById(sub)?.scrollIntoView({ block: 'start' });
+                else if (selectedMain === 'review') document.getElementById('review')?.scrollIntoView({ block: 'start' });
+                else document.getElementById(selectedMain)?.scrollIntoView({ block: 'start' });
+            });
         }
 
         function addTabKeyboardSupport(selector) {
@@ -2151,25 +2178,88 @@
         function toggleIssue(issueId) {
             const el = document.getElementById('issue-' + issueId);
             if (el) {
-                el.style.display = el.style.display === 'none' || el.style.display === '' ? 'block' : 'none';
+                const expanded = el.style.display === 'none' || el.style.display === '';
+                el.style.display = expanded ? 'block' : 'none';
+                const trigger = Array.from(document.querySelectorAll('.issue-filter-bar ~ * button, #review-issues button[onclick]')).find(button => button.getAttribute('onclick') === "toggleIssue('" + issueId + "')");
+                if (trigger) trigger.setAttribute('aria-expanded', String(expanded));
             }
         }
 
         function toggleRecommendation(recId) {
             const el = document.getElementById('rec-' + recId);
             if (el) {
-                el.style.display = el.style.display === 'none' || el.style.display === '' ? 'block' : 'none';
+                const expanded = el.style.display === 'none' || el.style.display === '';
+                el.style.display = expanded ? 'block' : 'none';
+                const trigger = Array.from(document.querySelectorAll('#review-roadmap button[onclick]')).find(button => button.getAttribute('onclick') === "toggleRecommendation('" + recId + "')");
+                if (trigger) trigger.setAttribute('aria-expanded', String(expanded));
             }
         }
 
         function filterRecommendations(priority) {
-            console.log('Filter by priority:', priority);
+            const cards = Array.from(document.querySelectorAll('#review-roadmap button[onclick^="toggleRecommendation("]')).map(button => button.parentElement.parentElement);
+            cards.forEach(card => { card.hidden = priority !== 'all' && card.dataset.priority !== priority; });
+            document.querySelectorAll('[data-recommendation-priority]').forEach(button => {
+                const active = button.dataset.recommendationPriority === priority;
+                button.setAttribute('aria-pressed', String(active));
+            });
+            const count = cards.filter(card => !card.hidden).length;
+            const status = document.getElementById('recommendation-filter-count');
+            if (status) status.textContent = count + (count === 1 ? ' recommendation' : ' recommendations');
+        }
+
+        const issueCategories = ['Resilience', 'Extensibility', 'Scalability', 'Stability', 'Transaction Safety', 'Governance', 'Safety', 'Operations'];
+
+        function filterIssues() {
+            const severity = document.querySelector('[data-issue-severity][aria-pressed="true"]')?.dataset.issueSeverity || 'all';
+            const category = document.getElementById('issue-category-filter')?.value || 'all';
+            const cards = Array.from(document.querySelectorAll('#review-issues button[onclick^="toggleIssue("]')).map(button => button.parentElement);
+            cards.forEach(card => {
+                const severityMatches = severity === 'all' || card.dataset.severity === severity;
+                const categoryMatches = category === 'all' || card.dataset.category === category;
+                card.hidden = !(severityMatches && categoryMatches);
+            });
+            const count = cards.filter(card => !card.hidden).length;
+            const status = document.getElementById('issue-filter-count');
+            if (status) status.textContent = count + ' of ' + cards.length + ' issues';
+        }
+
+        function initializeReviewControls() {
+            document.querySelectorAll('#review-issues button[onclick^="toggleIssue("]').forEach(button => {
+                const match = button.getAttribute('onclick').match(/toggleIssue\('([^']+)'\)/);
+                const card = button.parentElement;
+                if (!match || !card) return;
+                button.classList.add('disclosure-trigger');
+                button.setAttribute('aria-controls', 'issue-' + match[1]);
+                button.setAttribute('aria-expanded', 'false');
+                const spans = Array.from(button.querySelectorAll('span')).map(span => span.textContent.trim());
+                card.dataset.severity = (spans[0] || '').toLowerCase();
+                card.dataset.category = spans.find(value => issueCategories.includes(value)) || '';
+            });
+            document.querySelectorAll('#review-roadmap button[onclick^="toggleRecommendation("]').forEach(button => {
+                const match = button.getAttribute('onclick').match(/toggleRecommendation\('([^']+)'\)/);
+                const card = button.parentElement.parentElement;
+                if (!match || !card) return;
+                button.classList.add('disclosure-trigger');
+                button.setAttribute('aria-controls', 'rec-' + match[1]);
+                button.setAttribute('aria-expanded', 'false');
+                const priority = Array.from(button.querySelectorAll('span')).map(span => span.textContent.trim().toLowerCase()).find(value => ['immediate', 'short-term', 'medium-term'].includes(value));
+                card.dataset.priority = priority || '';
+            });
+            document.querySelectorAll('[data-issue-severity]').forEach(button => button.addEventListener('click', () => {
+                document.querySelectorAll('[data-issue-severity]').forEach(item => item.setAttribute('aria-pressed', String(item === button)));
+                filterIssues();
+            }));
+            document.getElementById('issue-category-filter')?.addEventListener('change', filterIssues);
+            document.querySelectorAll('[data-recommendation-priority]').forEach(button => button.addEventListener('click', () => filterRecommendations(button.dataset.recommendationPriority)));
+            filterIssues();
+            filterRecommendations('all');
         }
 
         addTabKeyboardSupport('#main-nav [role="tablist"]');
         addTabKeyboardSupport('.review-nav [role="tablist"]');
         loadMarkdownPreview('README.md', 'readme-preview', 'readme-status');
         loadMarkdownPreview('ROADMAP.md', 'roadmap-preview', 'roadmap-status');
+        initializeReviewControls();
         window.addEventListener('popstate', restoreFromHash);
         window.addEventListener('hashchange', restoreFromHash);
         restoreFromHash();
