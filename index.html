@@ -28,11 +28,13 @@
         .severity-dot.low { background: #3b82f6; }
         
         /* Navigation */
-        nav { border-bottom: 1px solid rgba(255,255,255,0.05); background: rgba(13,18,32,0.5); }
+        nav { border-bottom: 1px solid rgba(255,255,255,0.05); background: rgba(13,18,32,0.96); }
+        #main-nav { position: sticky; top: 64px; z-index: 49; backdrop-filter: blur(16px); }
         .nav-content { max-width: 1600px; margin: 0 auto; padding: 0 24px; }
-        .nav-tabs { display: flex; gap: 4px; overflow-x: auto; padding: 8px 0; scrollbar-width: none; }
+        .nav-tabs { display: flex; align-items: center; gap: 6px; overflow-x: auto; padding: 8px 0; scrollbar-width: none; }
         .nav-tabs::-webkit-scrollbar { display: none; }
-        .nav-btn { display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 8px; border: 1px solid transparent; font-size: 13px; font-weight: 500; color: #94a3b8; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+        .nav-btn { appearance: none; background: transparent; color: #94a3b8; font: inherit; display: flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 8px; border: 1px solid transparent; font-size: 13px; font-weight: 500; cursor: pointer; transition: all 0.2s; white-space: nowrap; }
+        .nav-btn:focus-visible { outline: 2px solid #93c5fd; outline-offset: 2px; }
         .nav-btn:hover { color: #e2e8f0; background: rgba(255,255,255,0.05); }
         .nav-btn.active {
         background: linear-gradient(135deg, #3b82f6 0%, #60a5fa 100%);
@@ -113,8 +115,8 @@
         ::-webkit-scrollbar-thumb:hover { background: #475569; }
         
         @media (max-width: 768px) {
-            .nav-tabs { flex-direction: column; }
-            .nav-btn { width: 100%; justify-content: center; }
+            .nav-tabs { flex-direction: row; }
+            .nav-btn { width: auto; justify-content: center; }
             .severity-bar { display: none; }
         }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
@@ -123,6 +125,11 @@
 <style>
     .review-content { display: none; animation: fadeIn 0.3s ease; }
     .review-content.active { display: block; }
+    .review-nav { position: sticky; top: 120px; z-index: 20; border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 4px 12px; background: rgba(13,18,32,0.96); backdrop-filter: blur(16px); }
+    .review-nav .nav-tabs { padding: 4px 0; }
+    .mermaid { min-height: 160px; background: rgba(0,0,0,0.25); padding: 20px; border-radius: 8px; margin-bottom: 15px; overflow: auto; }
+    .mermaid svg { max-width: none; }
+    .mermaid-code { display: block; max-height: 65vh; overflow: auto; padding: 16px; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; background: rgba(0,0,0,0.3); color: #cbd5e1; font: 12px/1.55 Consolas, Monaco, monospace; white-space: pre; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 </style>
 
@@ -156,7 +163,7 @@
         document.addEventListener('DOMContentLoaded', function() {
             if (typeof mermaid !== 'undefined') {
                 mermaid.initialize({
-                    startOnLoad: true,
+                    startOnLoad: false,
                     theme: 'dark',
                     securityLevel: 'loose',
                     flowchart: { useMaxWidth: true, htmlLabels: true }
@@ -187,14 +194,14 @@
         </div>
     </header>
 
-    <nav>
+    <nav id="main-nav" aria-label="Main sections">
         <div class="nav-content">
-            <div class="nav-tabs">
-                <button class="nav-btn active" onclick="showTab('overview')"><i class="fa-solid fa-diagram-project"></i> Overview</button>
-                <button class="nav-btn" onclick="showTab('architecture')"><i class="fa-solid fa-layer-group"></i> Architecture</button>
-                <button class="nav-btn" onclick="showTab('diagrams')"><i class="fa-solid fa-diagram-project"></i> Diagrams</button>
-                <button class="nav-btn" onclick="showTab('repository')"><i class="fa-solid fa-code-branch"></i> Repository</button>
-                <button class="nav-btn" onclick="showTab('review')"><i class="fa-solid fa-clipboard-check"></i> Review</button>
+            <div class="nav-tabs" role="tablist" aria-label="Main sections">
+                <button id="tab-overview" class="nav-btn active" role="tab" aria-controls="overview" aria-selected="true" onclick="showTab('overview')"><i class="fa-solid fa-diagram-project"></i> Overview</button>
+                <button id="tab-architecture" class="nav-btn" role="tab" aria-controls="architecture" aria-selected="false" onclick="showTab('architecture')"><i class="fa-solid fa-layer-group"></i> Architecture</button>
+                <button id="tab-diagrams" class="nav-btn" role="tab" aria-controls="diagrams" aria-selected="false" onclick="showTab('diagrams')"><i class="fa-solid fa-diagram-project"></i> Diagrams</button>
+                <button id="tab-repository" class="nav-btn" role="tab" aria-controls="repository" aria-selected="false" onclick="showTab('repository')"><i class="fa-solid fa-code-branch"></i> Repository</button>
+                <button id="tab-review" class="nav-btn" role="tab" aria-controls="review" aria-selected="false" onclick="showTab('review')"><i class="fa-solid fa-clipboard-check"></i> Review</button>
             </div>
         </div>
     </nav>
@@ -596,13 +603,15 @@ AutonomousTrading/                         # Recompose existing behavior into on
             <p class="section-subtitle">Current auditing state for planned Master README.md</p>
             
             <!-- Review Sub-Tabs Navigation -->
-            <nav class="nav-tabs">
-                <button class="nav-btn review-nav-btn active" onclick="showReviewTab('executive')"><i class="fa-solid fa-clipboard-list"></i> Executive Summary</button>
-                <button class="nav-btn review-nav-btn" onclick="showReviewTab('issues')"><i class="fa-solid fa-triangle-exclamation"></i> Issues Analysis</button>
-                <button class="nav-btn review-nav-btn" onclick="showReviewTab('scorecard')"><i class="fa-solid fa-chart-bar"></i> Scorecard</button>
-                <button class="nav-btn review-nav-btn" onclick="showReviewTab('roadmap')"><i class="fa-solid fa-road"></i> Improvement Roadmap</button>
-                <button class="nav-btn review-nav-btn" onclick="showReviewTab('layers')"><i class="fa-solid fa-layer-group"></i> Architecture Layers</button>
-                <button class="nav-btn review-nav-btn" onclick="showReviewTab('readiness')"><i class="fa-solid fa-clipboard-check"></i> Readiness</button>
+            <nav class="review-nav" aria-label="Review sections">
+              <div class="nav-tabs" role="tablist" aria-label="Review sections">
+                <button id="review-tab-executive" class="nav-btn review-nav-btn active" role="tab" aria-selected="true" aria-controls="review-executive" onclick="showReviewTab('executive')"><i class="fa-solid fa-clipboard-list"></i> Executive Summary</button>
+                <button id="review-tab-issues" class="nav-btn review-nav-btn" role="tab" aria-selected="false" aria-controls="review-issues" onclick="showReviewTab('issues')"><i class="fa-solid fa-triangle-exclamation"></i> Issues Analysis</button>
+                <button id="review-tab-scorecard" class="nav-btn review-nav-btn" role="tab" aria-selected="false" aria-controls="review-scorecard" onclick="showReviewTab('scorecard')"><i class="fa-solid fa-chart-bar"></i> Scorecard</button>
+                <button id="review-tab-roadmap" class="nav-btn review-nav-btn" role="tab" aria-selected="false" aria-controls="review-roadmap" onclick="showReviewTab('roadmap')"><i class="fa-solid fa-road"></i> Improvement Roadmap</button>
+                <button id="review-tab-layers" class="nav-btn review-nav-btn" role="tab" aria-selected="false" aria-controls="review-layers" onclick="showReviewTab('layers')"><i class="fa-solid fa-layer-group"></i> Architecture Layers</button>
+                <button id="review-tab-readiness" class="nav-btn review-nav-btn" role="tab" aria-selected="false" aria-controls="review-readiness" onclick="showReviewTab('readiness')"><i class="fa-solid fa-clipboard-check"></i> Readiness</button>
+              </div>
             </nav>
             
             <!-- Executive Summary Sub-Section -->
@@ -2063,48 +2072,72 @@ AutonomousTrading/                         # Recompose existing behavior into on
     </footer>
 
     <script>
-        function showTab(tabId) {
-            // Hide all main content sections
+        const mainSections = ['overview', 'architecture', 'diagrams', 'repository', 'review'];
+        const reviewSections = ['executive', 'issues', 'scorecard', 'roadmap', 'layers', 'readiness'];
+        let activeReviewSection = 'executive';
+        let mermaidRenderStarted = false;
+
+        function showTab(tabId, updateUrl = true) {
+            if (!mainSections.includes(tabId)) tabId = 'overview';
             document.querySelectorAll('.content-section').forEach(section => {
-                section.classList.remove('active');
+                const active = section.id === tabId;
+                section.classList.toggle('active', active);
+                section.setAttribute('aria-hidden', String(!active));
             });
-            // Show selected section
-            const targetSection = document.getElementById(tabId);
-            if (targetSection) {
-                targetSection.classList.add('active');
-            }
-            // Update main nav buttons
-            document.querySelectorAll('nav:not(.review-nav) .nav-btn').forEach(btn => {
-                btn.classList.remove('active');
+            document.querySelectorAll('#main-nav [role="tab"]').forEach(button => {
+                const active = button.id === 'tab-' + tabId;
+                button.classList.toggle('active', active);
+                button.setAttribute('aria-selected', String(active));
+                button.tabIndex = active ? 0 : -1;
             });
-            const buttons = document.querySelectorAll('nav:not(.review-nav) .nav-btn');
-            const sections = ['overview', 'architecture', 'diagrams', 'repository', 'review'];
-            const index = sections.indexOf(tabId);
-            if (index >= 0 && buttons[index]) {
-                buttons[index].classList.add('active');
+            if (updateUrl) history.pushState(null, '', tabId === 'review' ? '#review/' + activeReviewSection : '#' + tabId);
+            if (tabId === 'diagrams') requestAnimationFrame(renderMermaidDiagrams);
+        }
+
+        function showReviewTab(tabId, updateUrl = true) {
+            if (!reviewSections.includes(tabId)) tabId = 'executive';
+            activeReviewSection = tabId;
+            document.querySelectorAll('.review-content').forEach(section => {
+                const active = section.id === 'review-' + tabId;
+                section.classList.toggle('active', active);
+                section.setAttribute('aria-hidden', String(!active));
+            });
+            document.querySelectorAll('.review-nav [role="tab"]').forEach(button => {
+                const active = button.id === 'review-tab-' + tabId;
+                button.classList.toggle('active', active);
+                button.setAttribute('aria-selected', String(active));
+                button.tabIndex = active ? 0 : -1;
+            });
+            if (updateUrl && document.getElementById('review').classList.contains('active')) {
+                history.pushState(null, '', '#review/' + tabId);
             }
         }
 
-        function showReviewTab(tabId) {
-            // Hide all review sub-sections
-            document.querySelectorAll('.review-content').forEach(section => {
-                section.classList.remove('active');
+        function renderMermaidDiagrams() {
+            if (mermaidRenderStarted || !window.mermaid) return;
+            const diagrams = [];
+            document.querySelectorAll('#diagrams .diagram-card').forEach(card => {
+                const source = card.querySelector('.mermaid-code');
+                const canvas = card.querySelector('.mermaid');
+                if (!source || !canvas) return;
+                canvas.textContent = source.textContent.trim();
+                diagrams.push(canvas);
             });
-            // Show selected sub-section
-            const target = document.getElementById('review-' + tabId);
-            if (target) {
-                target.classList.add('active');
-            }
-            // Update review sub-tab buttons
-            document.querySelectorAll('.review-nav-btn').forEach(btn => {
-                btn.classList.remove('active');
+            if (!diagrams.length) return;
+            mermaidRenderStarted = true;
+            mermaid.run({ nodes: diagrams }).catch(error => {
+                mermaidRenderStarted = false;
+                console.error('Mermaid rendering failed; raw source remains available.', error);
             });
-            const buttons = document.querySelectorAll('.review-nav-btn');
-            const sections = ['executive', 'issues', 'scorecard', 'roadmap', 'layers', 'readiness'];
-            const index = sections.indexOf(tabId);
-            if (index >= 0 && buttons[index]) {
-                buttons[index].classList.add('active');
+        }
+
+        function restoreFromHash() {
+            const [main, sub] = decodeURIComponent(location.hash.slice(1)).split('/');
+            const selectedMain = mainSections.includes(main) ? main : 'overview';
+            if (selectedMain === 'review') {
+                showReviewTab(reviewSections.includes(sub) ? sub : 'executive', false);
             }
+            showTab(selectedMain, false);
         }
 
         function toggleIssue(issueId) {
@@ -2125,15 +2158,8 @@ AutonomousTrading/                         # Recompose existing behavior into on
             console.log('Filter by priority:', priority);
         }
 
-        // Initialize first tabs on load
-        document.addEventListener('DOMContentLoaded', function() {
-            showTab('overview');
-            showReviewTab('executive');
-        });
-        
-        // Also call directly in case DOM is already loaded
-        showTab('overview');
-        showReviewTab('executive');
+        window.addEventListener('popstate', restoreFromHash);
+        restoreFromHash();
     </script>
 </body>
 </html>

@@ -1,6 +1,6 @@
 # AutonomousTrading — Complete Architecture Research and Clean-Rebuild Design Prompt
 
-Act as a senior software architect, software-reuse specialist, and critical code reviewer. **Use your own engineering judgment.** Inspect my existing **AutonomousTrading** project and the user-attached research materials, investigate strong and recently maintained open-source implementations, and design a coherent **new, cleanly structured AutonomousTrading project that retains and reuses as much proven functionality as practical**.
+Act as a senior software architect, software-reuse specialist, and critical code reviewer. **Use your own engineering judgment.** Inspect my existing **AutonomousTrading** project and the user-attached research materials, investigate strong and recently maintained open-source implementations, and design the final **production-ready target architecture** for a new, cleanly structured AutonomousTrading project that retains and reuses as much proven functionality as practical. This architecture is the blueprint for a later build; do not implement the trading system in the existing project during this assignment.
 
 **This is architecture research, audit, and design only—not approval to rewrite code, mutate live state, change financial policy, or place orders.** The objective is the **fastest safe route to a complete, understandable, maintainable system**, not a costly from-zero reimplementation of capabilities already built.
 
@@ -107,9 +107,11 @@ Use modularity at **financial authority, data, strategy, cognition, research and
 
 For major existing capabilities, show whether to **reuse, extract, refactor, wrap, replace, or rebuild**, and how to preserve behavior and evidence while transitioning. Explain minimal migration and parity-testing steps, and retain a **no-dual-authority** cutover/recovery invariant.
 
-## 6. Deliver architecture and fully commented repository layout
+## 6. Deliver the master README and fully commented repository layout
 
-In **one readable Markdown (`.md`) deliverable**, include:
+The sole deliverable is the repository-root **`README.md`**, which is the new project's master README and the final architecture result. Read the existing root README only for the permitted higher-level boundaries and Mermaid diagrams described in Section 3; do not treat its prior conclusions as authoritative or append a second competing report. Replace it with the researched, evidence-grounded master README. Do not create a differently named report or change the repository's current directory structure as part of this architecture-only assignment.
+
+In that master README, include:
 
 1. **Source inventory and evidence precedence:** list reviewed attached files, production evidence, historical context, verified code and external reference research; explicitly state inaccessible items and contradictions.
 2. **Current architecture:** concise implemented-system summary, code-grounded current-state Mermaid diagram, module/authority map and inspection coverage.
@@ -123,4 +125,4 @@ In **one readable Markdown (`.md`) deliverable**, include:
 
 Keep the final file **full-featured but clean, direct and easy to navigate**, with concise explanations and tables where useful. Distinguish **verified current implementation**, **user-proposed target ideas**, **external research**, and **your own recommendations**. Challenge my source materials and diagrams if they are incorrect. Cite current code by file/line and external repositories by URL/commit/path. **Use your intelligence; none of my example modules, tools, diagrams, or external references must be adopted exactly.**
 
-**This assignment is read-only architecture work:** Do not change the current source tree, running services, live configuration, broker state, financial records, or owner policies. Do not send broker-changing requests or consume protected locked-OOS data. Create only the requested design Markdown file. **This restriction applies to this audit assignment, not to the future development workflow you are designing.** The target architecture must allow independently safe work to proceed without unrelated production gates while retaining all justified live-trading protections.
+**This assignment is read-only architecture work:** Do not change the current source tree, running services, live configuration, broker state, financial records, or owner policies. Do not send broker-changing requests or consume protected locked-OOS data. The only file to write is the repository-root `README.md` master architecture deliverable. **This restriction applies to this audit assignment, not to the future development workflow you are designing.** The target architecture must allow independently safe work to proceed without unrelated production gates while retaining all justified live-trading protections.
