@@ -120,6 +120,64 @@
             .severity-bar { display: none; }
         }
         @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        /* Consistent dark navigation, compact on small screens, and legible document previews. */
+        #main-nav { top: 64px; border-bottom-color: rgba(148,163,184,.14); }
+        .nav-content { max-width: 1600px; }
+        .nav-tabs { gap: 8px; }
+        .nav-btn { min-height: 40px; color: #a8b5c8; border-radius: 10px; font-weight: 600; }
+        .nav-btn.active { color: #f8fbff; background: linear-gradient(135deg,#2563eb,#4f8df8); border-color: rgba(147,197,253,.38); box-shadow: 0 5px 18px rgba(37,99,235,.22), inset 0 1px rgba(255,255,255,.12); }
+        .review-nav-btn.active { background: linear-gradient(135deg,#6d4bd1,#8b6ee8); border-color: rgba(196,181,253,.4); box-shadow: 0 5px 18px rgba(109,75,209,.22), inset 0 1px rgba(255,255,255,.12); }
+        .nav-btn:focus-visible, .review-nav summary:focus-visible, .doc-actions a:focus-visible, .doc-actions button:focus-visible { outline: 2px solid #93c5fd; outline-offset: 3px; }
+        .content-section { scroll-margin-top: 124px; }
+        .review-nav { top: 120px; margin: 16px 0 22px; border-color: rgba(148,163,184,.16); box-shadow: 0 12px 30px rgba(0,0,0,.2); }
+        .review-nav .nav-tabs { flex-wrap: wrap; }
+        .audit-index { display:grid; grid-template-columns: repeat(auto-fit,minmax(210px,1fr)); gap:12px; margin: 22px 0; }
+        .audit-index a { display:flex; gap:12px; align-items:center; min-height:64px; padding:14px 16px; color:#dbeafe; text-decoration:none; background:linear-gradient(145deg,rgba(30,41,59,.78),rgba(15,23,42,.8)); border:1px solid rgba(148,163,184,.16); border-radius:12px; transition:transform .18s,border-color .18s,background .18s; }
+        .audit-index a:hover { transform:translateY(-2px); border-color:rgba(96,165,250,.55); background:rgba(30,58,95,.55); }
+        .audit-index i { color:#7db6ff; width:18px; text-align:center; }
+        .doc-actions { display:flex; flex-wrap:wrap; gap:10px; align-items:center; margin:0 0 18px; }
+        .doc-actions a,.doc-actions button { display:inline-flex; align-items:center; gap:8px; min-height:40px; padding:9px 14px; border:1px solid rgba(148,163,184,.2); border-radius:9px; color:#dbeafe; background:#111c30; text-decoration:none; font:inherit; font-size:13px; font-weight:600; cursor:pointer; }
+        .doc-actions a:hover,.doc-actions button:hover { border-color:#60a5fa; background:#172844; }
+        .doc-status { color:#94a3b8; font-size:13px; }
+        .markdown-preview { min-height:220px; padding:clamp(18px,3vw,38px); overflow:auto; color:#d3ddeb; background:linear-gradient(155deg,rgba(15,23,42,.94),rgba(10,15,28,.96)); border:1px solid rgba(148,163,184,.16); border-radius:14px; box-shadow:0 16px 48px rgba(0,0,0,.2); }
+        .markdown-preview > :first-child { margin-top:0; }
+        .markdown-preview h1,.markdown-preview h2,.markdown-preview h3,.markdown-preview h4 { color:#f1f5f9; line-height:1.3; margin:1.5em 0 .55em; }
+        .markdown-preview h1 { font-size:2rem; padding-bottom:.4em; border-bottom:1px solid rgba(148,163,184,.22); }
+        .markdown-preview h2 { font-size:1.55rem; padding-bottom:.35em; border-bottom:1px solid rgba(148,163,184,.16); }
+        .markdown-preview p,.markdown-preview li { line-height:1.75; }
+        .markdown-preview p { margin:.8em 0; }
+        .markdown-preview a { color:#7db6ff; text-decoration:underline; text-underline-offset:3px; }
+        .markdown-preview table { display:block; max-width:100%; overflow:auto; border-collapse:collapse; margin:1.2em 0; }
+        .markdown-preview th,.markdown-preview td { padding:9px 12px; text-align:left; vertical-align:top; border:1px solid rgba(148,163,184,.22); }
+        .markdown-preview th { color:#eff6ff; background:rgba(51,65,85,.55); }
+        .markdown-preview tr:nth-child(even) { background:rgba(30,41,59,.35); }
+        .markdown-preview pre { overflow:auto; padding:16px; color:#dbeafe; background:#080d18; border:1px solid rgba(148,163,184,.16); border-radius:10px; }
+        .markdown-preview code { font-family:Consolas,Monaco,monospace; font-size:.9em; }
+        .markdown-preview :not(pre)>code { color:#bfdbfe; background:rgba(51,65,85,.55); border-radius:4px; padding:.12em .35em; }
+        .markdown-preview blockquote { margin:1em 0; padding:.2em 1em; border-left:3px solid #60a5fa; color:#aab9ce; background:rgba(30,41,59,.3); }
+        .markdown-preview [id] { scroll-margin-top:132px; }
+        .file-tree { white-space:pre; overflow:auto; color:#dbeafe; background:#080d18; border:1px solid rgba(148,163,184,.18); }
+        .diagram-card .mermaid { overflow:auto; }
+        .diagram-card svg { max-width:100%; height:auto; }
+        .diagram-controls { display:flex; align-items:center; gap:6px; margin:0 0 10px; }
+        .diagram-controls button { min-width:36px; min-height:34px; padding:6px 10px; color:#dbeafe; border:1px solid rgba(148,163,184,.22); border-radius:8px; background:#15243b; cursor:pointer; }
+        .diagram-controls button:hover { border-color:#60a5fa; background:#1d3557; }
+        .diagram-controls span { margin-left:4px; color:#94a3b8; font-size:12px; }
+        #review-issues p { white-space:normal !important; overflow:visible !important; text-overflow:clip !important; }
+        .copy-source { margin:12px 0 8px; padding:8px 12px; color:#dbeafe; border:1px solid rgba(148,163,184,.22); border-radius:8px; background:#15243b; cursor:pointer; }
+        .copy-source:hover { border-color:#60a5fa; background:#1d3557; }
+        .diagram-render-fallback { min-height:unset; padding:16px; color:#fbbf24; border:1px solid rgba(251,191,36,.25); }
+        @media (max-width:700px) {
+            .header-content,.nav-content,main { padding-left:14px; padding-right:14px; }
+            .header-main { height:auto; min-height:64px; }
+            .brand-info h1 { font-size:16px; }
+            .nav-tabs { gap:5px; }
+            .nav-btn { min-height:38px; padding:8px 11px; font-size:12px; }
+            .review-nav { top:112px; padding:4px 8px; }
+            .review-nav .nav-tabs { flex-wrap:nowrap; }
+            .markdown-preview { padding:18px; }
+            .markdown-preview h1 { font-size:1.55rem; }
+        }
     </style>
 
 <style>
@@ -159,13 +217,15 @@
 
 
     <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', function() {
             if (typeof mermaid !== 'undefined') {
                 mermaid.initialize({
                     startOnLoad: false,
                     theme: 'dark',
-                    securityLevel: 'loose',
+                    securityLevel: 'strict',
                     flowchart: { useMaxWidth: true, htmlLabels: true }
                 });
             }
@@ -202,6 +262,8 @@
                 <button id="tab-diagrams" class="nav-btn" role="tab" aria-controls="diagrams" aria-selected="false" onclick="showTab('diagrams')"><i class="fa-solid fa-diagram-project"></i> Diagrams</button>
                 <button id="tab-repository" class="nav-btn" role="tab" aria-controls="repository" aria-selected="false" onclick="showTab('repository')"><i class="fa-solid fa-code-branch"></i> Repository</button>
                 <button id="tab-review" class="nav-btn" role="tab" aria-controls="review" aria-selected="false" onclick="showTab('review')"><i class="fa-solid fa-clipboard-check"></i> Review</button>
+                <button id="tab-readme" class="nav-btn" role="tab" aria-controls="readme" aria-selected="false" onclick="showTab('readme')"><i class="fa-brands fa-markdown"></i> Master README</button>
+                <button id="tab-roadmap" class="nav-btn" role="tab" aria-controls="roadmap" aria-selected="false" onclick="showTab('roadmap')"><i class="fa-solid fa-road"></i> Roadmap</button>
             </div>
         </div>
     </nav>
@@ -220,6 +282,22 @@
                 <div class="feature-card"><h3><i class="fa-solid fa-brain"></i> Agentic Cognitive Fabric</h3><p>Bounded AI coordination with role-scoped capabilities, memory partitioning, and evidence-based decision making.</p></div>
                 <div class="feature-card"><h3><i class="fa-solid fa-swatchbook"></i> Deterministic Canvas</h3><p>Reproducible market intelligence scratchpad for agentic use with causal fact tracking.</p></div>
                 <div class="feature-card"><h3><i class="fa-solid fa-chain"></i> Evidence-Driven</h3><p>Immutable evidence bundles, hash-chained ledgers, and comprehensive audit trails.</p></div>
+            </div>
+            <div class="card">
+                <h3><i class="fa-solid fa-magnifying-glass-chart" style="color:#7db6ff"></i> Audit at a glance</h3>
+                <p>The code audit and evidence-qualified findings live in the Master README. The six presentation areas below remain reachable as direct review routes; dashboard assessments are kept distinct from code-verified findings.</p>
+                <div class="audit-index" aria-label="Audit areas">
+                    <a href="#review/executive" onclick="showTab('review'); showReviewTab('executive'); return false;"><i class="fa-solid fa-clipboard-list"></i><span>Executive Summary</span></a>
+                    <a href="#review/issues" onclick="showTab('review'); showReviewTab('issues'); return false;"><i class="fa-solid fa-triangle-exclamation"></i><span>Issues Analysis</span></a>
+                    <a href="#review/scorecard" onclick="showTab('review'); showReviewTab('scorecard'); return false;"><i class="fa-solid fa-chart-bar"></i><span>Scorecard</span></a>
+                    <a href="#review/roadmap" onclick="showTab('review'); showReviewTab('roadmap'); return false;"><i class="fa-solid fa-road"></i><span>Improvement Roadmap</span></a>
+                    <a href="#review/layers" onclick="showTab('review'); showReviewTab('layers'); return false;"><i class="fa-solid fa-layer-group"></i><span>Architecture Layers</span></a>
+                    <a href="#review/readiness" onclick="showTab('review'); showReviewTab('readiness'); return false;"><i class="fa-solid fa-clipboard-check"></i><span>Readiness</span></a>
+                </div>
+                <div class="doc-actions">
+                    <button type="button" onclick="showTab('readme')"><i class="fa-brands fa-markdown"></i> Open full Master README</button>
+                    <button type="button" onclick="showTab('roadmap')"><i class="fa-solid fa-road"></i> Open audit Roadmap</button>
+                </div>
             </div>
         </section>
 
@@ -262,145 +340,12 @@
             
             <section id="diagrams" class="content-section">
                 <h2 class="section-title">Architecture Diagrams</h2>
-                <p class="section-subtitle">Visual architecture flows with interactive rendering & raw code</p>
-                
-                <div class="diagram-card">
-                    <h3>Primary Target Diagram 1 — Higher-Level Architecture</h3>
-                    <div class="mermaid" style="background: rgba(0,0,0,0.4); padding: 20px; border-radius: 8px; margin-bottom: 15px; overflow-x: auto;">
-flowchart TB
-    INPUT[Validated licensed live market inputs] --> MARKET[Live MarketView and deterministic Canvas]
-    MARKET --> DECIDE[Live strategies and bounded review application]
-    MARKET --> COG[Tier2 scoped cognition without financial credentials]
-    COG -. typed proposals reviews and advice .-> DECIDE
-    DECIDE --> KERNEL[Production Tier1 kernel and sole live execution owner]
-    OWNER[Authenticated owner governance] -. approved policy and session candidates .-> KERNEL
-    KERNEL <--> LEDGER[Production SQLite WAL financial ledger]
-    KERNEL --> OA[OpenAlgo sole live broker boundary]
-    OA --> EFFECT[Broker effects or OpenAlgo analyzer sandbox]
-    OBS[Validated account order and trade observations] --> SUP[Independent protection and reconciliation supervisor]
-    SUP -. action proposals only .-> KERNEL
-    CODE[Shared versioned deterministic engine code] -. instantiated in production .-> KERNEL
-    DEV[Permitted immutable research dataset] --> SVIEW[Simulation MarketView and Canvas with recorded clock]
-    SVIEW --> SDEC[Simulation strategy and recorded or isolated review]
-    SDEC --> SKERNEL[Disarmed simulation kernel and execution owner]
-    SKERNEL <--> SLEDGER[Separate simulation run ledger]
-    SKERNEL --> SBROKER[Local simulated broker no live capability]
-    SBROKER --> SKERNEL
-                    </div>
-                    <details style="margin-top: 10px;">
-                        <summary style="cursor: pointer; color: #60a5fa; font-size: 13px; margin-bottom: 8px;">View Raw Mermaid Code</summary>
-                        <pre class="mermaid-code">flowchart TB
-    INPUT[Validated licensed live market inputs] --> MARKET[Live MarketView and deterministic Canvas]
-    MARKET --> DECIDE[Live strategies and bounded review application]
-    MARKET --> COG[Tier2 scoped cognition without financial credentials]
-    COG -. typed proposals reviews and advice .-> DECIDE
-    DECIDE --> KERNEL[Production Tier1 kernel and sole live execution owner]
-    OWNER[Authenticated owner governance] -. approved policy and session candidates .-> KERNEL
-    KERNEL <--> LEDGER[Production SQLite WAL financial ledger]
-    KERNEL --> OA[OpenAlgo sole live broker boundary]
-    OA --> EFFECT[Broker effects or OpenAlgo analyzer sandbox]
-    OBS[Validated account order and trade observations] --> SUP[Independent protection and reconciliation supervisor]
-    SUP -. action proposals only .-> KERNEL
-    CODE[Shared versioned deterministic engine code] -. instantiated in production .-> KERNEL
-    DEV[Permitted immutable research dataset] --> SVIEW[Simulation MarketView and Canvas with recorded clock]
-    SVIEW --> SDEC[Simulation strategy and recorded or isolated review]
-    SDEC --> SKERNEL[Disarmed simulation kernel and execution owner]
-    SKERNEL <--> SLEDGER[Separate simulation run ledger]
-    SKERNEL --> SBROKER[Local simulated broker no live capability]
-    SBROKER --> SKERNEL</pre>
-                    </details>
-                </div>
-
-                <div class="diagram-card">
-                    <h3>Primary Target Diagram 2 — Detailed End-to-End Architecture</h3>
-                    <div class="mermaid" style="background: rgba(0,0,0,0.4); padding: 20px; border-radius: 8px; margin-bottom: 15px; overflow-x: auto;">
-flowchart TB
-    subgraph M[Production market and Canvas]
-        INPUT[Market Inputs] --> INGEST[Validate and Retain]
-        INGEST --> STORE[Canonical Records]
-        STORE --> VIEW[Live Causal MarketView]
-        VIEW --> CANVAS[Canvas Facts]
-        CANVAS --> TOOLS[Bounded Tools]
-        CANVAS --> RENDER[Charts Render]
-    end
-    subgraph F[Production Tier1 Kernel]
-        VIEW --> STRAT[Strategy Intent]
-        STRAT --> PLAN[Planning Port]
-        PLAN --> ADMIT[Admission Checks]
-        ADMIT --> RESERVE[Atomic Reservation]
-        RESERVE --> COORD[Execution Coordinator]
-        COORD --> OA[OpenAlgo Adapter]
-        OA --> RESULT[ACK Rejection]
-        RESULT --> LIFE[Live Lifecycle]
-        OA --> BOBS[Validated Observations]
-        BOBS --> ACCOUNT[Account State]
-        ACCOUNT --> LEDGER[SQLite WAL]
-    end
-    subgraph S[Disarmed Simulation]
-        HIST[Historical Data] --> SVIEW[Sim MarketView]
-        SVIEW --> SSTRAT[Sim Strategy]
-        SSTRAT --> SPLAN[Sim Planning]
-        SPLAN --> SADMIT[Sim Admission]
-        SADMIT --> SCOORD[Sim Coordinator]
-        SCOORD --> SBROKER[Sim Broker]
-        SBROKER --> SLIFE[Sim Lifecycle]
-        SLIFE --> SLEDGER[Sim Ledger]
-    end
-                    </div>
-                    <details style="margin-top: 10px;">
-                        <summary style="cursor: pointer; color: #60a5fa; font-size: 13px; margin-bottom: 8px;">View Raw Mermaid Code</summary>
-                        <pre class="mermaid-code">flowchart TB
-    subgraph M[Production market and Canvas]
-        INPUT[OHLCV ticks bid ask spot chain Greeks optional depth] --> INGEST[Validate normalize order and retain provenance]
-        INGEST --> STORE[Canonical records event and availability times]
-        STORE --> VIEW[Live causal MarketView with cutoff and quality]
-        VIEW --> CANVAS[Canvas versioned facts geometry and evidence]
-        CANVAS --> TOOLS[Bounded as of overlay and timeframe tools]
-        CANVAS --> RENDER[Charts render facts and attributable annotations]
-    end
-    subgraph C[Tier2 cognition without financial credentials]
-        BLUEPRINT[Pinned roles budgets dependencies and deadlines] --> COG[CognitiveAgentRuntime]
-        TOOLS --> COG
-        MEMORY[Partitioned working outcome and research memory] <--> COG
-        WF[Optional CognitiveWorkflowPort] -. schedules bounded cognition .-> COG
-        COG --> REVIEW[Typed entry review exit advice and candidate proposals]
-        REVIEW --> APPLY[Live review application preserving unavailable policy]
-    end
-    subgraph F[Production Tier1 kernel and live financial state]
-        VIEW --> STRAT[Strategy decision and typed Intent]
-        STRAT --> APPLY
-        APPLY --> PLAN[Authoritative planning port with versioned implementations]
-        SESSION[Bound policy candidate identity and live clock] --> PLAN
-        PLAN --> ADMIT[Tier1 exact plan admission and safety checks]
-        ACCOUNT[Reconciled account and pending obligations] --> ADMIT
-        HUMAN[Authenticated owner commands] -. validated selective cancel and close .-> ADMIT
-        ADMIT --> RESERVE[Atomic reservation identity and command commit]
-        RESERVE --> COORD[Sole live ExecutionCoordinator]
-        COORD --> ATTEMPT[Durable send intent then one adapter invocation]
-        ATTEMPT --> OA[OpenAlgo execution adapter and API]
-        OA --> EFFECT[Broker or OpenAlgo analyzer effects]
-        OA --> RESULT[ACK rejection not sent or ambiguous]
-        RESULT --> LIFE[Live lifecycle partial fills protection and settlement]
-        OA --> BOBS[Validated observations identity freshness completeness]
-        BOBS --> ACCOUNT
-        BOBS --> LIFE
-        LIFE --> ACCOUNT
-        LEDGER[Production hash chained ledger and verified projections] <--> RESERVE
-        LEDGER <--> RESULT
-        LEDGER <--> LIFE
-        BOBS --> SUP[Independent protection and reconciliation supervisor]
-        SUP -. action proposals only .-> ADMIT
-    end</pre>
-                    </details>
-                </div>
-
-                <div class="card" style="margin-top: 20px;">
-                    <h3>Interactive Diagram Tools</h3>
-                    <p style="color: #cbd5e1; margin-bottom: 12px;">You can also copy the Mermaid definitions and explore them in:</p>
-                    <ul style="color: #94a3b8; font-size: 13px;">
-                        <li><a href="https://mermaid.live/" target="_blank" style="color: #60a5fa; text-decoration: underline;">Mermaid Live Editor</a> — Full interactive editor with SVG export</li>
-                        <li>VS Code with the <em>Markdown Preview Mermaid Support</em> extension</li>
-                    </ul>
+                <p class="section-subtitle">Interactive diagrams use the Mermaid source blocks from the Master README. Expand a card to inspect or copy its source.</p>
+                <div id="diagram-list" aria-live="polite"><div class="card"><p>Loading the canonical Mermaid blocks from the Master README…</p></div></div>
+                <div class="card" style="margin-top:20px;">
+                    <h3>Diagram source</h3>
+                    <p>These diagrams are rendered from the fenced Mermaid blocks in the Master README. If the rendering runtime is unavailable, the source remains readable and copyable.</p>
+                    <div class="doc-actions"><a href="./README.md" target="_blank" rel="noopener"><i class="fa-solid fa-arrow-up-right-from-square"></i> Open Master README</a><button type="button" onclick="showTab('readme')"><i class="fa-brands fa-markdown"></i> Preview README</button></div>
                 </div>
             </section>
 
@@ -409,189 +354,12 @@ flowchart TB
         
             <section id="repository" class="content-section">
                 <h2 class="section-title">Repository Structure</h2>
-                <div class="arch-section">
-                    <h3>Project Layout</h3>
-                    <p>The repository follows a clean, modular structure designed for maintainability and scalability:</p>
+                <p class="section-subtitle">The fully commented target tree is loaded directly from the Master README so the preview stays in sync with its canonical source.</p>
+                <div class="doc-actions">
+                    <a href="./README.md#6-fully-commented-target-repository" target="_blank" rel="noopener"><i class="fa-solid fa-arrow-up-right-from-square"></i> Open repository section</a>
+                    <button type="button" onclick="showTab('readme')"><i class="fa-brands fa-markdown"></i> Preview Master README</button>
                 </div>
-```text
-AutonomousTrading/                         # Recompose existing behavior into one application
-├── pyproject.toml                         # Discover packages and declare optional extras
-├── requirements.lock                      # Pin tested deployment dependencies
-├── README.md                              # Explain boundaries and operator entrypoints
-├── LICENSE                                # State owner-selected licensing terms
-├── .gitignore                             # Exclude secrets state and generated files
-├── .pre-commit-config.yaml                # Preserve secret and source hygiene guards
-├── .github/                               # Repository automation
-│   └── workflows/                         # Isolated verification workflows
-│       └── verify.yml                     # Check artifacts contracts and secret hygiene
-├── config/                                # Nonsecret typed configuration inputs
-│   ├── defaults.yaml                      # Ship explicit runtime defaults
-│   ├── live.example.yaml                  # Show live composition without credentials
-│   ├── simulation.yaml                    # Select structurally disarmed composition
-│   ├── research.yaml                      # Set isolated stores and resource quotas
-│   ├── teams.yaml                         # Pin blueprints capabilities and budgets
-│   └── policies.example.yaml              # Illustrate owner-managed policy schema
-├── src/                                   # Installable source root
-│   └── autonomous_trading/                # Single unambiguous Python namespace
-│       ├── __init__.py                    # Export version and public contracts
-│       ├── __main__.py                    # Invoke operator CLI
-│       ├── bootstrap.py                   # Compose mode-specific capabilities explicitly
-│       ├── contracts/                     # Shared types without authority or I/O
-│       │   ├── __init__.py                # Export stable contract types
-│       │   ├── identity.py                # Define account session candidate and command IDs
-│       │   ├── market.py                  # Define records views quality and availability
-│       │   ├── decisions.py               # Define intent review and advice envelopes
-│       │   ├── execution.py               # Define plan action observation and outcomes
-│       │   ├── evidence.py                # Define causal references and artifact digests
-│       │   └── clock.py                   # Define injected clock interfaces
-│       ├── settings/                      # Single configuration owner
-│       │   ├── loader.py                  # Resolve defaults profiles and scoped overrides
-│       │   ├── schema.py                  # Validate units schemas and compositions
-│       │   └── secrets.py                 # Resolve service credentials without propagation
-│       ├── market/                        # Canonical market ingestion and views
-│       │   ├── ingest.py                  # Validate order and retain incoming records
-│       │   ├── providers.py               # Preserve provider dependency contracts
-│       │   ├── store.py                   # Retain records and provenance
-│       │   ├── sources.py                 # Implement live and historical input sources
-│       │   ├── view.py                    # Reuse indexed causal MarketView behavior
-│       │   ├── quality.py                 # Expose gaps corrections finality and stale joins
-│       │   └── canvas/                    # Deterministic scratchpad over MarketView
-│       │       ├── facts.py               # Define versioned geometry and availability
-│       │       ├── algorithms.py          # Compute initial swings levels trends and ranges
-│       │       ├── tools.py               # Expose bounded as-of sketch operations
-│       │       ├── annotations.py         # Retain attributable subjective interpretations
-│       │       └── history.py             # Resolve causal fact and annotation versions
-│       ├── strategies/                    # Intent-producing implementations
-│       │   ├── registry.py                # Preserve kinds families and version identity
-│       │   ├── worker.py                  # Reuse source-neutral worker host and SDK
-│       │   ├── buyer_edge.py              # Wrap existing score behavior unchanged
-│       │   ├── ema_cross.py               # Retain deterministic example strategy
-│       │   └── model_strategy.py          # Convert bounded advisor output into intent
-│       ├── cognition/                     # Tier2 analytical coordination and proposals
-│       │   ├── runtime.py                 # Reuse bounded CognitiveAgentRuntime behavior
-│       │   ├── blueprint.py               # Validate roles dependencies budgets and versions
-│       │   ├── tools.py                   # Enforce role-scoped read capabilities
-│       │   ├── providers.py               # Wrap existing model and advisor backends
-│       │   ├── review.py                  # Preserve entry and unavailable application
-│       │   ├── advice.py                  # Record advice with human application seam
-│       │   ├── records.py                 # Retain typed run role and application evidence
-│       │   ├── memory.py                  # Partition causal working outcome and research memory
-│       │   └── reflection.py              # Produce experiments and candidate proposals
-│       ├── kernel/                        # Sole internal financial authority boundary
-│       │   ├── authority.py               # Authenticate requests and own writer scope
-│       │   ├── policy.py                  # Interpret owner-approved financial policy
-│       │   ├── planner.py                 # Dispatch existing versioned planning implementations
-│       │   ├── selection.py               # Preserve instrument selection and sizing
-│       │   ├── admission.py               # Validate exact plans against canonical state
-│       │   ├── reservations.py            # Account for pending and uncertain commitments
-│       │   ├── lifecycle.py               # Fold order leg structure and settlement transitions
-│       │   ├── protection.py              # Reuse stop trail and residual decisions
-│       │   ├── safety.py                  # Apply explicit condition and action precedence
-│       │   ├── coordinator.py             # Persist attempts and classify uncertain effects
-│       │   ├── reconciliation.py          # Validate observations and resolve obligations
-│       │   ├── recovery.py                # Enforce read-only restore fencing and activation
-│       │   ├── ports.py                   # Define broker observation and owner boundaries
-│       │   └── ledger/                    # Financial events and verified read models
-│       │       ├── runtime.py             # Verify loaded SQLite and effective WAL settings
-│       │       ├── envelope.py            # Canonicalize events and chain digests
-│       │       ├── store.py               # Serialize event identity and projection transactions
-│       │       ├── schema.py              # Validate version and apply owned migrations
-│       │       ├── projections.py         # Rebuild and compare authoritative read models
-│       │       └── export.py              # Publish committed causal evidence asynchronously
-│       ├── adapters/                      # Concrete boundary implementations
-│       │   ├── openalgo.py                # Retain sole live execution and observation adapter
-│       │   ├── simulated_broker.py        # Model orders fills costs and uncertainty
-│       │   ├── unix_channel.py            # Preserve authenticated local authority transport
-│       │   ├── clocks.py                  # Implement live and recorded clocks
-│       │   └── compatibility.py           # Read legacy schemas and expose migration views
-│       ├── research/                      # Experiments without execution authority
-│       │   ├── bundles.py                 # Validate licenses and publish immutable inputs
-│       │   ├── datasets.py                # Build causal partitioned features and labels
-│       │   ├── custody.py                 # Own global evidence roles aliases and consumption
-│       │   ├── trials.py                  # Retain every attempt and selection history
-│       │   ├── replay.py                  # Drive shared engine with recorded inputs
-│       │   ├── evaluation.py              # Measure costs robustness regimes and parity
-│       │   ├── candidates.py              # Freeze exact code model prompt and data identities
-│       │   ├── promotion.py               # Stage governed next-session bindings
-│       │   ├── jobs.py                    # Reuse durable leases limits and containment
-│       │   └── rl/                        # Optional offline learning capability
-│       │       ├── environment.py         # Reuse causal Gymnasium observation and action seam
-│       │       ├── reward.py              # Version experiment reward and economics
-│       │       ├── training.py            # Wrap existing SB3 seeds trials and artifacts
-│       │       └── policy.py              # Verify frozen inference bundles and abstention
-│       ├── operations/                    # Supervision recovery and resource isolation
-│       │   ├── supervisor.py              # Observe protection and propose actions independently
-│       │   ├── deployment.py              # Verify release convergence and exclusive cutover
-│       │   ├── backup.py                  # Produce consistent retained off-box artifacts
-│       │   ├── restore.py                 # Verify clean-host recovery without activation
-│       │   ├── isolation.py               # Validate workspace credential store and resource scope
-│       │   ├── verification.py            # Record observations without global work gates
-│       │   └── telemetry.py               # Emit bounded asynchronous diagnostics
-│       └── interfaces/                    # Human and bounded tool entrypoints
-│           ├── cli.py                     # Preserve operator commands through compatibility names
-│           ├── api.py                     # Serve authenticated owner operations and read models
-│           ├── mcp.py                     # Expose scoped cognition and research tools
-│           └── authorization.py           # Mediate caller scope and human-only commands
-├── schemas/                               # Versioned wire and persistence specifications
-│   ├── events.schema.json                 # Define canonical event envelope versions
-│   ├── candidates.schema.json             # Define frozen identity manifests
-│   ├── canvas.schema.json                 # Define facts annotations and tool responses
-│   └── migrations/                        # Ordered financial database migrations
-│       └── 001_initial.sql                # Establish extracted audited schema baseline
-├── operator_ui/                           # Reuse existing operator frontend
-│   ├── package.json                       # Pin UI and chart dependencies
-│   └── src/                               # Operational read models and governed commands
-│       ├── app.tsx                        # Compose retained operational screens
-│       ├── api.ts                         # Consume authenticated typed contracts
-│       └── canvas.tsx                     # Render geometry annotations and evidence
-├── deploy/                                # Small-host installation templates
-│   ├── install.py                         # Render pinned service identities and paths
-│   └── systemd/                           # Independently supervised services
-│       ├── at-kernel.service              # Run sole writer with scoped credential
-│       ├── at-market.service              # Collect canonical market inputs
-│       ├── at-supervisor.service          # Propose protection and reconciliation independently
-│       ├── at-cognition.service           # Run bounded proposal-only cognition
-│       ├── at-research.service            # Run isolated research queue workers
-│       ├── at-research.slice              # Cap aggregate research CPU memory tasks and I/O
-│       ├── at-operator.service            # Serve authenticated operator interface
-│       ├── at-backup.service              # Run consistent retained backup work
-│       └── at-backup.timer                # Schedule backup without activation rights
-├── scripts/                               # Thin development and operations launchers
-│   ├── isolated_work.py                   # Start work with verified isolation
-│   ├── safe_tests.py                      # Reuse resource and production-store test protection
-│   ├── migrate_legacy.py                  # Import verified historical identities and events
-│   ├── compare_parity.py                  # Compare behavior across compositions
-│   ├── verify_recovery.py                 # Exercise isolated crash and restore acceptance
-│   └── check_release.py                   # Observe artifact and process convergence
-├── tests/                                 # Future checks preserving existing coverage
-│   ├── unit/                              # Pure deterministic domain checks
-│   │   ├── test_planner_parity.py          # Pin selection sizing stops and refusal behavior
-│   │   ├── test_canvas_causality.py        # Reject future bars repainting and false availability
-│   │   └── test_review_semantics.py        # Pin unavailable timeout and review application
-│   ├── contracts/                         # Compatibility and authority checks
-│   │   ├── test_legacy_schemas.py          # Preserve historic readers and command shapes
-│   │   ├── test_installed_artifact.py      # Verify wheel outside checkout
-│   │   └── test_capabilities.py            # Deny unauthorized tools credentials and writes
-│   ├── integration/                       # Isolated component exercises
-│   │   ├── test_shared_engine.py           # Compare live-style paper and replay transitions
-│   │   ├── test_openalgo_contract.py       # Use permitted recorded interface observations
-│   │   └── test_custody_promotion.py       # Preserve one-use evidence and activation identity
-│   ├── recovery/                          # Durable fault campaigns
-│   │   ├── test_crash_boundaries.py        # Crash around each irreversible boundary
-│   │   ├── test_restore_fencing.py         # Exclude old writers and preserve unknown obligations
-│   │   └── test_projection_integrity.py    # Detect altered indexes and stale views
-│   ├── isolation/                         # Host and evidence independence checks
-│   │   └── test_resource_storage_scope.py  # Deny native descendants production and OOS mutation
-│   └── fixtures/                          # Synthetic or permitted reproducible inputs
-│       └── manifests.json                 # Identify provenance licenses and hashes
-└── docs/                                  # Concise durable decisions and operations knowledge
-    ├── architecture.md                    # Maintain boundaries contracts and diagrams
-    ├── decisions.md                       # Record owner and measured engineering choices
-    ├── operations.md                      # Explain releases recovery and emergency actions
-    ├── research.md                        # Explain custody evaluation and promotion claims
-    ├── routine-verifications.md           # Keep observations separate from action gates
-    └── migration.md                       # Track parity ownership cutover and rollback proof
-```
+                <pre id="repository-tree" class="file-tree" role="region" aria-label="Fully commented target repository tree from Master README" aria-live="polite">Loading the commented repository structure…</pre>
             </section>
 
 
@@ -2060,8 +1828,27 @@ AutonomousTrading/                         # Recompose existing behavior into on
             </div>
         </section>
 
+        <section id="readme" class="content-section">
+            <h2 class="section-title">Master README</h2>
+            <p class="section-subtitle">A rendered, read-only preview of the repository's canonical architecture audit and design document.</p>
+            <div class="doc-actions">
+                <a href="./README.md" target="_blank" rel="noopener"><i class="fa-solid fa-arrow-up-right-from-square"></i> Open raw README.md</a>
+                <a href="https://github.com/manojvermamv/AutonomousTradingArchitect/blob/main/README.md" target="_blank" rel="noopener"><i class="fa-brands fa-github"></i> View on GitHub</a>
+                <span id="readme-status" class="doc-status" role="status">Loading Markdown…</span>
+            </div>
+            <article id="readme-preview" class="markdown-preview" aria-label="Master README Markdown preview"><p>Loading the Master README…</p></article>
+        </section>
 
-
+        <section id="roadmap" class="content-section">
+            <h2 class="section-title">Audit Roadmap</h2>
+            <p class="section-subtitle">A rendered, read-only preview of the dated audit and architecture roadmap.</p>
+            <div class="doc-actions">
+                <a href="./ROADMAP.md" target="_blank" rel="noopener"><i class="fa-solid fa-arrow-up-right-from-square"></i> Open raw ROADMAP.md</a>
+                <a href="https://github.com/manojvermamv/AutonomousTradingArchitect/blob/main/ROADMAP.md" target="_blank" rel="noopener"><i class="fa-brands fa-github"></i> View on GitHub</a>
+                <span id="roadmap-status" class="doc-status" role="status">Loading Markdown…</span>
+            </div>
+            <article id="roadmap-preview" class="markdown-preview" aria-label="Roadmap Markdown preview"><p>Loading the roadmap…</p></article>
+        </section>
     </main>
 
     <footer>
@@ -2072,16 +1859,20 @@ AutonomousTrading/                         # Recompose existing behavior into on
     </footer>
 
     <script>
-        const mainSections = ['overview', 'architecture', 'diagrams', 'repository', 'review'];
+        const mainSections = ['overview', 'architecture', 'diagrams', 'repository', 'review', 'readme', 'roadmap'];
         const reviewSections = ['executive', 'issues', 'scorecard', 'roadmap', 'layers', 'readiness'];
         let activeReviewSection = 'executive';
-        let mermaidRenderStarted = false;
+        const markdownSources = {};
+        let mermaidRenderCount = 0;
 
         function showTab(tabId, updateUrl = true) {
             if (!mainSections.includes(tabId)) tabId = 'overview';
             document.querySelectorAll('.content-section').forEach(section => {
                 const active = section.id === tabId;
                 section.classList.toggle('active', active);
+                section.setAttribute('role', 'tabpanel');
+                section.setAttribute('aria-labelledby', 'tab-' + section.id);
+                if (!section.hasAttribute('tabindex')) section.tabIndex = 0;
                 section.setAttribute('aria-hidden', String(!active));
             });
             document.querySelectorAll('#main-nav [role="tab"]').forEach(button => {
@@ -2090,8 +1881,8 @@ AutonomousTrading/                         # Recompose existing behavior into on
                 button.setAttribute('aria-selected', String(active));
                 button.tabIndex = active ? 0 : -1;
             });
+            if (tabId === 'review') showReviewTab(activeReviewSection, false);
             if (updateUrl) history.pushState(null, '', tabId === 'review' ? '#review/' + activeReviewSection : '#' + tabId);
-            if (tabId === 'diagrams') requestAnimationFrame(renderMermaidDiagrams);
         }
 
         function showReviewTab(tabId, updateUrl = true) {
@@ -2100,6 +1891,9 @@ AutonomousTrading/                         # Recompose existing behavior into on
             document.querySelectorAll('.review-content').forEach(section => {
                 const active = section.id === 'review-' + tabId;
                 section.classList.toggle('active', active);
+                section.setAttribute('role', 'tabpanel');
+                section.setAttribute('aria-labelledby', 'review-tab-' + tabIdFromPanel(section.id));
+                if (!section.hasAttribute('tabindex')) section.tabIndex = 0;
                 section.setAttribute('aria-hidden', String(!active));
             });
             document.querySelectorAll('.review-nav [role="tab"]').forEach(button => {
@@ -2113,31 +1907,245 @@ AutonomousTrading/                         # Recompose existing behavior into on
             }
         }
 
-        function renderMermaidDiagrams() {
-            if (mermaidRenderStarted || !window.mermaid) return;
-            const diagrams = [];
-            document.querySelectorAll('#diagrams .diagram-card').forEach(card => {
-                const source = card.querySelector('.mermaid-code');
-                const canvas = card.querySelector('.mermaid');
-                if (!source || !canvas) return;
-                canvas.textContent = source.textContent.trim();
-                diagrams.push(canvas);
-            });
-            if (!diagrams.length) return;
-            mermaidRenderStarted = true;
-            mermaid.run({ nodes: diagrams }).catch(error => {
-                mermaidRenderStarted = false;
-                console.error('Mermaid rendering failed; raw source remains available.', error);
-            });
+        function tabIdFromPanel(panelId) {
+            return panelId.replace(/^review-/, '');
+        }
+
+        async function renderMermaidDiagrams() {
+            if (!window.mermaid) return;
+            const diagrams = Array.from(document.querySelectorAll('.mermaid[data-source-ready="true"]')).filter(node => !node.dataset.rendered);
+            for (const diagram of diagrams) {
+                try {
+                    const source = diagram.dataset.source || diagram.textContent;
+                    const result = await mermaid.render('architecture-diagram-' + (++mermaidRenderCount), source);
+                    diagram.innerHTML = result.svg;
+                    if (result.bindFunctions) result.bindFunctions(diagram);
+                    diagram.dataset.rendered = 'true';
+                    setDiagramZoom(diagram, 1);
+                } catch (error) {
+                    diagram.dataset.sourceReady = 'false';
+                    diagram.classList.add('diagram-render-fallback');
+                    diagram.textContent = 'Diagram could not be rendered by the Mermaid runtime. Expand “Inspect or copy Mermaid source” to view the original definition. ' + (error && error.message ? error.message : '');
+                    diagram.setAttribute('role', 'status');
+                    diagram.setAttribute('aria-label', 'Diagram rendering unavailable; source is available below');
+                }
+            }
         }
 
         function restoreFromHash() {
-            const [main, sub] = decodeURIComponent(location.hash.slice(1)).split('/');
+            let hash = location.hash.slice(1);
+            try { hash = decodeURIComponent(hash); } catch (_) { /* Keep malformed hashes harmless. */ }
+            const [main, sub] = hash.split('/');
             const selectedMain = mainSections.includes(main) ? main : 'overview';
             if (selectedMain === 'review') {
                 showReviewTab(reviewSections.includes(sub) ? sub : 'executive', false);
             }
             showTab(selectedMain, false);
+            if ((selectedMain === 'readme' || selectedMain === 'roadmap') && sub) {
+                requestAnimationFrame(() => document.getElementById(sub)?.scrollIntoView({ block: 'start' }));
+            }
+        }
+
+        function addTabKeyboardSupport(selector) {
+            document.querySelectorAll(selector).forEach(tablist => tablist.addEventListener('keydown', event => {
+                const current = event.target.closest('[role="tab"]');
+                if (!current) return;
+                const tabs = Array.from(tablist.querySelectorAll('[role="tab"]'));
+                const index = tabs.indexOf(current);
+                let nextIndex = index;
+                if (event.key === 'ArrowRight' || event.key === 'ArrowDown') nextIndex = (index + 1) % tabs.length;
+                else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') nextIndex = (index - 1 + tabs.length) % tabs.length;
+                else if (event.key === 'Home') nextIndex = 0;
+                else if (event.key === 'End') nextIndex = tabs.length - 1;
+                else return;
+                event.preventDefault();
+                tabs[nextIndex].focus();
+                tabs[nextIndex].click();
+            }));
+        }
+
+        function setDiagramZoom(canvas, factor) {
+            const current = Number(canvas.dataset.zoom || 1);
+            canvas.dataset.zoom = String(Math.max(0.75, Math.min(2.25, current * factor)));
+            const svg = canvas.querySelector('svg');
+            if (svg) {
+                svg.style.maxWidth = 'none';
+                svg.style.width = (Number(canvas.dataset.zoom) * 100) + '%';
+                svg.style.height = 'auto';
+            }
+            const readout = canvas.parentElement.querySelector('.diagram-zoom-value');
+            if (readout) readout.textContent = Math.round(Number(canvas.dataset.zoom) * 100) + '%';
+        }
+
+        function addDiagramControls(canvas) {
+            canvas.dataset.zoom = '1';
+            const controls = document.createElement('div');
+            controls.className = 'diagram-controls';
+            const zoomOut = document.createElement('button');
+            zoomOut.type = 'button'; zoomOut.textContent = '−'; zoomOut.setAttribute('aria-label', 'Zoom diagram out');
+            zoomOut.addEventListener('click', () => setDiagramZoom(canvas, 0.8));
+            const zoomIn = document.createElement('button');
+            zoomIn.type = 'button'; zoomIn.textContent = '+'; zoomIn.setAttribute('aria-label', 'Zoom diagram in');
+            zoomIn.addEventListener('click', () => setDiagramZoom(canvas, 1.25));
+            const fit = document.createElement('button');
+            fit.type = 'button'; fit.textContent = 'Fit'; fit.setAttribute('aria-label', 'Fit diagram to card');
+            fit.addEventListener('click', () => { canvas.dataset.zoom = '1'; const svg = canvas.querySelector('svg'); if (svg) { svg.style.width = '100%'; svg.style.maxWidth = '100%'; svg.style.height = 'auto'; } const readout = controls.querySelector('.diagram-zoom-value'); if (readout) readout.textContent = '100%'; });
+            const readout = document.createElement('span');
+            readout.className = 'diagram-zoom-value'; readout.textContent = '100%'; readout.setAttribute('aria-live', 'polite');
+            controls.append(zoomOut, zoomIn, fit, readout);
+            return controls;
+        }
+
+        function addMermaidCard(container, source, title) {
+            const card = document.createElement('section');
+            card.className = 'diagram-card card';
+            const heading = document.createElement('h3');
+            heading.textContent = title;
+            const canvas = document.createElement('div');
+            canvas.className = 'mermaid';
+            canvas.setAttribute('role', 'img');
+            canvas.setAttribute('aria-label', title + ' diagram');
+            canvas.textContent = source;
+            canvas.dataset.source = source;
+            canvas.dataset.sourceReady = 'true';
+            const controls = addDiagramControls(canvas);
+            const details = document.createElement('details');
+            details.style.marginTop = '14px';
+            const summary = document.createElement('summary');
+            summary.textContent = 'Inspect or copy Mermaid source';
+            summary.tabIndex = 0;
+            const code = document.createElement('pre');
+            code.className = 'mermaid-code';
+            code.textContent = source;
+            const copy = document.createElement('button');
+            copy.className = 'copy-source';
+            copy.type = 'button';
+            copy.textContent = 'Copy source';
+            copy.addEventListener('click', async () => {
+                try {
+                    await navigator.clipboard.writeText(source);
+                    copy.textContent = 'Copied';
+                    setTimeout(() => { copy.textContent = 'Copy source'; }, 1400);
+                } catch (_) { copy.textContent = 'Select and copy source below'; }
+            });
+            details.append(summary, copy, code);
+            card.append(heading, controls, canvas, details);
+            container.append(card);
+            return canvas;
+        }
+
+        function addRenderedDiagramsToMarkdown(article, sources) {
+            article.querySelectorAll('pre code.language-mermaid').forEach((code, index) => {
+                const source = code.textContent.trim();
+                const wrapper = document.createElement('div');
+                wrapper.className = 'markdown-diagram card';
+                const canvas = document.createElement('div');
+                canvas.className = 'mermaid';
+                canvas.setAttribute('role', 'img');
+                canvas.setAttribute('aria-label', 'README architecture diagram ' + (index + 1));
+                canvas.textContent = source;
+                canvas.dataset.source = source;
+                canvas.dataset.sourceReady = 'true';
+                const controls = addDiagramControls(canvas);
+                const details = document.createElement('details');
+                const summary = document.createElement('summary');
+                summary.textContent = 'Inspect or copy Mermaid source';
+                summary.tabIndex = 0;
+                const pre = document.createElement('pre');
+                pre.className = 'mermaid-code';
+                pre.textContent = source;
+                const copy = document.createElement('button');
+                copy.className = 'copy-source';
+                copy.type = 'button';
+                copy.textContent = 'Copy source';
+                copy.addEventListener('click', async () => {
+                    try { await navigator.clipboard.writeText(source); copy.textContent = 'Copied'; }
+                    catch (_) { copy.textContent = 'Select and copy source below'; }
+                });
+                details.append(summary, copy, pre);
+                wrapper.append(controls, canvas, details);
+                code.closest('pre').replaceWith(wrapper);
+                sources.push(canvas);
+            });
+        }
+
+        function markdownRenderer() {
+            const renderer = new window.marked.Renderer();
+            const usedSlugs = new Map();
+            renderer.heading = (...args) => {
+                const token = args[0] && typeof args[0] === 'object' ? args[0] : null;
+                const text = token ? token.text : args[0];
+                const depth = token ? token.depth : args[1];
+                const raw = token ? token.raw : args[2];
+                const plain = String(raw || text).replace(/<[^>]*>/g, '').replace(/[`*_~]/g, '').toLowerCase().trim();
+                const base = plain.replace(/[^\p{L}\p{N}\s_-]/gu, '').replace(/\s+/g, '-').replace(/-+/g, '-') || 'section';
+                const count = usedSlugs.get(base) || 0;
+                usedSlugs.set(base, count + 1);
+                const id = count ? base + '-' + count : base;
+                return '<h' + depth + ' id="' + id + '">' + text + '</h' + depth + '>';
+            };
+            return renderer;
+        }
+
+        function wireMarkdownAnchors(article, file) {
+            const main = file === 'README.md' ? 'readme' : 'roadmap';
+            article.querySelectorAll('a[href^="#"]').forEach(link => {
+                const anchor = link.getAttribute('href').slice(1);
+                if (!anchor) return;
+                const targetId = decodeURIComponent(anchor);
+                link.href = '#' + main + '/' + encodeURIComponent(targetId);
+                link.addEventListener('click', event => {
+                    const target = document.getElementById(targetId);
+                    if (!target) return;
+                    event.preventDefault();
+                    showTab(main, false);
+                    history.pushState(null, '', '#' + main + '/' + encodeURIComponent(targetId));
+                    target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                });
+            });
+        }
+
+        async function loadMarkdownPreview(file, previewId, statusId) {
+            const preview = document.getElementById(previewId);
+            const status = document.getElementById(statusId);
+            try {
+                const response = await fetch(new URL(file, document.baseURI));
+                if (!response.ok) throw new Error('HTTP ' + response.status);
+                const markdown = await response.text();
+                markdownSources[file] = markdown;
+                if (!window.marked || !window.DOMPurify) throw new Error('Markdown renderer unavailable');
+                const html = window.marked.parse(markdown, { gfm: true, breaks: false, renderer: markdownRenderer() });
+                preview.innerHTML = window.DOMPurify.sanitize(html, { USE_PROFILES: { html: true } });
+                preview.querySelectorAll('a[href^="http"]').forEach(link => { link.target = '_blank'; link.rel = 'noopener noreferrer'; });
+                wireMarkdownAnchors(preview, file);
+                const mermaidSources = [];
+                addRenderedDiagramsToMarkdown(preview, mermaidSources);
+                if (file === 'README.md') {
+                    const treeMatch = markdown.match(/^## 6\. Fully commented target repository\s*[\s\S]*?```text\r?\n([\s\S]*?)```/m);
+                    const tree = document.getElementById('repository-tree');
+                    if (tree && treeMatch) {
+                        tree.textContent = treeMatch[1].replace(/\r?\n$/, '');
+                        tree.setAttribute('role', 'region');
+                        tree.setAttribute('aria-label', 'Fully commented target repository tree from Master README');
+                    } else if (tree) tree.textContent = 'The commented tree section could not be found in README.md. Open the Master README to inspect the source.';
+                    const diagramList = document.getElementById('diagram-list');
+                    if (diagramList) {
+                        diagramList.replaceChildren();
+                        const sources = Array.from(markdown.matchAll(/^```mermaid\s*\r?\n([\s\S]*?)^```/gm), match => match[1].trim());
+                        if (sources.length) sources.forEach((source, index) => addMermaidCard(diagramList, source, 'Master README diagram ' + (index + 1)));
+                        else diagramList.textContent = 'No fenced Mermaid diagrams were found in README.md.';
+                    }
+                    status.textContent = 'Loaded from README.md';
+                    requestAnimationFrame(renderMermaidDiagrams);
+                } else status.textContent = 'Loaded from ROADMAP.md';
+                restoreFromHash();
+                if (mermaidSources.length) requestAnimationFrame(renderMermaidDiagrams);
+            } catch (error) {
+                status.textContent = 'Preview unavailable — use the raw Markdown link.';
+                const pre = document.createElement('pre');
+                pre.textContent = markdownSources[file] || 'Could not load ' + file + ': ' + error.message;
+                preview.replaceChildren(pre);
+            }
         }
 
         function toggleIssue(issueId) {
@@ -2158,7 +2166,12 @@ AutonomousTrading/                         # Recompose existing behavior into on
             console.log('Filter by priority:', priority);
         }
 
+        addTabKeyboardSupport('#main-nav [role="tablist"]');
+        addTabKeyboardSupport('.review-nav [role="tablist"]');
+        loadMarkdownPreview('README.md', 'readme-preview', 'readme-status');
+        loadMarkdownPreview('ROADMAP.md', 'roadmap-preview', 'roadmap-status');
         window.addEventListener('popstate', restoreFromHash);
+        window.addEventListener('hashchange', restoreFromHash);
         restoreFromHash();
     </script>
 </body>
