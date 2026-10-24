@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AutonomousTrading Architecture Preview</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; color: #333; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; }
+        .container { max-width: 1400px; margin: 0 auto; padding: 20px; }
+        header { text-align: center; color: white; padding: 60px 20px; }
+        header h1 { font-size: 3.5em; margin-bottom: 20px; text-shadow: 2px 2px 4px rgba(0,0,0,0.3); }
+        header p { font-size: 1.3em; opacity: 0.95; max-width: 800px; margin: 0 auto; }
+        .nav-tabs { display: flex; justify-content: center; gap: 10px; margin: 30px 0; flex-wrap: wrap; }
+        .nav-btn { padding: 12px 30px; border: none; border-radius: 50px; background: rgba(255,255,255,0.2); color: white; cursor: pointer; font-size: 1em; transition: all 0.3s ease; backdrop-filter: blur(10px); }
+        .nav-btn:hover { background: rgba(255,255,255,0.3); transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.2); }
+        .nav-btn.active { background: white; color: #667eea; }
+        .content-section { display: none; background: white; border-radius: 20px; padding: 40px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); margin-bottom: 40px; }
+        .content-section.active { display: block; animation: fadeIn 0.5s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+        .section-title { font-size: 2.5em; color: #2c3e50; margin-bottom: 30px; padding-bottom: 15px; border-bottom: 3px solid #667eea; }
+        .section-subtitle { font-size: 1.4em; color: #7f8c8d; margin-bottom: 25px; }
+        .mermaid-diagram { background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); border-radius: 15px; padding: 30px; margin: 25px 0; overflow-x: auto; }
+        .mermaid-diagram svg { max-width: 100%; height: auto; }
+        .features-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 25px; margin: 30px 0; }
+        .feature-card { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border-radius: 15px; padding: 30px; color: white; transition: transform 0.3s ease; }
+        .feature-card:hover { transform: translateY(-5px); box-shadow: 0 15px 30px rgba(0,0,0,0.2); }
+        .feature-card h3 { font-size: 1.4em; margin-bottom: 15px; }
+        .feature-card p { opacity: 0.95; line-height: 1.7; }
+        .file-tree { background: #1e1e1e; border-radius: 15px; padding: 30px; color: #d4d4d4; font-family: 'Consolas', 'Monaco', monospace; overflow-x: auto; margin: 25px 0; }
+        .file-tree .folder { color: #569cd6; font-weight: bold; }
+        .file-tree .file { color: #9cdcfe; }
+        .arch-section { margin: 40px 0; padding: 30px; background: #f8f9fa; border-radius: 15px; border-left: 5px solid #667eea; }
+        .arch-section h3 { color: #2c3e50; margin-bottom: 15px; }
+        .arch-section ul { list-style: none; padding-left: 20px; }
+        .arch-section li { margin: 10px 0; padding-left: 25px; position: relative; }
+        .arch-section li::before { content: "✓"; position: absolute; left: 0; color: #28a745; font-weight: bold; }
+        .status-indicator { display: inline-flex; align-items: center; gap: 10px; background: rgba(255,255,255,0.2); padding: 10px 25px; border-radius: 50px; backdrop-filter: blur(10px); margin-bottom: 20px; }
+        .status-dot { width: 12px; height: 12px; background: #28a745; border-radius: 50%; animation: pulse 2s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+        footer { text-align: center; color: white; padding: 40px 20px; margin-top: 60px; }
+        footer p { opacity: 0.9; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <span class="status-indicator"><div class="status-dot"></div><span>Production-Ready Architecture</span></span>
+            <h1>AutonomousTrading</h1>
+            <p>Advanced AI-powered autonomous trading platform with deterministic financial semantics and evidence-driven architecture</p>
+        </header>
+        
+        <nav class="nav-tabs">
+            <button class="nav-btn active" onclick="showSection('overview')">Overview</button>
+            <button class="nav-btn" onclick="showSection('architecture')">Architecture</button>
+            <button class="nav-btn" onclick="showSection('diagrams')">Diagrams</button>
+            <button class="nav-btn" onclick="showSection('repository')">Repository</button>
+        </nav>
+        
+        <main>
+            <section id="overview" class="content-section active">
+                <h2 class="section-title">Project Overview</h2>
+                <p class="section-subtitle">Research date: 24 October 2026 | Revision: 445eb11</p>
+                <div class="arch-section">
+                    <h3>Recommendation</h3>
+                    <p>Recompose the existing system into one installable Python application around its deterministic financial semantics and one execution owner.</p>
+                </div>
+                <h3>Key Features</h3>
+                <div class="features-grid">
+                    <div class="feature-card"><h3>Tiered Architecture</h3><p>Three-tier system with Tier-1 for financial authority, Tier-2 for cognition, and clear separation of concerns.</p></div>
+                    <div class="feature-card"><h3>Agentic Cognitive Fabric</h3><p>Bounded AI coordination with role-scoped capabilities, memory partitioning, and evidence-based decision making.</p></div>
+                    <div class="feature-card"><h3>Deterministic Canvas</h3><p>Reproducible market intelligence scratchpad for agentic use with causal fact tracking.</p></div>
+                    <div class="feature-card"><h3>Evidence-Driven</h3><p>Immutable evidence bundles, hash-chained ledgers, and comprehensive audit trails.</p></div>
+                </div>
+            </section>
+            
+            <section id="architecture" class="content-section">
+                <h2 class="section-title">Target Architecture</h2>
+                <div class="arch-section">
+                    <h3>Architecture Principles</h3>
+                    <ul>
+                        <li>One canonical financial history and one execution owner</li>
+                        <li>Governed, evidence-driven agentic trading platform</li>
+                        <li>Production and simulation share code but not authority</li>
+                        <li>Deterministic Market Canvas with full scratchpad capability</li>
+                        <li>Bounded AI cognition without financial credentials</li>
+                        <li>Research-side RL with governed promotion</li>
+                    </ul>
+                </div>
+                <div class="arch-section">
+                    <h3>Three-Tier Structure</h3>
+                    <ul>
+                        <li><strong>Tier-1:</strong> Financial authority, policy/admission, execution gateway, and ledger management</li>
+                        <li><strong>Tier-2:</strong> AI cognition, tool use, research coordination, memory management</li>
+                        <li><strong>Shared Code:</strong> Deterministic engine with separate instances for live and simulation</li>
+                    </ul>
+                </div>
+            </section>
+            
+            <section id="diagrams" class="content-section">
+                <h2 class="section-title">Architecture Diagrams</h2>
+                <div class="mermaid-diagram">
+                    <h3 style="color: #2c3e50; margin-bottom: 20px;">Primary Target Diagram 1 - Higher-Level Architecture</h3>
+                    <div id="mermaid-diagram-1"></div>
+                    <p style="color: #666; margin-top: 15px;">Production and simulation share code and contracts, not running authority, ledgers, credentials or mutable state.</p>
+                </div>
+                <div class="mermaid-diagram">
+                    <h3 style="color: #2c3e50; margin-bottom: 20px;">Primary Target Diagram 2 - Detailed End-to-End Architecture</h3>
+                    <div id="mermaid-diagram-2"></div>
+                </div>
+            </section>
+            
+            <section id="repository" class="content-section">
+                <h2 class="section-title">Repository Structure</h2>
+                <div class="arch-section">
+                    <h3>Project Layout</h3>
+                    <p>The repository follows a clean, modular structure designed for maintainability and scalability:</p>
+                </div>
+                <div class="file-tree">
+<pre>
+AutonomousTrading/
+├── pyproject.toml                         # Discover packages and declare optional extras
+├── requirements.lock                      # Pin tested deployment dependencies
+├── README.md                              # Complete architecture research and design
+├── LICENSE                                # State owner-selected licensing terms
+├── .gitignore                             # Exclude secrets state and generated files
+├── config/                                # Nonsecret typed configuration inputs
+├── src/                                   # Installable source root
+│   └── autonomous_trading/                # Single unambiguous Python namespace
+│       ├── contracts/                     # Shared types without authority or I/O
+│       ├── market/                        # Canonical market ingestion and views
+│       ├── strategies/                    # Intent-producing implementations
+│       ├── cognition/                     # Tier2 analytical coordination and proposals
+│       ├── kernel/                        # Sole internal financial authority boundary
+│       ├── adapters/                      # Concrete boundary implementations
+│       ├── research/                      # Experiments without execution authority
+│       ├── operations/                    # Supervision recovery and resource isolation
+│       └── interfaces/                    # Human and bounded tool entrypoints
+├── schemas/                               # Versioned wire and persistence specifications
+├── deploy/                                # Small-host installation templates
+├── scripts/                               # Thin development and operations launchers
+├── tests/                                 # Future checks preserving existing coverage
+└── docs/                                  # Concise durable decisions and operations knowledge
+</pre>
+                </div>
+            </section>
+        </main>
+        
+        <footer>
+            <p>AutonomousTrading Architecture Preview | Generated 2026-10-24</p>
+            <p>Production-Ready Architecture Research & Clean-Rebuild Design</p>
+        </footer>
+    </div>
+    
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true, theme: 'default', securityLevel: 'loose', flowchart: { useMaxWidth: true, htmlLabels: true } });
+        function showSection(sectionId) {
+            document.querySelectorAll('.content-section').forEach(section => section.classList.remove('active'));
+            document.getElementById(sectionId).classList.add('active');
+            document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+            const buttons = document.querySelectorAll('.nav-btn');
+            const sectionNames = ['overview', 'architecture', 'diagrams', 'repository'];
+            const index = sectionNames.indexOf(sectionId);
+            if (index >= 0 && buttons[index]) buttons[index].classList.add('active');
+        }
+        showSection('overview');
+    </script>
+</body>
+</html>
