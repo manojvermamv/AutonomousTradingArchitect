@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import type { ArchitectureIssue } from './data/architectureData';
+import type { ArchitectureIssue } from '../data/architectureData';
+import { codeVerifiedFindings, sourceUrl } from '../data/codeVerifiedFindings';
 
 interface Props {
   issues: ArchitectureIssue[];
@@ -38,7 +39,7 @@ export function IssueAnalysis({ issues }: Props) {
             Issue Analysis
           </h2>
           <p className="text-sm text-gray-400 mt-1">
-            {filtered.length} of {issues.length} issues shown
+            {filtered.length} of {issues.length} issues shown. H-dashboard labels are presentation assessments, not code-verified findings.
           </p>
         </div>
       </div>
@@ -112,6 +113,36 @@ export function IssueAnalysis({ issues }: Props) {
                         {m}
                       </span>
                     ))}
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-[10px]">
+                    <span className="rounded-full border border-sky-400/30 bg-sky-500/10 px-2 py-1 font-semibold text-sky-200">
+                      {issue.evidenceClass} · presentation assessment
+                    </span>
+                    {issue.relatedFindingIds.length > 0 ? (
+                      <span className="text-gray-400">
+                        Related code context only (does not verify this claim):{' '}
+                        {issue.relatedFindingIds.map((findingId, index) => {
+                          const finding = codeVerifiedFindings.find(item => item.id === findingId);
+                          const source = finding?.sources[0];
+                          if (!finding || !source) return null;
+                          return (
+                            <span key={findingId}>
+                              {index > 0 ? ', ' : ''}
+                              <a
+                                className="text-blue-300 underline decoration-blue-500/40 underline-offset-2 hover:text-blue-200"
+                                href={sourceUrl(source.path, source.line)}
+                                target="_blank"
+                                rel="noreferrer"
+                              >
+                                {findingId}
+                              </a>
+                            </span>
+                          );
+                        })}
+                      </span>
+                    ) : (
+                      <span className="text-gray-500">No mapped code finding; verify separately.</span>
+                    )}
                   </div>
                 </div>
                 <i className={`fa-solid fa-chevron-${isExpanded ? 'up' : 'down'} text-gray-500 text-xs mt-1`}></i>

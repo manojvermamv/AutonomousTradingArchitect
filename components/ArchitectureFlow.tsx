@@ -1,4 +1,4 @@
-import type { architectureLayers } from './data/architectureData';
+import { architectureLayers } from '../data/architectureData';
 
 interface Props {
   layers: typeof architectureLayers;

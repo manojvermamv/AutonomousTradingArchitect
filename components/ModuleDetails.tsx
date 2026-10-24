@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { ArchitectureModule, ArchitectureIssue } from './data/architectureData';
+import type { ArchitectureModule, ArchitectureIssue } from '../data/architectureData';
 
 interface Props {
   modules: ArchitectureModule[];

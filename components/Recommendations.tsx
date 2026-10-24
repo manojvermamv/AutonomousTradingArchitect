@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Recommendation } from './data/architectureData';
+import type { Recommendation } from '../data/architectureData';
 
 interface Props {
   recommendations: Recommendation[];
@@ -13,11 +13,10 @@ export function Recommendations({ recommendations }: Props) {
     ? recommendations
     : recommendations.filter(r => r.priority === priorityFilter);
 
-  const priorityConfig: Record<string, { color: string; bg: string; border: string; label: string; icon: string }> = {
-    immediate: { color: 'text-red-400', bg: 'bg-red-500/10', border: 'border-red-500/30', label: 'Immediate', icon: 'fa-bolt' },
-    'short-term': { color: 'text-orange-400', bg: 'bg-orange-500/10', border: 'border-orange-500/30', label: 'Short-term', icon: 'fa-clock' },
-    'medium-term': { color: 'text-yellow-400', bg: 'bg-yellow-500/10', border: 'border-yellow-500/30', label: 'Medium-term', icon: 'fa-calendar' },
-    'long-term': { color: 'text-blue-400', bg: 'bg-blue-500/10', border: 'border-blue-500/30', label: 'Long-term', icon: 'fa-hourglass' },
+  const priorityConfig: Record<Recommendation['priority'], { color: string; bg: string; border: string; label: string; icon: string }> = {
+    'verify-first': { color: 'text-cyan-300', bg: 'bg-cyan-500/10', border: 'border-cyan-500/30', label: 'Verify first', icon: 'fa-magnifying-glass-check' },
+    'measure-first': { color: 'text-blue-300', bg: 'bg-blue-500/10', border: 'border-blue-500/30', label: 'Measure first', icon: 'fa-chart-line' },
+    'owner-decision': { color: 'text-amber-300', bg: 'bg-amber-500/10', border: 'border-amber-500/30', label: 'Owner decision', icon: 'fa-user-check' },
   };
 
   return (
@@ -28,13 +27,13 @@ export function Recommendations({ recommendations }: Props) {
           Improvement Roadmap
         </h2>
         <p className="text-sm text-gray-400 mt-1">
-          Prioritized recommendations to make the architecture production-ready and future-proof
+          Reconciled with ROADMAP.md’s 24 October 2026 source audit (branch `claude/openalgo-trading-architecture-uu1bxn`, revision `445eb116`). These are evidence dispositions, not delivery dates or unapproved policy.
         </p>
       </div>
 
       {/* Priority Filter */}
       <div className="flex gap-2 flex-wrap">
-        {['all', 'immediate', 'short-term', 'medium-term', 'long-term'].map(p => {
+        {(['all', 'verify-first', 'measure-first', 'owner-decision'] as const).map(p => {
           const config = p === 'all' ? null : priorityConfig[p];
           return (
             <button

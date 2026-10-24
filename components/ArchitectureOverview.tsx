@@ -1,5 +1,5 @@
-import type { ArchitectureModule, ArchitectureIssue, Recommendation } from './data/architectureData';
-import type { architectureLayers } from './data/architectureData';
+import type { ArchitectureModule, ArchitectureIssue, Recommendation } from '../data/architectureData';
+import { architectureLayers } from '../data/architectureData';
 
 interface Props {
   modules: ArchitectureModule[];
@@ -11,7 +11,9 @@ interface Props {
 export function ArchitectureOverview({ modules, issues, recommendations, layers }: Props) {
   const criticalIssues = issues.filter(i => i.severity === 'critical');
   const highIssues = issues.filter(i => i.severity === 'high');
-  const immediateRecs = recommendations.filter(r => r.priority === 'immediate');
+  const verifyFirstRecs = recommendations.filter(r => r.priority === 'verify-first');
+  const measureFirstRecs = recommendations.filter(r => r.priority === 'measure-first');
+  const ownerDecisionRecs = recommendations.filter(r => r.priority === 'owner-decision');
 
   return (
     <div className="space-y-6">
@@ -51,7 +53,7 @@ export function ArchitectureOverview({ modules, issues, recommendations, layers 
           value={recommendations.length}
           icon="fa-lightbulb"
           color="green"
-          subtitle={`${immediateRecs.length} immediate priority`}
+          subtitle={`${verifyFirstRecs.length} verify · ${measureFirstRecs.length} measure · ${ownerDecisionRecs.length} owner decision`}
         />
         <MetricCard
           label="Architecture Layers"
@@ -95,7 +97,7 @@ export function ArchitectureOverview({ modules, issues, recommendations, layers 
           </h3>
           <ul className="space-y-3">
             {[
-              { text: 'Single kernel SPOF with no automatic failover mechanism', icon: 'fa-server' },
+              { text: 'Single Tier-1 writer; measure availability needs before proposing redundancy', icon: 'fa-server' },
               { text: 'Missing idempotency guarantees at transaction boundaries', icon: 'fa-copy' },
               { text: 'Single broker vendor dependency (OpenAlgo) with no fallback', icon: 'fa-plug-circle-xmark' },
               { text: 'Ambiguous result handling lacks formal state machine', icon: 'fa-question' },

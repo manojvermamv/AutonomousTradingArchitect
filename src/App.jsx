@@ -1,5 +1,5 @@
 import React from 'react';
-import { architectureLayers, modules, issues, recommendations } from '../architectureData';
+import { architectureLayers, modules, issues, recommendations } from '../data/architectureData';
 import './App.css';
 
 function App() {

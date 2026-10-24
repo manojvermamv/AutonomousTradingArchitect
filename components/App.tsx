@@ -1,13 +1,14 @@
 import { useState } from 'react';
-import { ArchitectureOverview } from './components/ArchitectureOverview';
-import { IssueAnalysis } from './components/IssueAnalysis';
-import { Recommendations } from './components/Recommendations';
-import { ModuleDetails } from './components/ModuleDetails';
-import { ArchitectureFlow } from './components/ArchitectureFlow';
-import { Scorecard } from './components/Scorecard';
-import { modules, issues, recommendations, architectureLayers } from './data/architectureData';
+import { ArchitectureOverview } from './ArchitectureOverview';
+import { IssueAnalysis } from './IssueAnalysis';
+import { Recommendations } from './Recommendations';
+import { ModuleDetails } from './ModuleDetails';
+import { ArchitectureFlow } from './ArchitectureFlow';
+import { Scorecard } from './Scorecard';
+import { CodeVerifiedFindings } from './CodeVerifiedFindings';
+import { modules, issues, recommendations, architectureLayers } from '../data/architectureData';
 
-type Tab = 'overview' | 'flow' | 'issues' | 'modules' | 'recommendations' | 'scorecard';
+type Tab = 'overview' | 'flow' | 'issues' | 'modules' | 'recommendations' | 'scorecard' | 'code-findings';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<Tab>('overview');
@@ -19,6 +20,7 @@ export default function App() {
     { id: 'modules', label: 'Modules', icon: 'fa-solid fa-cubes' },
     { id: 'recommendations', label: 'Roadmap', icon: 'fa-solid fa-road' },
     { id: 'scorecard', label: 'Scorecard', icon: 'fa-solid fa-chart-bar' },
+    { id: 'code-findings', label: 'Code Findings', icon: 'fa-solid fa-file-circle-check' },
   ];
 
   const severityCounts = {
@@ -104,6 +106,7 @@ export default function App() {
         {activeTab === 'modules' && <ModuleDetails modules={modules} issues={issues} />}
         {activeTab === 'recommendations' && <Recommendations recommendations={recommendations} />}
         {activeTab === 'scorecard' && <Scorecard modules={modules} issues={issues} recommendations={recommendations} />}
+        {activeTab === 'code-findings' && <CodeVerifiedFindings />}
       </main>
 
       {/* Footer */}

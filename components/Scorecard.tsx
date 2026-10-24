@@ -1,4 +1,4 @@
-import type { ArchitectureModule, ArchitectureIssue, Recommendation } from './data/architectureData';
+import type { ArchitectureModule, ArchitectureIssue, Recommendation } from '../data/architectureData';
 
 interface Props {
   modules: ArchitectureModule[];
