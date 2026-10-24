@@ -8,7 +8,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #e2e8f0; background: #0a0e1a; min-height: 100vh; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #e2e8f0; background: #0a0e1a; min-height: 100vh; }
         .container { max-width: 1600px; margin: 0 auto; padding: 0 20px; }
         
         /* Header */
@@ -83,6 +83,7 @@
         .issue-card.high { border-color: #f97316; }
         .issue-card.medium { border-color: #eab308; }
         .issue-card.low { border-color: #3b82f6; }
+        #review-issues .issue-card-grid { align-items: start; }
         .issue-card h4 { color: #f1f5f9; margin-bottom: 8px; font-size: 16px; display: flex; align-items: center; gap: 8px; }
         .issue-card h4 i { font-size: 14px; }
         .issue-severity { font-size: 12px; padding: 4px 10px; border-radius: 20px; text-transform: uppercase; font-weight: 600; }
@@ -94,8 +95,8 @@
         .issue-card p { color: #cbd5e1; font-size: 14px; line-height: 1.6; }
         
         /* Diagrams */
-        .diagram-card { background: rgba(13,18,32,0.6); border-radius: 12px; padding: 20px; margin: 20px 0; }
-        .diagram-card h3 { color: #f1f5f9; margin-bottom: 16px; font-size: 16px; }
+        .diagram-card { background: transparent; border: 0; border-radius: 0; padding: 0; margin: 24px 0; }
+        .diagram-card h3 { color: #f1f5f9; margin-bottom: 16px; font-size: 20px; }
         .diagram-card pre { background: rgba(0,0,0,0.3); padding: 16px; border-radius: 8px; font-family: 'Consolas', 'Monaco', monospace; font-size: 12px; color: #cbd5e1; overflow-x: auto; white-space: pre-wrap; }
         
         /* File Tree */
@@ -160,8 +161,10 @@
         .markdown-preview [id] { scroll-margin-top:132px; }
         .file-tree { white-space:pre; overflow:auto; color:#dbeafe; background:#080d18; border:1px solid rgba(148,163,184,.18); }
         .diagram-card .mermaid { overflow:auto; }
-        .diagram-card svg { max-width:none; height:auto; }
-        .diagram-controls { display:flex; align-items:center; gap:6px; margin:0 0 10px; }
+        .diagram-card svg { max-width:100%; height:auto; }
+        /* Keep site card typography from changing Mermaid's measured label height. */
+        .mermaid foreignObject p { margin:0 !important; line-height:1.5 !important; }
+        .diagram-controls { display:flex; align-items:center; justify-content:flex-end; gap:6px; margin:0 0 10px; }
         .diagram-controls button { min-width:36px; min-height:34px; padding:6px 10px; color:#dbeafe; border:1px solid rgba(148,163,184,.22); border-radius:8px; background:#15243b; cursor:pointer; }
         .diagram-controls button:hover { border-color:#60a5fa; background:#1d3557; }
         .diagram-controls span { margin-left:4px; color:#94a3b8; font-size:12px; }
@@ -177,6 +180,27 @@
         .filter-result-count { color:#94a3b8; font-size:12px; align-self:center; }
         .review-evidence-note { margin:14px 0 18px; padding:12px 15px; color:#cbd5e1; background:rgba(59,130,246,.08); border:1px solid rgba(96,165,250,.22); border-left:3px solid #60a5fa; border-radius:9px; font-size:13px; line-height:1.6; }
         .review-evidence-note a { color:#93c5fd; font-weight:600; text-underline-offset:3px; }
+        .review-meta-grid,.review-flow-grid,.review-findings-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(240px,1fr)); gap:14px; margin:18px 0; }
+        .review-meta-card,.review-flow-card,.review-finding-card { min-width:0; padding:18px; color:#cbd5e1; background:linear-gradient(150deg,rgba(20,30,50,.92),rgba(13,18,32,.94)); border:1px solid rgba(148,163,184,.16); border-radius:12px; }
+        .review-meta-card h4,.review-flow-card h4,.review-finding-card h4 { margin:0 0 8px; color:#eff6ff; font-size:15px; }
+        .review-meta-card p,.review-flow-card p,.review-finding-card p { margin:0; color:#b9c7d9; font-size:13px; line-height:1.7; overflow-wrap:anywhere; }
+        .review-meta-card .eyebrow,.review-flow-card .eyebrow,.review-finding-card .eyebrow { display:block; margin-bottom:7px; color:#7db6ff; font-size:11px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+        .review-audit-callout { margin:16px 0; padding:14px 16px; color:#dbeafe; background:rgba(59,130,246,.08); border:1px solid rgba(96,165,250,.2); border-left:3px solid #60a5fa; border-radius:10px; font-size:13px; line-height:1.7; }
+        .review-finding-card { border-left:3px solid #64748b; }
+        .review-finding-card[data-severity="high"] { border-left-color:#f97316; }
+        .review-finding-card[data-severity="medium"] { border-left-color:#eab308; }
+        .review-finding-card[data-severity="low"] { border-left-color:#60a5fa; }
+        .review-finding-card .finding-head { display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:8px; margin-bottom:10px; }
+        .review-finding-card .finding-tag { padding:3px 8px; color:#dbeafe; background:rgba(51,65,85,.55); border-radius:999px; font-size:10px; font-weight:700; letter-spacing:.04em; }
+        .review-flow-steps { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:10px; margin:12px 0 20px; counter-reset:flow; }
+        .review-flow-step { position:relative; min-width:0; padding:14px 14px 14px 44px; color:#dbeafe; background:rgba(15,23,42,.8); border:1px solid rgba(96,165,250,.2); border-radius:10px; font-size:13px; line-height:1.6; }
+        .review-flow-step::before { counter-increment:flow; content:counter(flow); position:absolute; left:13px; top:13px; display:grid; place-items:center; width:22px; height:22px; color:#eff6ff; background:linear-gradient(135deg,#2563eb,#6d4bd1); border-radius:50%; font-size:11px; font-weight:700; }
+        .review-flow-card ul { margin:10px 0 0; padding-left:18px; color:#b9c7d9; font-size:13px; line-height:1.75; }
+        .review-status-pill { display:inline-flex; align-items:center; gap:6px; padding:4px 9px; border:1px solid rgba(96,165,250,.22); border-radius:999px; color:#bfdbfe; background:rgba(37,99,235,.12); font-size:11px; font-weight:700; }
+        .review-content h3 { color:#eff6ff; }
+        .review-content a { color:#93c5fd; text-underline-offset:3px; }
+        .review-nav .nav-btn { min-height:42px; }
+        @media (max-width:700px) { .review-flow-steps { grid-template-columns:minmax(0,1fr); } }
         .disclosure-trigger { color:inherit; font:inherit; }
         .disclosure-trigger:focus-visible { outline:2px solid #93c5fd; outline-offset:-4px; border-radius:8px; }
         .disclosure-trigger[aria-expanded="true"] > i.fa-chevron-down { transform:rotate(180deg); }
@@ -204,8 +228,8 @@
     .review-content.active { display: block; }
     .review-nav { position: static; top: auto; z-index: auto; border: 1px solid rgba(255,255,255,0.06); border-radius: 10px; padding: 4px 12px; background: rgba(13,18,32,0.98); }
     .review-nav .nav-tabs { padding: 4px 0; }
-    .mermaid { min-height: 160px; background: #0d1117; padding: 20px; border: 1px solid rgba(139,148,158,.2); border-radius: 8px; margin-bottom: 15px; overflow: auto; }
-    .mermaid svg { max-width: none; }
+    .mermaid { min-height: 0; background: transparent; padding: 0; border: 0; border-radius: 0; margin-bottom: 15px; overflow: auto; }
+    .mermaid svg { max-width: 100%; }
     .mermaid-code { display: block; max-height: 65vh; overflow: auto; padding: 16px; border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; background: rgba(0,0,0,0.3); color: #cbd5e1; font: 12px/1.55 Consolas, Monaco, monospace; white-space: pre; }
     @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
 </style>
@@ -235,7 +259,7 @@
 </style>
 
 
-    <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+        <script src="https://cdn.jsdelivr.net/npm/mermaid@12.2.0/dist/mermaid.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.6/dist/purify.min.js"></script>
     <script>
@@ -244,30 +268,35 @@
                 mermaid.initialize({
                     startOnLoad: false,
                     theme: 'base',
+                    look: 'classic',
+                    layout: 'elk',
+                    elk: { mergeEdges: false, lineHops: true, straightenEdges: true },
                     themeVariables: {
                         darkMode: true,
                         background: '#0d1117',
-                        primaryColor: '#20252c',
+                        primaryColor: '#1f1f1f',
                         primaryTextColor: '#e6edf3',
-                        primaryBorderColor: '#8b949e',
-                        secondaryColor: '#252b33',
+                        primaryBorderColor: '#a0a0a0',
+                        secondaryColor: '#252525',
                         secondaryTextColor: '#e6edf3',
-                        secondaryBorderColor: '#8b949e',
-                        tertiaryColor: '#161b22',
+                        secondaryBorderColor: '#a0a0a0',
+                        tertiaryColor: '#252525',
                         tertiaryTextColor: '#e6edf3',
-                        tertiaryBorderColor: '#8b949e',
-                        lineColor: '#a1a1aa',
+                        tertiaryBorderColor: '#a0a0a0',
+                        lineColor: '#b8b8b8',
                         textColor: '#e6edf3',
-                        nodeBorder: '#8b949e',
+                        nodeBorder: '#a0a0a0',
                         nodeTextColor: '#e6edf3',
-                        edgeLabelBackground: '#20252c',
-                        clusterBkg: '#161b22',
-                        clusterBorder: '#8b949e',
+                        edgeLabelBackground: '#4a4a4a',
+                        clusterBkg: '#454545',
+                        clusterBorder: '#a0a0a0',
                         fontFamily: '-apple-system, BlinkMacSystemFont, Segoe UI, sans-serif',
                         fontSize: '16px'
                     },
+                    themeCSS: '.node rect, .node polygon, .node circle, .node ellipse { filter: drop-shadow(2px 2px 1px rgba(0,0,0,.75)); }',
                     securityLevel: 'strict',
-                    flowchart: { useMaxWidth: true, htmlLabels: true, curve: 'stepAfter' }
+                    htmlLabels: true,
+                    flowchart: { useMaxWidth: true, curve: 'linear', wrappingWidth: 120 }
                 });
             }
         });
@@ -409,14 +438,16 @@
         
         <section id="review" class="content-section">
             <h2 class="section-title">Architecture Review Status</h2>
-            <p class="section-subtitle">Current auditing state for planned Master README.md</p>
-            <aside class="review-evidence-note" role="note">This review preserves the supplied presentation bundle's scorecard and issue language. Those labels are presentation claims, not code verification. Use the <a href="#readme" onclick="showTab('readme'); return false;">Master README</a> for source-cited findings and the evidence limits.</aside>
+            <p class="section-subtitle">Dated source-audit status, evidence limits, and target-architecture review</p>
+            <aside class="review-evidence-note" role="note">The Code Audit and Data Flow tabs summarize the dated source review. The legacy dashboard's scores, counts, and issue labels are kept as presentation claims only; they are not code verification. Use the <a href="#readme" onclick="showTab('readme'); return false;">Master README</a> for full citations, scope, and evidence limits.</aside>
             
             <!-- Review Sub-Tabs Navigation -->
             <nav class="review-nav" aria-label="Review sections">
               <div class="nav-tabs" role="tablist" aria-label="Review sections">
                 <button id="review-tab-executive" class="nav-btn review-nav-btn active" role="tab" aria-selected="true" aria-controls="review-executive" onclick="showReviewTab('executive')"><i class="fa-solid fa-clipboard-list"></i> Executive Summary</button>
+                <button id="review-tab-dataflow" class="nav-btn review-nav-btn" role="tab" aria-selected="false" aria-controls="review-dataflow" onclick="showReviewTab('dataflow')"><i class="fa-solid fa-arrow-right-arrow-left"></i> Data Flow</button>
                 <button id="review-tab-issues" class="nav-btn review-nav-btn" role="tab" aria-selected="false" aria-controls="review-issues" onclick="showReviewTab('issues')"><i class="fa-solid fa-triangle-exclamation"></i> Issues Analysis</button>
+                <button id="review-tab-source-audit" class="nav-btn review-nav-btn" role="tab" aria-selected="false" aria-controls="review-source-audit" onclick="showReviewTab('source-audit')"><i class="fa-solid fa-magnifying-glass-chart"></i> Code Audit</button>
                 <button id="review-tab-scorecard" class="nav-btn review-nav-btn" role="tab" aria-selected="false" aria-controls="review-scorecard" onclick="showReviewTab('scorecard')"><i class="fa-solid fa-chart-bar"></i> Scorecard</button>
                 <button id="review-tab-roadmap" class="nav-btn review-nav-btn" role="tab" aria-selected="false" aria-controls="review-roadmap" onclick="showReviewTab('roadmap')"><i class="fa-solid fa-road"></i> Improvement Roadmap</button>
                 <button id="review-tab-layers" class="nav-btn review-nav-btn" role="tab" aria-selected="false" aria-controls="review-layers" onclick="showReviewTab('layers')"><i class="fa-solid fa-layer-group"></i> Architecture Layers</button>
@@ -428,9 +459,17 @@
             <div id="review-executive" class="review-content active">
                 <div class="card">
                     <h3>Executive Summary</h3>
-                    <p>Your architecture demonstrates <strong style="color: #22c55e;">strong foundational thinking</strong> with clear separation of concerns between Tier1 (execution) and Tier2 (cognition), hash-chained ledger integrity, and a well-designed simulation/production code sharing model. However, several <strong style="color: #ef4444;">critical resilience gaps</strong> and <strong style="color: #f97316;">transaction safety concerns</strong> must be addressed before production deployment.</p>
+                    <p>The supplied presentation describes clear Tier1/Tier2 separation, a hash-chained ledger, and shared simulation/production code. Its strengths, gaps, severity labels, and readiness judgments are <strong>presentation claims</strong>; they are not the current code-audit verdict. The dated source audit below records nine findings (F1–F9), found no established critical exploit or actual duplicate broker order, and does not establish production readiness.</p>
                 </div>
 
+                <div class="review-meta-grid" aria-label="Audit provenance">
+                    <article class="review-meta-card"><span class="eyebrow">Source audit</span><h4>24 October 2026 UTC</h4><p>Target: <code>AutonomousTrading/claude/openalgo-trading-architecture-uu1bxn</code><br>Revision: <code>445eb116514d97c2574c44d4d5374f938dec57a3</code></p></article>
+                    <article class="review-meta-card"><span class="eyebrow">Architecture preview repository</span><h4>25 October 2026</h4><p>Branch: <code>main</code><br>HEAD: <code>a9251586b5d60e7d69f8ae06c72cb9631b67a428</code><br>This is the documentation/UI repository baseline; current preview edits are uncommitted and this is not the trading-source revision.</p></article>
+                    <article class="review-meta-card"><span class="eyebrow">Audit scope</span><h4>Source review, not runtime acceptance</h4><p>The audit is based on cited source paths and targeted inspection. It does not claim production deployment, broker acceptance, financial loss, or complete deep review of every Python file.</p></article>
+                    <article class="review-meta-card"><span class="eyebrow">Evidence boundary</span><h4>Findings and proposals stay separate</h4><p>Code findings are summarized under Code Audit. Roadmap and target-architecture items are proposals. Dashboard scores and issue counts remain historical presentation claims.</p></article>
+                </div>
+
+                <h3 style="margin-top:20px">Presentation bundle assessment <span class="review-status-pill">not code-verified</span></h3>
                 <div class="features-grid">
                     <div class="feature-card"><h3><i class="fa-solid fa-cubes"></i> Modules</h3><p><strong style="font-size: 24px; color: white;">9</strong><br><span style="font-size: 12px; opacity: 0.9;">Distinct boundaries</span></p></div>
                     <div class="feature-card" style="background: linear-gradient(135deg, rgba(239,68,68,0.15) 0%, rgba(220,38,38,0.15) 100%); border-color: rgba(239,68,68,0.3);"><h3><i class="fa-solid fa-triangle-exclamation"></i> Issues</h3><p><strong style="font-size: 24px; color: #ef4444;">1 Critical</strong>, <strong style="color: #f97316;">4 High</strong><br><span style="font-size: 12px; opacity: 0.9;">12 Total</span></p></div>
@@ -467,6 +506,50 @@
                 </div>
             </div>
 
+            <!-- Data Flow Sub-Section: source-audit summary, not a second diagram definition. -->
+            <div id="review-dataflow" class="review-content">
+                <h3>Data Flow & Trust Boundaries</h3>
+                <p class="section-subtitle">Current-state summary from the dated source audit. The Mermaid blocks in the Master README remain the sole diagram definitions.</p>
+                <div class="review-audit-callout"><strong>Reading this flow:</strong> this is a concise navigation aid for the audited architecture. It is not runtime telemetry or proof of production deployment. Open the <a href="#diagrams" onclick="showTab('diagrams'); return false;">Architecture Diagrams</a> for the canonical Mermaid source and rendered views.</div>
+                <h4>High-level production path</h4>
+                <div class="review-flow-steps" aria-label="High-level production data flow">
+                    <div class="review-flow-step">OpenAlgo market and account interfaces provide observations.</div>
+                    <div class="review-flow-step">Canonical market storage and evidence feed MarketInputSource and MarketView; immutable historical bundles can also feed MarketView.</div>
+                    <div class="review-flow-step">Strategies and workers produce typed intents; bounded AI entry review can advise or reject, but does not own execution.</div>
+                    <div class="review-flow-step">Gateway and ownership checks precede registry/reservation handling and the authenticated Tier1 boundary.</div>
+                    <div class="review-flow-step">Tier1 coordinates financial effects, ledger records, and projections; reconciliation and protection consume broker, registry, and ledger state.</div>
+                    <div class="review-flow-step">Replay uses immutable bundles and a no-send adapter; research custody/evaluation feeds governed candidate activation.</div>
+                </div>
+                <div class="review-flow-grid">
+                    <article class="review-flow-card"><span class="eyebrow">Critical boundary</span><h4>Tier1 execution ownership</h4><p>Typed intent crosses an authenticated boundary to the Tier1 coordinator. Cognition is advisory; it must not gain direct financial authority through the review flow.</p><ul><li>Source audit: authority and persistence contracts reviewed.</li><li>Evidence limit: this page does not demonstrate a live deployment or failover behavior.</li></ul></article>
+                    <article class="review-flow-card"><span class="eyebrow">Critical boundary</span><h4>Broker, registry, and ledger reconciliation</h4><p>Broker effects, local ownership records, and financial ledger/projections can represent different stages of the same action; recovery must join them by stable identity.</p><ul><li>Code-audited concerns include ACK persistence and intent settlement (F1/F2).</li><li>No duplicate broker send or financial loss was established.</li></ul></article>
+                    <article class="review-flow-card"><span class="eyebrow">Critical boundary</span><h4>Replay and research isolation</h4><p>Replay should use immutable evidence and a no-send boundary. Research custody, evaluation, candidate freezing, and activation are separate governance stages.</p><ul><li>Target policies and activation controls remain proposals/open decisions where not verified.</li><li>See Code Audit and the Master README for scope and evidence.</li></ul></article>
+                </div>
+                <div class="card"><h3>Production and simulation boundary</h3><p>Source-audit documentation describes shared deterministic logic with distinct production and replay inputs/adapters. Treat the isolation statement as a design boundary in the audited code; formal deployment-level verification was not established by this audit.</p><p style="margin-top:10px"><a href="#review/source-audit" onclick="showTab('review'); showReviewTab('source-audit'); return false;">Review the source findings</a> · <a href="#readme" onclick="showTab('readme'); return false;">Open the complete Master README audit</a></p></div>
+            </div>
+
+            <!-- Code Audit Sub-Section: concise presentation of the README's F1-F9 source findings. -->
+            <div id="review-source-audit" class="review-content">
+                <h3>Current Code Audit Findings</h3>
+                <p class="section-subtitle">Nine source findings summarized from the dated Master README audit. Open that document for citations, detailed impact, and correction proposals.</p>
+                <div class="review-audit-callout"><strong>Audit status:</strong> scoped source review at <code>445eb116514d97c2574c44d4d5374f938dec57a3</code> on branch <code>claude/openalgo-trading-architecture-uu1bxn</code>, dated 24 October 2026 UTC. No critical exploit, actual duplicate broker order, or current financial loss was established. Severity describes demonstrated contracts, not an invented incident. Runtime/deployment acceptance and financial-policy approval are outside this finding set.</div>
+                <div class="review-findings-grid">
+                    <article class="review-finding-card" data-severity="high"><div class="finding-head"><h4>F1 · ACK success despite local persistence failure</h4><span class="finding-tag">HIGH</span></div><p>ACK can be accepted while local ownership persistence remains unresolved and the caller receives success. Preserve canonical ACK identity and explicitly report projection state.</p></article>
+                    <article class="review-finding-card" data-severity="medium"><div class="finding-head"><h4>F2 · Cancel/modify intents do not settle locally</h4><span class="finding-tag">MEDIUM</span></div><p>Non-entry intent lifecycle settlement is incomplete in the inspected path; recovery and terminal-state semantics need correction.</p></article>
+                    <article class="review-finding-card" data-severity="medium"><div class="finding-head"><h4>F3 · Mutable authority indexes sit outside chain validation</h4><span class="finding-tag">MEDIUM</span></div><p>Derived mutable indexes can diverge from the hash-chained authority unless rebuilt or verified against canonical records.</p></article>
+                    <article class="review-finding-card" data-severity="medium"><div class="finding-head"><h4>F4 · Wheel omits required packages</h4><span class="finding-tag">MEDIUM</span></div><p>Packaging metadata does not include all required runtime dependencies, creating an installability gap for the declared distribution.</p></article>
+                    <article class="review-finding-card" data-severity="medium"><div class="finding-head"><h4>F5 · Service environment conflicts with research guard</h4><span class="finding-tag">MEDIUM</span></div><p>Service configuration and research-mode protections disagree; align the environment contract and verify the guarded mode.</p></article>
+                    <article class="review-finding-card" data-severity="low"><div class="finding-head"><h4>F6 · Informational mode authentication mismatch</h4><span class="finding-tag">LOW</span></div><p>An informational mode and authentication expectations do not match consistently across the inspected interface.</p></article>
+                    <article class="review-finding-card" data-severity="low"><div class="finding-head"><h4>F7 · Legacy replay marker is missing</h4><span class="finding-tag">LOW</span></div><p>A legacy replay compatibility marker is absent on the inspected path; retain this as a bounded compatibility issue.</p></article>
+                    <article class="review-finding-card" data-severity="low"><div class="finding-head"><h4>F8 · Dormant duplicate checkpoint API hazard</h4><span class="finding-tag">LOW · DORMANT</span></div><p>A duplicate checkpoint API creates a hazard if activated; the audit describes this as dormant, not an observed production failure.</p></article>
+                    <article class="review-finding-card" data-severity="low"><div class="finding-head"><h4>F9 · Cross-host fencing is an operational boundary</h4><span class="finding-tag">KNOWN BOUNDARY</span></div><p>Single-host fencing assumptions require operational controls if execution ownership spans hosts. This is a boundary to validate, not a claim of a detected exploit.</p></article>
+                </div>
+                <div class="review-flow-grid">
+                    <article class="review-flow-card"><span class="eyebrow">Open policy decisions</span><h4>Economics, protection, emergency authority</h4><p>Gross economics (including costs), non-atomic protection baskets, and emergency permissions remain limitations or owner decisions. The audit does not invent values or approve policy.</p></article>
+                    <article class="review-flow-card"><span class="eyebrow">Traceability</span><h4>Read the complete evidence record</h4><p>Detailed code locations, impact, limits, and staged corrections are maintained in the Master README and dated roadmap.</p><ul><li><a href="#readme" onclick="showTab('readme'); return false;">Master README audit</a></li><li><a href="#roadmap" onclick="showTab('roadmap'); return false;">Audit ROADMAP.md</a></li></ul></article>
+                </div>
+            </div>
+
             <!-- Issues Analysis Sub-Section -->
             <div id="review-issues" class="review-content">
                 <h3>Architecture Issues Summary</h3>
@@ -495,7 +578,7 @@
                     </div>
                     <span id="issue-filter-count" class="filter-result-count" role="status" aria-live="polite"></span>
                 </div>
-                <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 16px;">
+                <div class="issue-card-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 16px;">
                     
                     <div style="border-radius: 16px; overflow: hidden; border-left: 4px solid #ef4444; background: rgba(13,18,32,0.6); transition: all 0.3s;">
                         <button onclick="toggleIssue('spo1')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
@@ -1344,7 +1427,6 @@
                 <div style="margin-bottom: 30px;">
                     
                     <div style="position: relative; margin-bottom: 24px;">
-                        <div style="position: absolute; left: 28px; top: 60px; bottom: 0; width: 2px; background: rgba(255,255,255,0.1);"></div>
                         <div style="border-radius: 16px; overflow: hidden; background: rgba(13,18,32,0.6); border: 1px solid rgba(239,68,68,0.3);">
                             <button onclick="toggleRecommendation('rec1')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
                                 <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(239,68,68,0.1); display: flex; align-items: center; justify-content: center;">
@@ -1392,7 +1474,6 @@
                     </div>
                     
                     <div style="position: relative; margin-bottom: 24px;">
-                        <div style="position: absolute; left: 28px; top: 60px; bottom: 0; width: 2px; background: rgba(255,255,255,0.1);"></div>
                         <div style="border-radius: 16px; overflow: hidden; background: rgba(13,18,32,0.6); border: 1px solid rgba(239,68,68,0.3);">
                             <button onclick="toggleRecommendation('rec2')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
                                 <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(239,68,68,0.1); display: flex; align-items: center; justify-content: center;">
@@ -1440,7 +1521,6 @@
                     </div>
                     
                     <div style="position: relative; margin-bottom: 24px;">
-                        <div style="position: absolute; left: 28px; top: 60px; bottom: 0; width: 2px; background: rgba(255,255,255,0.1);"></div>
                         <div style="border-radius: 16px; overflow: hidden; background: rgba(13,18,32,0.6); border: 1px solid rgba(59,130,246,0.3);">
                             <button onclick="toggleRecommendation('rec3')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
                                 <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(59,130,246,0.1); display: flex; align-items: center; justify-content: center;">
@@ -1488,7 +1568,6 @@
                     </div>
                     
                     <div style="position: relative; margin-bottom: 24px;">
-                        <div style="position: absolute; left: 28px; top: 60px; bottom: 0; width: 2px; background: rgba(255,255,255,0.1);"></div>
                         <div style="border-radius: 16px; overflow: hidden; background: rgba(13,18,32,0.6); border: 1px solid rgba(59,130,246,0.3);">
                             <button onclick="toggleRecommendation('rec4')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
                                 <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(59,130,246,0.1); display: flex; align-items: center; justify-content: center;">
@@ -1536,7 +1615,6 @@
                     </div>
                     
                     <div style="position: relative; margin-bottom: 24px;">
-                        <div style="position: absolute; left: 28px; top: 60px; bottom: 0; width: 2px; background: rgba(255,255,255,0.1);"></div>
                         <div style="border-radius: 16px; overflow: hidden; background: rgba(13,18,32,0.6); border: 1px solid rgba(59,130,246,0.3);">
                             <button onclick="toggleRecommendation('rec5')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
                                 <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(59,130,246,0.1); display: flex; align-items: center; justify-content: center;">
@@ -1584,7 +1662,6 @@
                     </div>
                     
                     <div style="position: relative; margin-bottom: 24px;">
-                        <div style="position: absolute; left: 28px; top: 60px; bottom: 0; width: 2px; background: rgba(255,255,255,0.1);"></div>
                         <div style="border-radius: 16px; overflow: hidden; background: rgba(13,18,32,0.6); border: 1px solid rgba(59,130,246,0.3);">
                             <button onclick="toggleRecommendation('rec6')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
                                 <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(59,130,246,0.1); display: flex; align-items: center; justify-content: center;">
@@ -1632,7 +1709,6 @@
                     </div>
                     
                     <div style="position: relative; margin-bottom: 24px;">
-                        <div style="position: absolute; left: 28px; top: 60px; bottom: 0; width: 2px; background: rgba(255,255,255,0.1);"></div>
                         <div style="border-radius: 16px; overflow: hidden; background: rgba(13,18,32,0.6); border: 1px solid rgba(59,130,246,0.3);">
                             <button onclick="toggleRecommendation('rec7')" style="width: 100%; text-align: left; padding: 20px; display: flex; align-items: flex-start; gap: 16px; background: transparent; border: none; cursor: pointer;">
                                 <div style="width: 48px; height: 48px; border-radius: 12px; background: rgba(59,130,246,0.1); display: flex; align-items: center; justify-content: center;">
@@ -1904,7 +1980,7 @@
 
     <script>
         const mainSections = ['overview', 'architecture', 'diagrams', 'repository', 'review', 'readme', 'roadmap'];
-        const reviewSections = ['executive', 'issues', 'scorecard', 'roadmap', 'layers', 'readiness'];
+        const reviewSections = ['executive', 'dataflow', 'issues', 'source-audit', 'scorecard', 'roadmap', 'layers', 'readiness'];
         let activeReviewSection = 'executive';
         const markdownSources = {};
         let mermaidRenderCount = 0;
@@ -1969,7 +2045,7 @@
                     diagram.innerHTML = result.svg;
                     if (result.bindFunctions) result.bindFunctions(diagram);
                     diagram.dataset.rendered = 'true';
-                    setDiagramZoom(diagram, 2.5);
+                    setDiagramZoom(diagram, 1);
                 } catch (error) {
                     diagram.dataset.sourceReady = 'false';
                     diagram.classList.add('diagram-render-fallback');
@@ -2019,7 +2095,7 @@
             canvas.dataset.zoom = String(Math.max(0.75, Math.min(3.5, current * factor)));
             const svg = canvas.querySelector('svg');
             if (svg) {
-                svg.style.maxWidth = 'none';
+                svg.style.maxWidth = Number(canvas.dataset.zoom) > 1 ? 'none' : '100%';
                 svg.style.width = (Number(canvas.dataset.zoom) * 100) + '%';
                 svg.style.height = 'auto';
             }
@@ -2119,6 +2195,24 @@
             });
         }
 
+        function getDiagramTitle(markdown, blockIndex, fallbackIndex) {
+            const precedingMarkdown = markdown.slice(0, blockIndex);
+            const headings = Array.from(precedingMarkdown.matchAll(/^#{1,6}\s+(.+)$/gm));
+            const sourceHeading = headings.length ? headings[headings.length - 1][1] : '';
+            const heading = sourceHeading.replace(/[`*_~]/g, '').trim();
+            if (/current.state mermaid/i.test(heading)) return 'Current Architecture — Source-Audited';
+            if (/higher.level architecture/i.test(heading)) return 'Target Architecture — System Overview';
+            if (/detailed end.to.end architecture/i.test(heading)) return 'Target Architecture — End-to-End Design';
+
+            const friendly = heading
+                .replace(/^Primary\s+TARGET\s+diagram\s*\d+\s*[—-]\s*/i, '')
+                .replace(/\bTARGET\b/gi, 'Target')
+                .replace(/\s+/g, ' ')
+                .trim();
+            if (friendly) return friendly.replace(/(^|[\s—:-])([a-z])/g, (match, separator, letter) => separator + letter.toUpperCase());
+            return 'Architecture Flow ' + fallbackIndex;
+        }
+
         function markdownRenderer() {
             const renderer = new window.marked.Renderer();
             const usedSlugs = new Map();
@@ -2181,8 +2275,9 @@
                     const diagramList = document.getElementById('diagram-list');
                     if (diagramList) {
                         diagramList.replaceChildren();
-                        const sources = Array.from(markdown.matchAll(/^```mermaid\s*\r?\n([\s\S]*?)^```/gm), match => match[1].trim());
-                        if (sources.length) sources.forEach((source, index) => addMermaidCard(diagramList, source, 'Master README diagram ' + (index + 1)));
+                        const diagramBlocks = Array.from(markdown.matchAll(/^```mermaid\s*\r?\n([\s\S]*?)^```/gm));
+                        const sources = diagramBlocks.map(match => match[1].trim());
+                        if (sources.length) diagramBlocks.forEach((match, index) => addMermaidCard(diagramList, sources[index], getDiagramTitle(markdown, match.index, index + 1)));
                         else diagramList.textContent = 'No fenced Mermaid diagrams were found in README.md.';
                     }
                     status.textContent = 'Loaded from README.md';
