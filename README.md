@@ -248,6 +248,20 @@ This was a target-document review on `AutonomousTradingArchitect/main` at `ecf39
 
 Establish D11–D12 first; specify D13–D16 together because dispatch, identity, reconciliation and accounting depend on each other. These refine the existing clean packages rather than add services. Isolated development and synthetic verification do not wait for market close or unrelated broker acceptance. [The roadmap](ROADMAP.md#accepted-decisions-and-delivery-order) owns delivery dependencies and status.
 
+### Accepted independent-review refinements
+
+**25 October 2026 UTC:** following independent review of snapshot `70e1e539f1dc8a890b12d68525d125df8dd14012` on `AutonomousTradingArchitect/main`, the owner accepted the corrected options below. These refine existing D01–D16 rather than renumber them. The local module-shorthand clarification is retained. No source audit, implementation proof or money-policy change is claimed.
+
+| Review ID | Agreed direction and status | Scope and proof |
+|---|---|---|
+| **AUD-01** | **Accepted design refinement:** explicit entry, cancel, modify and close request types, enforced by one kernel. | Validate actual effects, target identities, quantities, relevant state and actor permissions. Mislabelled protective actions cannot bypass applicable rules; non-entry does not automatically mean risk-reducing. |
+| **AUD-02** | **Accepted design refinement:** each authoritative outcome transition commits its lifecycle and applicable accounting changes atomically. | Crash proof shows either the complete transition or preceding recoverable state. No fixed transaction count per command lifetime is imposed. |
+| **AUD-03** | **Accepted design refinement:** distinguish evidence links from control flow and record non-dispatch decisions in both compositions. | Compare approved decisions and causal evidence, not identical call graphs. Preserve existing PAUSE meaning without inventing hold/expiry rules. |
+| **AUD-04** | **Accepted audit task, mechanism undecided:** compare bounded database reads, kernel read interfaces and independent polling under A03/A06. | Measure isolation, progress, latency and log growth. No zero-delay promise or assumed read-only broker credential capability. |
+| **AUD-05** | **Accepted audit task, migration route undecided:** compare in-place upgrades with verified import into a target database under A02/A04. | Preserve original event bytes, identities and provenance; rebuild state and expose historical gaps. Do not prescribe extra migration files or assume new contracts require new tables. |
+
+**AUD-06 rejected as stated:** the 24 October research date is historical and correct. D11–D16 and the A01–A10 agenda were committed together in `70e1e539f1dc8a890b12d68525d125df8dd14012`, whose parent is `ecf39ad731ad20b9e541b238225f9ca8d1213537`; no intermediate commit is invented. This disposition records the review outcome, not a new architecture requirement.
+
 ## 4. Open-source reference research
 
 Checked **24 October 2026**, cutoff approximately **09:38:37 UTC**, window **24 September–24 October**. Resolve default-branch SHA, request `https://api.github.com/repos/{owner}/{repo}/git/trees/{sha}?recursive=true`, inspect implementation/license and in-window relevant source commits. All listed recursive responses returned **truncated=false**; subtree traversal unnecessary. No repository was installed/executed. Nine qualify as maintained implementation references, not nine recommended dependencies.
@@ -362,35 +376,39 @@ flowchart TB
     VIEW --> STRAT[Strategy decision and typed Intent]
     STRAT --> APPLY[Kernel policy applies bound review evidence]
     REVIEW -. typed review evidence only .-> APPLY
-    APPLY --> ADMIT
-    APPLY --> PLAN[Pure versioned planning within kernel authority]
+    APPLY -. review binding evidence .-> ADMIT
+    APPLY -->|eligible under approved policy| PLAN[Pure versioned planning within kernel authority]
+    APPLY -->|non dispatch decision| NODISPATCH[Record decision and reason without send authority]
     SESSION[Bound policy candidate identity and live clock] --> PLAN
     SESSION --> APPLY
     PLAN --> ADMIT[Tier1 exact plan admission and safety checks]
     ACCOUNT[Reconciled account and pending obligations] --> ADMIT
-    HUMAN[Authenticated owner commands] -. validated selective cancel and close .-> ADMIT
-    ADMIT --> RESERVE[Atomic reservation identity and command commit]
+    HUMAN[Authenticated owner commands] -. typed action request .-> ADMIT
+    REVIEW -. record only exit advice .-> HUMAN
+    ADMIT -->|admitted| RESERVE[Atomic reservation identity and command commit]
+    ADMIT -->|refused| NODISPATCH
     RESERVE --> COORD[Sole live ExecutionCoordinator]
     COORD --> CHECK[Revalidate relevant admission dependencies]
     CHECK --> ATTEMPT[Atomic dispatch claim and durable attempt identity]
     ATTEMPT --> OA[OpenAlgo adapter without hidden effect retries]
     OA --> EFFECT[Broker or OpenAlgo analyzer effects]
-    OA --> RESULT[Typed effect outcome and persistence status]
+    OA --> RESULT[Classified transport evidence]
     RESULT --> LIFE[Lifecycle command order and position obligations]
     OA --> BOBS[Observations with identity timing and coverage evidence]
     BOBS --> RECON[Reconciliation validates coverage and matching]
     RECON --> LIFE
     LIFE --> OBLIG[Reservation changes under approved valuation]
-    OBLIG --> COMMIT[Atomic evidence lifecycle and accounting commit]
+    OBLIG --> COMMIT[Atomic outcome lifecycle and accounting commit]
     COMMIT --> ACCOUNT
+    COMMIT --> RECEIPT[Committed outcome and projection freshness receipt]
     LEDGER[Production hash chained ledger and verified projections] <--> RESERVE
-    LEDGER <--> RESULT
+    NODISPATCH --> LEDGER
     LEDGER <--> COMMIT
     LEDGER <--> ATTEMPT
     LEDGER --> CHECK
     LEDGER --> COMPAT[Verified compatibility projections with freshness status]
     BOBS --> SUP[Independent protection and reconciliation supervisor]
-    SUP -. action proposals only .-> ADMIT
+    SUP -. typed action proposals only .-> ADMIT
   end
   CODE[Shared versioned strategy planning admission and lifecycle code] -. production instance .-> PLAN
   CODE -. separate simulation instance .-> SPLAN
@@ -398,16 +416,20 @@ flowchart TB
     HIST[Permitted immutable causal bundle] --> SVIEW[Simulation MarketView Canvas and recorded clock]
     SVIEW --> SSTRAT[Same strategy decision and typed Intent]
     SSTRAT --> SREVIEW[Same kernel review policy over recorded or research evidence]
-    SREVIEW --> SPLAN[Same planning port and versioned implementations]
+    SREVIEW -. review binding evidence .-> SADMIT
+    SREVIEW -->|eligible under approved policy| SPLAN[Same planning port and versioned implementations]
+    SREVIEW -->|non dispatch decision| SNO[Same decision evidence without send authority]
     SBIND[Frozen simulation policy candidate and assumptions] --> SPLAN
     SPLAN --> SADMIT[Same admission and reservation transitions]
-    SADMIT --> SCOORD[Same dispatch and attempt rules without live capability]
+    SADMIT -->|admitted| SCOORD[Same dispatch and attempt rules without live capability]
+    SADMIT -->|refused| SNO
     SCOORD --> SBROKER[Local broker model orders fills costs and uncertainty]
     SBROKER --> SLIFE[Same evidence lifecycle and accounting transitions]
     SLIFE --> SADMIT
     SLEDGER[Separate simulation run ledger and projections] <--> SADMIT
     SLEDGER <--> SCOORD
     SLEDGER <--> SLIFE
+    SNO --> SLEDGER
   end
   subgraph R[Research evidence and promotion]
     LEDGER --> EXPORT[Complete committed histories with outcome class]
@@ -450,23 +472,28 @@ Extract or implement pure selection/sizing/payoff/protection functions within th
 | Intent | Strategy/family/version, session/candidate, causal view, direction/abstention and evidence; no autonomous order identity or limit override. |
 | Review application | Kernel-produced interpretation bound to intent digest, strategy/candidate/session, review evidence or explicit unavailable/timeout cause, policy version and deadline. Admission verifies this binding; caller-supplied ALLOW is not approval. |
 | Plan | Exact instruments/leg roles/quantity/units/prices/rounding, policy/candidate/view digest, structure identity, expected residual exposure and lifecycle/protection policy. |
-| Admission | Exact plan digest, account and state head, epoch, policy/candidate, freshness/deadline and actor/capability. Bind the relevant dependency versions and applicable dispatch deadline; revalidate them at dispatch without treating every unrelated ledger append as invalidation. |
+| Action request | Explicit entry, cancel, modify or close variant with exact arguments, target identities and applicable evidence. Entry binds intent, plan and kernel review application where required; other variants bind their operation-specific targets and checks. A caller label never establishes the actual effect or permission. |
+| Admission | Exact action-request digest and entry plan digest where applicable, account and relevant state head, epoch, applicable policy/candidate, freshness/deadline and actor/capability. Bind the relevant dependency versions and applicable dispatch deadline; revalidate them at dispatch without treating every unrelated ledger append as invalidation. |
 | Command | Global logical command/execution identity, immutable request digest, causation/plan/admission identity, endpoint/args and linked attempt identities/states. Duplicate key with changed content refuses; the same key and content returns existing state. Command, attempt, broker order and position identities have distinct lifetimes. |
 | Observation | Account and OpenAlgo source, endpoint/query interval/as-of/arrival, coverage evidence including pagination and source watermark where available, normalized order/trade/position identity, raw evidence reference and unresolved conflicts. Query success alone is not completeness. |
 | Outcome | Typed effect classification (not-sent/rejected/acknowledged/ambiguous), canonical persistence status and projection freshness; stable command/execution/broker IDs and explicit simulator/analyzer/live attribution. Transport ACK is distinct from fill/cancel/settlement. |
 
 Execution sequence:
 
-1. Validate intent/candidate/session identity and required causal inputs. Kernel policy applies the bound review or approved unavailable/timeout rule; admission verifies its applicability on every entry path. Preserve approved financial semantics and supported refusal contracts, not incidental source call order (D11–D12).
-2. Compute exact plan; final risk covers resulting quantity/instrument/legs, not merely earlier directional approval.
+1. Validate the typed action, actual requested effect, actor capability and operation-specific identities/state. For entry, validate intent/candidate/session and causal inputs; kernel policy applies the bound review or approved unavailable/timeout rule and admission verifies its applicability. Non-dispatch decisions are recorded without entering the send path. Preserve approved financial semantics and supported refusal contracts, not incidental source call order (D11–D12).
+2. For an eligible entry, compute the exact plan; final risk covers resulting quantity/instrument/legs, not merely earlier directional approval. Cancel, modify and close use their exact typed action and approved checks without fabricated strategy intents or unrelated entry-review prerequisites.
 3. Serialize account-wide admission against reconciled observations **plus pending reservations and uncertain effects**. Detect observation skew/incomplete snapshots; no empty-query-as-flat shortcut.
 4. Commit admission, monetary reservation, command identity and required authoritative projection changes in one SQLite transaction, binding exact plan/policy/account identity and reconciliation/state heads. This is D02; current `COMMAND_ACCEPTED` alone does not provide it. Keep transactions short; never hold SQLite transaction across HTTP.
-5. Under the sole writer, revalidate relevant admission dependencies and atomically claim dispatch with a durable attempt/send-intent record (D13–D14). Invoke the adapter outside the database transaction without hidden retries, then persist the classified outcome. ACK is not fill/protection. Unknown retains obligations; no blind retry.
-6. Reconciliation validates observation coverage and matching; lifecycle determines the transition and reservations computes its consequences under approved valuation. Commit evidence references, lifecycle and accounting changes atomically in the existing ledger (D15–D16). Include partial fills, cancel/fill races, foreign activity and fees under current policy; release only demonstrated unused obligations. Compensation is another admitted effect, not rollback.
+5. Under the sole writer, revalidate relevant admission dependencies and atomically claim dispatch with a durable attempt/send-intent record (D13–D14). Invoke the adapter outside the database transaction without hidden retries, then pass classified transport evidence through the lifecycle/accounting transition and commit its authoritative outcome and applicable state changes atomically (AUD-02). ACK is not fill/protection. Unknown retains obligations; no blind retry.
+6. For later observations, reconciliation validates coverage and matching; lifecycle determines the transition and reservations computes its consequences under approved valuation. Both transport-triggered and observation-triggered transitions use the same atomic commit rule. Commit evidence references, lifecycle and accounting changes atomically in the existing ledger (D15–D16). Include partial fills, cancel/fill races, foreign activity and fees under current policy; release only demonstrated unused obligations. Compensation is another admitted effect, not rollback.
 
 **D01/D03:** use one command lifecycle with explicit verb-specific completion rules, not one generic success boolean. Cancel ACK is not cancellation or proof that no fill occurred; modify ACK is not a verified protective state. Every accepted, rejected, not-sent, ambiguous and reconciled attempt updates the same exact command identity. A compatibility projection failure after canonical ACK returns “broker accepted; projection unresolved” with `sent=True` and retained IDs, schedules projection repair and cannot authorize resend. If transport may have succeeded but the canonical outcome could not be committed, retain the durable send intent and reconcile uncertainty. Do not disguise that distinct failure as a mere stale projection. Projection repair uses committed events and verified heads, never another financial sender.
 
 **D12 — one review-policy owner:** `cognition.review` produces typed reviews, not authoritative eligibility. `kernel.policy` interprets ALLOW/BLOCK/PAUSE, abstention and unavailable/timeout outcomes under the approved policy; `kernel.admission` verifies the frozen application against the exact intent, candidate, session and policy. All entry paths use this contract. Human cancel/close and record-only exit advice retain their action-specific rules; this does not impose entry-review prerequisites on unrelated operations. Replay uses the same policy function and recorded evidence, not fresh model inference masquerading as the old decision.
+
+**AUD-01 — action-specific admission:** `contracts.execution` defines entry, cancel, modify and close request variants. `kernel.admission` checks required fields, actual effects, exact order/position targets, quantities and relevant current state; `kernel.authority`, policy and safety enforce actor scope and approved permissions. Interface checks supplement, never replace, kernel validation. Human-applied exit advice becomes an authenticated typed action request; advice itself carries no send authority. Cancelling protection can increase risk, and a modify label does not prove a reduction. Reject malformed or mislabelled requests and unauthorized effects using approved semantics; do not introduce a blanket rule that all non-entry actions are risk-reducing or universally allowed.
+
+**AUD-03 — evidence versus control flow:** the dashed review-to-admission edge supplies binding evidence; it is not a plan bypass. Entry planning proceeds only when approved review policy permits it. BLOCK, PAUSE and other non-dispatch outcomes are recorded with their policy, cause and causal input identities through kernel-owned decision recording, without creating send authority. Admission refusals are recorded likewise. PAUSE retains its approved meaning; no new persistent hold, automatic resume or expiry is inferred. Simulation uses the same policy and records equivalent decisions and evidence. Identical internal call graphs are not required, and a pure planner may return a refusal without owning stateful holds.
 
 **D13 — dispatch boundary:** distinguish admitted-but-unattempted commands from durable send intent and possibly sent attempts. Revalidate relevant account/obligation, policy/review, deadline, release and authority dependencies at the serialized dispatch transition. Unrelated ledger events must not invalidate a command by themselves. A failed check records why dispatch did not proceed; only demonstrably unsent obligations may be released or re-admitted under the approved rules. A durable send intent without a proven outcome remains potentially effective across restart, even if its deadline later expires. Define and test the ordering of a hold against dispatch and already-started transport; a local transaction cannot retract an in-flight request. Exact deadline values, permission semantics and emergency treatment remain owner-policy questions. No database transaction or writer lock spans HTTP.
 
@@ -474,7 +501,7 @@ Execution sequence:
 
 **D15 — observation evidence:** the adapter reports what was observed, including coverage limits; reconciliation decides what it establishes. Track account/source, endpoint, query interval, pages/cursors and source sequence or watermark where available, raw evidence and matching-rule version. Unknown coverage remains unknown. Match by verified identities; instrument/quantity similarity alone cannot settle a command. Absence is usable only when the endpoint coverage contract or corroborating authoritative evidence supports the claim. Conflicting snapshots and foreign activity remain attributable and unresolved where necessary; repeated successful polling alone is not proof of completeness. Missing broker evidence blocks broker-specific acceptance, not isolated synthetic work.
 
-**D16 — obligation accounting:** use the existing event ledger and verified projections, not a second financial journal. Reconciliation validates evidence; lifecycle owns command/order/position transitions; reservations owns their accounting calculation; the sole writer commits the combined transition. Completing a cancel command does not close a position or remove its protection obligation. Specify each capacity measure's meaning, including whether broker-reported available capacity already deducts working orders, to avoid subtracting a commitment twice. At each committed head, quantities and obligations must reconcile without duplicate fills, unexplained releases or omitted uncertain exposure. Revaluations, fees and corrections are explicit events under approved formulas—not an assumption that monetary value stays constant. Delayed observations may change present knowledge, but cannot rewrite the evidence available to an earlier admission. Broad reservation holds, new cost buffers or automatic protection changes are not selected by this decision.
+**D16 — obligation accounting:** use the existing event ledger and verified projections, not a second financial journal. Reconciliation validates evidence; lifecycle owns command/order/position transitions; reservations owns their accounting calculation; the sole writer commits the combined transition. **AUD-02:** for each authoritative transition, classified outcome/evidence, lifecycle changes and applicable reservation/projection changes share one transaction, whether triggered by transport or reconciliation. A classification alone is not a separate authoritative settlement. Optional raw transport diagnostics cannot settle a command or release capacity. On commit failure retain preceding durable state and send uncertainty for recovery; report persistence failure truthfully. Each later fill or reconciliation may cause another transaction, so there is no fixed transaction count per command lifetime. Completing a cancel command does not close a position or remove its protection obligation. Specify each capacity measure's meaning, including whether broker-reported available capacity already deducts working orders, to avoid subtracting a commitment twice. At each committed head, quantities and obligations must reconcile without duplicate fills, unexplained releases or omitted uncertain exposure. Revaluations, fees and corrections are explicit events under approved formulas—not an assumption that monetary value stays constant. Delayed observations may change present knowledge, but cannot rewrite the evidence available to an earlier admission. Broad reservation holds, new cost buffers or automatic protection changes are not selected by this decision.
 
 Proposed safety precedence separates non-negotiable capability integrity from owner-selected action policy:
 
@@ -555,6 +582,8 @@ Start with existing direction/abstention candidate boundary, not unconstrained o
 
 **D06:** one typed worker configuration contract feeds both unit rendering and worker validation, including intentional nonsecret path settings. Preserve role-specific credential exclusions; test the actual rendered environment rather than independently invented fixtures. This contract belongs to `settings.schema`, not two competing lists in deployment and jobs.
 
+**AUD-04 — reader and observation boundary remains to be selected under A03/A06:** compare bounded direct read transactions with a kernel read interface, including availability and resource costs. Define which observations supervisors independently collect and how they are attributed and rate-limited; independent polling may be intentional resilience. Test slow readers, stalled consumers, checkpoint progress, log growth and financial-work latency under load. Do not promise zero delay or assume separate read-only broker credentials exist.
+
 Initial deployment: one Linux host, local durable Tier-1 storage, systemd, current operator surface, bounded research slice, independently scheduled protection/reconciliation readers. Critical supervisors may use the same installed package but retain independent process/restart/resource supervision. One host is a failure domain; honest RPO/RTO and fencing beat an unproved HA label.
 
 | Timing | Capability | Adoption trigger and proof |
@@ -569,7 +598,7 @@ Initial deployment: one Linux host, local durable Tier-1 storage, systemd, curre
 
 ## 6. Fully commented target repository
 
-This is a proposed layout, not scaffolding created here. Large existing implementations can move intact as subpackages; names identify owners rather than demanding premature compression. All shown entries have one short end-of-line comment. Root is a regular package; unmarked subdirectories may be namespace packages validated by discovery. No speculative optional backend folders are included.
+This is a proposed layout, not scaffolding created here. Large existing implementations can move intact as subpackages; names identify owners rather than demanding premature compression. Module names such as `kernel.*`, `contracts.*` and `settings.*` in this README and ROADMAP.md are shorthand relative to the single `autonomous_trading` package; for example, `kernel.ledger.projections` means `autonomous_trading.kernel.ledger.projections`. All shown entries have one short end-of-line comment. Root is a regular package; unmarked subdirectories may be namespace packages validated by discovery. No speculative optional backend folders are included.
 
 ```text
 AutonomousTrading/                         # Recompose existing behavior into one application
@@ -598,7 +627,7 @@ AutonomousTrading/                         # Recompose existing behavior into on
 │       │   ├── identity.py                # Define account session candidate and command IDs
 │       │   ├── market.py                  # Define records views quality and availability
 │       │   ├── decisions.py               # Define intent review and advice envelopes
-│       │   ├── execution.py               # Define plan action observation and outcomes
+│       │   ├── execution.py               # Define typed actions plans observations and outcomes
 │       │   ├── evidence.py                # Define causal references and artifact digests
 │       │   └── clock.py                   # Define injected clock interfaces
 │       ├── resources/                     # Immutable assets shipped inside the wheel
@@ -607,7 +636,7 @@ AutonomousTrading/                         # Recompose existing behavior into on
 │       │   ├── candidates.schema.json     # Define frozen identity manifests
 │       │   ├── canvas.schema.json         # Define facts annotations and tool responses
 │       │   └── migrations/                # Ordered financial database migrations
-│       │       └── 001_initial.sql        # Establish extracted audited schema baseline
+│       │       └── 001_initial.sql        # Define target schema after migration-route evaluation
 │       ├── settings/                      # Single configuration owner
 │       │   ├── loader.py                  # Resolve defaults profiles and scoped overrides
 │       │   ├── schema.py                  # Share typed settings and worker environment contracts
@@ -646,7 +675,7 @@ AutonomousTrading/                         # Recompose existing behavior into on
 │       │   ├── policy.py                  # Apply approved policy and bound review semantics
 │       │   ├── planner.py                 # Compute pure versioned plans without persistence effects
 │       │   ├── selection.py               # Preserve instrument selection and sizing
-│       │   ├── admission.py               # Verify plans review bindings and relevant state
+│       │   ├── admission.py               # Validate action effects plans bindings and state
 │       │   ├── reservations.py            # Compute obligation changes under approved valuation
 │       │   ├── lifecycle.py               # Own command order and position obligation transitions
 │       │   ├── protection.py              # Reuse stop trail and residual decisions
@@ -658,7 +687,7 @@ AutonomousTrading/                         # Recompose existing behavior into on
 │       │   └── ledger/                    # Financial events and verified read models
 │       │       ├── runtime.py             # Verify loaded SQLite and effective WAL settings
 │       │       ├── envelope.py            # Canonicalize events and chain digests
-│       │       ├── store.py               # Atomically commit events identity and accounting
+│       │       ├── store.py               # Atomically commit outcomes lifecycle and accounting
 │       │       ├── schema.py              # Validate version and apply owned migrations
 │       │       ├── projections.py         # Rebuild and compare authoritative read models
 │       │       └── export.py              # Publish committed causal evidence asynchronously
@@ -725,7 +754,7 @@ AutonomousTrading/                         # Recompose existing behavior into on
 │   ├── unit/                              # Pure deterministic domain checks
 │   │   ├── test_planner_parity.py          # Pin selection sizing stops and refusal behavior
 │   │   ├── test_canvas_causality.py        # Reject future bars repainting and false availability
-│   │   └── test_review_semantics.py        # Pin unavailable timeout and review application
+│   │   └── test_review_semantics.py        # Verify approved review and non-dispatch evidence
 │   ├── contracts/                         # Compatibility and authority checks
 │   │   ├── test_legacy_schemas.py          # Preserve historic readers and command shapes
 │   │   ├── test_installed_artifact.py      # Verify wheel outside checkout
@@ -735,7 +764,7 @@ AutonomousTrading/                         # Recompose existing behavior into on
 │   │   ├── test_openalgo_contract.py       # Use permitted recorded interface observations
 │   │   └── test_custody_promotion.py       # Preserve one-use evidence and activation identity
 │   ├── recovery/                          # Durable fault campaigns
-│   │   ├── test_crash_boundaries.py        # Crash around each irreversible boundary
+│   │   ├── test_crash_boundaries.py        # Prove atomic outcomes and recoverable uncertainty
 │   │   ├── test_restore_fencing.py         # Exclude old writers and preserve unknown obligations
 │   │   └── test_projection_integrity.py    # Detect altered indexes and stale views
 │   ├── isolation/                         # Host and evidence independence checks
@@ -798,6 +827,8 @@ Effort is relative, not a schedule estimate: low = narrow adapter/move, medium =
 
 ### Compatibility and no-dual-authority invariant
 
+**AUD-05 — migration route remains open under A02/A04:** compare upgrading existing databases with initializing a target schema and importing verified legacy history. Choose from compatibility, rollback/recovery and migration evidence, not the filename `001_initial.sql`. Preserve original event bytes/digests, identity and provenance; keep imported evidence distinct from newly derived target projections. Rebuild/check supported state and explicitly report missing historical information rather than synthesizing claims of past admission or observation completeness. No `002` migration or source-schema reuse is mandated before that comparison.
+
 Keep versioned readers for old JSONL/events/worker protocol/candidate bundles/policy digests. Imports preserve original identity, provenance and source digest; do not pretend old observations happened anew. Schema changes require explicit converters/parity. Compatibility shims delegate to one implementation, not fork formulas/ownership/senders.
 
 Before cutover, new kernel only shadows calculations using independent ledger, disarmed adapter and no financial credential/socket. Compare exact plan/refusal/candidate/policy identity, reservation totals, order/leg quantities, protection obligations, unknown outcomes and evidence class. Unexplained differences are defects. Approved correctness improvements have explicit expected differences and regression proofs; parity does not require retaining a known bug.
@@ -811,6 +842,9 @@ The sole production canonical-state/write-authority switch occurs in Phase 7, ne
 | Claim | Evidence required | Bound of conclusion |
 |---|---|---|
 | Installable artifact (D05) | Shipping manifest, packaged resources and every declared command exercised in a blank environment without checkout/`.git`; staging failure leaves prior release intact | Imports alone insufficient; no broker proof. |
+| Action admission (AUD-01) | Submit mislabelled protective actions, oversized closes, wrong targets, missing required evidence and stale relevant state; verify kernel-side checks across human, supervisor and strategy routes | Non-entry does not imply risk reduction; existing permissions govern. |
+| Atomic authoritative transitions (AUD-02) | Crash before/during/after commits for rejected, not-sent, acknowledged, ambiguous and reconciled outcomes; observe complete transition or preceding recoverable state, never partial authoritative accounting | No fixed transaction count; raw evidence is not settlement and commit failure cannot authorize resend. |
+| Non-dispatch parity (AUD-03) | Compare approved decisions and causal records for ALLOW/BLOCK/PAUSE/unavailable and admission refusal in both compositions; blocked/paused outcomes cannot trigger a send contrary to policy | Equivalent behavior, not identical call graphs; no new PAUSE semantics. |
 | Requirement baseline (D11) | Classify meaningful behaviors, assign one owner and independent expected outcomes; compare approved outputs and supported contracts, with explicit correction expectations; assess fixture provenance and oracle independence | Source parity and passing legacy tests alone are not correctness proof. |
 | Canonical admission and outcomes (D01–D04) | Concurrent strategies against insufficient combined capacity; atomic admission/reservation/identity; verb/outcome/restart matrix; failed projection repair never resends; altered indexes refuse | Chain consistency is not account completeness; no HTTP inside the transaction. |
 | Dispatch and transport (D13–D14) | Pause/crash around admission, dependency validation, dispatch claim, transport acceptance and outcome commit; vary deadlines/holds/relevant state; duplicate caller requests and disconnects never silently resend potentially effective commands | Local uniqueness is not remote exactly-once; define hold ordering without claiming recall of an in-flight request. |
@@ -929,7 +963,7 @@ Document checks confirmed nine primary sections, one current-state and exactly t
 
 ### Current design status — 25 October 2026 UTC
 
-**Accepted:** D01–D16 and the boundary-first, selective-reuse principle; D11–D16 record the six later owner choices as design, not implementation proof. **Changed documents:** this master README and ROADMAP.md in `AutonomousTradingArchitect`; the trading source remains read-only. **Implementation status:** not implemented or production-accepted by this update; F1–F5 remain open. **Structure:** §6 keeps one installable namespace with packaged immutable resources and explicit financial, market, cognition, research and operations owners. **Next architecture audit:** A01 time, data and market intelligence, followed by the remaining audit agenda above. D11–D16 are recorded design decisions, not work to re-decide by default. **Later implementation:** turn those contracts into isolated slices in implementation-roadmap order. Exact deadline, valuation and emergency-policy choices remain open where not already approved. Implementation, financial-policy changes and production activation require their own scope and evidence. Missing production proof blocks only its dependent operation.
+**Accepted:** D01–D16, corrected AUD-01–AUD-03 design refinements and AUD-04–AUD-05 audit tasks (mechanisms undecided), plus the boundary-first, selective-reuse principle; D11–D16 record the six later owner choices as design, not implementation proof. **Changed documents:** this master README and ROADMAP.md in `AutonomousTradingArchitect`; the trading source remains read-only. **Implementation status:** not implemented or production-accepted by this update; F1–F5 remain open. **Structure:** §6 keeps one installable namespace with packaged immutable resources and explicit financial, market, cognition, research and operations owners. **Next architecture audit:** A01 time, data and market intelligence, followed by the remaining audit agenda above. D11–D16 are recorded design decisions, not work to re-decide by default. **Later implementation:** turn those contracts into isolated slices in implementation-roadmap order. Exact deadline, valuation and emergency-policy choices remain open where not already approved. Implementation, financial-policy changes and production activation require their own scope and evidence. Missing production proof blocks only its dependent operation.
 
 Review command:
 
