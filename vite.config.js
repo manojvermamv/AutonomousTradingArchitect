@@ -4,6 +4,9 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
+  // Local preview defaults to '/', while the Pages workflow supplies the
+  // repository subpath through VITE_BASE_PATH during its production build.
+  base: process.env.VITE_BASE_PATH || '/',
   plugins: [
     react(),
     {

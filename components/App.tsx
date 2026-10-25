@@ -10,7 +10,7 @@ import { MermaidDiagrams } from './MermaidDiagrams';
 import { modules, issues, recommendations, architectureLayers } from '../data/architectureData';
 
 type MainTab = 'overview' | 'architecture' | 'diagrams' | 'repository' | 'review' | 'readme' | 'roadmap';
-type ReviewTab = 'executive' | 'dataflow' | 'issues' | 'source-audit' | 'scorecard' | 'roadmap' | 'layers' | 'readiness';
+type ReviewTab = 'dataflow' | 'issues' | 'source-audit' | 'scorecard' | 'roadmap' | 'layers' | 'readiness';
 
 const mainTabs: { id: MainTab; label: string; icon: string }[] = [
   { id: 'overview', label: 'Overview', icon: 'fa-solid fa-diagram-project' },
@@ -23,7 +23,6 @@ const mainTabs: { id: MainTab; label: string; icon: string }[] = [
 ];
 
 const reviewTabs: { id: ReviewTab; label: string; icon: string }[] = [
-  { id: 'executive', label: 'Executive Summary', icon: 'fa-solid fa-clipboard-list' },
   { id: 'dataflow', label: 'Data Flow', icon: 'fa-solid fa-arrow-right-arrow-left' },
   { id: 'issues', label: 'Issues Analysis', icon: 'fa-solid fa-triangle-exclamation' },
   { id: 'source-audit', label: 'Code Audit', icon: 'fa-solid fa-magnifying-glass-chart' },
@@ -36,7 +35,7 @@ const reviewTabs: { id: ReviewTab; label: string; icon: string }[] = [
 function routeFromHash(hash: string): { main: MainTab; review: ReviewTab } {
   const [mainPart, subPart] = hash.replace(/^#/, '').split('/');
   const main: MainTab = mainTabs.some(tab => tab.id === mainPart) ? mainPart as MainTab : 'overview';
-  const review: ReviewTab = reviewTabs.some(tab => tab.id === subPart) ? subPart as ReviewTab : 'executive';
+  const review: ReviewTab = reviewTabs.some(tab => tab.id === subPart) ? subPart as ReviewTab : 'dataflow';
   return { main, review };
 }
 
@@ -118,7 +117,6 @@ export default function App() {
               {reviewTabs.map(tab => <button key={tab.id} id={`review-tab-${tab.id}`} type="button" role="tab" aria-selected={route.review === tab.id} aria-controls={`review-panel-${tab.id}`} tabIndex={route.review === tab.id ? 0 : -1} onClick={() => navigate('review', tab.id)} className={`review-tab ${route.review === tab.id ? 'review-tab-active' : ''}`}><i className={tab.icon} aria-hidden="true" />{tab.label}</button>)}
             </div>
             <div id={`review-panel-${route.review}`} role="tabpanel" aria-labelledby={`review-tab-${route.review}`} className="mt-7">
-              {route.review === 'executive' && <><div className="review-evidence-note">The summary below preserves the dashboard's presentation claims. They are not the current code-audit verdict; see Code Audit for source findings and limits.</div><ArchitectureOverview modules={modules} issues={issues} recommendations={recommendations} layers={architectureLayers} /></>}
               {route.review === 'dataflow' && <DataFlowReview onNavigate={navigate} />}
               {route.review === 'issues' && <IssueAnalysis issues={issues} />}
               {route.review === 'source-audit' && <CodeVerifiedFindings />}
