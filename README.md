@@ -1,6 +1,6 @@
 # AutonomousTrading — boundary-first architecture with selective reuse
 
-**Research date:** 24 October 2026 UTC. **Inspected revision:** `445eb116514d97c2574c44d4d5374f938dec57a3`, branch `claude/openalgo-trading-architecture-uu1bxn`. **Status:** original research baseline; D01–D10 and the later requirements/transaction refinements D11–D16 were accepted on 25 October 2026 UTC. Acceptance authorizes this design update, not implementation, deployment or financial-policy changes.
+**Research date:** 24 October 2026 UTC. **Inspected revision:** `445eb116514d97c2574c44d4d5374f938dec57a3`, branch `claude/openalgo-trading-architecture-uu1bxn`. **Status:** original research baseline; D01–D10 and the later requirements/transaction refinements D11–D16 were accepted on 25 October 2026 UTC. A01–A03 decisions were also accepted on 25 October; A04 recovery is next. Acceptance authorizes this design update, not implementation, deployment or financial-policy changes.
 
 ## Recommendation
 
@@ -257,10 +257,52 @@ Establish D11–D12 first; specify D13–D16 together because dispatch, identity
 | **AUD-01** | **Accepted design refinement:** explicit entry, cancel, modify and close request types, enforced by one kernel. | Validate actual effects, target identities, quantities, relevant state and actor permissions. Mislabelled protective actions cannot bypass applicable rules; non-entry does not automatically mean risk-reducing. |
 | **AUD-02** | **Accepted design refinement:** each authoritative outcome transition commits its lifecycle and applicable accounting changes atomically. | Crash proof shows either the complete transition or preceding recoverable state. No fixed transaction count per command lifetime is imposed. |
 | **AUD-03** | **Accepted design refinement:** distinguish evidence links from control flow and record non-dispatch decisions in both compositions. | Compare approved decisions and causal evidence, not identical call graphs. Preserve existing PAUSE meaning without inventing hold/expiry rules. |
-| **AUD-04** | **Accepted audit task, mechanism undecided:** compare bounded database reads, kernel read interfaces and independent polling under A03/A06. | Measure isolation, progress, latency and log growth. No zero-delay promise or assumed read-only broker credential capability. |
+| **AUD-04** | **Design refined by accepted A03-F4/F5:** bounded ordinary reads, independent read-only ledger access and enforced read-only observations; A04/A06 retain recovery/security mechanism proof. | Measure isolation, progress, latency and log growth. No zero-delay promise or assumed read-only broker credential capability. |
 | **AUD-05** | **Accepted audit task, migration route undecided:** compare in-place upgrades with verified import into a target database under A02/A04. | Preserve original event bytes, identities and provenance; rebuild state and expose historical gaps. Do not prescribe extra migration files or assume new contracts require new tables. |
 
 **AUD-06 rejected as stated:** the 24 October research date is historical and correct. D11–D16 and the A01–A10 agenda were committed together in `70e1e539f1dc8a890b12d68525d125df8dd14012`, whose parent is `ecf39ad731ad20b9e541b238225f9ca8d1213537`; no intermediate commit is invented. This disposition records the review outcome, not a new architecture requirement.
+
+### Accepted A01 time and market-data decisions
+
+**25 October 2026 UTC — design accepted, implementation proof pending.** The owner accepted the recommended directions for A01-F1 through A01-F5 after the target-only review at `AutonomousTradingArchitect/main`, commit `b65cc821a7d34e527988dfc1277516e7467fbb9e`. These stable finding IDs now identify accepted design decisions refining D08; they do not rename D01–D16 or claim a new trading-source audit. No numerical warm-up, freshness threshold or financial permission was changed.
+
+| Decision | Required behavior and owner | Acceptance proof | Selected approach and trade-off |
+|---|---|---|---|
+| **A01-F1 — Stable view per decision** | `market.view` resolves retained input revisions and policy into one view identity; related strategy and Canvas reads use that identity. | Interleave ingestion/corrections between reads; the original view remains stable and reopening it reproduces its inputs and geometry. | Retained store revision or explicit manifest, whichever proves fit at lower cost; a hash without retained inputs is insufficient. Avoid holding a database transaction open during AI work. |
+| **A01-F2 — Historical/live handoff** | `market.sources` reports identity, coverage and revision evidence; ingestion deterministically resolves overlap and retains conflicts/provenance. | Overlap, duplicates, stale history responses, interrupted fetch/retry and missing intervals cannot invent earlier application knowledge or silently replace a newer revision. | Narrow provider-specific merge contracts, with buffering or continuous ingestion chosen from evidence; no new bootstrap service or assumed universal sequence guarantee. |
+| **A01-F3 — Consumer-owned input requirements** | Strategies and Canvas algorithms declare their inputs; `market.view` assembles them and `market.quality` reports coverage, freshness and unmet requirements. | Missing/duplicate/cross-session inputs and optional fields affect only dependent consumers under approved rules. | Small typed requirement/result contract instead of a global readiness manager; preserve approved values and consequences. |
+| **A01-F4 — Explicit window semantics** | Market contracts/view define shared calendar/window meaning and expose partiality, closure, completeness and correction revision separately. | Mid-window startup, exact boundaries, breaks, shortened sessions, missing constituents and delayed finalization yield consistent window meaning. | Normalize vendor bars where suitable; build bars locally only where justified. Usability remains consumer-specific, not a universal final-bar restriction. |
+| **A01-F5 — Reproducible correction propagation** | View resolves base revisions; algorithms identify effective inputs; Canvas history preserves prior facts and supersession. | Old views remain reproducible; new derived results match independent expectations; restart, recomputation and any incremental path agree for the same inputs. | Start with deterministic recomputation over required inputs; add checkpoints or targeted invalidation only when measured benefit justifies complexity. |
+
+A01 is complete for this reviewed design scope. Its acceptance checks remain future implementation work; the subsequent A02 decisions below build on these contracts. Keep the existing packages and one ingestion seam. These data contracts do not grant financial authority or create market-hours gates for independent work.
+
+### Accepted A02 compatibility and configuration decisions
+
+**25 October 2026 UTC — accepted design, implementation proof pending.** The owner selected the precise formulations below after the A02 target review of `AutonomousTradingArchitect/main` at `b65cc821a7d34e527988dfc1277516e7467fbb9e` plus the local accepted A01 edits. A02-F1–F5 retain their finding IDs. They refine D05/D06, D11–D16 and AUD-05; no new source inspection, financial default or live permission is implied.
+
+| Decision | Accepted behavior and owner | Acceptance proof and trade-off |
+|---|---|---|
+| **A02-F1 — Exact internal contract versions** | Domain owners define contract meanings; local same-release boundaries validate exact versions. `adapters.compatibility` converts only supported persisted ledger/JSONL history, frozen candidate bundles and external operator/MCP surfaces. | Mixed internal versions and unknown required variants fail explicitly for the affected operation. Supported conversions preserve meaning. Simpler internal protocol handling trades rolling-version flexibility for a tested same-release composition. |
+| **A02-F2 — Same settings resolver per process** | `settings.loader` resolves packaged defaults → selected profile → scoped environment; `settings.schema` owns types and meanings. Compare relevant shared effective digests at boundary calls. | Conflicting deprecated/replacement keys fail rather than select a winner; omission/null, unknown keys and defaults changes have explicit tested meaning. Service-specific settings may legitimately differ. No settings distributor is introduced. |
+| **A02-F3 — Immutable process settings** | Resolved settings remain immutable for each service-process lifetime; configuration changes use restart/session boundaries under existing approval. Bootstrap/operations owns activation. | Changed files cannot silently alter running operations; activation/restart proves applicable revision identity. Runtime safety actions and governed candidate transitions remain explicit state operations, not settings reloads. Restart cost is accepted over general hot reload complexity. |
+| **A02-F4 — Exact tested release bundle** | Operations manifests bind actual artifacts/dependencies/resources and exact supported event/candidate/Canvas schemas plus SQLite migration revision; domain owners validate interpretation. | Resource substitution, missing artifacts and incompatible current state reject dependent activation or rollback. Schema/migration revision and stored event formats determine compatibility, not ledger event-sequence height. Exact bundles reduce combinatorial compatibility work. |
+| **A02-F5 — Bounded migration with complete accounting** | Ledger migration/recovery and compatibility code pin source heads/digests, converter identity and every source record's disposition. | All records are transferred or explicitly rejected/quarantined with original evidence preserved; no silent drops. Unknown authoritative records block dependent financial activation even if quarantined. Upgrade versus import remains an A04 choice based on evidence. |
+
+These decisions complete A02's reviewed design scope. A03 is now design accepted; A04 next owns migration-route selection and operational recovery proof. No new package, global configuration service or independent financial authority is introduced.
+
+### Accepted runtime and outage contracts — A03, 25 October 2026 UTC
+
+**Status: design accepted; implementation and production proof pending.** A03-F1–F5 retain their original identities and include the owner-approved failure re-audit corrections. Architecture baseline: `AutonomousTradingArchitect/main` at `b65cc821a7d34e527988dfc1277516e7467fbb9e`, plus local accepted A01/A02 edits. Read-only source review: `AutonomousTrading/claude/openalgo-trading-architecture-uu1bxn` at `445eb116514d97c2574c44d4d5374f938dec57a3`; OpenAlgo mirror at `b9d155ff6a22ce60337ac6f9a3bd6fe709e95838`. Date precision is UTC day; no deployed broker calls, fault injection or production readiness proof occurred. These source implementations are reuse evidence, not mandatory target structure.
+
+| Decision | Required behavior and reason | Responsible modules | Acceptance proof and reuse decision |
+|---|---|---|---|
+| **A03-F1** | Slow external I/O leaves eligible state processing responsive; initially one outbound broker request in flight per account. A timeout preserves uncertain effects, not permission for conflicting dispatch. | `kernel.coordinator`, `adapters.openalgo`, `kernel.safety` | Stall HTTP separately from the whole kernel; check progress, hold acknowledgement and identified late results. Refactor coordination around existing identity/lifecycle contracts; do not copy the source's lock across HTTP. |
+| **A03-F2** | The canonical ledger is the sole durable queue for admitted financial commands; memory triggers are reconstructible wake-ups. Unaccepted overload fails explicitly; ingestion loss is reported. | `kernel.admission/coordinator`, `kernel.ledger`, `market.ingest` | Saturate queues and restart; account for every accepted command, preserve retry identity, bound memory and expose coverage gaps. Reuse ledger transitions, not a second durable command queue. |
+| **A03-F3** | Caller disconnect, job cancellation and financial cancellation have distinct meanings. Explicit detached research jobs survive status-caller disconnect; entry reviews remain deadline-bound. | `research.jobs`, `cognition.runtime`, `kernel.coordinator` | Disconnect at each acceptance/send boundary; terminate cancelled descendants, retain resource accounting and reject late result reuse. Assess existing leases/containment for reuse rather than assume correctness. |
+| **A03-F4** | Independent supervision reads committed financial evidence and fresh broker observations, records discrepancies and preserves uncertainty without becoming a financial authority. | `operations.supervisor`, `kernel.ledger`, `kernel.reconciliation`, observation adapters | Freeze kernel after a new attempt but before export; inspect current committed state independently, test partial/conflicting broker reads and denied write capability. Reuse bounded ledger readers and pure reconciliation functions; snapshots alone are insufficient. |
+| **A03-F5** | Demand-aware monitoring detects stalled work; controlled recovery preserves one execution owner and reports which protections remain operational. | `operations.supervisor/isolation`, `kernel.recovery/protection` | Distinguish healthy idle from stalled demand; fail during protection placement/local trailing; prove exclusive recovery and retained uncertainty. Recovery mechanics are reuse candidates; A04 must specify restart eligibility and prove activation. |
+
+**Source evidence and limits:** `src/tier1/gateway_route.py:621–650` holds the route lock around synchronous coordinator dispatch; `src/tier1/coordinator.py:94–155` persists send intent, calls the adapter and marks interrupted attempts ambiguous. `src/tier1/ledger.py:110–119` supports independent readers; `src/tier1/recovery.py:138–193` uses SQLite backup and verifies the captured ledger, not subsequent commits. `scripts/run_framework_live.py:286–303` reads books separately and `:8060–8066` invokes structure supervision from the framework loop. In the pinned OpenAlgo mirror, `services/orderbook_service.py:147–178` and `services/positionbook_service.py:122–143` fetch/transform separate books; `broker/zerodha/api/order_api.py:90–99` illustrates separate upstream endpoints, not the deployed broker's proved coverage. Order-book routing at `services/orderbook_service.py:127` can select analyzer data; authentication at `:207` and `services/place_order_service.py:5` does not establish a distinct read-only permission. `deploy/systemd/at-tier1-authority.service` specifies restart-on-failure and `src/runtime/tier1_authority/service.py:836` recovers interrupted attempts; neither establishes safe automatic activation. Target boundaries below correct these limitations without changing money policies.
 
 ## 4. Open-source reference research
 
@@ -316,18 +358,20 @@ The owner accepted D01–D16 as target design direction on 25 October; D11–D16
 
 ```mermaid
 flowchart TB
-  INPUT[Validated licensed live market inputs] --> MARKET[Live MarketView and deterministic Canvas]
+  INPUT[Validated licensed live market inputs] --> MARKET[Stable MarketView identity and deterministic Canvas]
   MARKET --> DECIDE[Live strategies and typed intents]
   MARKET --> COG[Tier2 scoped cognition without financial credentials]
   COG -. typed proposals reviews and advice .-> KERNEL
   DECIDE --> KERNEL[Production Tier1 review policy admission and sole execution owner]
-  OWNER[Authenticated owner governance] -. approved policy and session candidates .-> KERNEL
+  OWNER[Authenticated owner governance and bound release policy] -. approved policy and session candidates .-> KERNEL
   KERNEL <--> LEDGER[Production SQLite WAL financial ledger]
   KERNEL --> DISPATCH[Revalidate dependencies and durably record attempt]
   DISPATCH --> OA[OpenAlgo sole live broker boundary]
   OA --> EFFECT[Broker effects or OpenAlgo analyzer sandbox]
   OA --> OBS[Validated account order and trade observations]
-  OBS --> SUP[Independent protection and reconciliation supervisor]
+  OBS --> SUP[Independent read only supervision and outage assessment]
+  LEDGER -. bounded independent committed reads .-> SUP
+  SUP -. enforced read only polling .-> OA
   OBS --> RECON[Reconcile coverage identity and obligations]
   RECON --> KERNEL
   SUP -. action proposals only .-> KERNEL
@@ -358,11 +402,12 @@ Production and simulation share **code and contracts**, not running authority, l
 ```mermaid
 flowchart TB
   subgraph M[Production market and deterministic Canvas]
-    INPUT[OHLCV ticks bid ask spot chain Greeks optional depth] --> INGEST[Validate normalize order and retain provenance]
-    INGEST --> STORE[Canonical records event and availability times]
-    STORE --> VIEW[Live causal MarketView with cutoff and quality]
-    VIEW --> CANVAS[Canvas versioned facts geometry and evidence]
-    CANVAS --> TOOLS[Bounded as of overlay and timeframe tools]
+    INPUT[Live and historical OHLCV ticks quotes chain and optional depth] --> INGEST[Validate identity coverage and historical live overlap]
+    INGEST --> STORE[Retained record revisions and availability provenance]
+    STORE --> VIEW[Stable view identity with cutoff window policy and quality]
+    REQUIRE[Consumer input and session requirements] --> VIEW
+    VIEW --> CANVAS[Canvas reproducible facts over pinned input revisions]
+    CANVAS --> TOOLS[Bounded overlays and timeframe tools on one view identity]
     CANVAS --> RENDER[Charts render facts and attributable annotations]
   end
   subgraph C[Tier2 cognition without financial credentials]
@@ -379,7 +424,7 @@ flowchart TB
     APPLY -. review binding evidence .-> ADMIT
     APPLY -->|eligible under approved policy| PLAN[Pure versioned planning within kernel authority]
     APPLY -->|non dispatch decision| NODISPATCH[Record decision and reason without send authority]
-    SESSION[Bound policy candidate identity and live clock] --> PLAN
+    SESSION[Bound release settings policy candidate and live clock] --> PLAN
     SESSION --> APPLY
     PLAN --> ADMIT[Tier1 exact plan admission and safety checks]
     ACCOUNT[Reconciled account and pending obligations] --> ADMIT
@@ -387,10 +432,11 @@ flowchart TB
     REVIEW -. record only exit advice .-> HUMAN
     ADMIT -->|admitted| RESERVE[Atomic reservation identity and command commit]
     ADMIT -->|refused| NODISPATCH
-    RESERVE --> COORD[Sole live ExecutionCoordinator]
+    RESERVE -->|durable work with reconstructible wakeup| COORD[Sole live ExecutionCoordinator]
     COORD --> CHECK[Revalidate relevant admission dependencies]
     CHECK --> ATTEMPT[Atomic dispatch claim and durable attempt identity]
-    ATTEMPT --> OA[OpenAlgo adapter without hidden effect retries]
+    ATTEMPT --> IO[Bounded I O one outbound request per account]
+    IO --> OA[OpenAlgo adapter without hidden effect retries]
     OA --> EFFECT[Broker or OpenAlgo analyzer effects]
     OA --> RESULT[Classified transport evidence]
     RESULT --> LIFE[Lifecycle command order and position obligations]
@@ -407,13 +453,11 @@ flowchart TB
     LEDGER <--> ATTEMPT
     LEDGER --> CHECK
     LEDGER --> COMPAT[Verified compatibility projections with freshness status]
-    BOBS --> SUP[Independent protection and reconciliation supervisor]
-    SUP -. typed action proposals only .-> ADMIT
   end
   CODE[Shared versioned strategy planning admission and lifecycle code] -. production instance .-> PLAN
   CODE -. separate simulation instance .-> SPLAN
   subgraph S[Disarmed paper replay and backtest composition]
-    HIST[Permitted immutable causal bundle] --> SVIEW[Simulation MarketView Canvas and recorded clock]
+    HIST[Permitted immutable causal bundle] --> SVIEW[Same pinned view and window semantics with recorded clock]
     SVIEW --> SSTRAT[Same strategy decision and typed Intent]
     SSTRAT --> SREVIEW[Same kernel review policy over recorded or research evidence]
     SREVIEW -. review binding evidence .-> SADMIT
@@ -449,10 +493,18 @@ flowchart TB
     BIND --> SESSION
   end
   subgraph O[Operations and recovery]
+    READOBS[Enforced read only OpenAlgo observation capability] --> BOBS
+    LEDGER -. bounded independent committed reads .-> SUP
+    SUP -. independent polling .-> READOBS
+    BOBS --> SUP[Independent supervisor and non authoritative outage assessment]
+    SUP --> OUTAGE[Retained attributable outage evidence]
+    OUTAGE -. validate and deduplicate after recovery .-> RECON
+    SUP -. typed action proposals only .-> ADMIT
     LEDGER --> BACKUP[Consistent WAL aware off box backup]
-    BACKUP --> RESTORE[Isolated clean host restore and replay verification]
+    BACKUP --> RESTORE[Verify bundle schema history coverage and isolated restore]
     RESTORE --> FENCE[Prove old host incapable and reconcile recovery gap]
     FENCE -. authorized activation after acceptance .-> COORD
+    SUP -. progress protection status and escalation .-> OBS
     LEDGER -. asynchronous telemetry .-> OBS[UI metrics traces and alerts]
     ISOLATE[OS enforced paths sockets credentials egress and quotas] --> LAB
     ISOLATE --> COG
@@ -533,7 +585,7 @@ Same intent/planner/admission/reservation/lifecycle/protection functions, explic
 
 Keep outcome classes **simulated**, **OpenAlgo analyzer**, **live acknowledged**, **live broker-reconciled**. Existing `execution.live=False` dry run is not itself a complete paper engine. OpenAlgo analyzer uses the same public API as live and is externally selected/informational; never gate production sends on analyzer mode.
 
-Exact replay uses retained ordered inputs, compatible code/state, clock advances and recorded AI applications. Fresh historical model inference is a new evaluation. Counterfactual policy/fill assumptions receive new run identity. Parity claims separately name decision, review application, plan, admission, lifecycle and economic scope.
+Exact replay uses retained ordered inputs and A01 view identities, pinned window/quality/algorithm semantics, compatible code/state, clock advances and recorded AI applications. Fresh historical model inference is a new evaluation. Counterfactual policy/fill assumptions receive new run identity. Parity claims separately name decision, review application, plan, admission, lifecycle and economic scope.
 
 ### Deterministic Canvas and full market scratchpad
 
@@ -541,14 +593,26 @@ Build through the canonical market-source/provider/view boundary, reusing existi
 
 | Layer | Required representation/behavior |
 |---|---|
-| Market record | Instrument/venue/expiry/strike identity, units/source/license, sequence, event/vendor/app arrival/available times, finality/correction, raw-content reference and quality/gaps. |
-| Causal view | Cutoff, included sequences/input hashes, session/calendar, freshness/join skew, missing fields and availability policy. Later correction cannot become earlier knowledge. |
+| Market record | Instrument/venue/expiry/strike identity, units/source/license, source identity/revision evidence, event/vendor/app arrival/available times, retained revision, correction links, raw-content reference and coverage/gaps. Distinguish demonstrated vendor availability from when the application could use the data. |
+| Input requirement and assessment | Consumer/version, required and optional fields, lookback, session/reset semantics, permitted partial inputs and approved freshness/join rules; quality reports actual coverage, duplicates, gaps, age and unmet requirements without choosing new financial consequences. |
+| Window | Versioned calendar/timezone/session, interval boundaries and expected constituents; partiality, time closure, source finalization, coverage completeness and correction revision are distinct. Consumer policy determines usability. |
+| Causal view | Stable view identity binding cutoff/availability policy, retained input revisions or manifest, versioned calendar/window conventions, freshness/join skew and quality assessment. Related reads stay on that identity; later data or corrections cannot silently alter it. |
 | Computed fact | Stable ID, named algorithm/version/parameters, inputs/digest, anchor/confirmation/availability timestamps, coordinates/units, quality and supersession. “Support” describes algorithm output, not guaranteed price response. |
-| Tools | `view(as_of)`, `compute_overlay`, `compare_timeframes`, `inspect_fact`, `annotate`, `history`; typed allowlisted algorithms with row/timeframe/CPU/bytes budgets. |
+| Tools | `view(as_of)` resolves a stable view identity used by `compute_overlay`, `compare_timeframes`, `inspect_fact`, `annotate` and `history`; typed allowlisted algorithms with row/timeframe/CPU/bytes budgets. |
 | Annotation | Agent/human/run/role identity, creation time, referenced facts/view, subjective claim/confidence, version/supersession; separate from computed facts. Cannot edit financial state or prior facts. |
 | Renderer | Consume structured facts/geometry, label version/view, provide evidence drill-down. Geometry determinism is required; cross-browser pixel identity is a separate optional test. |
 
-A pivot requiring k right-hand bars is unavailable until those bars are final and received. Store both anchor and confirmation/availability. At the anchor it is provisional, not a historical confirmed signal. Perturb later bars and prove earlier views unchanged. Revisions append new versions; no silent repainting. Multi-timeframe joins honor availability, not just equal minute labels. Cache by input/cutoff/algorithm/parameters digest.
+A pivot requiring k right-hand bars is unavailable until those bars are final and received. Store both anchor and confirmation/availability. At the anchor it is provisional, not a historical confirmed signal. Perturb later bars and prove earlier views unchanged. Revisions append new versions; no silent repainting. Multi-timeframe joins honor availability, not just equal minute labels. Cache by resolved input/view identity and algorithm/parameters/semantic dependencies; a cache hit must retain the same quality and window meaning.
+
+**A01-F1 — consistent knowledge boundary:** a decision resolves one view identity and uses it across related strategy, specialist and Canvas reads. Its cutoff and retained revision boundary or manifest identify the actual input population even when arrivals share timestamps or publication is delayed. A separately resolved view may include newer information. Keep the referenced inputs and semantic versions available for the claimed replay period; a digest alone cannot reconstruct them. Do not hold a storage transaction open across model calls. The stable view does not waive later dispatch freshness checks or require different consumers to accept the same data policy.
+
+**A01-F2 — startup and reconnect:** sources expose historical request scope, coverage, identities and any verified source revision/ordering information. Ingestion merges history/live overlap using that contract, deduplicates proven duplicates and preserves conflicts where precedence is unknown; last arrival is not automatically the newest source revision. Data loaded at 11:20 may be usable for the next current decision without claiming the application knew it at 11:00. Historical hydration reconstructs data/state, not authority to dispatch past signals. An interrupted fetch/reconnect must preserve attributable coverage and merge progress. Buffering versus continuous merge remains an implementation choice with bounded resources and provider-specific proof; this does not block unrelated work or independent protection/reconciliation.
+
+**A01-F3 — readiness belongs to an operation:** the consuming strategy or Canvas algorithm declares its existing input requirements, optional fields, lookback, session/reset and partial-data rules. `market.view` assembles the view; `market.quality` reports the observations against those requirements. Missing, stale, unavailable and zero-valued inputs are different states. A row count alone cannot prove warm-up when rows are duplicated, intervals missing or session scope wrong. Account for join skew across spot, option and other inputs where consumed. Approved policy determines the financial consequence; a quality assessment cannot invent thresholds, silently fill missing values or create a global startup/readiness gate.
+
+**A01-F4 — bars and calendars:** use one versioned definition of timezone/session, interval start/end inclusion, breaks and expected coverage throughout market views, aggregation, Canvas and replay. A time interval ending does not prove its constituent data arrived or that the provider finalized it. Expose those facts separately, including partial-window and correction status. Normalize vendor-provided candles when their contract fits; local aggregation is not mandatory. Consumers may legitimately differ on partial-data usability under their declared rules. Calendar/window changes produce explicit new semantic identity rather than silently changing an old view.
+
+**A01-F5 — corrections and derived state:** retain corrected base observations as revisions and resolve them against the requested view identity. Recompute affected aggregates and facts from that resolved input range, retaining prior facts for old views and linking supersession. Start with straightforward deterministic recomputation; incremental state/checkpoints require identity binding and comparison against that reference before adoption. A new view must not mix corrected raw bars with old dependent aggregates or swing state. Verify actual new results as well as unchanged old views; no general dependency framework is required without measured need.
 
 Canvas facts initially support inspection/research. Adding geometry to entry rules creates a new frozen candidate and governed policy evaluation, not a packaging cleanup.
 
@@ -582,7 +646,29 @@ Start with existing direction/abstention candidate boundary, not unconstrained o
 
 **D06:** one typed worker configuration contract feeds both unit rendering and worker validation, including intentional nonsecret path settings. Preserve role-specific credential exclusions; test the actual rendered environment rather than independently invented fixtures. This contract belongs to `settings.schema`, not two competing lists in deployment and jobs.
 
-**AUD-04 — reader and observation boundary remains to be selected under A03/A06:** compare bounded direct read transactions with a kernel read interface, including availability and resource costs. Define which observations supervisors independently collect and how they are attributed and rate-limited; independent polling may be intentional resilience. Test slow readers, stalled consumers, checkpoint progress, log growth and financial-work latency under load. Do not promise zero delay or assume separate read-only broker credentials exist.
+**A02-F1 — boundary compatibility:** exact internal contract versions apply to the initial same-release process composition, including authenticated local transport and permitted cognition review-evidence exchanges. Deploying services together does not prove that running processes have converged: validate the relevant contract identity at connection/request boundaries. A cognition review exchange grants no financial socket or command capability. Unsupported variants cannot be guessed into valid actions. Conversion adapters are limited to supported history, frozen bundles and external operator/MCP interfaces; they delegate to one current domain implementation. This does not remove ordinary normalization in market/broker adapters. Historical original bytes remain evidence even when a versioned reader produces a current representation.
+
+**A02-F2 — deterministic effective settings:** every process uses the same resolver with explicit precedence: packaged `defaults.yaml`, then its selected profile, then allowed scoped environment overrides. Supplying a deprecated alias and its replacement simultaneously is an error, including across resolution layers; do not resolve that conflict by precedence. Define omission, explicit null, unknown-key and value normalization behavior in the schema/resolver contract. Record safe value provenance and the defaults/resource version in effective configuration identity. Boundary calls verify the relevant shared settings projection and its digest semantics, not equality of whole-process digests. Secret values are excluded from ordinary snapshots, diagnostics and exchanged digests; service-specific paths and credentials do not create false shared-setting mismatches.
+
+**A02-F3 — activation is not validation:** validated settings produce an immutable resolved revision per process lifetime. A file edit cannot silently reload a running process; a configuration change requires the applicable restart/session activation boundary and existing authorization. Operations/bootstrap verifies converged participants where a shared revision is required; failed activation retains the prior usable revision where safe and otherwise leaves the affected operation explicitly inactive. Existing kernel safety holds/kill actions and governed next-session candidate transitions are state operations, not general hot-reload exceptions. Research promotion stages a candidate; Tier-1 verifies authorized session binding. Orders, reconciliation and authorized operator commands continue as normal runtime state transitions. Session-bound settings cannot change an existing process's resolved snapshot; prepare the applicable process/configuration revision. Replay resolves the revision actually used, not current files.
+
+**A02-F4 — bundle compatibility:** initial production uses an exact tested bundle manifest covering application and dependency artifacts, packaged resources, exact `events.schema.json`, `candidates.schema.json` and `canvas.schema.json` identities, and the supported SQLite migration revision. Verify loaded artifacts, not just intended paths or Git SHA. A bundle also identifies supported historical event readers and candidate representations; identity verification alone is not semantic compatibility. Refuse rollback when the older bundle cannot interpret the current database schema/migration revision or stored event formats. More events at a higher ledger sequence do not themselves make software incompatible. Keep current financial history; never restore an old database merely to make a software rollback pass.
+
+
+### Runtime progress and kernel-failure behavior
+
+**A03-F1 — processing versus transport:** the sole coordinator serializes authoritative transitions while bounded external I/O completes outside that processing path. Initially allow one outbound broker request in flight per account, without introducing new action priorities. Identify returned evidence by command, attempt and authority; late results cannot mutate a newer attempt by accident. HTTP completion/timeout is not proof that remote processing ended. Uncertain effects remain subject to D13–D16 before conflicting dispatch. Eligible reconciliation, safety-state recording and bounded reads can progress during slow I/O; a whole-kernel hang is a different failure. A hold remains requested, not applied, until authoritatively recorded. No second sender or separate I/O process is required initially; stronger process containment needs measured justification.
+
+**A03-F2 — acceptance and overload:** RESERVE/ATTEMPT and subsequent canonical states own durable admitted financial work. In-memory triggers only wake the coordinator; reconstruction does not authorize retrying possibly effective attempts. Unaccepted requests receive explicit BUSY/OVERLOADED backpressure before acceptance. A lost acceptance reply cannot relabel a committed command as unaccepted; identity lookup resolves retries. Each owner specifies bounded items/bytes/work and overload handling. Do not silently drop accepted commands. Ingestion overflow records attributable sequence/time coverage gaps or explicitly unknown coverage loss under A01; discarded events cannot yield a complete-data claim. Only explicitly disposable diagnostics or semantically replaceable updates may be dropped/coalesced. Budgets require measurement and A02 activation rules, not invented financial thresholds.
+
+**A03-F3 — cancellation ownership:** a status caller disconnecting does not cancel a financial command or an explicitly detached research job. `research.jobs` retains lease, ownership and resource accounting for detached work. A broker cancel remains a distinct authorized action, not a transport timeout side effect. Entry-review cognition keeps its original deadline; expired/cancelled runs contain and terminate descendants, retain capacity accounting until resources are actually released and cannot revive an expired intent with a late result. Report cancellation requested versus completed truthfully. Preserve approved unavailable/timeout semantics.
+
+**A03-F4 / AUD-04 — independent outage assessment:** ordinary operator reads use bounded IPC/API read models; cognition receives only its permitted evidence surface, never financial command socket access. The independent supervisor additionally uses a narrow read-only ledger interface, independent of kernel responsiveness, to inspect one consistent committed head with verified projections, obligations, commands, attempts and relevant policy identities. Bound query execution as well as lock waits; end database transactions before broker I/O. Verify schema compatibility and attribution; inability to verify is an explicit coverage gap. A verified exported snapshot is fallback evidence with its captured head and freshness, not a substitute for newer commits. A raw database-file copy is not a WAL-consistent snapshot. Test reader impact on checkpoint progress, WAL growth and financial latency; no zero-delay promise. See [SQLite WAL isolation and checkpoint behavior](https://www.sqlite.org/wal.html).
+
+The supervisor independently gathers attributable order/trade/position and protection observations through OpenAlgo. Enforce read-only capability outside caller conventions: use verified native permissions if available, otherwise a narrowly restricted observation interface independent of the kernel. The exact mechanism remains for A06 deployment/security proof; do not give a general trading credential to the observer on trust. Validate account, broker and execution domain; analyzer observations cannot silently reconcile live obligations. Scope polling ownership, intentional overlap, rate/resource budgets and missing responses; simultaneous successful calls do not establish an atomic broker snapshot. Pure shared reconciliation calculations produce an assessment of matched, conflicting, unmatched and unknown effects. Retain outage observations and assessment provenance for later kernel validation, in non-authoritative evidence storage: no reservation release, canonical settlement or financial permission originates there. Kernel ingestion deduplicates observations and commits accepted transitions through D15–D16. This is complete accounting of knowledge and gaps, not a promise of instantaneous broker truth during unavailable or in-flight effects.
+
+**A03-F5 — progress, protection and recovery:** measure progress relative to actual demand: oldest pending work, relevant committed-head lag, observation age, persistence failures and resource pressure. A quiet ledger is not automatically stalled; define the reference against which lag is measured. Independent supervision and resource isolation contain background work without granting money authority. Classify protection as broker-held and observed, runtime-dependent, or uncertain. Broker acknowledgement alone does not establish active protection; local trailing cannot advance while its owner is failed. The supervisor observes/escalates, never becomes an emergency sender. Controlled recovery of the same kernel must establish exclusive ownership, retain unresolved attempts and reconcile uncertainty before affected actions resume. A04 specifies restart eligibility, termination/fencing, recovery sequencing and activation proof; no automatic restart policy or emergency permission is accepted here. Distinguish process failure from storage/host failure: a same-host supervisor cannot survive host loss, which needs separately proved alerting and off-host recovery. No shared-network SQLite or competing financial owner is introduced.
+
 
 Initial deployment: one Linux host, local durable Tier-1 storage, systemd, current operator surface, bounded research slice, independently scheduled protection/reconciliation readers. Critical supervisors may use the same installed package but retain independent process/restart/resource supervision. One host is a failure domain; honest RPO/RTO and fencing beat an unproved HA label.
 
@@ -625,7 +711,7 @@ AutonomousTrading/                         # Recompose existing behavior into on
 │       ├── contracts/                     # Shared types without authority or I/O
 │       │   ├── __init__.py                # Export stable contract types
 │       │   ├── identity.py                # Define account session candidate and command IDs
-│       │   ├── market.py                  # Define records views quality and availability
+│       │   ├── market.py                  # Define pinned views input requirements and windows
 │       │   ├── decisions.py               # Define intent review and advice envelopes
 │       │   ├── execution.py               # Define typed actions plans observations and outcomes
 │       │   ├── evidence.py                # Define causal references and artifact digests
@@ -638,22 +724,22 @@ AutonomousTrading/                         # Recompose existing behavior into on
 │       │   └── migrations/                # Ordered financial database migrations
 │       │       └── 001_initial.sql        # Define target schema after migration-route evaluation
 │       ├── settings/                      # Single configuration owner
-│       │   ├── loader.py                  # Resolve defaults profiles and scoped overrides
-│       │   ├── schema.py                  # Share typed settings and worker environment contracts
+│       │   ├── loader.py                  # Resolve immutable defaults profile and scoped env
+│       │   ├── schema.py                  # Define types aliases and shared digest semantics
 │       │   └── secrets.py                 # Resolve service credentials without propagation
 │       ├── market/                        # Canonical market ingestion and views
-│       │   ├── ingest.py                  # Validate order and retain incoming records
+│       │   ├── ingest.py                  # Resolve history live overlap and retain provenance
 │       │   ├── providers.py               # Preserve provider dependency contracts
-│       │   ├── store.py                   # Retain records and provenance
-│       │   ├── sources.py                 # Implement live and historical input sources
-│       │   ├── view.py                    # Reuse indexed causal MarketView behavior
-│       │   ├── quality.py                 # Expose gaps corrections finality and stale joins
+│       │   ├── store.py                   # Retain input revisions and coverage evidence
+│       │   ├── sources.py                 # Expose source identities revisions and coverage
+│       │   ├── view.py                    # Resolve stable views with shared window semantics
+│       │   ├── quality.py                 # Assess consumer coverage freshness and partiality
 │       │   └── canvas/                    # Deterministic scratchpad over MarketView
 │       │       ├── facts.py               # Define versioned geometry and availability
-│       │       ├── algorithms.py          # Compute initial swings levels trends and ranges
+│       │       ├── algorithms.py          # Recompute geometry from pinned input revisions
 │       │       ├── tools.py               # Expose bounded as-of sketch operations
 │       │       ├── annotations.py         # Retain attributable subjective interpretations
-│       │       └── history.py             # Resolve causal fact and annotation versions
+│       │       └── history.py             # Preserve old facts and link corrected versions
 │       ├── strategies/                    # Intent-producing implementations
 │       │   ├── registry.py                # Preserve kinds families and version identity
 │       │   ├── worker.py                  # Reuse source-neutral worker host and SDK
@@ -680,23 +766,23 @@ AutonomousTrading/                         # Recompose existing behavior into on
 │       │   ├── lifecycle.py               # Own command order and position obligation transitions
 │       │   ├── protection.py              # Reuse stop trail and residual decisions
 │       │   ├── safety.py                  # Apply explicit condition and action precedence
-│       │   ├── coordinator.py             # Revalidate dispatch and persist identified attempts
+│       │   ├── coordinator.py             # Own durable dispatch scheduling and bounded I O
 │       │   ├── reconciliation.py          # Validate coverage identity and resolution evidence
 │       │   ├── recovery.py                # Enforce read-only restore fencing and activation
 │       │   ├── ports.py                   # Define broker observation and owner boundaries
 │       │   └── ledger/                    # Financial events and verified read models
-│       │       ├── runtime.py             # Verify loaded SQLite and effective WAL settings
+│       │       ├── runtime.py             # Verify WAL runtime and bound independent read lifetimes
 │       │       ├── envelope.py            # Canonicalize events and chain digests
 │       │       ├── store.py               # Atomically commit outcomes lifecycle and accounting
-│       │       ├── schema.py              # Validate version and apply owned migrations
+│       │       ├── schema.py              # Validate schema capability and owned migrations
 │       │       ├── projections.py         # Rebuild and compare authoritative read models
 │       │       └── export.py              # Publish committed causal evidence asynchronously
 │       ├── adapters/                      # Concrete boundary implementations
 │       │   ├── openalgo.py                # Expose coverage and transport without hidden retries
 │       │   ├── simulated_broker.py        # Model orders fills costs and uncertainty
-│       │   ├── unix_channel.py            # Preserve authenticated local authority transport
+│       │   ├── unix_channel.py            # Authenticate local calls and exact contract versions
 │       │   ├── clocks.py                  # Implement live and recorded clocks
-│       │   └── compatibility.py           # Read legacy schemas and expose migration views
+│       │   └── compatibility.py           # Convert supported history bundles and external contracts
 │       ├── research/                      # Experiments without execution authority
 │       │   ├── bundles.py                 # Validate licenses and publish immutable inputs
 │       │   ├── datasets.py                # Build causal partitioned features and labels
@@ -705,16 +791,16 @@ AutonomousTrading/                         # Recompose existing behavior into on
 │       │   ├── replay.py                  # Drive shared engine with recorded inputs
 │       │   ├── evaluation.py              # Measure costs robustness regimes and parity
 │       │   ├── candidates.py              # Freeze exact code model prompt and data identities
-│       │   ├── promotion.py               # Stage governed next-session bindings
-│       │   ├── jobs.py                    # Reuse durable leases limits and containment
+│       │   ├── promotion.py               # Stage candidates for governed Tier1 session binding
+│       │   ├── jobs.py                    # Own detached jobs leases cancellation and containment
 │       │   └── rl/                        # Optional offline learning capability
 │       │       ├── environment.py         # Reuse causal Gymnasium observation and action seam
 │       │       ├── reward.py              # Version experiment reward and economics
 │       │       ├── training.py            # Wrap existing SB3 seeds trials and artifacts
 │       │       └── policy.py              # Verify frozen inference bundles and abstention
 │       ├── operations/                    # Supervision recovery and resource isolation
-│       │   ├── supervisor.py              # Observe protection and propose actions independently
-│       │   ├── deployment.py              # Stage versioned artifacts and prove exclusive cutover
+│       │   ├── supervisor.py              # Assess outages via independent reads without financial authority
+│       │   ├── deployment.py              # Verify exact bundles and activate scoped revisions
 │       │   ├── backup.py                  # Produce consistent retained off-box artifacts
 │       │   ├── restore.py                 # Verify clean-host recovery without activation
 │       │   ├── isolation.py               # Validate workspace credential store and resource scope
@@ -746,7 +832,7 @@ AutonomousTrading/                         # Recompose existing behavior into on
 ├── scripts/                               # Thin development and operations launchers
 │   ├── isolated_work.py                   # Start work with verified isolation
 │   ├── safe_tests.py                      # Reuse resource and production-store test protection
-│   ├── migrate_legacy.py                  # Import verified historical identities and events
+│   ├── migrate_legacy.py                  # Account for every record at pinned source boundaries
 │   ├── compare_parity.py                  # Compare behavior across compositions
 │   ├── verify_recovery.py                 # Exercise isolated crash and restore acceptance
 │   └── check_release.py                   # Observe artifact and process convergence
@@ -799,14 +885,14 @@ Effort is relative, not a schedule estimate: low = narrow adapter/move, medium =
 | One-leg orchestrator/structure planner/payoff | **Reuse behind one versioned planning port** | Medium–high. Separate pure computation from effects (D07); preserve approved gate order/score/rounding/size/stop and identity contracts. Correctness fixes have explicit changed expectations; financial-policy differences need owner approval. |
 | Stops/trails/structure FSM/protection replay | **Extract intact** | Medium. Preserve transitions and session boundaries; supervisor independence does not add sender. |
 | BuyerEdge/EMA/worker strategies | **Keep/wrap** | Low–medium. Preserve kinds/families/authority and model/process distinction. Never fix registry authority to match a file. |
-| Providers/MarketInputSource/MarketView/data evidence | **Extract/extend** | Medium. Preserve as-of/freshness choices, explicit causal policy; enables Canvas with no duplicate ingestion. |
+| Providers/MarketInputSource/MarketView/data evidence | **Extract/extend against A01-F1–F5** | Medium. Prove stable views, history/live overlap, consumer quality, shared windows and correction propagation. Reuse fitting indexes/adapters; no duplicate ingestion or assumption that existing defaults meet the target. |
 | Legacy and shared worker replay | **Keep compatibility; converge selectively** | Medium–high. Isolated roots/no-send and classified outcomes; do not discard historic evidence or claim universal parity. |
 | Advisor/team/AI management/records | **Reuse cognition; relocate review application** | Medium. D12 keeps review generation and role evidence in cognition, applies approved entry/unavailable policy in kernel modules, and preserves record-only exit advice. No duplicated financial interpretation. |
-| Custody/trials/datasets/freeze/evaluation | **Reuse with identity parity** | High sensitivity. No consumption/reset/copy-induced independence; serializers cannot silently alter identity. |
+| Custody/trials/datasets/freeze/evaluation | **Reuse with identity parity** | High sensitivity. A02-F1/F5 supported readers and complete source-record accounting; No consumption/reset/copy-induced independence; serializers cannot silently alter identity. |
 | RL environment/lab/Gym/reward/policy | **Reuse optional libraries** | Low–medium. Existing Gym/SB3/Optuna seam, exact artifact verification; simulation assumptions still need evidence. |
-| Jobs/leases/cgroup containment | **Retain/simplify configuration** | Medium. Correct F5, preserve tree draining/capacity; safe direct experiments need not register a shipped job type. |
+| Jobs/leases/cgroup containment | **Retain/simplify configuration** | Medium. A03-F3 detached ownership and deadline-bound cognition; Correct F5, preserve tree draining/capacity; safe direct experiments need not register a shipped job type. |
 | CLI/MCP/console/frontend | **Retain surface; migrate imports/read models** | Medium. Preserve auth/CSRF/grants/audit/command shapes; reuse UI rather than rewrite. |
-| Config/root/package scaffolding | **Replace packaging; preserve effective semantics** | Medium. F4, explicit roots/discovery/aliases; no silent default or live policy change. |
+| Config/root/package scaffolding | **Replace packaging; preserve effective semantics** | Medium. F4 and A02-F2/F3: shared resolver, explicit alias conflicts, scoped effective identities and immutable process settings; no silent default or live policy change. |
 | Backup/release/restore | **Reuse/prove** | Medium–high. Consistent snapshots/custody exclusions/release receipts/fencing. Current restore success not established here. |
 | Canvas algorithms/history/tools | **Build on market seam** | Medium, staged. Main new capability; adopt renderer and build causal domain geometry. |
 | Broad engine/framework rewrite | **Reject initially** | Very high migration risk; no evidence it is fastest route to equivalent behavior. |
@@ -816,18 +902,18 @@ Effort is relative, not a schedule estimate: low = narrow adapter/move, medium =
 | Phase | Working outcome and acceptance | Dependencies |
 |---|---|---|
 | **0 Boundaries and characterization** | Establish D11 requirement classifications and independent proofs, then D12 review ownership with D07 pure planning. Specify D13–D16 together alongside D02 and D01/D03; assess source code/tests against those contracts. | Analysis/synthetic tests proceed isolated. Missing broker proof blocks broker-specific acceptance only. |
-| **1 Target contracts and reliability** | Specify and implement D01/D03 lifecycle, D04 integrity and D13–D16 dispatch/evidence/accounting contracts in isolated target slices, with explicit regression expectations; D06 worker settings share one contract. Track F1–F5 mappings without requiring edits to the source project. | No scores/threshold changes. Isolated fixes/tests need no market close/release convergence. Deployment separately authorized. |
-| **2 Installable target** | D05 package/resources/entrypoints and staged release identity; extract or rebuild pure functions behind D07 contracts. Test without checkout or `.git`, with external mutable roots and temporary compatibility readers. | Independent checkout/cgroup throughout sessions; never edit executing source. |
+| **1 Target contracts and reliability** | Include A03 durable queue, bounded I/O, cancellation and independent observation contracts. Specify and implement D01/D03 lifecycle, D04 integrity and D13–D16 dispatch/evidence/accounting contracts in isolated target slices, with explicit regression expectations; D06 worker settings share one contract. Track F1–F5 mappings without requiring edits to the source project. | No scores/threshold changes. Isolated fixes/tests need no market close/release convergence. Deployment separately authorized. |
+| **2 Installable target** | D05 and A02-F1–F4 exact bundle/contracts, shared resolver, immutable settings and staged release identity; extract or rebuild pure functions behind D07 contracts. Test without checkout or `.git`, with external mutable roots and temporary compatibility readers. | Independent checkout/cgroup throughout sessions; never edit executing source. |
 | **3 Vertical slice/parity** | Retained strategy → intent → kernel-owned frozen review application → exact plan/admission → revalidated dispatch → simulated broker → atomic lifecycle/accounting evidence. Exact old/new outputs and IDs, multi-day boundaries/partial fills. | Synthetic/permitted development data enough for engineering checks; no locked OOS/live key required. |
 | **4 Consolidate financial ownership** | D02 atomically commits monetary reservation, admission and command identity; D03 lifecycle and D04 verified indexes drive generated JSONL projections in the disarmed target only. Prove D13–D16 partial-fill, retry and coverage rules and compare same-head books/obligations; existing live owner remains authoritative. | Offline construction and disarmed shadow only. No financial ownership or canonical-state switch before Phase 7. |
-| **5 Cognition/Canvas** | D08 explicit causal views/facts and D09 OS capability boundaries/job ports; approved review behavior preserved; no future leakage; compare simple vs specialists. | Parallel with extraction against frozen contracts, no broker proof or global close gate. Entry policy changes separately governed. |
+| **5 Cognition/Canvas** | D08 and A01-F1–F5 stable views, startup/window/quality/correction contracts plus D09 OS capability boundaries/job ports; approved review behavior preserved; no future leakage; compare simple vs specialists. | Parallel with extraction against frozen contracts, no broker proof or global close gate. Entry policy changes separately governed. |
 | **6 Research/RL packaging** | Custody/freeze/RL moved intact; synthetic alias/restore/one-use checks; all trials retained. | Independent of production release; promotion depends on its own evidence/owner governance. |
-| **7 Recovery proof and exclusive cutover** | First pass D10 crash/restart and clean-host restore rehearsal for the exact candidate artifact/schema/backup, including custody continuity and exclusive activation. Then pin release/config, reconcile in-flight obligations, prove old writer incapable and activate one new writer with protection verified. | Production-sensitive boundary. Never auto-flatten to manufacture quiescence; independent work continues elsewhere. |
+| **7 Recovery proof and exclusive cutover** | First prove A03 independent outage assessment and protection status, then pass D10 crash/restart and clean-host restore rehearsal for the exact candidate artifact/schema/backup, including custody continuity and exclusive activation. Then pin release/config, reconcile in-flight obligations, prove old writer incapable and activate one new writer with protection verified. | Production-sensitive boundary. Never auto-flatten to manufacture quiescence; independent work continues elsewhere. |
 | **8 Recovery tuning/economics/growth** | Repeat recovery drills after relevant changes; tune measured RPO/RTO, tails/resources/AI economics and optional component need. Baseline restore/fencing proof was required before Phase 7 activation. | Rehearsals isolated. Live activation/exercises require own authority. Economic evidence candidate-specific, not gate to unrelated fixes. |
 
 ### Compatibility and no-dual-authority invariant
 
-**AUD-05 — migration route remains open under A02/A04:** compare upgrading existing databases with initializing a target schema and importing verified legacy history. Choose from compatibility, rollback/recovery and migration evidence, not the filename `001_initial.sql`. Preserve original event bytes/digests, identity and provenance; keep imported evidence distinct from newly derived target projections. Rebuild/check supported state and explicitly report missing historical information rather than synthesizing claims of past admission or observation completeness. No `002` migration or source-schema reuse is mandated before that comparison.
+**AUD-05 — A02 contract accepted; migration route remains open under A04:** compare upgrading existing databases with initializing a target schema and importing verified legacy history. Choose from compatibility, rollback/recovery and migration evidence, not the filename `001_initial.sql`. Preserve original event bytes/digests, identity and provenance; keep imported evidence distinct from newly derived target projections. Rebuild/check supported state and explicitly report missing historical information rather than synthesizing claims of past admission or observation completeness. No `002` migration or source-schema reuse is mandated before that comparison. **A02-F5:** pin the source boundary/digest for each input store and record their relationship, converter version and source-to-target identity mapping. Account for 100% of captured source records as transferred or explicitly rejected/quarantined with reasons; preserve original evidence and distinguish derived projections. An unknown authoritative event cannot be silently dropped or assigned invented meaning. Quarantine is evidence retention, not proof of a complete financial migration: unresolved authoritative meaning blocks dependent activation while unrelated inspection/development continues. Validate required derived state at the same captured boundary; A04 will prove capture consistency, interruption/resume and final handoff for the selected route.
 
 Keep versioned readers for old JSONL/events/worker protocol/candidate bundles/policy digests. Imports preserve original identity, provenance and source digest; do not pretend old observations happened anew. Schema changes require explicit converters/parity. Compatibility shims delegate to one implementation, not fork formulas/ownership/senders.
 
@@ -845,16 +931,22 @@ The sole production canonical-state/write-authority switch occurs in Phase 7, ne
 | Action admission (AUD-01) | Submit mislabelled protective actions, oversized closes, wrong targets, missing required evidence and stale relevant state; verify kernel-side checks across human, supervisor and strategy routes | Non-entry does not imply risk reduction; existing permissions govern. |
 | Atomic authoritative transitions (AUD-02) | Crash before/during/after commits for rejected, not-sent, acknowledged, ambiguous and reconciled outcomes; observe complete transition or preceding recoverable state, never partial authoritative accounting | No fixed transaction count; raw evidence is not settlement and commit failure cannot authorize resend. |
 | Non-dispatch parity (AUD-03) | Compare approved decisions and causal records for ALLOW/BLOCK/PAUSE/unavailable and admission refusal in both compositions; blocked/paused outcomes cannot trigger a send contrary to policy | Equivalent behavior, not identical call graphs; no new PAUSE semantics. |
+| Contract compatibility (A02-F1) | Mixed internal versions and unknown required variants fail explicitly; allowed historical/external conversions preserve independently specified meaning | Same deployment intent does not establish running-version convergence. |
+| Effective settings and activation (A02-F2/F3) | Per-process resolution of defaults/profile/env, aliases, null/omission and unknown keys; compare scoped shared digests; change files during operations and interrupt activation; verify immutable effective revisions and redaction | No whole-process digest equality or arbitrary hot reload; safety/ordinary runtime state transitions remain available under approved policy. |
+| Exact bundle and migration coverage (A02-F4/F5) | Substitute resources/dependencies; test rollback against incompatible schemas/event formats; import unknown events, duplicate/resumed chunks and changed source heads; account for every captured record and rebuild state | Event count is not schema version; quarantining authoritative unknowns does not establish activation readiness. |
 | Requirement baseline (D11) | Classify meaningful behaviors, assign one owner and independent expected outcomes; compare approved outputs and supported contracts, with explicit correction expectations; assess fixture provenance and oracle independence | Source parity and passing legacy tests alone are not correctness proof. |
 | Canonical admission and outcomes (D01–D04) | Concurrent strategies against insufficient combined capacity; atomic admission/reservation/identity; verb/outcome/restart matrix; failed projection repair never resends; altered indexes refuse | Chain consistency is not account completeness; no HTTP inside the transaction. |
 | Dispatch and transport (D13–D14) | Pause/crash around admission, dependency validation, dispatch claim, transport acceptance and outcome commit; vary deadlines/holds/relevant state; duplicate caller requests and disconnects never silently resend potentially effective commands | Local uniqueness is not remote exactly-once; define hold ordering without claiming recall of an in-flight request. |
 | Observation and accounting (D15–D16) | Missing pages, conflicting snapshots, manual orders, partial fills, one-leg success, cancel/fill races and duplicate/reordered/corrected observations; prove atomic transitions, no double counting and no unsupported release | Synthetic proof does not establish deployed endpoint completeness or live realism; valuation changes require explicit evidence/policy. |
 | Recovery and exclusive authority (D10) | Candidate-artifact crash/clean-host restore rehearsal before cutover; concurrent process, paused old writer, external fence and epoch tests | Rehearsal does not grant live activation; local flock is not cross-host exclusion. |
 | Worker settings (D06) | Render both worker profiles from the shared schema, claim and complete one isolated job each, reject forbidden credentials | Active service is not job progress. |
-| Canvas causal (D08) | Late/corrected data, candle finality, confirmed swings, timezone/session/multi-timeframe availability, future-bar perturbation | Deterministic geometry not profitable signal. |
+| Stable view and startup (A01-F1/F2) | Interleaved reads/ingestion, tied timestamps, delayed publication, history/live overlap, duplicates/conflicts, fetch interruption and retry; reopen retained identities and verify no retroactive knowledge | Synthetic merge proof does not establish provider completeness or revision guarantees. |
+| Consumer quality and windows (A01-F3/F4) | Explicit independent expectations for missing/optional/stale fields, join skew, warm-up, session reset, breaks, exact boundaries, shortened sessions, partial and late-finalized bars | No new thresholds or universal partial-bar ban; only dependent operations use the assessment. |
+| Canvas corrections (D08/A01-F5) | Correct a base bar after a fact exists; old view remains unchanged, new aggregates/facts match independent calculation; fresh, incremental and restarted computations agree for the same view | No-repainting alone is insufficient; deterministic geometry is not profitable signal. |
 | Kernel review application (D12) | All entry routes reject bypass, mismatched or stale review bindings; same recorded evidence yields the same approved application in live/replay, including abstention and unavailable/timeouts | Ownership changes do not authorize changed entry policy; narrative/typing is not financial authority. |
 | Custody intact | Alias/copy/transformed overlap, purge/embargo, claim-before-read, failed attempts, consumed-state restore, changed artifacts | New checks cannot certify contaminated history. |
 | Isolation enforceable | Native descendants denied production/OOS mutation and financial socket/network/key, aggregate resource quotas | Separate folder/environment flag alone insufficient. |
+| Runtime/outage contracts (A03-F1–F5) | Saturate queues; disconnect callers; stall HTTP and freeze kernel separately; commit after export; bound direct-reader duration; inject partial/conflicting broker observations, wrong domains and denied observer write calls; verify retained outage evidence, descendant cleanup, protection status and exclusive recovery | No deployed-broker completeness, native read-only credential or automatic-restart proof is inferred. A04/A06 must establish the selected mechanisms. |
 | Operational acceptance | Authorized fresh OpenAlgo observations, deployed identity, supervised protection and proven backup/fencing | Gaps block their dependent operation, not unrelated development. |
 
 Assess existing tests and fixtures against the [required target behavior](#required-behavior-before-source-parity) before reuse. Keep useful checks, adapt implementation-bound ones and add missing requirement-based proofs; matching source behavior alone does not establish correctness. Tests were excluded here, so no proposed test is claimed absent/passing. No benchmark, fault campaign, live proof or economic measurement was fabricated.
@@ -913,14 +1005,14 @@ If isolation cannot be enforced on a shared host, move/defer **that workload**, 
 
 **Agenda updated 25 October 2026 UTC.** The earlier audit-order items **1 (requirements, boundaries and ownership)** and **2 (financial transactions and authority)** are complete for the reviewed design scope and recorded in D11–D16, building on D01–D10. They are excluded from the remaining queue. This does not mean implementation, broker acceptance or every possible boundary question is closed. Reopen a specific decision only when a new contradiction, requirement or evidence warrants it; name the affected decision instead of repeating the whole audit.
 
-The table below defines the remaining target questions. **A01–A10 are audit agenda IDs, not accepted architecture decisions or required new packages.** Their outputs remain proposals until reviewed. Each audit must identify the simplest justified owner and contracts, failure scenarios, alternatives, reuse options and independent acceptance proof. Current source and historical notes are evidence and optional reuse references only. [ROADMAP.md](ROADMAP.md#remaining-target-audit-order) owns scheduling, dependencies and closure evidence.
+The table below defines the remaining target questions. **A01–A10 are audit agenda IDs, not required new packages.** A01-F1–F5 and A02-F1–F5 are now accepted design decisions; their implementation proof remains pending. Other audit outputs remain proposals until reviewed. Each audit must identify the simplest justified owner and contracts, failure scenarios, alternatives, reuse options and independent acceptance proof. Current source and historical notes are evidence and optional reuse references only. [ROADMAP.md](ROADMAP.md#remaining-target-audit-order) owns scheduling, dependencies and closure evidence.
 
 | Order | Target architecture audit | Correct question |
 |---|---|---|
-| **1 · A01 — Next** | **Time, data and market intelligence** — refines old item 3 | How should market ingestion, MarketView and Canvas represent event time, arrival time, availability, sessions, warm-up, partial windows, corrections and missing data so a decision can be reproduced from what was known then, including when the application starts mid-session? |
-| **2 · A02 — New focus** | **Contract evolution, configuration and artifact compatibility** | Who owns each shared schema and effective configuration, how are versions and dependencies bound to a run, and how can producers, consumers and stored artifacts evolve without silent meaning changes or duplicate configuration owners? |
-| **3 · A03 — New focus** | **Runtime scheduling, backpressure and failure containment** | Who schedules work, owns queues and handles cancellation, and how can slow providers, blocked requests or overloaded research avoid starving market ingestion, protection and reconciliation while retaining one financial writer? |
-| **4 · A04** | **Recovery and release lifecycle** — narrows old item 4 | What startup, catch-up, restart, upgrade, restore and rollback states are needed to resume at any time with compatible artifacts and preserved obligations, building on the accepted fencing and recovery-before-cutover rules? |
+| **1 · A01 — Design accepted** | **Time, data and market intelligence** — refines old item 3 | How should market ingestion, MarketView and Canvas represent event time, arrival time, availability, sessions, warm-up, partial windows, corrections and missing data so a decision can be reproduced from what was known then, including when the application starts mid-session? |
+| **2 · A02 — Design accepted** | **Contract evolution, configuration and artifact compatibility** | Who owns each shared schema and effective configuration, how are versions and dependencies bound to a run, and how can producers, consumers and stored artifacts evolve without silent meaning changes or duplicate configuration owners? |
+| **3 · A03 — Design accepted** | **Runtime scheduling, backpressure and failure containment** | Who schedules work, owns queues and handles cancellation, and how can slow providers, blocked requests or overloaded research avoid starving market ingestion, protection and reconciliation while retaining one financial writer? |
+| **4 · A04 — Next** | **Recovery and release lifecycle** — narrows old item 4 | What startup, catch-up, restart, upgrade, restore and rollback states are needed to resume at any time with compatible artifacts and preserved obligations, building on the accepted fencing and recovery-before-cutover rules? |
 | **5 · A05** | **Strategy and cognitive extensibility** — narrows old item 5 | What minimal inputs, outputs, discovery, lifecycle and capability contracts let deterministic strategies, model proposals and agent teams coexist and evolve without depending on historical worker types or moving approved review application out of the kernel? |
 | **6 · A06 — New focus** | **Security boundaries and operator control** | Which identities may read evidence, submit proposals, change configuration or request privileged operations, and how do authentication, credential isolation, operator confirmation and attribution enforce those boundaries without becoming a second financial authority? |
 | **7 · A07** | **Research and governed improvement** — refines old item 6 | How should datasets, experiment runners, simulators, evaluation and custody separate their responsibilities so comparisons are reproducible, future information stays excluded, and only exact frozen candidates reach governed session binding? |
@@ -928,9 +1020,9 @@ The table below defines the remaining target questions. **A01–A10 are audit ag
 | **9 · A09** | **Deployment simplicity and measured optimization** — refines old item 8 | What is the smallest deployable process and storage arrangement that meets the agreed boundaries, which latency/resource/recovery costs need measurement, and what evidence would justify additional infrastructure? |
 | **10 · A10 — New closing review** | **End-to-end coherence and delivery scope** | Do the agreed contracts, diagrams, package tree, configuration ownership, lifecycle states and roadmap describe one system, and can optional work be deferred without leaving duplicate owners, circular dependencies or an incomplete first production slice? |
 
-**Recommended next audit: A01.** For example, if the application starts at 11:20, a strategy should receive an explicit statement of which historical bars are usable, whether its warm-up is sufficient, and whether the current bar is partial. Neither Canvas nor replay should quietly convert later-arriving information into knowledge supposedly available at 11:20. The audit must identify which missing inputs affect which operations, without inventing new trading thresholds or treating startup time as a global readiness gate.
+**A01 reviewed and design accepted:** For example, if the application starts at 11:20, a strategy should receive an explicit statement of which historical bars are usable, whether its warm-up is sufficient, and whether the current bar is partial. Neither Canvas nor replay should quietly convert later-arriving information into knowledge supposedly available at 11:20. The audit must identify which missing inputs affect which operations, without inventing new trading thresholds or treating startup time as a global readiness gate.
 
-A02 extends D05–D06 to schema evolution and effective configuration identity; it does not repeat the packaging decision. A03 examines progress and resource ownership; it does not reopen the single-writer choice or select new action priorities without policy review. A04 starts from D10/D13–D16 rather than redesigning financial recovery. A05 keeps D12 review ownership. A06 extends D09 into human and service authorization; it does not invent emergency permissions. A10 checks integration of accepted decisions, not a fresh rewrite mandate.
+**Next: A04**, recovery and release lifecycle, using accepted A03-F1–F5 runtime/outage contracts. Accepted A02-F1–F5 extend D05–D06 to schema evolution and effective configuration identity; it does not repeat the packaging decision. A03 has accepted progress/resource ownership and independent outage assessment; implementation proof remains pending and no new action priority was selected. A04 starts from D10/D13–D16 rather than redesigning financial recovery. A05 keeps D12 review ownership. A06 extends D09 into human and service authorization; it does not invent emergency permissions. A10 checks integration of accepted decisions, not a fresh rewrite mandate.
 
 **Verification accompanies every row.** A08 later consolidates the proof architecture; it is not permission to postpone failure reasoning. Existing tests and fixtures are optional evidence assessed for relevance, provenance and independent expected results—not inherited requirements or a prerequisite for new target design. Preserve the clean repository structure; add or split a module only when the audit establishes a concrete owner or dependency need. Safe isolated work continues regardless of market hours and unrelated broker evidence. Approval of this agenda does not accept its future findings or authorize implementation, deployment or money-policy changes.
 
@@ -963,7 +1055,7 @@ Document checks confirmed nine primary sections, one current-state and exactly t
 
 ### Current design status — 25 October 2026 UTC
 
-**Accepted:** D01–D16, corrected AUD-01–AUD-03 design refinements and AUD-04–AUD-05 audit tasks (mechanisms undecided), plus the boundary-first, selective-reuse principle; D11–D16 record the six later owner choices as design, not implementation proof. **Changed documents:** this master README and ROADMAP.md in `AutonomousTradingArchitect`; the trading source remains read-only. **Implementation status:** not implemented or production-accepted by this update; F1–F5 remain open. **Structure:** §6 keeps one installable namespace with packaged immutable resources and explicit financial, market, cognition, research and operations owners. **Next architecture audit:** A01 time, data and market intelligence, followed by the remaining audit agenda above. D11–D16 are recorded design decisions, not work to re-decide by default. **Later implementation:** turn those contracts into isolated slices in implementation-roadmap order. Exact deadline, valuation and emergency-policy choices remain open where not already approved. Implementation, financial-policy changes and production activation require their own scope and evidence. Missing production proof blocks only its dependent operation.
+**Accepted:** D01–D16, A01-F1–F5, A02-F1–F5, A03-F1–F5, corrected AUD-01–AUD-03 design refinements and AUD-04 independent observation/read contracts (security implementation proof pending) and AUD-05 migration audit task (route undecided), plus the boundary-first, selective-reuse principle; D11–D16 record the six later owner choices as design, not implementation proof. **Changed documents:** this master README and ROADMAP.md in `AutonomousTradingArchitect`; the trading source remains read-only. **Implementation status:** not implemented or production-accepted by this update; F1–F5 remain open. **Structure:** §6 keeps one installable namespace with packaged immutable resources and explicit financial, market, cognition, research and operations owners. **Next architecture audit:** A04 recovery and release lifecycle, including controlled restart eligibility and exclusive recovery proof. A01-F1–F5, A02-F1–F5 and A03-F1–F5 are accepted design decisions with implementation proof pending; A04 retains migration-route selection. D11–D16 are recorded design decisions, not work to re-decide by default. **Later implementation:** turn those contracts into isolated slices in implementation-roadmap order. Exact deadline, valuation and emergency-policy choices remain open where not already approved. Implementation, financial-policy changes and production activation require their own scope and evidence. Missing production proof blocks only its dependent operation.
 
 Review command:
 
