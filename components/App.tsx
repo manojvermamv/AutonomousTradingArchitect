@@ -105,7 +105,7 @@ export default function App() {
 
       <main className="mx-auto min-h-[70vh] max-w-[1600px] px-4 py-7 sm:px-6 lg:px-8">
         <div id={`panel-${route.main}`} role="tabpanel" aria-labelledby={`tab-${route.main}`}>
-          {route.main === 'overview' && <><div className="review-evidence-note">Overview cards preserve the dashboard presentation. Their scores, strengths, gaps, and readiness labels are not source verification; use Review → Code Audit for dated code findings and evidence limits.</div><ArchitectureOverview modules={modules} issues={issues} recommendations={recommendations} layers={architectureLayers} /></>}
+          {route.main === 'overview' && <><div className="review-evidence-note">Overview cards summarize the original dashboard assessment. For code-verified findings and evidence limits, open Review → Code Audit.</div><ArchitectureOverview modules={modules} issues={issues} recommendations={recommendations} layers={architectureLayers} /></>}
           {route.main === 'architecture' && <ModuleDetails modules={modules} issues={issues} />}
           {route.main === 'diagrams' && <MermaidDiagrams />}
           {route.main === 'repository' && <MarkdownDocument title="Repository Structure" path="README.md" sectionHeading="Fully commented target repository" />}
