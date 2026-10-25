@@ -1,16 +1,20 @@
-# AutonomousTrading — architecture research and reuse-first clean design
+# AutonomousTrading — boundary-first architecture with selective reuse
 
-**Research date:** 24 October 2026 UTC. **Inspected revision:** `445eb116514d97c2574c44d4d5374f938dec57a3`, branch `claude/openalgo-trading-architecture-uu1bxn`. **Status:** design recommendation; no implementation, deployment or financial-policy approval implied.
+**Research date:** 24 October 2026 UTC. **Inspected revision:** `445eb116514d97c2574c44d4d5374f938dec57a3`, branch `claude/openalgo-trading-architecture-uu1bxn`. **Status:** original research baseline; the ten target decisions below were accepted on 25 October 2026 UTC. Acceptance authorizes this design update, not implementation, deployment or financial-policy changes.
 
 ## Recommendation
 
-Recompose the existing system into one installable Python application around its deterministic financial kernel. Retain the existing Tier-1 ledger/coordinator, causal market contracts, strategy/planning/protection logic, bounded AI review, research custody, candidate evaluation and offline RL implementations. Correct concrete persistence/projection defects before extraction. Add Market Canvas through the current market-data seam. Avoid a trading-engine or agent-framework replacement.
+**Accepted design principle — 25 October 2026 UTC:** Design around the best justified boundaries, then reuse code only where it fits. Preserve approved money policies and useful contracts—not accidental directory layouts, coupling, or implementation limitations. These are recommended improvements; implementation tests and measurements must establish their correctness and practical benefit.
+
+The existing project is evidence and a source of reusable implementations, not the template that fixes the target's boundaries. Evaluate retention, extraction, replacement and new implementation against correctness, delivery cost, operational simplicity and acceptance evidence. Reuse is a means to a better system, not a requirement to reproduce its defects. The clean Python layout in §6 remains the target; compatibility adapters are migration tools, not permanent competing owners.
+
+Recompose the existing system into one installable Python application around its deterministic financial kernel. Reuse the existing Tier-1 ledger/coordinator, causal market contracts, strategy/planning/protection logic, bounded AI review, research custody, candidate evaluation and offline RL implementations where they satisfy the accepted boundaries and proof obligations. Correct persistence/projection behavior in isolated target slices before production acceptance; source repairs are not a prerequisite for extraction. Add Market Canvas through the current market-data seam. A wholesale engine replacement is not justified by the current evidence; reconsider a component when a better-supported implementation demonstrably fits the target.
 
 The highest-value architectural change is **one canonical financial history and one execution owner**. Make the current JSONL ownership registry a verified compatibility projection of Tier-1. Today SQLite and JSONL participate in execution/recovery without one transaction; cleaner folders alone would retain that failure boundary.
 
 Evidence labels: **C** source-verified current implementation; **O** runtime observation; **H** historical attached claim; **P** user-proposed direction; **R** external reference; **D** this report's recommendation; **U** unverified. “Implemented” means executable source was inspected, not that its tests passed. Proposed invariants require future code/deployment enforcement. OpenAlgo's actual analyze/live effects are enforced by OpenAlgo; its deployed mode was not queried.
 
-Only this Markdown was created, outside the live checkout. No source, tracked document, test, service, configuration, financial record, policy or broker state was changed. No broker request was sent; no protected locked-OOS payload was opened. No application modules were imported or tests executed. Public research used public names/URLs; private code was not uploaded.
+**24 October audit scope:** only the original Markdown was created, outside the live checkout. No source, tracked document, test, service, configuration, financial record, policy or broker state was changed. No broker request was sent; no protected locked-OOS payload was opened. No application modules were imported or tests executed. Public research used public names/URLs; private code was not uploaded.
 
 ## Contents
 
@@ -184,6 +188,27 @@ No critical exploit, actual duplicate broker order or current financial loss was
 
 Global idempotency should survive epoch/principal rotation; scoping keys to new epochs can permit resend. Current coordinator checks prior execution outcomes and namespaced IDs. Treat inconsistent identity fields as verification work, not an instruction to reset dedupe. Release bindings already compare receipt digest with a RELEASE_BOUND event (`gateway_route.py:360`); they are not included in F3. Projection checkpoints self-verify (`projections/base.py:159`). Missing test inspection is an evidence gap, not evidence tests are missing.
 
+### 25 October follow-up audit and accepted target decisions
+
+**Provenance:** follow-up source audit dated 25 October 2026 UTC; `AutonomousTrading/claude/openalgo-trading-architecture-uu1bxn` at `445eb116514d97c2574c44d4d5374f938dec57a3`; design workspace `AutonomousTradingArchitect/main` at pre-update baseline `a4c6308641d12b1a15898c05ce2bbd022cd46822`. Scope: module boundaries, transaction readiness, packaging, deployment and isolation; 528 source files parsed for import relationships plus targeted executable traces. No application tests, live broker calls or protected evidence reads. F1–F5 remain open; design acceptance does not close them. The original audit and external research retain their 24 October dates.
+
+The owner accepted all ten recommendations together for README/ROADMAP updates. **D01–D10 are stable decision IDs in the discussion's order**, not ten additional defects or a serial implementation schedule. F-identities retain their original meanings. These are accepted target requirements awaiting implementation proof; they are not assertions of current enforcement.
+
+| Decision | Accepted target behavior and owner | Evidence and why this improves the target |
+|---|---|---|
+| **D01 — truthful outcomes** | `contracts.execution` separates broker effect, canonical persistence and projection freshness; callers retain identities and never infer retry permission from local projection failure. | F1 remains at `src/runtime/execution_gateway/__init__.py:1151`. Fix the outcome contract, not just an ignored boolean. |
+| **D02 — canonical monetary admission** | `kernel.admission` commits admission, monetary reservation and command identity atomically; JSONL is a verified compatibility projection. | Current `src/tier1/gateway_route.py:540` accepts a command; capital/margin remain in `src/core/framework/execution/reservations.py:377`. Registry locking at `src/runtime/execution_gateway/structures.py:650` is real protection, not proof of canonical SQLite ownership. No overspend was established. |
+| **D03 — one command lifecycle** | `kernel.lifecycle` owns shared command states and verb-specific transitions for entry, cancel, modify and close, with exact command identity and reconciliation. | F2 and `src/runtime/tier1_authority/service.py:622` show the close-specific join. Replace fragmented settlement with one contract, not four unrelated patches. |
+| **D04 — complete derived-state verification** | `kernel.ledger.projections` compares authority indexes and financial read models with event-derived truth at required heads. | F3: `src/tier1/ledger.py:299` checks the chain, not all mutable authority tables. Preserve existing transactional writes and valid release/projection checks. |
+| **D05 — installable, versioned application** | Packaging owns executable entrypoints and immutable resources; settings owns external state roots; operations stages versioned artifacts/environments before activation. | F4: `pyproject.toml:112` omits 34 of 87 regular source packages and declares no console scripts; `src/config/__init__.py:52` assumes checkout resources; `deploy/deploy_tier1.py:618` and `:661` mutate checkout/venv in place. Broaden the remedy beyond package discovery. |
+| **D06 — one worker configuration contract** | `settings.schema` defines scoped worker settings consumed by service rendering and runtime validation. | F5 affects both `deploy/systemd/at-research-worker.service:13` and `at-research-model.service:13`; `src/analysis/jobs/policy.py:33` excludes their `AT_RUN_DIR`. Fix contract drift, not merely one variable. Installed queue failure was not established. |
+| **D07 — pure planning, explicit effects** | `kernel.planner` computes versioned plans from explicit inputs; admission owns persistence/effects. Neutral contracts do not import runtime implementations. | `src/core/framework/runtime/orchestrator.py:393` defaults registry writes and `:787` performs them; `src/core/framework/execution/loss_latch.py:377` resolves runtime routing. Preserve approved semantics and proof seals while replacing coupling. |
+| **D08 — causal Canvas by contract** | `market.view` and Canvas require explicit cutoff/availability/freshness policy and versioned facts; rendering stays downstream. | `src/runtime/market_view.py:185` has compatibility defaults; `src/data/replay_engine/runner.py:320` already supplies causal replay settings. Reuse the seam, not unsuitable defaults; full Canvas remains new work. |
+| **D09 — enforced cognitive capabilities** | Cognition uses narrow job/tool ports; operations enforces filesystem, socket, credential, network and resource boundaries, including descendants. | `src/runtime/agent_team/__init__.py:176` strips credentials but `:824` does not itself establish OS denial; designer/job coupling appears at `src/runtime/ai_management/designer.py:869` and `src/analysis/jobs/tasks.py:374`. No leak was established. |
+| **D10 — recovery proof before cutover** | Operations proves candidate-artifact crash recovery, clean-host restoration and exclusive activation before Phase 7. Phase 8 tunes recovery targets and growth. | `src/tier1/recovery.py:117` already fences restored authority. The original phase order left baseline restoration proof too late; this changes the target dependency, not current trading permissions. |
+
+[ROADMAP.md](ROADMAP.md#accepted-decisions-and-delivery-order) records implementation order and acceptance checks. All decisions preserve unresolved money-policy choices and independently safe development.
+
 ## 4. Open-source reference research
 
 Checked **24 October 2026**, cutoff approximately **09:38:37 UTC**, window **24 September–24 October**. Resolve default-branch SHA, request `https://api.github.com/repos/{owner}/{repo}/git/trees/{sha}?recursive=true`, inspect implementation/license and in-window relevant source commits. All listed recursive responses returned **truncated=false**; subtree traversal unnecessary. No repository was installed/executed. Nine qualify as maintained implementation references, not nine recommended dependencies.
@@ -229,10 +254,10 @@ Basket/status files last changed before the 30-day window; OpenAlgo qualifies th
 | Approach | Benefit | Cost/risk | Judgment |
 |---|---|---|---|
 | Continue in-place refactoring indefinitely | Least initial movement | Packaging exceptions/oversized driver/dual history easily persist | First correctness repairs useful; insufficient final boundary. |
-| **Staged installable package extracting existing behavior** | Maximum useful reuse, isolated parity, incremental transfer | Explicit compatibility readers and exclusive cutover required | **Recommended engineering choice.** Clean project by recomposition. |
+| **Boundary-first installable target with selective reuse** | Justified ownership, selective reuse, isolated parity and incremental transfer | Explicit compatibility readers and exclusive cutover required | **Recommended engineering choice.** Clean project by recomposition. |
 | Replace engine with broad trading/agent/workflow framework | Ready-made machinery | Highest semantic migration, duplicate ownership, operational stack | Reject initially; adopt selected libraries for measured gains. |
 
-No implementation selection/rollout is attributed to the owner. These diagrams and contracts are D recommendations refining P goals.
+The owner accepted D01–D10 as target design direction on 25 October. Implementation choices still require evidence of fit; this approval does not authorize production rollout or decide unresolved money policy.
 
 ### Primary TARGET diagram 1 — higher-level architecture
 
@@ -296,7 +321,7 @@ flowchart TB
   subgraph F[Production Tier1 kernel and live financial state]
     VIEW --> STRAT[Strategy decision and typed Intent]
     STRAT --> APPLY
-    APPLY --> PLAN[Authoritative planning port with versioned implementations]
+    APPLY --> PLAN[Pure versioned planning within kernel authority]
     SESSION[Bound policy candidate identity and live clock] --> PLAN
     PLAN --> ADMIT[Tier1 exact plan admission and safety checks]
     ACCOUNT[Reconciled account and pending obligations] --> ADMIT
@@ -306,7 +331,7 @@ flowchart TB
     COORD --> ATTEMPT[Durable send intent then one adapter invocation]
     ATTEMPT --> OA[OpenAlgo execution adapter and API]
     OA --> EFFECT[Broker or OpenAlgo analyzer effects]
-    OA --> RESULT[ACK rejection not sent or ambiguous]
+    OA --> RESULT[Typed effect outcome and persistence status]
     RESULT --> LIFE[Live lifecycle partial fills protection and settlement]
     OA --> BOBS[Validated observations identity freshness completeness]
     BOBS --> ACCOUNT
@@ -315,6 +340,7 @@ flowchart TB
     LEDGER[Production hash chained ledger and verified projections] <--> RESERVE
     LEDGER <--> RESULT
     LEDGER <--> LIFE
+    LEDGER --> COMPAT[Verified compatibility projections with freshness status]
     BOBS --> SUP[Independent protection and reconciliation supervisor]
     SUP -. action proposals only .-> ADMIT
   end
@@ -358,7 +384,8 @@ flowchart TB
     RESTORE --> FENCE[Prove old host incapable and reconcile recovery gap]
     FENCE -. authorized activation after acceptance .-> COORD
     LEDGER -. asynchronous telemetry .-> OBS[UI metrics traces and alerts]
-    ISOLATE[Separate workspaces stores credentials and quotas] --> LAB
+    ISOLATE[OS enforced paths sockets credentials egress and quotas] --> LAB
+    ISOLATE --> COG
   end
 ```
 
@@ -368,7 +395,7 @@ These are exactly two primary target diagrams plus the separate current-state di
 
 **Proposed code/deployment enforcement:** one effective authority per broker-account scope across its strategies. Strategy/portfolio policies may be narrower but cannot create independent senders. Preserve existing account identities until actual authority scope is confirmed. Every broker-changing verb—including human cancel/close, protective replacement, structure recovery and compensating actions—passes through one execution owner. Independent supervisors are independently scheduled readers/proposers with no write credential; independence is not a second sender.
 
-Extract existing pure selection/sizing/payoff/protection semantics into that boundary. One authoritative planning port initially retains the versioned one-leg compatibility and structure implementations, selected deterministically by the existing contract. This is one ownership/interface boundary, not an instruction to replace both algorithms. Consolidate algorithms only after exact parity; any financial-output difference requires separate owner approval. Strategies emit intent; AI review modifies entry eligibility according to existing policy; preview planning remains non-authoritative. Final admission validates the fully specified executable object against current canonical state.
+Extract or implement pure selection/sizing/payoff/protection functions within that boundary after comparing existing code against the required contracts. One authoritative planning port initially retains the versioned one-leg compatibility and structure implementations, selected deterministically by the existing contract. This is one ownership/interface boundary, not an instruction to replace both algorithms. Consolidate algorithms only after exact parity; any financial-output difference requires separate owner approval. Strategies emit intent; AI review modifies entry eligibility according to approved policy; preview planning remains non-authoritative. **D07:** the planning function reads explicit immutable inputs and returns a plan or refusal without registry, ledger, socket or configuration writes. The application passes resulting effect requests to admission. Move neutral market/identity/activation-verification contracts out of runtime dependency cycles; preserve the security meaning of private proof seals rather than replacing them with freely forgeable serialized flags. Final admission validates the fully specified executable object against current canonical state.
 
 | Contract | Bound meaning |
 |---|---|
@@ -377,16 +404,18 @@ Extract existing pure selection/sizing/payoff/protection semantics into that bou
 | Admission | Exact plan digest, account and state head, epoch, policy/candidate, freshness/deadline and actor/capability. Any relevant change requires revalidation. |
 | Command | Global logical command/execution identity, immutable request digest, causation/plan/admission identity, endpoint/args and attempt state. Duplicate key with changed content refuses. |
 | Observation | OpenAlgo source, query success/completeness, time interval/as-of/arrival, normalized order/trade/position identity, raw evidence reference and unresolved fields. |
-| Outcome | Not-sent/rejected/acknowledged/ambiguous distinct from partial-fill/fill/cancel/settled; explicit simulator/analyzer/live attribution. |
+| Outcome | Typed effect classification (not-sent/rejected/acknowledged/ambiguous), canonical persistence status and projection freshness; stable command/execution/broker IDs and explicit simulator/analyzer/live attribution. Transport ACK is distinct from fill/cancel/settlement. |
 
 Execution sequence:
 
 1. Validate intent/candidate/session identity and required causal inputs. Preserve existing gate order/refusal reasons unless separately approved.
 2. Compute exact plan; final risk covers resulting quantity/instrument/legs, not merely earlier directional approval.
 3. Serialize account-wide admission against reconciled observations **plus pending reservations and uncertain effects**. Detect observation skew/incomplete snapshots; no empty-query-as-flat shortcut.
-4. Commit admission/reservation/command identity and verified projection changes atomically. Keep transactions short; never hold SQLite transaction across HTTP.
+4. Commit admission, monetary reservation, command identity and required authoritative projection changes in one SQLite transaction, binding exact plan/policy/account identity and reconciliation/state heads. This is D02; current `COMMAND_ACCEPTED` alone does not provide it. Keep transactions short; never hold SQLite transaction across HTTP.
 5. Persist send intent, check dispatch authority, invoke adapter once, persist classified outcome. ACK is not fill/protection. Unknown retains obligations; no blind retry.
 6. Reconcile actual trades/orders/positions including partial fills, cancel/fill races, foreign activity and fees; release only demonstrated unused obligations. Compensation is another admitted effect, not rollback.
+
+**D01/D03:** use one command lifecycle with explicit verb-specific completion rules, not one generic success boolean. Cancel ACK is not cancellation or proof that no fill occurred; modify ACK is not a verified protective state. Every accepted, rejected, not-sent, ambiguous and reconciled attempt updates the same exact command identity. A compatibility projection failure after canonical ACK returns “broker accepted; projection unresolved” with `sent=True` and retained IDs, schedules projection repair and cannot authorize resend. If transport may have succeeded but the canonical outcome could not be committed, retain the durable send intent and reconcile uncertainty. Do not disguise that distinct failure as a mere stale projection. Projection repair uses committed events and verified heads, never another financial sender.
 
 Proposed safety precedence separates non-negotiable capability integrity from owner-selected action policy:
 
@@ -402,7 +431,7 @@ Global idempotency survives release/process/epoch rotation. Strategy/structure/l
 
 ### Ledger, SQLite and recovery
 
-Retain APSW ledger/runtime and verify mutable indexes against the chain. Use local durable block storage, WAL/FULL, explicit schema versions/migrations, readback of actual settings and loaded SQLite identity. Quantity and money units/rounding are explicit; avoid silently changing existing numeric semantics during extraction.
+Reuse APSW ledger/runtime where acceptance proves fit. **D04:** rebuild and compare epoch, command and broker identity indexes plus financial projections against event-derived state at startup, recovery and detected external modification. A valid event hash chain alone does not prove these tables agree. Refuse financial authority on mismatch; repair from verified history under the exclusive writer, preserving existing release-binding and checkpoint checks. Use local durable block storage, WAL/FULL, explicit schema versions/migrations, readback of actual settings and loaded SQLite identity. Quantity and money units/rounding are explicit; avoid silently changing existing numeric semantics during extraction.
 
 [SQLite WAL guidance](https://sqlite.org/wal.html) requires same-host access and identifies the WAL-reset fix in 3.51.3/backports. Current safe-version enforcement is justified. [WAL file-format guidance](https://sqlite.org/walformat.html) explains the committed state may include the WAL; copying an active `.db` alone is insufficient. FULL sync depends on actual filesystem/storage guarantees. Use consistent backup API/snapshots and restoration proof, not network-shared WAL or package-version assertions.
 
@@ -422,7 +451,7 @@ Exact replay uses retained ordered inputs, compatible code/state, clock advances
 
 ### Deterministic Canvas and full market scratchpad
 
-Build through existing `MarketInputSource`/providers/`MarketView`, not a parallel data path. Initial useful functions: causal as-of slice, multi-timeframe bars, deterministic confirmed swings, levels/zones, trends/ranges, algorithm explanations, annotations/history. Add patterns/depth/Greeks only with valid available inputs and defensible algorithms. Missing depth/bid-ask stays unavailable, never an LLM guess.
+Build through the canonical market-source/provider/view boundary, reusing existing `MarketInputSource` and `MarketView` code where suitable. **D08:** new Canvas APIs require an explicit view policy covering cutoff clock, arrival/event-time semantics and freshness. Exact live replay uses knowledge available at the cutoff; event-time research views are labeled separately. Legacy compatibility factories preserve old behavior during migration, without silently inheriting those defaults in new APIs. Initial useful functions: causal as-of slice, multi-timeframe bars, deterministic confirmed swings, levels/zones, trends/ranges, algorithm explanations, annotations/history. Add patterns/depth/Greeks only with valid available inputs and defensible algorithms. Missing depth/bid-ask stays unavailable, never an LLM guess.
 
 | Layer | Required representation/behavior |
 |---|---|
@@ -439,7 +468,7 @@ Canvas facts initially support inspection/research. Adding geometry to entry rul
 
 ### Cognitive Fabric
 
-Retain AdvisorContext, bounded team supervision, proposal/review identity, RecordStore and human-applied exit advice. Wrap one **CognitiveAgentRuntime** around existing contracts. Tools are role-scoped reads over market/Canvas/outcomes/research and permitted external content. No financial writer/socket/command tool, broker-changing credential, live policy write or ordinary locked-OOS retrieval.
+Retain AdvisorContext, bounded team supervision, proposal/review identity, RecordStore and human-applied exit advice. Wrap one **CognitiveAgentRuntime** around existing contracts. Tools are role-scoped reads over market/Canvas/outcomes/research and permitted external content. **D09:** enforce capabilities through service identities or equivalent namespaces/mounts, denied financial sockets and protected paths, scoped credentials, controlled egress and descendant-wide resource limits. Environment stripping and typed tools supplement this boundary; they do not prove it. Use a narrow research-job submission port instead of mutual cognition/research implementation imports; custody requirements follow the requested data and operation, and locked evaluation retains a distinct protected capability. No financial writer/socket/command tool, broker-changing credential, live policy write or ordinary locked-OOS retrieval.
 
 Blueprints pin roles/model/provider/prompts, capabilities/context fields, required/optional dependency DAG, concurrency, token/tool budgets, absolute deadline, lead/output schema. Reject cycles. Required missing roles/expired synthesis preserve current unavailable behavior. Bound descendants and tool outputs; every result identifies as-of/source/partition. More reasoning cannot silently extend a financial deadline.
 
@@ -462,6 +491,10 @@ Reuse current RL environment/reward/Gym/SB3/artifact verification. Specify obser
 Start with existing direction/abstention candidate boundary, not unconstrained order actions. Compare deterministic baselines, costs, seed variation, delays/missing data, time/regime splits and every attempt. Freeze weights/normalizers/dependencies/code/data/environment. Mutable registry alias never suffices identity. Shadow/paper and broker-reconciled outcomes are distinct. Promotion is governed and session-bound; no live self-training.
 
 ### Low-cost deployment and optional growth
+
+**D05:** build one installable application with declared operator, kernel, market, supervisor, cognition and research entrypoints, including recovery commands through the operator CLI. Package immutable defaults, schemas and migrations and load them through package-resource APIs; configure mutable roots externally. Runtime discovery must not require a source checkout or `.git`. An explicit shipping manifest identifies any separately deployed UI assets. Stage the wheel and locked environment in a versioned release directory; validate disarmed before switching supervised service targets at an exclusive activation boundary. Attest artifact/dependency/config/schema digests, retaining Git SHA as provenance. A staging failure leaves the prior release intact; rollback after effects changes compatible software over current financial history, never rewinds state.
+
+**D06:** one typed worker configuration contract feeds both unit rendering and worker validation, including intentional nonsecret path settings. Preserve role-specific credential exclusions; test the actual rendered environment rather than independently invented fixtures. This contract belongs to `settings.schema`, not two competing lists in deployment and jobs.
 
 Initial deployment: one Linux host, local durable Tier-1 storage, systemd, current operator surface, bounded research slice, independently scheduled protection/reconciliation readers. Critical supervisors may use the same installed package but retain independent process/restart/resource supervision. One host is a failure domain; honest RPO/RTO and fencing beat an unproved HA label.
 
@@ -490,8 +523,7 @@ AutonomousTrading/                         # Recompose existing behavior into on
 ├── .github/                               # Repository automation
 │   └── workflows/                         # Isolated verification workflows
 │       └── verify.yml                     # Check artifacts contracts and secret hygiene
-├── config/                                # Nonsecret typed configuration inputs
-│   ├── defaults.yaml                      # Ship explicit runtime defaults
+├── config/                                # Nonsecret operator configuration examples
 │   ├── live.example.yaml                  # Show live composition without credentials
 │   ├── simulation.yaml                    # Select structurally disarmed composition
 │   ├── research.yaml                      # Set isolated stores and resource quotas
@@ -510,9 +542,16 @@ AutonomousTrading/                         # Recompose existing behavior into on
 │       │   ├── execution.py               # Define plan action observation and outcomes
 │       │   ├── evidence.py                # Define causal references and artifact digests
 │       │   └── clock.py                   # Define injected clock interfaces
+│       ├── resources/                     # Immutable assets shipped inside the wheel
+│       │   ├── defaults.yaml              # Ship explicit runtime defaults
+│       │   ├── events.schema.json         # Define canonical event envelope versions
+│       │   ├── candidates.schema.json     # Define frozen identity manifests
+│       │   ├── canvas.schema.json         # Define facts annotations and tool responses
+│       │   └── migrations/                # Ordered financial database migrations
+│       │       └── 001_initial.sql        # Establish extracted audited schema baseline
 │       ├── settings/                      # Single configuration owner
 │       │   ├── loader.py                  # Resolve defaults profiles and scoped overrides
-│       │   ├── schema.py                  # Validate units schemas and compositions
+│       │   ├── schema.py                  # Share typed settings and worker environment contracts
 │       │   └── secrets.py                 # Resolve service credentials without propagation
 │       ├── market/                        # Canonical market ingestion and views
 │       │   ├── ingest.py                  # Validate order and retain incoming records
@@ -546,11 +585,11 @@ AutonomousTrading/                         # Recompose existing behavior into on
 │       ├── kernel/                        # Sole internal financial authority boundary
 │       │   ├── authority.py               # Authenticate requests and own writer scope
 │       │   ├── policy.py                  # Interpret owner-approved financial policy
-│       │   ├── planner.py                 # Dispatch existing versioned planning implementations
+│       │   ├── planner.py                 # Compute pure versioned plans without persistence effects
 │       │   ├── selection.py               # Preserve instrument selection and sizing
 │       │   ├── admission.py               # Validate exact plans against canonical state
 │       │   ├── reservations.py            # Account for pending and uncertain commitments
-│       │   ├── lifecycle.py               # Fold order leg structure and settlement transitions
+│       │   ├── lifecycle.py               # Own shared command and verb specific lifecycle transitions
 │       │   ├── protection.py              # Reuse stop trail and residual decisions
 │       │   ├── safety.py                  # Apply explicit condition and action precedence
 │       │   ├── coordinator.py             # Persist attempts and classify uncertain effects
@@ -587,7 +626,7 @@ AutonomousTrading/                         # Recompose existing behavior into on
 │       │       └── policy.py              # Verify frozen inference bundles and abstention
 │       ├── operations/                    # Supervision recovery and resource isolation
 │       │   ├── supervisor.py              # Observe protection and propose actions independently
-│       │   ├── deployment.py              # Verify release convergence and exclusive cutover
+│       │   ├── deployment.py              # Stage versioned artifacts and prove exclusive cutover
 │       │   ├── backup.py                  # Produce consistent retained off-box artifacts
 │       │   ├── restore.py                 # Verify clean-host recovery without activation
 │       │   ├── isolation.py               # Validate workspace credential store and resource scope
@@ -598,12 +637,6 @@ AutonomousTrading/                         # Recompose existing behavior into on
 │           ├── api.py                     # Serve authenticated owner operations and read models
 │           ├── mcp.py                     # Expose scoped cognition and research tools
 │           └── authorization.py           # Mediate caller scope and human-only commands
-├── schemas/                               # Versioned wire and persistence specifications
-│   ├── events.schema.json                 # Define canonical event envelope versions
-│   ├── candidates.schema.json             # Define frozen identity manifests
-│   ├── canvas.schema.json                 # Define facts annotations and tool responses
-│   └── migrations/                        # Ordered financial database migrations
-│       └── 001_initial.sql                # Establish extracted audited schema baseline
 ├── operator_ui/                           # Reuse existing operator frontend
 │   ├── package.json                       # Pin UI and chart dependencies
 │   └── src/                               # Operational read models and governed commands
@@ -665,6 +698,8 @@ No Temporal/Restate/Kafka/MLflow/cloud placeholder package is created. Adopted i
 
 ## 7. Reuse mapping and migration
 
+The dispositions below are candidate reuse choices, conditional on the accepted D01–D10 boundaries. Prefer replacing a mismatched implementation over distorting the target to retain it. Compatibility preserves approved policy and useful external contracts; correcting a confirmed defect deliberately changes the defective result and needs an explicit regression expectation, not bug-for-bug parity.
+
 Effort is relative, not a schedule estimate: low = narrow adapter/move, medium = multiple callers/parity, high = authority/schema/lifecycle migration. Exact time requires implementation planning after existing acceptance evidence is inventoried.
 
 | Current capability | Disposition/target | Effort, compatibility and payoff |
@@ -672,8 +707,8 @@ Effort is relative, not a schedule estimate: low = narrow adapter/move, medium =
 | Tier-1 envelope/runtime/ledger/schema/projections | **Reuse/harden**, kernel ledger | Medium. Preserve IDs/hash bytes/schema/safe SQLite checks; F3 consistency proof. Avoid reimplementing transactions/history. |
 | Coordinator/OpenAlgoAdapter/ports | **Extract nearly unchanged** | Low–medium. Preserve one-call/ambiguous classification; adapt client interface, not remote guarantees. |
 | Authority service/channel/release/fence | **Wrap/extract** | Medium–high. Keep Linux/systemd peer attestation initially; portable alternative needs equivalent enforcement. |
-| Gateway/JSONL registry/reconcile | **Refactor ownership**, compatibility projection | High. Fix F1/F2 first, retain strict identity joins/readers, transfer writes once. Highest payoff and cutover risk. |
-| One-leg orchestrator/structure planner/payoff | **Reuse behind one versioned planning port** | Medium–high. Keep gate order/refusals/score/rounding/size/stop/digests. Avoid another planner; output differences are reviewed changes. |
+| Gateway/JSONL registry/reconcile | **Refactor ownership**, compatibility projection | High. Implement D01/D03 contracts and D02 ownership in the target; retain strict identity joins/readers and transfer writes once. Source repairs require separate authorization and are not a prerequisite for target development. Highest payoff and cutover risk. |
+| One-leg orchestrator/structure planner/payoff | **Reuse behind one versioned planning port** | Medium–high. Separate pure computation from effects (D07); preserve approved gate order/score/rounding/size/stop and identity contracts. Correctness fixes have explicit changed expectations; financial-policy differences need owner approval. |
 | Stops/trails/structure FSM/protection replay | **Extract intact** | Medium. Preserve transitions and session boundaries; supervisor independence does not add sender. |
 | BuyerEdge/EMA/worker strategies | **Keep/wrap** | Low–medium. Preserve kinds/families/authority and model/process distinction. Never fix registry authority to match a file. |
 | Providers/MarketInputSource/MarketView/data evidence | **Extract/extend** | Medium. Preserve as-of/freshness choices, explicit causal policy; enables Canvas with no duplicate ingestion. |
@@ -692,21 +727,23 @@ Effort is relative, not a schedule estimate: low = narrow adapter/move, medium =
 
 | Phase | Working outcome and acceptance | Dependencies |
 |---|---|---|
-| **0 Preserve/characterize** | Pin source/artifacts/contract identities, actual entrypoints, authority scope and old schemas; inventory existing tests. Later authorized sanitized fixtures. | Analysis/synthetic tests proceed isolated. Missing broker proof blocks broker-specific acceptance only. |
-| **1 Correct active defects** | F1/F2/F4/F5/F6 targeted corrections; F3 derived-state verification; document gross/protection limitations. | No scores/threshold changes. Isolated fixes/tests need no market close/release convergence. Deployment separately authorized. |
-| **2 Installable extraction** | Real namespace, stable contracts/pure primitives moved intact, temporary legacy shims, wheel/entrypoints from empty directory, external data roots. | Independent checkout/cgroup throughout sessions; never edit executing source. |
+| **0 Boundaries and characterization** | Define D07 pure planning, D02 admission ownership and D01/D03 outcomes first; pin source/contracts/approved policies and distinguish intended behavior from defects. Inventory reusable code and tests against those boundaries. | Analysis/synthetic tests proceed isolated. Missing broker proof blocks broker-specific acceptance only. |
+| **1 Target contracts and reliability** | Specify and implement D01/D03 lifecycle and D04 integrity in isolated target slices, with explicit regression expectations; D06 worker settings share one contract. Track F1–F5 mappings without requiring edits to the source project. | No scores/threshold changes. Isolated fixes/tests need no market close/release convergence. Deployment separately authorized. |
+| **2 Installable target** | D05 package/resources/entrypoints and staged release identity; extract or rebuild pure functions behind D07 contracts. Test without checkout or `.git`, with external mutable roots and temporary compatibility readers. | Independent checkout/cgroup throughout sessions; never edit executing source. |
 | **3 Vertical slice/parity** | Retained strategy → intent → frozen review application → exact plan/admission → simulated broker → lifecycle/evidence. Exact old/new outputs and IDs, multi-day boundaries/partial fills. | Synthetic/permitted development data enough for engineering checks; no locked OOS/live key required. |
-| **4 Consolidate financial ownership** | Build canonical reservation/account/lifecycle/protection and generated JSONL projection in the disarmed replacement only. Compare same-head books/obligations; existing live owner remains authoritative. | Offline construction and disarmed shadow only. No financial ownership or canonical-state switch before Phase 7. |
-| **5 Cognition/Canvas** | Existing review behavior preserved; first deterministic facts/tools/history/UI; no future leakage; compare simple vs specialists. | Parallel with extraction against frozen contracts, no broker proof or global close gate. Entry policy changes separately governed. |
+| **4 Consolidate financial ownership** | D02 atomically commits monetary reservation, admission and command identity; D03 lifecycle and D04 verified indexes drive generated JSONL projections in the disarmed target only. Compare same-head books/obligations; existing live owner remains authoritative. | Offline construction and disarmed shadow only. No financial ownership or canonical-state switch before Phase 7. |
+| **5 Cognition/Canvas** | D08 explicit causal views/facts and D09 OS capability boundaries/job ports; approved review behavior preserved; no future leakage; compare simple vs specialists. | Parallel with extraction against frozen contracts, no broker proof or global close gate. Entry policy changes separately governed. |
 | **6 Research/RL packaging** | Custody/freeze/RL moved intact; synthetic alias/restore/one-use checks; all trials retained. | Independent of production release; promotion depends on its own evidence/owner governance. |
-| **7 Exclusive cutover** | Pinned artifact/config/schema, reconciled in-flight obligations, old writer incapable, preserved IDs/epoch, one new writer, observation/protection verification. | Production-sensitive boundary. Never auto-flatten to manufacture quiescence; independent work continues elsewhere. |
-| **8 Recovery/economics/growth** | Clean-host restoration/fencing/uncertainty/custody continuity; measure tails/resources/AI economics and optional component need. | Rehearsals isolated. Live activation/exercises require own authority. Economic evidence candidate-specific, not gate to unrelated fixes. |
+| **7 Recovery proof and exclusive cutover** | First pass D10 crash/restart and clean-host restore rehearsal for the exact candidate artifact/schema/backup, including custody continuity and exclusive activation. Then pin release/config, reconcile in-flight obligations, prove old writer incapable and activate one new writer with protection verified. | Production-sensitive boundary. Never auto-flatten to manufacture quiescence; independent work continues elsewhere. |
+| **8 Recovery tuning/economics/growth** | Repeat recovery drills after relevant changes; tune measured RPO/RTO, tails/resources/AI economics and optional component need. Baseline restore/fencing proof was required before Phase 7 activation. | Rehearsals isolated. Live activation/exercises require own authority. Economic evidence candidate-specific, not gate to unrelated fixes. |
 
 ### Compatibility and no-dual-authority invariant
 
 Keep versioned readers for old JSONL/events/worker protocol/candidate bundles/policy digests. Imports preserve original identity, provenance and source digest; do not pretend old observations happened anew. Schema changes require explicit converters/parity. Compatibility shims delegate to one implementation, not fork formulas/ownership/senders.
 
-Before cutover, new kernel only shadows calculations using independent ledger, disarmed adapter and no financial credential/socket. Compare exact plan/refusal/candidate/policy identity, reservation totals, order/leg quantities, protection obligations, unknown outcomes and evidence class. Unexplained differences are defects.
+Before cutover, new kernel only shadows calculations using independent ledger, disarmed adapter and no financial credential/socket. Compare exact plan/refusal/candidate/policy identity, reservation totals, order/leg quantities, protection obligations, unknown outcomes and evidence class. Unexplained differences are defects. Approved correctness improvements have explicit expected differences and regression proofs; parity does not require retaining a known bug.
+
+**D10:** before authorizing Phase 7 activation, restore a consistent backup with the exact candidate artifact and schema on an isolated clean host; exercise crashes, unresolved effects, identity preservation, monotonic custody and refusal before fencing. Rehearsal evidence does not replace actual cutover fencing or fresh reconciliation.
 
 The sole production canonical-state/write-authority switch occurs in Phase 7, never Phase 4. At cutover prove old writer incapability, reconcile accepted/pending/unknown commands, transfer history with stable identities, activate one writer. Never resend an uncertain command merely because packaging/epoch changed. Rollback after effects keeps current history and uses compatible software under authorized epoch; never roll financial/custody state back to erase intervening effects/consumption. If handoff compatibility is unproved, retain the existing authorized owner and keep the replacement disarmed.
 
@@ -714,13 +751,14 @@ The sole production canonical-state/write-authority switch occurs in Phase 7, ne
 
 | Claim | Evidence required | Bound of conclusion |
 |---|---|---|
-| Installable artifact | Wheel with data/extras installed/invoked from empty directory | Checkout import insufficient; no broker proof. |
+| Installable artifact (D05) | Shipping manifest, packaged resources and every declared command exercised in a blank environment without checkout/`.git`; staging failure leaves prior release intact | Imports alone insufficient; no broker proof. |
 | Behavior preserved | Exact scores/selection/sizing/stops/rounding/refusal order and IDs on permitted golden/synthetic inputs | Equal aggregate P&L can hide different orders. |
-| One canonical state | Same-head compatibility/projection comparison; inject JSONL failure and altered side tables | Hash consistency not account completeness. |
+| Canonical admission and outcomes (D01–D04) | Concurrent strategies against insufficient combined capacity; atomic admission/reservation/identity; verb/outcome/restart matrix; failed projection repair never resends; altered indexes refuse | Chain consistency is not account completeness; no HTTP inside the transaction. |
 | Durable execution | Crash before/after admission/reservation/send intent/transport acceptance/outcome/observation/release/checkpoint; duplicate commands | Local uniqueness not remote exactly-once. |
 | Lifecycle correct | Partial fills, one-leg success, cancel/fill races, delayed tradebook, timeouts, overclose, stale snapshots | Sandbox result not live realism. |
-| Exclusive authority | Concurrent process, paused old writer, restored host, real credential/network fence and epoch tests | Local flock not cross-host exclusion. |
-| Canvas causal | Late/corrected data, candle finality, confirmed swings, timezone/session/multi-timeframe availability, future-bar perturbation | Deterministic geometry not profitable signal. |
+| Recovery and exclusive authority (D10) | Candidate-artifact crash/clean-host restore rehearsal before cutover; concurrent process, paused old writer, external fence and epoch tests | Rehearsal does not grant live activation; local flock is not cross-host exclusion. |
+| Worker settings (D06) | Render both worker profiles from the shared schema, claim and complete one isolated job each, reject forbidden credentials | Active service is not job progress. |
+| Canvas causal (D08) | Late/corrected data, candle finality, confirmed swings, timezone/session/multi-timeframe availability, future-bar perturbation | Deterministic geometry not profitable signal. |
 | AI semantics preserved | All review outcomes, abstention, required/optional failures, budgets/deadlines and frozen application parity | Narrative/typing not authority/economic edge. |
 | Custody intact | Alias/copy/transformed overlap, purge/embargo, claim-before-read, failed attempts, consumed-state restore, changed artifacts | New checks cannot certify contaminated history. |
 | Isolation enforceable | Native descendants denied production/OOS mutation and financial socket/network/key, aggregate resource quotas | Separate folder/environment flag alone insufficient. |
@@ -801,16 +839,16 @@ If isolation cannot be enforced on a shared host, move/defer **that workload**, 
 - Tail latency/throughput/resources, net broker-reconciled results, AI incremental contribution and actual horizon/deadline. No performance/profitability number invented.
 - Original diagrams/images/Mermaid/transcripts/tree proposals absent as separate attachments. Later supplied material can be compared without becoming authoritative.
 
-### Deliverable verification
+### Historical deliverable verification — 24 October
 
 Document checks confirmed nine primary sections, one current-state and exactly two target Mermaid blocks, a 177-entry repository tree with a comment on every entry, balanced code fences/diagram delimiters, and valid locations for all fully qualified file/line references checked. Mermaid was structurally checked, not rendered by a Mermaid engine. Independent builder review identified simulation-state, versioned-planner and cutover ambiguities; all three were corrected and rechecked without remaining blockers in that scope. Repository status remained clean at the inspected SHA. No application tests were run and no temporary configuration changes were made.
 
-### Continuation trace
+### Current design status — 25 October 2026 UTC
 
-**Status:** research/design deliverable complete within declared coverage; no implementation approval implied. **Objective:** clean reuse-first packaging around one deterministic financial authority. **Files:** this Markdown only. **Engineering choices:** staged extraction, contracts preserved, JSONL becomes verified projection, Canvas uses existing market seam, optional frameworks deferred to measured trigger. **Validation:** source citations, immutable external SHA/tree/path/license checks, narrow service observations, document checks. **Current state:** source unchanged by this audit. **Risks:** confirmed defects plus scoped runtime/broker/economic/custody gaps. **Next action:** review design and choose bounded implementation slice, preferably F1/F2 and packaging/isolation contract corrections before movement. **Blocker to independent work:** none; missing production evidence blocks only its dependent acceptance/activation.
+**Accepted:** D01–D10 and the boundary-first, selective-reuse principle. **Changed documents:** this master README and ROADMAP.md in `AutonomousTradingArchitect`; the trading source remains read-only. **Implementation status:** not implemented or production-accepted by this update; F1–F5 remain open. **Structure:** §6 keeps one installable namespace with packaged immutable resources and explicit financial, market, cognition, research and operations owners. **Next work:** characterize approved behavior, define the contracts and build isolated target slices in roadmap order. Implementation, financial-policy changes and production activation require their own scope and evidence. Missing production proof blocks only its dependent operation.
 
 Review command:
 
 ```bash
-less /tmp/AutonomousTrading-architecture-research-2026-10-24.md
+less ~/AutonomousTradingArchitect/README.md
 ```
