@@ -32,6 +32,26 @@ Use short, friendly language, with a concrete example when it clarifies the effe
 
 Preserve approved financial semantics and useful compatibility contracts. Do not preserve a confirmed bug merely to achieve parity: record its intended correction and regression expectation. Any change to scores, thresholds, entry policy or other owner-controlled money behavior remains a separate explicit decision.
 
+### Help the owner choose architecture recommendations
+
+Use this style when discussing target-architecture recommendations that need the owner's choice, as in the requirements, ownership and transaction-boundary review. This is a conversation format, not a new approval gate for routine technical work.
+
+- Do the technical investigation and formulate the requirement, owner and acceptance proof yourself. Do not ask the owner to answer engineering questions they may not have the background to resolve.
+- Ask one meaningful decision at a time in short, friendly language. Introduce the choice, then use this plain-text example format:
+
+  ```text
+  Requirement: An installed application can load its default settings from any working directory.
+  Owner: Packaging and settings.
+  Proof: Install it in a clean environment, start it outside the checkout, and verify the expected settings load.
+  ```
+
+- After the example block, briefly explain why the choice matters or give an everyday example. Offer two or three viable, clearly labelled options (A, B, C), put the recommended option first, and explain its benefit and material trade-off. Do not invent weak alternatives merely to fill a list. Allow a free-text preference.
+- Recommend the simplest justified target approach. Distinguish required behavior from optional implementation choices; source code and tests are evidence and reuse candidates, not automatic requirements. Keep the clean target package structure coherent.
+- Order questions by actual dependencies: establish requirements and ownership first, then discuss tightly connected dispatch, identity, reconciliation and accounting choices together when separate choices would produce contradictions. Do not force unrelated decisions into a batch.
+- When the owner selects an option, briefly confirm the specific design agreement and continue to the next unresolved choice. Do not ask them to approve the same decision again. Design agreement does not claim implementation proof or authorize money-policy changes, production actions or otherwise unauthorized file edits.
+- Once the necessary choices are settled, summarize the agreed scope. Apply document updates when already authorized; otherwise ask only for the missing edit authorization and explain the applicable project rule. Do not reopen accepted choices merely because recording them is a separate step.
+- Preserve approved money policies and independently safe development. Broker acceptance, market-close checks and unrelated production evidence do not gate this discussion or isolated work. Keep decision records in the architecture documents when authorized, rather than duplicating them in this working-style section.
+
 ### Apply accepted changes coherently
 
 - Follow the document permissions below. Audit-only work ends with findings and a recommended next choice. When the user accepts a batch and authorizes the affected documents, apply that batch together; do not ask again point by point for already approved work.
