@@ -39,7 +39,9 @@ function extractSection(markdown: string, title: string) {
     const heading = lines[i].match(/^(#{1,6})\s+/);
     if (heading && heading[1].length <= level) { end = i; break; }
   }
-  return lines.slice(start, end).join('\n');
+  // The page has its own visible title, so show the requested section body
+  // without repeating the source README's numbered heading.
+  return lines.slice(start + 1, end).join('\n');
 }
 
 export function MarkdownDocument({ title, path, sectionHeading }: Props) {
