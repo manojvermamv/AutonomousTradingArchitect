@@ -22,7 +22,7 @@
 | SLICE-03 sessions, authority, clocks, recovery stages | 1 | S | ATA-05, Combined-F1, A04-F1/F2 (local), A06-F1 kernel side, Combined-F4 kernel side | SLICE-01, SLICE-02 (D04 step) | Q-001 (session-close effects for holds only), Q-009 (operating procedure only), Q-010 | PRF-SES-01…06, PRF-SES-08…10 |
 | SLICE-04 intent to admission | 3 | S | D07, D12, AUD-01, AUD-03, POL-007/015/018/020/021/022/027 | SLICE-01, SLICE-03 | Q-003 (stamp field only), Q-008 (capacity domains) | PRF-ADM-01…06 |
 | SLICE-05 dispatch, conflicts and scheduling | 1 | S | D13 revalidation, A03-F1/F2/F3, ATA-04; kill and hold events (POL-002, POL-003) | SLICE-04 | Q-004, Q-001, Q-011 | PRF-DSP-01, -03…-11, PRF-LED-16, PRF-PRT-04 (kill and hold rows), PRF-PRT-11 |
-| SLICE-06 protection and safety | 1/3 | S | ATA-01, POL-004…POL-006, POL-010…POL-015, A03-F5 kernel side, Combined-F6 protection part | SLICE-05, SLICE-07 | Q-001, Q-002, X-004 | PRF-PRT-01…10, PRF-PRT-12 |
+| SLICE-06 protection and safety | 1/3 | S | ATA-01, POL-004…POL-006, POL-010…POL-015, A03-F5 kernel side, Combined-F6 protection part | SLICE-05, SLICE-07 | Q-001, Q-002, X-004 | PRF-PRT-01…10, PRF-PRT-12, PRF-PRT-13 |
 | SLICE-07 observations, reconciliation, domain, OpenAlgo adapter | 1/3 | S → R | D15, D16, ATA-06, A06-F2 decision | SLICE-05 | Q-006, Q-007, Q-008, Q-012 | PRF-DOM-01…05, -08, -09, PRF-LED-11; PRF-DOM-07 on authorization |
 | SLICE-08 market data and views | 5 | S | A01-F1…F5, D08 | SLICE-03 | POL-O04 | Stub deepened; proofs from `README.md:1234-1236` |
 | SLICE-09 strategies and cognition | 5 | S | A05-F1…F5, Combined-F5, D09, D12 evidence | SLICE-04, SLICE-08 | none | Stub deepened; proofs from `README.md:1243` |
@@ -62,13 +62,13 @@ Task IDs are stable. SLICE-01 tasks are its file rows. Other tasks get exact fil
 | TASK-S05-04 | 05 | Scheduler with the bound ordering rule | PRF-DSP-07 |
 | TASK-S05-05 | 05 | Cancel, modify and close verbs with completion rules | PRF-LED-* verb rows |
 | TASK-S05-06 | 05 | Busy count and acceptance-reply lookup | PRF-DSP-10 |
-| TASK-S05-07 | 05 | Kill and hold events with their matrix rows; hold-versus-claim ordering | PRF-PRT-04 (kill and hold rows), PRF-DSP-08 |
+| TASK-S05-07 | 05 | Kill and hold events with their matrix rows; hold-versus-claim ordering; characterize whether a partly filled order counts as "unfilled" under kill (`sender.py`) | PRF-PRT-04 (kill and hold rows), PRF-DSP-08 |
 | TASK-S05-08 | 05 | Deadline sweep and timer | PRF-DSP-04 |
 | TASK-S05-09 | 05 | Target recheck at dispatch, caller-driven retries, command status | PRF-DSP-09, -10, -11 |
-| TASK-S06-01 | 06 | Protection evaluation, legs, placement and structure legs; characterize the legacy stop order type and re-placement behaviour | PRF-PRT-01/02/09 |
+| TASK-S06-01 | 06 | Protection evaluation, legs, placement, exits and structure legs; characterize the legacy stop order type, re-placement behaviour and the marketable-stop alternative | PRF-PRT-01/02/09 |
 | TASK-S06-02 | 06 | Protection crash recovery | PRF-PRT-03 |
 | TASK-S06-03 | 06 | Hold rows per Q-001; characterize the legacy recovery-hold trigger | PRF-PRT-04 |
-| TASK-S06-04 | 06 | Daily-loss latch with bound budget (Q-002) | PRF-PRT-04 |
+| TASK-S06-04 | 06 | Daily-loss latch with bound budget (Q-002); characterize the deployed P&L fields against the endpoint contract | PRF-PRT-05 |
 | TASK-S06-05 | 06 | Session-close exit and kill interaction | PRF-PRT-07 |
 | TASK-S06-06 | 06 | Safety-check visibility; protection classification on read | PRF-PRT-05, PRF-PRT-13 |
 | TASK-S06-07 | 06 | Release continuity of protected legs; evaluation-cost measurement | PRF-PRT-10, PRF-PRT-12 |

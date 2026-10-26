@@ -116,3 +116,19 @@ Before stage 5, the AI PAUSE row and `PRT-R05` were removed: `kernel.policy` own
 | 7T-9 | Major | Stop reject, transport-rejected modify, orphan under kill, kill in square-off lack rows and proofs | FIX: F-P10…F-P13 with proofs |
 | 7T-10 | Major | Stop order type not a policy input | FIX: `protection.stop_order_type`, refusing until characterized (TASK-S06-01) |
 | 7T-N | Nit | Heading suffixes; POL-021 header; Terms; class P; PRF-PRT-10 must-fail; switch default and misspelt-value proofs; security risk row; F-P9 wording and SLICE-05 setup; exit sequence defined once | FIX |
+
+## Stage 8 — intermediate zoom-out (1 Blocker, 9 Major, 11 Nit)
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| 8-1 | Blocker | Tick exits have no durable "exit in progress" record | FIX: `SQUARE_OFF_STARTED` replaced by `EXIT_STARTED` (reason `square_off`, `target`, `deep_otm_delta`; cause tick or session), folded into `protection_state`, input to `evaluate`; one exit sequence for all three; CP-P3 and PRF-PRT-07 cover tick exits |
+| 8-2 | Major | `ladder_state` lists the wrong fields | FIX: the complete serialized `TrailPosition` (`trail.py:153-205`) |
+| 8-3 | Major | Spot and key-level ladders have unspecified exits | FIX: only the premium ladder loads; others refuse until specified |
+| 8-4 | Major | Conflict row 2 blocks placement on the first fill | FIX: the group's own entry is not an unresolved effect for row 2 |
+| 8-5 | Major | Linked command and counter have no source | FIX: one leg per position; commands read by key prefix; `n` = admitted commands + 1 |
+| 8-6 | Major | Confirmed quantity undefined; partial stop fills re-send | FIX: latest completed command's quantity minus fills on the stop order |
+| 8-7 | Major | Unprotected position under kill is silent | FIX: `unprotected_under_kill` escalation; F-P14; PRF-PRT-04 |
+| 8-8 | Major | Refusals and escalations repeat on every trigger | FIX: ticks never submit a `DESIRED` leg; escalations once per subject and reason |
+| 8-9 | Major | Goal 4 only enforced for protection | FIX: conflict row 5 refuses a second resting close from any principal |
+| 8-10 | Major | SLICE-06 market inputs undefined before SLICE-08 | FIX: SLICE-06 adds fixture fields to `contracts/market.py`; producer named |
+| 8-N1…N11 | Nit | `leg_id` constant parts; off-thread exit test; two check-state writers; PRF-DSP-04 wording; escalation subject; `close_time` name clash; `ENDED`/orphan; latch staleness; latch trip at A4; intent B2 restating row 3; plan drift | FIX (N10 in the intent resolution; N3, N4 already fixed by dispatch 8-4) |

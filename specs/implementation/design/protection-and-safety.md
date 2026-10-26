@@ -98,7 +98,7 @@ The master accepted: bounded protection in the kernel with recoverable desired, 
 
 * **Given** policy `session_close: square_off` at 15:13 IST and an open position with a resting stop.
 * **When** the clock reaches 15:13 or later while the session is `OPEN`.
-* **Then** the kernel records `SQUARE_OFF_STARTED` and runs the exit sequence ([session-close exit](#session-close-exit-kernelprotectionpy), which also covers kill). With `session_close: broker`, the project sends nothing (PRF-PRT-07).
+* **Then** the kernel records `EXIT_STARTED` (reason `square_off`) and runs the exit sequence ([session-close exit](#session-close-exit-kernelprotectionpy), which also covers kill). With `session_close: broker`, the project sends nothing (PRF-PRT-07).
 
 ## Technical plan
 
@@ -112,15 +112,16 @@ evaluate(trigger, view: StableView, session: SessionRow, position: PositionView,
 
 | Type | Fields |
 |---|---|
-| Triggers | `BarConfirmed(view_id, bar)`; `Tick(instrument, price, delta, at)`; `SessionCloseTime(session_id)`; `ObservationChanged(observation_digest)` |
+| Triggers | `BarConfirmed(view_id, bar)`; `Tick(instrument, price, delta, at)`; `SquareOffTime(session_id)`, raised by the protection loop from its clock; `ObservationChanged(observation_digest)` |
 | `SessionRow` | The `session` index row ([sessions spec](sessions-authority-lifecycle.md#event-catalogue)) |
-| `PositionView` | The ledger `position` row (owned quantity, strategy, instrument), its resting stop if any, and the stop leg's linked commands |
-| `ProtectionPolicy` | `ladder_version`, ladder parameters (defaults below), `session_close`, `close_time`, stop order type |
+| `PositionView` | The ledger `position` row (owned quantity, strategy, instrument), its resting stop if any, the leg's commands (found by the key prefix `prot:<leg_id>:` in `command_identity`), and its `EXIT_STARTED` record if any |
+| `ProtectionPolicy` | `ladder_version`, ladder parameters (defaults below), `session_close`, `square_off_time`, `stop_order_type` |
 | `ProtectionLeg` | The persisted `PROTECTION_DESIRED` fields |
 
 * **Who calls it.** The kernel's protection loop calls `evaluate` on the writer thread, once per trigger per position, commits `records` through `transact`, then submits `requests` to admission synchronously. At the first evaluation after `OPERATING`, every position is evaluated (CP-P1).
-* **Ticks are bounded.** Only the latest tick per position is kept between evaluations (A03-F2 allows replaceable updates to be coalesced). The tick exit test (`premium_exit`, below) runs off the writer thread; only an exit decision is handed to it.
-* **Ladder.** The legacy `PremiumTrail` family (`OA/src/core/framework/protection/trail.py`, standard library only), behind `ladder_version`. Its parameters default to the approved shipped values in `TrailSettings` (`trail.py:113-149`; trailing on and live, POL-012: `config/defaults.yaml:73`, `:1832-1833`). A policy may override them; it never has to state them. `ladder_state` holds the `TrailPosition` fields (`trail.py:153-172`): `entry_premium`, `tgt`, `sl`, `slot_id`, `entry_conviction`, `trail_act_mult`, `remaining_qty`, `underlying`, `option_type`, `spot_entry` and `reward_dist`, each as a normalized decimal string or string. The ladder's behaviour is proved by retained-scope parity (PRF-PRT-08).
+* **When a `DESIRED` leg submits.** Only on `BarConfirmed`, `ObservationChanged`, `SquareOffTime` or that first evaluation, never on `Tick`; a tick can only start an exit. Each escalation reason is recorded once per subject until its condition clears (the `reconciliation_fact` key, [execution-domain spec](execution-domain-and-observations.md#reconciliation-events)). So a degraded system does not fill the ledger with repeated refusals or escalations.
+* **Ticks are bounded.** Only the latest tick per position is kept between evaluations (A03-F2 allows replaceable updates to be coalesced). The tick exit test (`premium_exit`, below) is a few comparisons and runs on the writer thread; PRF-PRT-10 measures whether that ever needs to change.
+* **Ladder.** The legacy `PremiumTrail` (`OA/src/core/framework/protection/trail.py`, standard library only), behind `ladder_version`. Its parameters default to the approved shipped values in `TrailSettings` (`trail.py:113-149`; trailing on and live, POL-012: `config/defaults.yaml:73`, `:1832-1833`). A policy may override them; it never has to state them. This package binds only the premium ladder (the shipped `tracking_mode: premium`): a policy selecting `tracking_mode: spot` or `sl_method: key_level` (legacy `ladder()`, `trail.py:964-976`; `SpotTrail` keeps a stop on the underlying that cannot rest at the broker) refuses to load until a later slice specifies its exits. `ladder_state` is the complete serialized `TrailPosition` (`trail.py:153-205`), every field normalized (decimal strings for prices), so a restarted kernel ratchets exactly as an uninterrupted one. The ladder's behaviour is proved by retained-scope parity (PRF-PRT-08).
 * **Gaps.** When a feed gap ends, protection records one `GAP_PEAK_RECORDED` for that gap. If the recovered peak exceeds the live peak, the record carries the would-be stop, computed as legacy does by replaying the gap's bars (`scripts/run_framework_live.py:5371-5403`, POL-013); otherwise it carries none. `ladder_state` is unchanged.
 * **Continuity.** A leg is always evaluated with the `ladder_version` and `policy_version` recorded in its `PROTECTION_DESIRED`, never the current binding's (Combined-F6).
 
@@ -131,28 +132,30 @@ The retained exit function, `premium_exit`, tests three reasons on each tick in 
 | Exit reason | Executed by | How |
 |---|---|---|
 | Stop | The broker | One resting stop order per position, moved by modifies as the ladder ratchets. The kernel does not also close on a stop tick |
-| Target, deep-OTM delta | The kernel, on a tick | The **exit sequence**: cancel the resting stop, wait until it is observed terminal, then submit a market close of the owned quantity. Under kill, protection submits nothing and escalates (reason `exit_under_kill`) |
+| Target, deep-OTM delta | The kernel, on a tick | Protection records `EXIT_STARTED` (reason `target` or `deep_otm_delta`, with the tick's price and time) once per position, then runs the **exit sequence**: cancel the resting stop, wait until it is observed terminal, then submit a market close of the owned quantity. The record drives the sequence to the end, even if the price moves back or the kernel restarts. Under kill, protection submits nothing and escalates (reason `exit_under_kill`) |
 
 * **Placement.** On the **first** `FILL` of an entry, protection creates the stop leg and submits `CloseRequest(order = stop(trigger, limit | None))` for the filled quantity, with the trigger from `Plan.protective_levels.stop` ([intent spec](intent-to-admission.md#contracts-contractsdecisionspy)) and the order type from `protection.stop_order_type` ([policy inputs](#policy-inputs)). Later fills raise the stop's quantity by a modify (admission allows a protective close up to the owned position). An ACK alone never starts protection.
-* **Desire.** `PROTECTION_DESIRED` records `leg_id`, `position_id`, `desired_level`, `desired_quantity` (the owned quantity), `ladder_state`, `ladder_version`, `policy_version` and `view_id`, only when one of them changes.
+* **Desire.** `PROTECTION_DESIRED` records `position_id`, `position_id`, `desired_level`, `desired_quantity` (the owned quantity), `ladder_state`, `ladder_version`, `policy_version` and `view_id`, only when one of them changes.
+* **Confirmed quantity** is the quantity of the leg's latest `COMPLETED` command (place or modify) minus the fills recorded against the stop order (ledger `FILL`), so a partly filled stop is not re-sent.
 * **When a modify completes at a different broker level** (POL-014), the confirmed level is the broker's; the desire becomes the tighter of the newer desired level and the broker level, so a ratchet computed meanwhile is not lost.
-* **Identity.** `leg_id = digest(position_id, "stop", placement_number)`. Command keys are `"prot:<leg_id>:<n>"`, where `n` counts the leg's earlier commands (admitted or refused) plus one; the latest linked command has the highest `n`.
+* **Identity.** One leg per position: `leg_id` is the `position_id`. Command keys are `"prot:<leg_id>:<n>"`, where `n` is the number of the leg's admitted commands plus one; the leg's latest command has the highest `n`. Nothing stores the link: the leg's commands are read by key prefix.
 * **Retries.** On a `NOT_SENT` attempt or `RESOLVED_NEVER_REACHED`, protection records `DISPATCH_RETRY_REQUESTED` at its next evaluation ([dispatch spec](dispatch-and-coordination.md#eligibility-and-scheduling)). A transport-rejected modify is not resent at the same level; the next ratchet to a new level submits again.
 * **Nothing automatic is re-placed.** Protection escalates, and does not retry, a stop the broker rejects or expires (reason `stop_rejected` or `stop_expired`) and a desired level already through the market (reason `level_through_market`). No approved rule covers automatic re-placement; legacy behaviour is characterized in TASK-S06-01.
 * **Human principals win.** When a human principal cancels the stop, the leg ends with that cancel's command key as its reason; its `COMMAND_ADMITTED` is the record that a human took over the exit. An ended leg is never re-placed.
 * **Orphans.** When a position's owned quantity reaches zero by any route (broker square-off, a human principal's close, a foreign trade), protection cancels its remaining stop; under kill it escalates instead (reason `orphan_under_kill`).
-* **No requests under a refusing condition.** While kill, a refusing hold or a latch would refuse the request, protection records the desire and submits nothing.
+* **No requests under a refusing condition.** While kill, a refusing hold or a latch would refuse the request, protection records the desire and submits nothing. A position that is unprotected or under-protected because of this (for example, fills arriving under kill) is escalated once (reason `unprotected_under_kill`).
 
 **Derived leg state**, evaluated in this order; the first that holds wins:
 
 | Order | State | Applies when |
 |---|---|---|
-| 1 | `ENDED` | The stop is observed terminal, or the position's owned quantity is zero; the reason is kept |
-| 2 | `PENDING` | The latest linked command is `ADMITTED`, `IN_FLIGHT`, `UNCERTAIN`, or `WORKING` |
-| 3 | `CONFIRMED` | The latest linked command `COMPLETED`, and the confirmed level and quantity equal the desired ones |
-| 4 | `DESIRED` | Anything else: no command yet, the latest ended `REFUSED` or `REJECTED` or was refused at admission, or the confirmed level or quantity differs from the desire |
+| 1 | `ENDED` | The stop is observed terminal. The reason is derived on read: a human principal's cancel, protection's own exit cancel (the exit continues while `EXIT_STARTED` is open), a fill, or a broker reject or expiry |
+| 2 | `ORPHANED` | The owned quantity is zero and the stop still rests: protection cancels it (escalates under kill) |
+| 3 | `PENDING` | The leg's latest command is `ADMITTED`, `IN_FLIGHT`, `UNCERTAIN`, or `WORKING` |
+| 4 | `CONFIRMED` | The latest command `COMPLETED`, and the confirmed level and quantity equal the desired ones |
+| 5 | `DESIRED` | Anything else: no command yet, the latest ended `REFUSED` or `REJECTED`, or the confirmed level or quantity differs from the desire |
 
-The `protection_state` index table holds the persisted fields and the latest linked command key, built by `fold`.
+The `protection_state` index table holds the persisted `PROTECTION_DESIRED` fields and the open `EXIT_STARTED` record per position, built by `fold`.
 
 **Classification** (A03-F5) is computed **on read**, from the stored rows, the latest observation's `as_of` and the reader's clock; it is never stored:
 
@@ -208,9 +211,9 @@ A multi-leg structure entry creates one position per leg (ledger `position` row)
   session_pnl(strategy, session_id, now) -> SessionPnl(pnl, observation_digest, as_of) | Unavailable
   ```
 
-  `pnl` sums, over the positions owned by the strategy in the session, the broker-reported P&L field the legacy code reads, or realised plus mark-to-market where the endpoint splits them; which fields the deployed endpoint carries is characterized in TASK-S06-04 against the endpoint contract. A position belongs to the strategy of its entry command (the ledger `position` row). It is gross of estimated charges, as legacy (`loss_latch.py:11-14`), and `Unavailable` when the position observation is older than 60 s (POL-021), incomplete, or lacks the field.
+  `pnl` sums, over the positions owned by the strategy in the session, the broker-reported P&L field the legacy code reads, or realised plus mark-to-market where the endpoint splits them; which fields the deployed endpoint carries is characterized in TASK-S06-04 against the endpoint contract. A position belongs to the strategy of its entry command (the ledger `position` row). It is gross of estimated charges, as legacy (`loss_latch.py:11-14`), and `Unavailable` when the position observation is incomplete or lacks the field. A stale observation is not a latch state: reconciliation ignores it, and admission check B1 refuses entries on it (`ADM-R05`).
 * **Budget.** `risk.max_daily_loss_amount` is required ([Q-002](../decisions/owner-questions.md#q-002)). If `risk.max_daily_loss_pct` and `risk.capital` are also bound, the budget is the smaller of the amount and that percent of capital (legacy `budget()`, `loss_latch.py:167-177`).
-* **When.** `kernel.safety` evaluates the latch on every new position observation and at admission check A4.
+* **When.** `kernel.safety` evaluates the latch on every new fresh position observation, and only then. Admission check A4 reads the tripped state from `safety_state`; admission never trips the latch.
 * **Trip.** The first P&L at or below −budget records `LOSS_LATCH_TRIPPED` (`strategy`, `session_id`, `pnl`, `budget`, `observation_digest`). An already-tripped latch keeps its first trip (`trip`, `loss_latch.py:512`). Entries for that strategy are refused for the rest of the session.
 * **Unlock.** A human principal with `latch_unlock` and a reason records `LOSS_LATCH_UNLOCKED` (only when tripped). As in legacy, the next P&L still at or below −budget trips it again (`unlock`, `loss_latch.py:576-583`).
 * **Replay** has its own latch in its own ledger (POL-006).
@@ -218,7 +221,7 @@ A multi-leg structure entry creates one position per leg (ledger `position` row)
 ### Conflict relation (`kernel/safety.py`)
 
 * An **exposure group** is a position together with its resting protective stop.
-* An **unresolved effect** is a command in `IN_FLIGHT` or `UNCERTAIN`, or in `WORKING` before its completion is observed. A modify or cancel whose target is observed terminal for another reason completes (reason `target_terminal`, [ledger verb rules](ledger-and-atomic-transaction.md#command-and-attempt-state-machine)), so it never freezes a group. A placed stop is a group member, not an unresolved effect. A request never conflicts with its own command.
+* An **unresolved effect** is a command in `IN_FLIGHT` or `UNCERTAIN`, or in `WORKING` before its completion is observed. A modify or cancel whose target is observed terminal for another reason completes (reason `target_terminal`, [ledger verb rules](ledger-and-atomic-transaction.md#command-and-attempt-state-machine)), so it never freezes a group. A placed stop is a group member, not an unresolved effect. The group's own entry command is not an unresolved effect for row 2: it only adds owned quantity, and admission check B2 caps a protective close at the owned quantity, so the stop can be placed on the first fill. A request never conflicts with its own command.
 * Rows are tested in order; the first matching row decides; a pair matching no row does not conflict.
 
 | # | New action | Unresolved effect or state | Conflicts? | Source |
@@ -227,6 +230,7 @@ A multi-leg structure entry creates one position per leg (ledger `position` row)
 | 2 | An action on group G that could add sale quantity or remove G's stop | Any unresolved effect on any member of G | yes | ATA-04 shared exposure (`README.md:454`) |
 | 3 | A non-resting close of position P | P's resting stop not observed terminal | yes; cancel it first | POL-010 sequence; POL-008 |
 | 4 | Protective action on owned exposure | Unresolved entry elsewhere on the same account | per `protective_independence`: `same_group_only` (no conflict; Q-004 option A) or `account_wide` (conflict; option B) | ATA-04; [Q-004](../decisions/owner-questions.md#q-004) |
+| 5 | A new resting close of position P, from any principal | P already has a resting close not observed terminal | yes (Goal 4) | POL-008 |
 
 * Capacity effects of unresolved commands are handled by reservations and capacity (D16), not by this relation.
 * **Version.** The relation's version is computed in code as the digest of this rule set plus the bound `protective_independence` value. Admission records it; it is evidence only, and a change after admission is not a refusal.
@@ -236,8 +240,8 @@ A multi-leg structure entry creates one position per leg (ledger `position` row)
 
 This section is the authority for the session-close exit and for kill during it.
 
-* With `square_off`, at `SessionCloseTime` protection records `SQUARE_OFF_STARTED` (`position_id`, `session_id`) once per position per session and runs the exit sequence.
-* The sequence continues after `SESSION_CLOSED` if it has started (a close needs no open session) and after a restart. A restart after the close time and before `SESSION_CLOSED` starts it. A refused or conflicting step is retried at the next evaluation.
+* With `square_off`, at `SquareOffTime` protection records `EXIT_STARTED` (reason `square_off`, cause `session_id`) once per position and runs the exit sequence.
+* The sequence (for any exit reason) continues after `SESSION_CLOSED` if it has started (a close needs no open session) and after a restart. A restart after the square-off time and before `SESSION_CLOSED` starts it. A refused or conflicting step is retried at the next evaluation.
 * Under kill, protection submits nothing and escalates the position (reason `square_off_under_kill`), whether kill was engaged before or partway through; the broker's own square-off remains the backstop.
 
 ### Safety-check visibility (`kernel/safety.py`)
@@ -276,16 +280,16 @@ Every event below is committed through `transact` and folded by the ledger's `fo
 
 | Event | Recorded by | Payload | Index table |
 |---|---|---|---|
-| `PROTECTION_DESIRED` | `kernel.protection` | `leg_id`, `position_id`, `desired_level`, `desired_quantity`, `ladder_state`, `ladder_version`, `policy_version`, `view_id` | `protection_state` |
+| `PROTECTION_DESIRED` | `kernel.protection` | `position_id`, `desired_level`, `desired_quantity`, `ladder_state`, `ladder_version`, `policy_version`, `view_id` | `protection_state` |
 | `GAP_PEAK_RECORDED` | `kernel.protection` | `position_id`, `view_id`, `gap_started_at`, `gap_ended_at`, `live_peak`, `recovered_peak`, `would_be_stop` (or none) | none (evidence only) |
-| `SQUARE_OFF_STARTED` | `kernel.protection` | `position_id`, `session_id` | `protection_state` |
+| `EXIT_STARTED` | `kernel.protection` | `position_id`, `reason` (`square_off`, `target`, `deep_otm_delta`), `cause` (the tick's `price` and `at`, or the `session_id`) | `protection_state` (open until the position's owned quantity is zero) |
 | `KILL_ENGAGED`, `KILL_RELEASED` | `kernel.safety`, on a human principal's command | `principal`, `reason` | `safety_state` |
 | `HOLD_ENGAGED`, `HOLD_RELEASED` | `kernel.safety`, on a human principal's command or `kernel:recovery` | `strategy`, `reason`, `principal` | `safety_state` |
 | `LOSS_LATCH_TRIPPED` | `kernel.safety` | `strategy`, `session_id`, `pnl`, `budget`, `observation_digest` | `safety_state` |
 | `LOSS_LATCH_UNLOCKED` | `kernel.safety`, on a human principal's command | `strategy`, `session_id`, `principal`, `reason` | `safety_state` |
 | `SAFETY_CHECK_STATE` | `kernel.safety` | `check`, `scope`, `state`, `reason` | `safety_state` |
 
-Protection also records the ledger's `RECONCILIATION_ESCALATED` ([ledger catalogue](ledger-and-atomic-transaction.md#event-catalogue)) with the reasons named above: `stop_rejected`, `stop_expired`, `level_through_market`, `orphan_under_kill`, `exit_under_kill`, `square_off_under_kill`.
+Protection also records the ledger's `RECONCILIATION_ESCALATED` ([ledger catalogue](ledger-and-atomic-transaction.md#event-catalogue)) with the reasons named above: `stop_rejected`, `stop_expired`, `level_through_market`, `orphan_under_kill`, `exit_under_kill`, `square_off_under_kill`, `unprotected_under_kill`. The subject is the `position_id`; each is recorded once per subject and reason.
 
 ## Failure modes and crash points
 
@@ -293,17 +297,18 @@ Protection also records the ledger's `RECONCILIATION_ESCALATED` ([ledger catalog
 |---|---|---|---|
 | CP-P1 | Crash after `PROTECTION_DESIRED`, before admission | After the advance to `OPERATING`, the leg reads `DESIRED`; one request is submitted | PRF-PRT-03 |
 | CP-P2 | Crash with the modify `UNCERTAIN` | CUJ-PRT-2 | PRF-PRT-03 |
-| CP-P3 | Crash during the square-off sequence | `SQUARE_OFF_STARTED` makes it resume, not restart | PRF-PRT-07 |
+| CP-P3 | Crash during an exit sequence (square-off, target or delta) | `EXIT_STARTED` makes it resume, not restart, and the close is still sent after the stop ends | PRF-PRT-07 |
 | CP-P4 | Crash between a later fill and the quantity modify | The quantity mismatch reads `DESIRED`; the modify is submitted | PRF-PRT-03 |
 | F-P5 | Kernel down or not `OPERATING` | The broker stop remains; tick exits do not run; reporting is the supervisor's | PRF-PRT-06 |
 | F-P6 | Feed gap | One gap-peak record per gap (POL-013) | PRF-PRT-02 |
-| F-P7 | No fresh session P&L | Latch check inert; entries refused with `PRT-R06` | PRF-PRT-05 |
+| F-P7 | Session P&L field missing, or the position observation incomplete | Latch check inert; entries refused with `PRT-R06` | PRF-PRT-05 |
 | F-P8 | An older observation arrives after a newer one | It changes nothing (the observation loop ignores an older `as_of` per order; the ledger state guards refuse a regression) | PRF-PRT-09 |
 | F-P9 | The stop order fills while a modify of it is in flight | The modify completes with `target_terminal`; the group is free | PRF-PRT-11 |
 | F-P10 | The broker rejects or expires the stop, or the desired level is already through the market | Escalated; nothing re-placed | PRF-PRT-01 |
 | F-P11 | A modify is rejected by transport | Not resent at the same level; the next ratchet to a new level submits again | PRF-PRT-01 |
 | F-P12 | The position goes to zero under kill with its stop still resting | Escalated (`orphan_under_kill`); not cancelled | PRF-PRT-04 |
 | F-P13 | Kill engaged partway through the exit sequence or square-off | Nothing further is sent; escalated | PRF-PRT-07 |
+| F-P14 | Entry fills arrive under kill | The stop is not placed or raised; escalated once (`unprotected_under_kill`) | PRF-PRT-04 |
 
 ## Risks and limits
 
@@ -313,7 +318,7 @@ Protection also records the ledger's `RECONCILIATION_ESCALATED` ([ledger catalog
 | Under kill, a stop can exceed a position that changed | Escalated to the owner, who may cancel it (POL-002) |
 | Broker P&L rows are per instrument and per broker day; sequential sharing of a contract by two strategies, or a session that is not the broker day, misattributes P&L | The slot rule prevents concurrent sharing; the field basis is characterized in TASK-S06-04; a mismatch makes the latch inert rather than wrong |
 | A missing P&L field leaves the latch inert and refuses all entries | Characterized before production; the refusal is visible as `SAFETY_CHECK_STATE` |
-| Tick load on the writer thread | Latest-tick coalescing; the exit test runs off the writer thread; PRF-PRT-10 measures queue delay |
+| Tick load on the writer thread | Latest-tick coalescing; ticks never submit a `DESIRED` leg; PRF-PRT-10 measures queue delay |
 | No automatic re-placement after a broker reject | Escalated at once; any re-placement rule is an owner decision |
 | Security: kill release, latch unlock and the cancel or close allowed under kill are the human principal's escape hatches | Each needs its named grant action ([sessions spec](sessions-authority-lifecycle.md)), a reason, and fresh revalidation; kernel principals hold none of `kill_release` or `latch_unlock` |
 
@@ -321,8 +326,8 @@ Protection also records the ledger's `RECONCILIATION_ESCALATED` ([ledger catalog
 
 | Input | Source | Default |
 |---|---|---|
-| Ladder version and parameters | Bound policy (POL-012) | The approved shipped values in `TrailSettings`; trailing on |
-| Session-close switch and time | Bound policy (POL-010) | Omitted switch: `square_off`; omitted time: 15:13 |
+| Ladder version and parameters | Bound policy (POL-012) | The approved shipped values in `TrailSettings`; trailing on; only the premium ladder loads |
+| Session-close switch and `square_off_time` | Bound policy (POL-010) | Omitted switch: `square_off`; omitted time: 15:13 |
 | `risk.max_daily_loss_amount` (optional `risk.max_daily_loss_pct`, `risk.capital`) | Bound policy | None: refusing ([Q-002](../decisions/owner-questions.md#q-002)) |
 | `safety.hold_automatic_actions` | [Q-001](../decisions/owner-questions.md#q-001) | None: refusing |
 | `protective_independence` | [Q-004](../decisions/owner-questions.md#q-004) | None: refusing |
@@ -357,15 +362,15 @@ Class **T** is an automated test; **M** is a measurement; **P** is a parity comp
 
 | Proof | Class | Test file | Expected outcome | Must fail if |
 |---|---|---|---|---|
-| PRF-PRT-01 | T | `tests/unit/test_protection_states.py` | Each derived-state row in order; placement on the first fill and quantity raised on later fills; one resting stop per position; a human principal's cancel ends the leg; orphans cancelled; F-P10 and F-P11; each structure leg protected and the structure-action map | ACK is treated as confirmation, a second resting order is placed, or anything is re-placed automatically |
-| PRF-PRT-02 | T | `tests/unit/test_protection_states.py` | Ladder cases from POL-012/013/015 with default parameters (84.805 rounds to 84.85); one gap-peak record per gap; `premium_exit` precedence | a gap moves the stop |
+| PRF-PRT-01 | T | `tests/unit/test_protection_states.py` | Each derived-state row in order; placement on the first fill while the entry is still `WORKING`, and quantity raised on later fills; a partly filled stop is not re-sent; one resting stop per position; a human principal's cancel ends the leg; orphans cancelled; F-P10 and F-P11; each structure leg protected and the structure-action map | ACK is treated as confirmation, a second resting order is placed, or anything is re-placed automatically |
+| PRF-PRT-02 | T | `tests/unit/test_protection_states.py` | Ladder cases from POL-012/013/015 with default parameters (84.805 rounds to 84.85); one gap-peak record per gap; `premium_exit` precedence; a restart mid-ratchet resumes from the full `ladder_state`; a spot or key-level policy refuses to load | a gap moves the stop |
 | PRF-PRT-03 | T | `tests/recovery/test_crash_boundaries.py` | CP-P1, CP-P2, CP-P4 | a restart resends |
-| PRF-PRT-04 | T | `tests/unit/test_safety_matrix.py` | Every matrix cell and the code order; CUJ-PRT-3; F-P12; Q-001 cells run both values, labelled pending | a cell is skipped |
+| PRF-PRT-04 | T | `tests/unit/test_safety_matrix.py` | Every matrix cell and the code order; CUJ-PRT-3; F-P12; F-P14; conflict row 5 refuses a second resting close from a human principal; Q-001 cells run both values, labelled pending | a cell is skipped |
 | PRF-PRT-05 | T | `tests/unit/test_safety_matrix.py` | An inert latch refuses entries; the latch trips once, keeps its first trip and re-trips after unlock while P&L stays below; unlock needs a human and a reason | a check passes silently |
 | PRF-PRT-06 | T | `tests/integration/test_protection_kernel.py` | CUJ-PRT-1 with the worker stopped; F-P5 with the kernel frozen | protection depends on the worker |
-| PRF-PRT-07 | T | `tests/integration/test_protection_kernel.py` | CUJ-PRT-4, CP-P3 and F-P13; a target tick exit runs the exit sequence; an omitted switch gives `square_off`; a misspelt value refuses to load (pending X-004) | the close is sent before the stop is terminal |
+| PRF-PRT-07 | T | `tests/integration/test_protection_kernel.py` | CUJ-PRT-4, CP-P3 and F-P13; a target tick exit runs the exit sequence to the close even when the price moves back; an omitted switch gives `square_off`; a misspelt value refuses to load (pending X-004) | the close is sent before the stop is terminal |
 | PRF-PRT-08 | P (retained scope) | `scripts/compare_parity.py` | Recorded days: target ladder moves equal legacy moves (POL-012 retained scope, A08-F3, LD-16) | moves differ outside listed corrections |
-| PRF-PRT-09 | T | `tests/unit/test_protection_states.py` | F-P8; every record cites the `view_id`, observation digest or session event it came from; the same recorded inputs give the same records in live and replay | arrival order is used, or a record has no attributable input |
+| PRF-PRT-09 | T | `tests/unit/test_protection_states.py` | F-P8; every record cites the `view_id`, tick, observation digest or session event it came from; repeated triggers in a degraded state record no repeated refusal or escalation; the same recorded inputs give the same records in live and replay | arrival order is used, or a record has no attributable input |
 | PRF-PRT-10 | M | `tests/integration/test_protection_kernel.py` | Evaluation time and writer-queue delay of financial transitions under recorded tick rates, recorded with the workload as a baseline (A09-F4) | no baseline is recorded with its workload, or a later run exceeds the baseline by more than the tolerance stated in it |
 | PRF-PRT-11 | T | `tests/unit/test_conflict_relation.py` | ATA-04 matrix: uncertain entry, modify and cancel against later actions, same and different targets and accounts, stalled transport; F-P9; both `protective_independence` values, labelled pending; in SLICE-05 the stop is a synthetic resting order on the stub position | a blanket or per-target-only rule |
 | PRF-PRT-12 | T | `tests/recovery/test_release_continuity.py` | A leg created under ladder `v1` keeps `v1` and its policy version after a binding to `v2`; a release that cannot run `v1` is refused activation while the leg lives ([configuration spec](configuration-artifacts-release.md)) | the new ladder is applied |
@@ -377,7 +382,7 @@ Class **T** is an automated test; **M** is a measurement; **P** is a parity comp
 | Slice | Keys | Proofs |
 |---|---|---|
 | SLICE-05 | REQ-PRT-009 with a stub `position` row and a synthetic resting stop from synthetic fills; kill and hold events and their matrix rows | PRF-PRT-04 (kill and hold rows), PRF-PRT-11 |
-| SLICE-06 (after SLICE-05 and SLICE-07) | REQ-PRT-001…008, -010, -012…015 | PRF-PRT-01…10, -12, -13 |
+| SLICE-06 (after SLICE-05 and SLICE-07) | REQ-PRT-001…008, -010, -012…015; extends `contracts/market.py` with fixture fields for the feed-gap interval and its bars and for `Tick.delta`, whose real producer is the market-data spec (SLICE-08) | PRF-PRT-01…10, -12, -13 |
 | SLICE-11 | REQ-PRT-011 (with REQ-OPS-001) | PRF-PRT-14 |
 
 See [plan/delivery-plan.md](../plan/delivery-plan.md).

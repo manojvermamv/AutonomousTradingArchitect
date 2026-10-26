@@ -141,7 +141,7 @@ The master's answer is one canonical admission and outcome commit: D02, D01/D03,
 | `position` | `position_id` (= digest of the entry command key and the leg role; one per entry leg), `entry_command_key`, `leg_role`, `account`, `instrument`, `strategy`, `owned_quantity`, `state` (`open`/`closed`), `opened_sequence`, `closed_sequence`; created by the entry's first fill, changed by fills of its entry and of closes against it, `closed` at zero | `FILL` | SLICE-07 |
 | `pause`, `review` | Pause state per scope; the first recorded review and first-seen time per intent digest ([intent spec](intent-to-admission.md#review-application-kernelpolicypy)) | `PAUSE_*`, `REVIEW_RECORDED`, `INTENT_SEEN` | SLICE-04 |
 | `safety_state` | Kill, holds per strategy and reason, latch per strategy and session ([protection spec](protection-and-safety.md#kill-and-holds-kernelsafetypy)) | kill, hold and latch events | SLICE-05, SLICE-06 |
-| `protection_state` | [Protection spec](protection-and-safety.md) | protection events | SLICE-06 |
+| `protection_state` | Per position: the latest `PROTECTION_DESIRED` fields and the open `EXIT_STARTED` record ([protection spec](protection-and-safety.md#event-catalogue)) | `PROTECTION_DESIRED`, `EXIT_STARTED` | SLICE-06 |
 | `reconciliation_fact` | `kind`, `key`, `reason`, `first_sequence`; one row per recorded conflict, foreign order or escalation ([execution-domain spec](execution-domain-and-observations.md#reconciliation-events)) | `CONFLICT_RECORDED`, `FOREIGN_RECORDED`, `RECONCILIATION_ESCALATED` | SLICE-07 |
 | `import_manifest` | Legacy import accounting, defined with the AUD-05 method | import events | SLICE-13 |
 
@@ -188,7 +188,7 @@ The writer validates each payload against `resources/events.schema.json`, which 
 | `FILL` | `kernel.lifecycle` from reconciliation | `fill_id`, `broker_order_id`, `quantity`, `price`, `observation_digest`, `reservation_after` | `broker_identity` (`fill_id`); reservation reduced |
 | `RESIDUAL_RECORDED` | `kernel.lifecycle` | `legs` that reached the broker while others did not | none (read by reconciliation and protection) |
 | `COMPLETED` | `kernel.lifecycle` from reconciliation | `observation_digest`, `filled_quantity`, `confirmed_level` (modify and resting close) | command `COMPLETED`; reservation per the state table |
-| `CONFLICT_RECORDED`, `FOREIGN_RECORDED`, `RECONCILIATION_ESCALATED` | `kernel.lifecycle` from reconciliation; `kernel.protection` also escalates missing protection under kill | [execution-domain spec](execution-domain-and-observations.md#reconciliation-events) | `reconciliation_fact` |
+| `CONFLICT_RECORDED`, `FOREIGN_RECORDED`, `RECONCILIATION_ESCALATED` | `kernel.lifecycle` from reconciliation; `kernel.protection` also escalates, with the reasons in the [protection catalogue](protection-and-safety.md#event-catalogue) | [execution-domain spec](execution-domain-and-observations.md#reconciliation-events) | `reconciliation_fact` |
 | `INDEX_REPAIRED` | `kernel.recovery` | `tables`, `before_digest`, `after_digest` | rebuilt rows |
 | Session, binding and grant events; `RECOVERY_STAGE`, `RECOVERY_GAP`, `OLD_HOST_FENCED`, `CLOCK_QUALITY` | `kernel.lifecycle`, `kernel.authority`, `kernel.recovery` | [sessions spec](sessions-authority-lifecycle.md#event-catalogue) | `session`, `grant`, `standing_binding` (recovery and clock events: none) |
 | Protection events; kill, hold and latch events | `kernel.protection`; `kernel.safety` | [protection spec](protection-and-safety.md) | `protection_state`; `safety_state` |

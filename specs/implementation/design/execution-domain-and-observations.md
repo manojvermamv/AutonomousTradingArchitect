@@ -295,7 +295,7 @@ Assessment(matched: list[(command_key, attempt_no, leg_role | None, item)],
 |---|---|---|
 | `CONFLICT_RECORDED` | `command_key` or none, `broker_order_id`, `attempt_domain`, `observed_domain`, `reason` (`domain_conflict`, `after_rejected`, `after_never_reached`, `cross_domain_id`), `observation_digest` | (`broker_order_id`, `reason`) |
 | `FOREIGN_RECORDED` | `broker_order_id`, `account`, `instrument`, `side`, `quantity`, `observation_digest` | `broker_order_id` |
-| `RECONCILIATION_ESCALATED` | `subject` (command key or broker order ID), `reason` (`domain_conflict`, `untagged_timeout` (Q-007), `unknown_domain_unresolved` (Q-012), `close_without_fill_total`, `working_without_completion`, or a protection reason from the [protection catalogue](protection-and-safety.md#event-catalogue)), `observation_digest` or none | (`subject`, `reason`) |
+| `RECONCILIATION_ESCALATED` | `subject` (command key, broker order ID, or `position_id` for protection's reasons), `reason` (`domain_conflict`, `untagged_timeout` (Q-007), `unknown_domain_unresolved` (Q-012), `close_without_fill_total`, `working_without_completion`, or a protection reason from the [protection catalogue](protection-and-safety.md#event-catalogue)), `observation_digest` or none | (`subject`, `reason`) |
 
 All three fold into the `reconciliation_fact` index table, keyed as shown, which is how each is recorded once.
 
