@@ -87,3 +87,32 @@ Before stage 5, the AI PAUSE row and `PRT-R05` were removed: `kernel.policy` own
 | 7D-16 | Major | Unprotected partial-fill window | FIX: placed on the first fill; quantity raised on later fills (admission B2 allows a protective close up to the owned position) |
 | 7D-17 | Major | `damaged` unreachable | FIX: dropped with `PRT-R07`; `LED-R05` covers it; `safety_state` index table |
 | 7D-18…27 | Nit | Gap peak once per gap; no requests under kill; guarding checks only; conflict-inert duplicate; continuity policy version; square-off kill escalation; synchronous admission; SLICE-05 stub; X-004 wording; record fix | FIX |
+
+## Stage 7 — style (0 Blocker, 7 Major, 7 Nit)
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| 7S-1 | Major | Refusal code format; shortened unused codes | FIX |
+| 7S-2 | Major | Unused codes paired by position | FIX: table |
+| 7S-3 | Major | "Owner" means the decision-maker and any human principal | FIX: "human principal" for runtime actors |
+| 7S-4 | Major | Exposure group defined differently in the glossary | FIX: one definition in both |
+| 7S-5 | Major | Run-on lists in the header and Goal 3 | FIX |
+| 7S-6 | Major | Gap-peak sentence ambiguous | FIX: one record per gap; the would-be stop only when the recovered peak exceeds the live peak, otherwise none |
+| 7S-7 | Major | "Escalate" undefined and passive | FIX: defined once; active voice |
+| 7S-N | Nit | "holds" as a verb; pronoun; check names; actor names; ID ranges; long P&L sentence; slot jargon | FIX |
+
+## Stage 7 — structural (0 Blocker, 10 Major, 8 Nit)
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| 7T-1 | Major | Structure lifecycle promised, never specified | FIX: Structures section maps every legacy `structures.py` action; REQ-PRT-015; one ledger `position` per entry leg |
+| 7T-2 | Major | CUJ-PRT-3 cites conflict row 5 | FIX: row 3 |
+| 7T-3 | Major | REQ-PRT-011 proved by an unrelated proof; not delivered | FIX: PRF-PRT-14 (supervisor cannot send), SLICE-11 with REQ-OPS-001 |
+| 7T-4 | Major | Classification and REQ-PRT-002 have nominal proofs | FIX: PRF-PRT-13 (classification on read, 60 s boundary, never stored); REQ-PRT-002 → PRF-PRT-09 with attribution |
+| 7T-5 | Major | Owned events scattered; no catalogue; no Commits-through | FIX: Event catalogue with payloads and index tables; escalation reasons named; header bullet |
+| 7T-6 | Major | `ladder_state` deferred to a missing SLICE-06 file | FIX: fields listed |
+| 7T-7 | Major | Dispatch row 5 still uses `PRT-R07` and "damaged" | FIX: dispatch updated |
+| 7T-8 | Major | Conflict-check inert state undefined | FIX: visibility row: never inert (ledger inputs; damaged index is `LED-R05`); dispatch wording |
+| 7T-9 | Major | Stop reject, transport-rejected modify, orphan under kill, kill in square-off lack rows and proofs | FIX: F-P10…F-P13 with proofs |
+| 7T-10 | Major | Stop order type not a policy input | FIX: `protection.stop_order_type`, refusing until characterized (TASK-S06-01) |
+| 7T-N | Nit | Heading suffixes; POL-021 header; Terms; class P; PRF-PRT-10 must-fail; switch default and misspelt-value proofs; security risk row; F-P9 wording and SLICE-05 setup; exit sequence defined once | FIX |

@@ -135,7 +135,7 @@ on worker return (command_key, attempt_no, result, evidence_ref | None):
 
 * It calls `BrokerPort.send(request, plan, n)`.
 * Before returning, it publishes the adapter's raw result to the evidence store under the attempt ID ([ledger evidence references](ledger-and-atomic-transaction.md#evidence-references-req-led-014)). If publication fails, it returns the result without `evidence_ref`, and the outcome is committed with reason `evidence_unpublished` and the broker IDs in its payload.
-* It always returns. The adapter's own `NotSent` becomes `not_sent` ([transport classes](execution-domain-and-observations.md#evidence-contract-contractsevidencepy)); any other exception raised after the call started becomes `ambiguous` with reason `adapter_error`.
+* It always returns. The adapter's own `NotSent` becomes `not_sent` ([transport classes](execution-domain-and-observations.md#openalgo-adapter-adaptersopenalgopy)); any other exception raised after the call started becomes `ambiguous` with reason `adapter_error`.
 * There are no in-process late results: once it returns, nothing more arrives for that attempt. Later broker evidence reaches the kernel only through observations and reconciliation.
 
 **When the outcome commit is refused.**
@@ -150,10 +150,10 @@ on worker return (command_key, attempt_no, result, evidence_ref | None):
 * **Eligible** means all of:
   * the command is `ADMITTED`;
   * it has no attempt yet, or its latest attempt is `NOT_SENT` **and** a `DISPATCH_RETRY_REQUESTED` was recorded after it;
-  * the current conflict relation ([protection-and-safety](protection-and-safety.md#conflict-relation-kernelsafetypy)) permits it, and the conflict check is active;
+  * the current conflict relation ([protection-and-safety](protection-and-safety.md#conflict-relation-kernelsafetypy)) permits it;
   * its account's worker is idle.
 * **Retries are caller-driven**, as in legacy (`OA/src/tier1/coordinator.py:94-103`). After `OUTCOME_NOT_SENT` or `RESOLVED_NEVER_REACHED`, a principal holding the command's verb records `DISPATCH_RETRY_REQUESTED` for the same command key; `kernel.protection` does this for its own commands at its next evaluation. This prevents a send loop during a broker outage. A `REJECTED` command is final; a new try is a new command key.
-* **Waiting instead of refusing.** A conflict, or an inert or damaged conflict check, keeps a command waiting until it clears or the deadline passes (loop step 1). The coordinator records the check's state (`SAFETY_CHECK_STATE`) and never passes it silently. Admission check B3 refuses a conflict present at admission; after that, the relation's version changing is not a refusal.
+* **Waiting instead of refusing.** A conflict, or an inert safety check that guards the command, keeps it waiting until it clears or the deadline passes (loop step 1). The coordinator records the check's state (`SAFETY_CHECK_STATE`) and never passes it silently. Admission check B3 refuses a conflict present at admission; after that, the relation's version changing is not a refusal.
 * **Ordering.** `dispatch.ordering_rule` is a refusing parameter (REQ-XC-003). This package defines one value, `admission_sequence`: among the account's eligible commands, the one whose `COMMAND_ADMITTED` has the lowest ledger sequence. A blocked command does not hold up the ones behind it, and a command that returns to `ADMITTED` keeps its original sequence. Any priority between protective actions and entries waits for [Q-004](../decisions/owner-questions.md#q-004).
 
 ### Revalidation at dispatch
@@ -173,7 +173,7 @@ The coordinator checks, in this order, and records the first failure:
 | 2 | Release | Version comparison | The bound release binding differs from `release_binding_id` | `DSP-R02` (`release_changed`) |
 | 3 | Grant | The admitted grant itself: `authority.recheck(grant_id, grant_version, verb, account)`; no other grant substitutes | Revoked, expired, narrowed, or its delegation chain broken | `SES-R03`, `SES-R04`, `SES-R02`, `SES-R05` |
 | 4 | Session (entries only) | The recorded `session_id` is still `OPEN` | It closed | `SES-R07` |
-| 5 | Safety state | The permission matrix now | Kill, latch or hold forbids this verb and actor, or a guarding check is inert or damaged | `PRT-R01`, `PRT-R03`, `PRT-R04`, `PRT-R06`, `PRT-R07` |
+| 5 | Safety state | The permission matrix now | Kill, latch or hold forbids this verb and actor, or a guarding check is inert | `PRT-R01`, `PRT-R03`, `PRT-R04`, `PRT-R06` |
 | 6 | Policy (entries only) | Version comparison | The session's policy binding differs from `policy_version` | `DSP-R03` (`policy_changed`) |
 | 7 | Target (cancel, modify, close) | Admission's effect check (B2) again, against an observation no older than 60 s (POL-021) | The order is no longer open, or the quantity now exceeds the open position | `ADM-R07`; a stale observation makes the command wait |
 
@@ -187,7 +187,7 @@ Each is requested through its operator or kernel path and takes effect at the le
 ### Bounded I/O
 
 * Each account has one I/O worker.
-* Every call has a **total deadline**, `adapter.http_timeout_ms`, covering name resolution, connect, write and read together. Per-phase timeouts alone do not satisfy it. The OpenAlgo adapter enforces it ([execution-domain spec](execution-domain-and-observations.md#evidence-contract-contractsevidencepy)); PRF-DOM-04 proves it against a socket-level fake server that drips its response.
+* Every call has a **total deadline**, `adapter.http_timeout_ms`, covering name resolution, connect, write and read together. Per-phase timeouts alone do not satisfy it. The OpenAlgo adapter enforces it ([execution-domain spec](execution-domain-and-observations.md#openalgo-adapter-adaptersopenalgopy)); PRF-DOM-04 proves it against a socket-level fake server that drips its response.
 * The worker never retries. The HTTP client is configured with retries disabled (`README.md:760`).
 * A worker in flight longer than its total deadline is reported to the supervisor with its age (A03-F5 "oldest pending work"); its account stays blocked rather than risk a second request ([runtime spec](runtime-isolation-observability-deployment.md)).
 

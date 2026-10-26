@@ -132,7 +132,7 @@ This package labels its own content **proposed**. A master decision it cites is 
 | Bundle | The installed release artifact, including its migrations and endpoint contracts |
 | Receipt | The release binding's evidence that a bundle was installed and verified ([configuration spec](design/configuration-artifacts-release.md)) |
 | Refusing parameter | A policy field with no shipped default; the loader refuses a composition that needs it unbound (REQ-XC-003) |
-| Exposure group | A position together with its resting protective orders ([protection spec](design/protection-and-safety.md#conflict-relation-kernelsafetypy)) |
+| Exposure group | A position together with its resting protective stop ([protection spec](design/protection-and-safety.md#conflict-relation-kernelsafetypy)) |
 | Hypothesis | The Python property-based testing library, used only for the ledger and lifecycle state-machine tests |
 
 ## Legacy-to-target name map (proposed; reuse is conditional on the specs)

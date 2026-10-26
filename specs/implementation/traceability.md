@@ -4,7 +4,7 @@
 * **Precedence:** a key is a pointer. Its requirement is the cited master decision or policy row. If this file and a spec disagree, the spec's key table wins and the matrix is regenerated.
 * **Proof status:** *specified* = expected outcomes written, no code yet; *pointer* = the master acceptance row that the slice turns into named proofs when its full spec is written ([test strategy](tests/test-strategy.md#proof-classes-and-status)). Nothing here is *passing*.
 
-Counts: **85** keys in full-depth specs, each with a module, a task and a proof; **56** keys in stubs, each pointing at a master acceptance row.
+Counts: **87** keys in full-depth specs, each with a module, a task and a proof; **56** keys in stubs, each pointing at a master acceptance row.
 
 ## Full-depth domains
 
@@ -40,9 +40,10 @@ Counts: **85** keys in full-depth specs, each with a module, a task and a proof;
 | REQ-DOM-009 | D14 (`:760`); A03-F1 (`:914`) | PRF-DOM-04 | `adapters/openalgo.py` | [execution-domain-and-observations](design/execution-domain-and-observations.md#requirement-keys) | TASK-S07-01 | PRF-DOM-04 | specified |
 | REQ-DOM-010 | OpenAlgo scope (`:494-498`) | PRF-DOM-04 | `adapters/openalgo.py` | [execution-domain-and-observations](design/execution-domain-and-observations.md#requirement-keys) | TASK-S07-01 | PRF-DOM-04 | specified |
 | REQ-DOM-011 | POL-021, POL-016, POL-014 | PRF-DOM-03 | `kernel/reconciliation.py` | [execution-domain-and-observations](design/execution-domain-and-observations.md#requirement-keys) | TASK-S07-02 | PRF-DOM-03 | specified |
-| REQ-DOM-012 | A06-F2 (`:865`) | PRF-DOM-06 | `kernel/ports.py` | [execution-domain-and-observations](design/execution-domain-and-observations.md#requirement-keys) | TASK-S07-06 | PRF-DOM-06 | specified |
+| REQ-DOM-012 | A06-F2 (`:865`) | PRF-DOM-06, -10 | `kernel/ports.py` | [execution-domain-and-observations](design/execution-domain-and-observations.md#requirement-keys) | TASK-S07-06, TASK-S10-01 | PRF-DOM-06, PRF-DOM-10 | specified |
 | REQ-DOM-013 | Combined-F2 (`:790`) | PRF-DOM-05 | `contracts/evidence.py, kernel/ledger/export.py` | [execution-domain-and-observations](design/execution-domain-and-observations.md#requirement-keys) | TASK-S02-03 | PRF-DOM-05 | specified |
 | REQ-DOM-014 | ATA-06; `README.md:1352-1354` | PRF-DOM-07 | `adapters/openalgo.py` | [execution-domain-and-observations](design/execution-domain-and-observations.md#requirement-keys) | TASK-S07-05 | PRF-DOM-07 | specified |
+| REQ-DOM-015 | Goal 4; D16 (`:764`) | PRF-DOM-08 | `kernel/reconciliation.py` | [execution-domain-and-observations](design/execution-domain-and-observations.md#requirement-keys) | TASK-S07-04 | PRF-DOM-08 | specified |
 | REQ-ADM-001 | Intent row (`README.md:732`) | PRF-ADM-08 | `contracts/decisions.py` | [intent-to-admission](design/intent-to-admission.md#requirement-keys) | TASK-S04-01 | PRF-ADM-08 | specified |
 | REQ-ADM-002 | D12 (`:752`); Review application row (`:733`); POL-027 | PRF-ADM-01, -02 | `kernel/policy.py` | [intent-to-admission](design/intent-to-admission.md#requirement-keys) | TASK-S04-01 | PRF-ADM-01, PRF-ADM-02 | specified |
 | REQ-ADM-003 | D07 (`:726`); LD-03 | PRF-ADM-03 | `kernel/planner.py` | [intent-to-admission](design/intent-to-admission.md#requirement-keys) | TASK-S04-02 | PRF-ADM-03 | specified |
@@ -71,7 +72,7 @@ Counts: **85** keys in full-depth specs, each with a module, a task and a proof;
 | REQ-LED-015 | `README.md:776`, `:737` | PRF-LED-05, PRF-LED-12 | `contracts/identity.py, kernel/ledger/store.py` | [ledger-and-atomic-transaction](design/ledger-and-atomic-transaction.md#requirement-keys) | TASK-S01-04, TASK-S03-04 | PRF-LED-05, PRF-LED-12 | specified |
 | REQ-LED-016 | Goal 1; `README.md:567` | PRF-XC-02 | `bootstrap.py, kernel/ledger/store.py` | [ledger-and-atomic-transaction](design/ledger-and-atomic-transaction.md#requirement-keys) | TASK-S01-25 | PRF-XC-02 | specified |
 | REQ-PRT-001 | ATA-01 (`README.md:452`); LD-13 | PRF-PRT-06, -09, -10 | `kernel/protection.py` | [protection-and-safety](design/protection-and-safety.md#requirement-keys) | TASK-S06-01 | PRF-PRT-06, PRF-PRT-09, PRF-PRT-10 | specified |
-| REQ-PRT-002 | ATA-01 | PRF-PRT-01 | `kernel/protection.py` | [protection-and-safety](design/protection-and-safety.md#requirement-keys) | TASK-S06-01 | PRF-PRT-01 | specified |
+| REQ-PRT-002 | ATA-01 | PRF-PRT-09 | `kernel/protection.py` | [protection-and-safety](design/protection-and-safety.md#requirement-keys) | TASK-S06-01 | PRF-PRT-09 | specified |
 | REQ-PRT-003 | ATA-01; Protection state row (`:731`); POL-014 | PRF-PRT-01, -03 | `kernel/protection.py` | [protection-and-safety](design/protection-and-safety.md#requirement-keys) | TASK-S06-01, TASK-S06-02 | PRF-PRT-01, PRF-PRT-03 | specified |
 | REQ-PRT-004 | ATA-01; POL-012, POL-013; LD-05 | PRF-PRT-02, -08 | `kernel/protection.py` | [protection-and-safety](design/protection-and-safety.md#requirement-keys) | TASK-S06-01 | PRF-PRT-02, PRF-PRT-08 | specified |
 | REQ-PRT-005 | ATA-01; AUD-01 (`:754`); POL-008 | PRF-PRT-01, -06 | `kernel/protection.py` | [protection-and-safety](design/protection-and-safety.md#requirement-keys) | TASK-S06-01 | PRF-PRT-06 | specified |
@@ -79,11 +80,12 @@ Counts: **85** keys in full-depth specs, each with a module, a task and a proof;
 | REQ-PRT-007 | Safety table row 3 (`:772`); POL-002…POL-004 | PRF-PRT-04, -05 | `kernel/safety.py` | [protection-and-safety](design/protection-and-safety.md#requirement-keys) | TASK-S05-07, TASK-S06-03, TASK-S06-04 | PRF-PRT-04 | specified |
 | REQ-PRT-008 | Safety table (`:766-774`) | PRF-PRT-04, -11 | `kernel/safety.py` | [protection-and-safety](design/protection-and-safety.md#requirement-keys) | TASK-S06-03 | PRF-PRT-04 | specified |
 | REQ-PRT-009 | ATA-04 (`:454`) | PRF-PRT-11 | `kernel/safety.py` | [protection-and-safety](design/protection-and-safety.md#requirement-keys) | TASK-S05-03 | PRF-PRT-11 | specified |
-| REQ-PRT-010 | A03-F5 (`:924`) | PRF-PRT-01, -06 | `kernel/protection.py` | [protection-and-safety](design/protection-and-safety.md#requirement-keys) | TASK-S06-01 | PRF-PRT-06 | specified |
-| REQ-PRT-011 | ATA-01; A03-F5 | PRF-XC-02 | `kernel/protection.py` | [protection-and-safety](design/protection-and-safety.md#requirement-keys) | TASK-S06-01, TASK-S11-03 | PRF-XC-02 | specified |
+| REQ-PRT-010 | A03-F5 (`:924`) | PRF-PRT-01, -13 | `kernel/protection.py` | [protection-and-safety](design/protection-and-safety.md#requirement-keys) | TASK-S06-01, TASK-S06-06 | PRF-PRT-01, PRF-PRT-13 | specified |
+| REQ-PRT-011 | ATA-01; A03-F5 | PRF-PRT-14 | `supervisor (runtime spec)` | [protection-and-safety](design/protection-and-safety.md#requirement-keys) | TASK-S11-03 | PRF-PRT-14 | specified |
 | REQ-PRT-012 | LD-03; REQ-XC-004 | PRF-PRT-05 | `kernel/safety.py` | [protection-and-safety](design/protection-and-safety.md#requirement-keys) | TASK-S06-06 | PRF-PRT-05 | specified |
 | REQ-PRT-013 | POL-015 | PRF-PRT-02 | `kernel/protection.py` | [protection-and-safety](design/protection-and-safety.md#requirement-keys) | TASK-S06-01 | PRF-PRT-02 | specified |
 | REQ-PRT-014 | Combined-F6 (`:909`) | PRF-PRT-12 | `kernel/protection.py` | [protection-and-safety](design/protection-and-safety.md#requirement-keys) | TASK-S06-07, TASK-S14-01 | PRF-PRT-12 | specified |
+| REQ-PRT-015 | §7 protection row (`:1148`); POL-008 | PRF-PRT-01 | `kernel/protection.py` | [protection-and-safety](design/protection-and-safety.md#requirement-keys) | TASK-S06-01 | PRF-PRT-01 | specified |
 | REQ-SES-001 | A06-F1 (`README.md:863`); D13 (`:758`) | PRF-SES-01, -02 | `kernel/authority.py` | [sessions-authority-lifecycle](design/sessions-authority-lifecycle.md#requirement-keys) | TASK-S03-01 | PRF-SES-01 | specified |
 | REQ-SES-002 | A04-F2 (`README.md:794`); F9 (`:203`) | PRF-SES-05 | `kernel/authority.py, kernel/recovery.py` | [sessions-authority-lifecycle](design/sessions-authority-lifecycle.md#requirement-keys) | TASK-S03-04 | PRF-SES-05 | specified |
 | REQ-SES-003 | ATA-05 (`README.md:450`); Financial session row (`:730`) | PRF-SES-03 | `kernel/lifecycle.py, contracts/identity.py` | [sessions-authority-lifecycle](design/sessions-authority-lifecycle.md#requirement-keys) | TASK-S03-02 | PRF-SES-03 | specified |

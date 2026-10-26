@@ -62,3 +62,30 @@ Process record (not normative). Target: [design/execution-domain-and-observation
 | 7D-M14 | Major | Polling and evidence volume | FIX: refusing poll interval and request budget; supervisor never polls faster; only referenced observations are kept as evidence |
 | 7D-M15 | Major | No Risks and limits | FIX |
 | 7D-N1…N8 | Nit | Basis order; cites; anchor; 429 and bodiless 4xx; non-entry legs; ID domain; simulated interval; stale foreign | FIX |
+
+## Stage 7 — style (0 Blocker, 8 Major, 8 Nit)
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| 7S-1 | Major | "Settle" means resolve and release | FIX: "resolve" for commands, "release" for obligations |
+| 7S-2 | Major | Four words for one condition; "unknown" names five things | FIX: "unresolved" defined once; assessment buckets qualified |
+| 7S-3 | Major | "Order" used for operand order | FIX |
+| 7S-4 | Major | Poll digest vs redelivery reads as a contradiction | FIX |
+| 7S-5 | Major | Liveness escalation sentence | FIX |
+| 7S-6 | Major | F-O7 unbuildable | FIX |
+| 7S-7 | Major | Identifier formatting | FIX |
+| 7S-8 | Major | Refusal code format | FIX |
+| 7S-N | Nit | Header lists; problem bullet; "place"; ownership words; passive voice; pronouns; long cells; filler | FIX |
+
+## Stage 7 — structural (0 Blocker, 7 Major, 8 Nit)
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| 7T-1 | Major | The OpenAlgo adapter has no section of its own; dispatch links point at the evidence contract | FIX: "OpenAlgo adapter (`adapters/openalgo.py`)" section; dispatch links repointed |
+| 7T-2 | Major | `Finding` type undefined | FIX: defined beside `findings()` |
+| 7T-3 | Major | `Observation.items` omits `ObservedFunds` | FIX |
+| 7T-4 | Major | CUJ-DOM-3 asserts ledger effects PRF-DOM-04 cannot see | FIX: CUJ limited to adapter output; ledger effects cite PRF-LED-11 |
+| 7T-5 | Major | PRF-DOM-05 has no must-fail | FIX |
+| 7T-6 | Major | No proof for the native-credential branch or the liveness rule | FIX: PRF-DOM-10 (manual, on authorization); liveness is a rules-table row proved in PRF-DOM-02 |
+| 7T-7 | Major | Delivery table misaligned with the plan | FIX: SLICE-01 via PRF-DSP-12; SLICE-02 PRF-DOM-05; SLICE-07 incl. native proof; SLICE-10 mediator only; TASK-S07-02/06 updated |
+| 7T-N | Nit | Header Commits through and Terms; refusal-code table; POL rows; Goal-4 key (REQ-DOM-015); failure rows F-O9…F-O11; zero-price and F-O6 proof coverage | FIX |

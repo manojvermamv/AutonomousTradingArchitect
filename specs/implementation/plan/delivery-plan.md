@@ -65,22 +65,23 @@ Task IDs are stable. SLICE-01 tasks are its file rows. Other tasks get exact fil
 | TASK-S05-07 | 05 | Kill and hold events with their matrix rows; hold-versus-claim ordering | PRF-PRT-04 (kill and hold rows), PRF-DSP-08 |
 | TASK-S05-08 | 05 | Deadline sweep and timer | PRF-DSP-04 |
 | TASK-S05-09 | 05 | Target recheck at dispatch, caller-driven retries, command status | PRF-DSP-09, -10, -11 |
-| TASK-S06-01 | 06 | Protection evaluation, legs and placement; characterize `exit_owner` for the retained ladder | PRF-PRT-01/02/09 |
+| TASK-S06-01 | 06 | Protection evaluation, legs, placement and structure legs; characterize the legacy stop order type and re-placement behaviour | PRF-PRT-01/02/09 |
 | TASK-S06-02 | 06 | Protection crash recovery | PRF-PRT-03 |
 | TASK-S06-03 | 06 | Hold rows per Q-001; characterize the legacy recovery-hold trigger | PRF-PRT-04 |
 | TASK-S06-04 | 06 | Daily-loss latch with bound budget (Q-002) | PRF-PRT-04 |
 | TASK-S06-05 | 06 | Session-close exit and kill interaction | PRF-PRT-07 |
-| TASK-S06-06 | 06 | Safety-check visibility | PRF-PRT-05 |
+| TASK-S06-06 | 06 | Safety-check visibility; protection classification on read | PRF-PRT-05, PRF-PRT-13 |
 | TASK-S06-07 | 06 | Release continuity of protected legs; evaluation-cost measurement | PRF-PRT-10, PRF-PRT-12 |
 | TASK-S07-01 | 07 | OpenAlgo adapter with retries disabled and transport classes | PRF-DOM-04 |
-| TASK-S07-02 | 07 | Reconciliation `assess` and `transitions` | PRF-DOM-02/03 |
+| TASK-S07-02 | 07 | Reconciliation `assess` and `findings` | PRF-DOM-02/03 |
 | TASK-S07-03 | 07 | Fills, partial fills and obligation accounting (D16) | PRF-LED-09 |
 | TASK-S07-04 | 07 | Domain attribution and settlement rule (Q-006 for production) | PRF-DOM-01, PRF-DOM-08 |
 | TASK-S07-05 | 07 | Capture and classify deployed analyze and live responses at the source (needs authorization) | PRF-DOM-07 |
-| TASK-S07-06 | 07 | Observation mechanism: native read-only proof, or isolated mediator | PRF-DOM-06 |
+| TASK-S07-06 | 07 | Native read-only credential proof (on authorization); the mediator itself is built in SLICE-10 | PRF-DOM-10 |
+| TASK-S10-01 | 10 | Observation mediator for non-kernel processes (authenticated socket, three queries) | PRF-DOM-06 |
 | TASK-S11-01 | 11 | Installable artifact and entrypoints outside the checkout | `README.md:1221` |
 | TASK-S11-02 | 11 | Settings resolver, immutability, bundle manifest | `README.md:1226-1227` |
-| TASK-S11-03 | 11 | Supervisor and protection-status reporting | `README.md:1240` |
+| TASK-S11-03 | 11 | Supervisor and protection-status reporting | `README.md:1240`; PRF-PRT-14 |
 | TASK-S11-04 | 11 | Resource envelopes and storage classes | `README.md:1247` |
 | TASK-S11-05 | 11 | Recovery manifest, backup and clean-host restore rehearsal | `README.md:1232`; D10 |
 | TASK-S13-01 | 13 | Compare upgrade versus import with actual mappings; record the choice and reason; confirm or replace the provisional schema | REQ-MIG-005; X-002 |
