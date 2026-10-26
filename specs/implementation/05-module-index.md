@@ -47,7 +47,7 @@ Status: **proposed**, non-normative. The canonical, fully commented target tree 
 | `kernel/ports.py` | [execution-domain-and-observations](design/execution-domain-and-observations.md) | R | SLICE-01 | Coordinator/OpenAlgoAdapter/ports (`:1144`) |
 | `kernel/ledger/runtime.py`, `envelope.py`, `store.py`, `schema.py`, `projections.py`, `export.py` | [ledger-and-atomic-transaction](design/ledger-and-atomic-transaction.md) | R | SLICE-01 (envelope, store, schema, runtime), SLICE-02 (projections, export) | Tier-1 envelope/runtime/ledger/schema/projections (`:1143`) |
 | `adapters/openalgo.py` | [execution-domain-and-observations](design/execution-domain-and-observations.md) | RP | SLICE-07 | Coordinator/OpenAlgoAdapter/ports (`:1144`) |
-| `adapters/simulated_broker.py` | [dispatch-and-coordination](design/dispatch-and-coordination.md) | R (proof lane) | SLICE-01 | Legacy and shared worker replay (`:1151`) |
+| `adapters/simulated_broker.py` | [execution-domain-and-observations](design/execution-domain-and-observations.md) | R (proof lane) | SLICE-01 | Legacy and shared worker replay (`:1151`) |
 | `adapters/unix_channel.py` | [security-and-operator](design/security-and-operator.md) | RP | SLICE-10 | Authority service/channel (`:1145`) |
 | `adapters/clocks.py` | [sessions-authority-lifecycle](design/sessions-authority-lifecycle.md) | R | SLICE-01 | — (new) |
 | `adapters/compatibility.py` | [migration-recovery-rollback-continuity](design/migration-recovery-rollback-continuity.md) | RP | SLICE-13 | Gateway/JSONL registry (`:1146`); Combined-F3 (`:1197`) |

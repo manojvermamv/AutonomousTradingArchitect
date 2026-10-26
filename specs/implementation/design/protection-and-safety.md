@@ -198,7 +198,7 @@ A multi-leg structure entry creates one position per leg (ledger `position` row)
 * "Human principal only" means a human principal's command for exactly this action and target, with fresh revalidation. "Unfilled" follows POL-002's wording; whether a partly filled order counts is characterized from `sender.py` in TASK-S05-07.
 * `safety.hold_automatic_actions` (`allowed` or `refused`) is a refusing parameter, [Q-001](../decisions/owner-questions.md#q-001). Legacy behaviour is `allowed` (`sender.py:293-296`), which is evidence, not a default.
 * **Strategy of an action.** Every command records a `strategy` (ledger `command_identity`): an entry's comes from its intent; a cancel, modify or close takes the strategy of the position or order it targets.
-* **Several conditions.** Admission check A4 and dispatch row 5 test only the checks that guard the action, in the order: inert checks (`PRT-R06`), kill (`PRT-R01`), hold (`PRT-R04`), latch (`PRT-R03`). The first that refuses gives the code. An AI-management pause is not a matrix condition; `kernel.policy` owns it.
+* **Several conditions.** Admission check A4 tests only the checks that guard the action, in the order: inert checks (`PRT-R06`), kill (`PRT-R01`), hold (`PRT-R04`), latch (`PRT-R03`); the first that refuses gives the code. Dispatch row 5 uses the same order without the inert test, because an inert check makes a command wait at dispatch eligibility instead. An AI-management pause is not a matrix condition; `kernel.policy` owns it.
 
 ### Daily-loss latch (`kernel/safety.py`)
 
@@ -248,7 +248,7 @@ This section is the authority for the session-close exit and for kill during it.
 | Latch | `session_pnl` is `Unavailable` | The strategy's entries |
 | Conflict | Never (its inputs are ledger index tables and a bound `protective_independence`; a damaged index is `LED-R05`) | The actions its rows forbid |
 
-A change of state is recorded as `SAFETY_CHECK_STATE` (`check`, `scope`, `state`, `reason`), only on change. An inert check refuses the actions it guards at admission; at dispatch eligibility the command waits ([dispatch spec](dispatch-and-coordination.md#eligibility-and-scheduling)). It never passes them silently (LD-03). Stale observations are admission check B1's and dispatch row 7's, not a safety-check state.
+A change of state is recorded as `SAFETY_CHECK_STATE` (`check`, `scope`, `state`, `reason`), only on change. An inert check refuses the actions it guards at admission; at dispatch eligibility the command waits ([dispatch spec](dispatch-and-coordination.md#eligibility-and-scheduling)). It never passes them silently (LD-03). Stale observations are admission check B1's and dispatch row 6's, not a safety-check state.
 
 ### Refusal codes (`kernel/safety.py`)
 
@@ -283,7 +283,7 @@ Every event below is committed through `transact` and folded by the ledger's `fo
 | `HOLD_ENGAGED`, `HOLD_RELEASED` | `kernel.safety`, on a human principal's command or `kernel:recovery` | `strategy`, `reason`, `principal` | `safety_state` |
 | `LOSS_LATCH_TRIPPED` | `kernel.safety` | `strategy`, `session_id`, `pnl`, `budget`, `observation_digest` | `safety_state` |
 | `LOSS_LATCH_UNLOCKED` | `kernel.safety`, on a human principal's command | `strategy`, `session_id`, `principal`, `reason` | `safety_state` |
-| `SAFETY_CHECK_STATE` | `kernel.safety`; the coordinator for a waiting command | `check`, `scope`, `state`, `reason` | `safety_state` |
+| `SAFETY_CHECK_STATE` | `kernel.safety` | `check`, `scope`, `state`, `reason` | `safety_state` |
 
 Protection also records the ledger's `RECONCILIATION_ESCALATED` ([ledger catalogue](ledger-and-atomic-transaction.md#event-catalogue)) with the reasons named above: `stop_rejected`, `stop_expired`, `level_through_market`, `orphan_under_kill`, `exit_under_kill`, `square_off_under_kill`.
 

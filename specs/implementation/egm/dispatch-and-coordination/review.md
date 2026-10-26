@@ -76,3 +76,21 @@ Ledger finding 6-5: a rejected command is final. Eligibility and REQ-DSP-010 now
 | 7D-9 | Major | Simulated broker unfit for simulation runs; untestable paths | FIX: scripted responder for tests plus a versioned rule responder for simulation runs (fill model owned by the research spec, A07-F3); `raise`, coverage and domain knobs; acks enter the book |
 | 7D-10 | Major | No Risks and limits | FIX (with 7T-1) |
 | 7D-11…18 | Nit | Deadline clock; deadline values (**Q-011**); line 166; session row; evidence publication thread and failure; wake coalescing; replay cite; SLICE-01 hook order | FIX |
+
+## Stage 8 — intermediate zoom-out (0 Blocker, 8 Major, 3 Nit)
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| 8-1 | Major | Two owners for transport evidence; lookup by attempt undefined | FIX: the adapter publishes inside its bounded call with command key and attempt number; the store finds it by that pair; `TransportResult.raw` optional; the worker only forwards |
+| 8-2 | Major | Outcome commit skips reservations and lifecycle | FIX: worker return builds the outcome decision with `kernel.reservations` and `kernel.lifecycle`; PRF-DSP-03 covers a partly rejected two-leg entry |
+| 8-3 | Major | No way to request a retry | FIX: identical same-key resubmission of a `NOT_SENT` command records `DISPATCH_RETRY_REQUESTED` after `authority.check` (ledger identity rule), as legacy |
+| 8-4 | Major | Inert check both waits and refuses; two recorders of check state | FIX: inert check is an eligibility condition (wait); row 5 tests kill, hold, latch only; `kernel.safety` is the only recorder |
+| 8-5 | Major | Row 6 (`policy_changed`) can never fire | FIX: row and `DSP-R03` dropped (code left unused); D13 policy dependency met by row 4 with PRF-SES-09 |
+| 8-6 | Major | Target row: no source, no wake, head-of-line block, slice order | FIX: the kernel's in-memory latest observation is the source; observation arrival wakes; **wait** result skips to the next eligible command; PRF-DSP-09 moved to SLICE-07 |
+| 8-7 | Major | Simulated broker in the wrong spec; drifted (no `funds`) | FIX: moved to the execution-domain spec with `funds`; script format left to SLICE-01 |
+| 8-8 | Major | `domain` setting lets the simulator report a live domain | FIX: removed; always `simulated` |
+| 8-9 | Nit | `LED-R09` fallback fails again | FIX: `LED-R09` is fatal |
+| 8-10 | Nit | Retry after `RESOLVED_NEVER_REACHED` rarely reachable | FIX: retries only before the original deadline; then a new command key |
+| 8-11 | Nit | A0 consumer; `raw_digest` name; TASK-S05-06 proof | FIX |
+
+Cross-spec consequence carried into the sessions resolution: `grant_version` dropped from `Dependencies` (grants become immutable, sessions 8-7).

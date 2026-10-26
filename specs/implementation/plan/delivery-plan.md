@@ -61,7 +61,7 @@ Task IDs are stable. SLICE-01 tasks are its file rows. Other tasks get exact fil
 | TASK-S05-03 | 05 | Conflict relation in `kernel.safety` (exposure groups, the `protective_independence` parameter) | PRF-PRT-11 |
 | TASK-S05-04 | 05 | Scheduler with the bound ordering rule | PRF-DSP-07 |
 | TASK-S05-05 | 05 | Cancel, modify and close verbs with completion rules | PRF-LED-* verb rows |
-| TASK-S05-06 | 05 | Busy count and acceptance-reply lookup | PRF-DSP-03 |
+| TASK-S05-06 | 05 | Busy count and acceptance-reply lookup | PRF-DSP-10 |
 | TASK-S05-07 | 05 | Kill and hold events with their matrix rows; hold-versus-claim ordering | PRF-PRT-04 (kill and hold rows), PRF-DSP-08 |
 | TASK-S05-08 | 05 | Deadline sweep and timer | PRF-DSP-04 |
 | TASK-S05-09 | 05 | Target recheck at dispatch, caller-driven retries, command status | PRF-DSP-09, -10, -11 |

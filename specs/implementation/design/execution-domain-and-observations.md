@@ -2,7 +2,7 @@
 
 * **Status:** proposed (package spec), revised after EGM stages 5–7 ([review](../egm/execution-domain-and-observations/review.md)). Implements accepted master decisions; adds no new ones.
 * **Precedence:** master README, then ROADMAP, then this file. A disagreement is an X item in [master-contradictions](../consistency/master-contradictions.md), never an edit here.
-* **Specified here (exclusive):** `adapters/openalgo.py`, `kernel/reconciliation.py`, `kernel/ports.py`, `contracts/evidence.py`.
+* **Specified here (exclusive):** `adapters/openalgo.py`, `adapters/simulated_broker.py`, `kernel/reconciliation.py`, `kernel/ports.py`, `contracts/evidence.py`.
 * **Not specified here:** `TransportResult` and `LegResult` live in `contracts/execution.py` ([ledger](ledger-and-atomic-transaction.md#execution-contract-types-contractsexecutionpy)); this spec defines what the adapter puts in them. `kernel.lifecycle` turns reconciliation findings into ledger decisions, and `kernel.reservations` computes their amounts.
 * **Consumers:** the coordinator ([dispatch](dispatch-and-coordination.md)); `kernel.lifecycle` ([ledger](ledger-and-atomic-transaction.md#event-catalogue)); the supervisor through the observation mediator ([runtime spec](runtime-isolation-observability-deployment.md)); `kernel.protection` and `kernel.safety` ([protection](protection-and-safety.md)).
 * **Commits through:** `kernel.lifecycle`, which turns reconciliation findings into `RESOLVED_*`, `FILL`, `COMPLETED`, `CONFLICT_RECORDED`, `FOREIGN_RECORDED`, `RECONCILIATION_ESCALATED` and `RESIDUAL_RECORDED` ([ledger catalogue](ledger-and-atomic-transaction.md#event-catalogue)).
@@ -123,6 +123,7 @@ EndpointContract(endpoint, deployment_version, mode_marker_field | None,
 * **Ledger envelope.** An event's `execution_domain` is the `DomainEvidence.value` it carries, or `none` for an event with no external effect.
 * **`EvidenceRef.store`** is `evidence` (production) or `simulated` (inline). The adapter is the evidence owner for transport results and observations (Combined-F2): it publishes the normalized JSON of the endpoint, request parameters, response body and `arrived_at`. Each poll therefore gets its own digest, even when the body is unchanged. Only observations that a committed decision references are kept as evidence; storage classes and retention are the [runtime spec](runtime-isolation-observability-deployment.md)'s (A09-F3).
 * **Observation identity** is `raw.content_digest`. Redelivering one published observation (same digest) is a no-op.
+* **Transport-result evidence.** The adapter publishes a transport result inside its own total deadline, with `command_key` and `attempt_no` in the published document; the store finds it by that pair, which is recovery's lookup (REQ-LED-014). If publishing fails, the result's `raw` is empty.
 * **`EndpointContract`** records are produced by TASK-S07-05 from captured responses and bound with the release ([configuration spec](configuration-artifacts-release.md)). No record for an endpoint means: no mode marker, coverage `unknown`, no visibility bound, no client tag, and the legacy status classifier.
 
 ### OpenAlgo adapter (`adapters/openalgo.py`)
@@ -146,6 +147,32 @@ EndpointContract(endpoint, deployment_version, mode_marker_field | None,
 
 The adapter disables HTTP-client retries and uses no SDK retry wrapper. It fetches every page of one query; if any page fails, it returns the pages it has with `complete = no`.
 
+### Simulated broker (`adapters/simulated_broker.py`)
+
+```text
+SimulatedBroker(responder: ScriptResponder | RuleResponder, clock: Clock,
+                coverage: "yes" | "no" | "unknown" = "yes")
+  send(request, plan | None, attempt_no) -> TransportResult                         # BrokerPort
+  orderbook(account, interval) / tradebook(account, interval) -> Observation        # ObservationPort
+  positions(account) / funds(account) -> Observation
+```
+
+* **`ScriptResponder`** (tests and SLICE-01). Its steps are consumed per account in call order; the step format is fixed in the SLICE-01 file ([row 10](../plan/slices/SLICE-01-disarmed-financial-core.md)), and a missing step is a test bug.
+
+  | Script `result` | `cls` | Carries |
+  |---|---|---|
+  | `not_sent` | `not_sent` | — |
+  | `reject` | `rejected` | reason |
+  | `ack` | `acknowledged` | `order_id`; the order enters the book as open |
+  | `timeout` | `ambiguous` | reason `timeout` |
+  | `raise` | — | raises inside the adapter, to exercise `adapter_error` |
+
+  A `"stall": "until_released"` step blocks the call until the test releases it (CUJ-DSP-1). `BookStep`s (fills and status changes at a clock time) refer to acknowledged orders, so the book stays coherent with the sends.
+* **`RuleResponder`** (simulation runs). It accepts every request and fills it under a versioned fill and cost model injected by the run (A07-F3, `README.md:889`; owned by the [research spec](research-rl-custody-promotion.md)), so an open-ended run needs no script.
+* Every result and observation carries domain `simulated` (basis `simulated_adapter`); nothing can configure another domain. `coverage` lets tests exercise incomplete coverage; domain conflicts are tested on constructed values at the reconciliation unit level.
+* `funds` returns one `ObservedFunds` from the responder (a fixed amount for scripts, the run's capital for `RuleResponder`), so admission check B5 can run in simulation.
+* It has no network or credential capability. Its composition binds only a simulation ledger, and every effect it reports is committed by the kernel through the normal outcome commit.
+
 ### Ports (`kernel/ports.py`)
 
 ```text
@@ -157,7 +184,7 @@ ObservationPort.funds(account) -> Observation              # one ObservedFunds i
 ```
 
 * The adapter fetches every page of one query. If any page fails, it returns the pages it has with `complete = no`. Observations are never merged across calls.
-* The simulated broker implements both ports with these signatures ([dispatch spec](dispatch-and-coordination.md#simulated-broker-adapterssimulated_brokerpy)); its observations carry the requested interval.
+* The [simulated broker](#simulated-broker-adapterssimulated_brokerpy) implements both ports with these signatures; its observations carry the requested interval.
 * The production composition binds `adapters.openalgo`; each simulation binds `adapters.simulated_broker`. No composition binds both (`README.md:800`).
 
 ### Domain attribution and combination
@@ -276,7 +303,7 @@ Assessment(matched: list[(command_key, attempt_no, leg_role | None, item)],
 
 * The kernel's observation loop polls each bound account's orderbook, tradebook, positions and funds every `observation.poll_interval_secs` (a measured refusing parameter). The supervisor polls through the mediator and never faster.
 * Both stay inside `observation.max_requests_per_minute` per account (a measured refusing parameter, A09-F4), so OpenAlgo's rate limits are respected (`README.md:922`).
-* **Dependent decisions** that need a fresh observation: admission checks B1 and B2, dispatch revalidation row 7, and every finding above. While the latest observation is stale, they wait.
+* **Dependent decisions** that need a fresh observation: admission checks B1 and B2, dispatch revalidation row 6, and every finding above. While the latest observation is stale, they wait. The observation loop keeps each account's latest observation of every kind in memory, with its `as_of`, for these reads, and each arrival wakes the coordinator.
 
 ### Refusal codes
 

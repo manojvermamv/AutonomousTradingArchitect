@@ -2,12 +2,12 @@
 
 * **Status:** proposed (package spec), revised after EGM stages 5–7 ([review](../egm/dispatch-and-coordination/review.md)). Implements accepted master decisions; adds no new ones.
 * **Precedence:** master README, then ROADMAP, then this file. A disagreement is an X item in [master-contradictions](../consistency/master-contradictions.md), never an edit here.
-* **Specified here (exclusive):** `kernel/coordinator.py`, `adapters/simulated_broker.py`, and the read-only `command_status` query.
+* **Specified here (exclusive):** `kernel/coordinator.py` and the read-only `command_status` query. The simulated broker it is tested against is specified with the other broker adapter ([execution-domain spec](execution-domain-and-observations.md#simulated-broker-adapterssimulated_brokerpy)).
 * **Consumes:**
   * the conflict relation and the permission matrix in `kernel/safety.py` ([protection-and-safety](protection-and-safety.md));
   * the broker port and transport classes in `kernel/ports.py` ([execution-domain-and-observations](execution-domain-and-observations.md#ports-kernelportspy));
   * grants, sessions and recovery stages ([sessions-authority-lifecycle](sessions-authority-lifecycle.md)).
-* **Supplies:** the busy count for admission check B4 ([intent-to-admission](intent-to-admission.md#admission-kerneladmissionpy)).
+* **Supplies:** the busy count for admission checks A0 and B4 ([intent-to-admission](intent-to-admission.md#admission-kerneladmissionpy)).
 * **Commits through:** the atomic transaction ([ledger-and-atomic-transaction](ledger-and-atomic-transaction.md)): `DISPATCH_REFUSED`, `DISPATCH_RETRY_REQUESTED`, `DISPATCH_CLAIMED`, `OUTCOME_*`.
 * **Master anchors:** D13 (`README.md:758`), D14 (`:760`), A03-F1 (`:914`), A03-F2 (`:916`), A03-F3 (`:918`), A03-F5 (`:924`), A07-F3 (`:889`), A09-F4 (`:935`), ATA-04 (`:454`), execution sequence step 5 (`:747`), shared engine (`:798-804`), diagram 2 (`:568-720`), §7 rows (`:1144`, `:1151`).
 * **Terms** (see the [package glossary](../README.md#terms-used-across-the-specs)):
@@ -91,13 +91,13 @@ The master accepted these fixes: dispatch revalidation (D13), stable identity (D
 
 * **Given** an attempt is claimed and sent.
 * **When** the call's total deadline passes with no response.
-* **Then** the worker returns `ambiguous`; the outcome commit moves the attempt to `AMBIGUOUS` and the command to `UNCERTAIN`, and keeps the reservation. The command is never claimed again unless reconciliation records `RESOLVED_NEVER_REACHED` and a caller requests a retry (PRF-DSP-06).
+* **Then** the worker returns `ambiguous`; the outcome commit moves the attempt to `AMBIGUOUS` and the command to `UNCERTAIN`, and keeps the reservation. The command is never claimed again unless reconciliation records `RESOLVED_NEVER_REACHED` and a caller requests a retry before the dispatch deadline (PRF-DSP-06).
 
 ### CUJ-DSP-4: Position flattened before a close is sent
 
 * **Given** an owner close for 50 is admitted, and waits behind a slow request on its account.
 * **When** a fresh observation shows the position closed at the broker before the claim.
-* **Then** revalidation row 7 refuses the close (`ADM-R07`), and nothing is sent (PRF-DSP-09).
+* **Then** revalidation row 6 refuses the close (`ADM-R07`), and nothing is sent (PRF-DSP-09).
 
 ## Technical plan
 
@@ -110,22 +110,27 @@ The master accepted these fixes: dispatch revalidation (D13), stable identity (D
 Every ledger write in the kernel runs on the one writer thread ([ledger spec](ledger-and-atomic-transaction.md#writer-runtime-and-readers)). The coordinator's revalidation and claim run there too, back to back, so no other write can commit between them. The coordinator runs only in `OPERATING` ([sessions spec](sessions-authority-lifecycle.md#recovery-stages-kernelrecoverypy)); before that, admitted work waits.
 
 ```text
-on wake (ledger commit, worker return, or deadline timer); wakes arriving during a pass are merged into one next pass:
+on wake (ledger commit, worker return, observation arrival, or deadline timer);
+wakes arriving during a pass are merged into one next pass:
   for each ADMITTED command whose dispatch deadline has passed (eligible or not):
       commit DISPATCH_REFUSED(cmd, DSP-R01)
   for each bound account, in AccountId order, whose worker is idle:
-    cmd = next_eligible(account)                    # reads index tables only
-    if cmd is None: continue
-    refusal = revalidate(cmd)                       # rows 1–7 below
-    if refusal: commit DISPATCH_REFUSED(cmd, refusal.code); continue
-    n = (highest attempt_no of cmd, or 0) + 1
-    commit DISPATCH_CLAIMED(cmd, attempt_no=n, epoch=writer's active epoch)
-    request, plan = load from cmd's COMMAND_ADMITTED event
-    worker[account].submit(request, plan, n)        # no transaction held
+    for cmd in eligible(account):                   # ordering rule; reads index tables only
+      result = revalidate(cmd)                      # rows 1–6 below: pass, refuse or wait
+      if result is refuse: commit DISPATCH_REFUSED(cmd, result.code); continue
+      if result is wait: continue                   # row 6 needs a fresher observation
+      n = (highest attempt_no of cmd, or 0) + 1
+      commit DISPATCH_CLAIMED(cmd, attempt_no=n, epoch=writer's active epoch)
+      request, plan = load from cmd's COMMAND_ADMITTED event
+      worker[account].submit(cmd, request, plan, n) # no transaction held
+      break
   set the deadline timer to the earliest dispatch deadline of any ADMITTED command (monotonic clock)
 
-on worker return (command_key, attempt_no, result, evidence_ref | None):
-    commit OUTCOME_<CLASS>(command_key, attempt_no, epoch, legs, reason, raw=evidence_ref)
+on worker return (command_key, attempt_no, result: TransportResult):
+    decision = outcome decision for result          # kernel.reservations: reservation_after for rejected legs;
+                                                    # kernel.lifecycle: RESIDUAL_RECORDED for a partly reached entry
+    commit OUTCOME_<CLASS>(command_key, attempt_no, epoch, legs, unassigned_order_ids, reason,
+                           raw_digest) with the decision's records, in one transaction
     worker[account] becomes idle
 ```
 
@@ -134,7 +139,7 @@ on worker return (command_key, attempt_no, result, evidence_ref | None):
 **The worker.**
 
 * It calls `BrokerPort.send(request, plan, n)`.
-* Before returning, it publishes the adapter's raw result to the evidence store under the attempt ID ([ledger evidence references](ledger-and-atomic-transaction.md#evidence-references-req-led-014)). If publication fails, it returns the result without `evidence_ref`, and the outcome is committed with reason `evidence_unpublished` and the broker IDs in its payload.
+* It only forwards the result. The adapter publishes its raw result inside its own bounded call, keyed by command key and attempt number ([evidence contract](execution-domain-and-observations.md#evidence-contract-contractsevidencepy)); if publishing fails, `raw` is empty and the outcome is committed with reason `evidence_unpublished` and the broker IDs in its payload.
 * It always returns. The adapter's own `NotSent` becomes `not_sent` ([transport classes](execution-domain-and-observations.md#openalgo-adapter-adaptersopenalgopy)); any other exception raised after the call started becomes `ambiguous` with reason `adapter_error`.
 * There are no in-process late results: once it returns, nothing more arrives for that attempt. Later broker evidence reaches the kernel only through observations and reconciliation.
 
@@ -142,8 +147,8 @@ on worker return (command_key, attempt_no, result, evidence_ref | None):
 
 | Refusal | Meaning | What the coordinator does |
 |---|---|---|
-| `LED-R06`, `LED-R08`, `LED-R09` | Deterministic: the same commit would fail again | Commits `OUTCOME_AMBIGUOUS` for the attempt with reason `outcome_refused`; the worker becomes idle; the kernel keeps running |
-| `LED-R03`, `LED-R10`, `CommitFailed` | This process can no longer write | The kernel exits; recovery rebuilds the outcome from the published evidence, or records `interrupted` ([sessions spec](sessions-authority-lifecycle.md#recovery-stages-kernelrecoverypy)) |
+| `LED-R06`, `LED-R08` | Deterministic: this payload would fail again | Commits `OUTCOME_AMBIGUOUS` for the attempt with reason `outcome_refused` (a different payload); the worker becomes idle; the kernel keeps running |
+| `LED-R03`, `LED-R09`, `LED-R10`, `CommitFailed` | This process can no longer write, or the attempt's state or epoch no longer allows any outcome from it | The kernel exits; recovery rebuilds the outcome from the published evidence, or records `interrupted` ([sessions spec](sessions-authority-lifecycle.md#recovery-stages-kernelrecoverypy)) |
 
 ### Eligibility and scheduling
 
@@ -151,9 +156,10 @@ on worker return (command_key, attempt_no, result, evidence_ref | None):
   * the command is `ADMITTED`;
   * it has no attempt yet, or its latest attempt is `NOT_SENT` **and** a `DISPATCH_RETRY_REQUESTED` was recorded after it;
   * the current conflict relation ([protection-and-safety](protection-and-safety.md#conflict-relation-kernelsafetypy)) permits it;
+  * no safety check that guards it is inert ([safety-check visibility](protection-and-safety.md#safety-check-visibility-kernelsafetypy));
   * its account's worker is idle.
-* **Retries are caller-driven**, as in legacy (`OA/src/tier1/coordinator.py:94-103`). After `OUTCOME_NOT_SENT` or `RESOLVED_NEVER_REACHED`, a principal holding the command's verb records `DISPATCH_RETRY_REQUESTED` for the same command key; `kernel.protection` does this for its own commands at its next evaluation. This prevents a send loop during a broker outage. A `REJECTED` command is final; a new try is a new command key.
-* **Waiting instead of refusing.** A conflict, or an inert safety check that guards the command, keeps it waiting until it clears or the deadline passes (loop step 1). The coordinator records the check's state (`SAFETY_CHECK_STATE`) and never passes it silently. Admission check B3 refuses a conflict present at admission; after that, the relation's version changing is not a refusal.
+* **Retries are caller-driven**, as in legacy (`OA/src/tier1/coordinator.py:94-103`). After `OUTCOME_NOT_SENT` or `RESOLVED_NEVER_REACHED`, a principal holding the command's verb resubmits the identical request with the same command key. Admission rechecks the principal's grant and records `DISPATCH_RETRY_REQUESTED` instead of returning `Existing` ([ledger identity rule](ledger-and-atomic-transaction.md#request-digest-and-the-identity-rule)); `kernel.protection` does this for its own commands at its next evaluation. A retry is possible only before the original dispatch deadline; after it the command is refused (`DSP-R01`) and the caller submits a new command key. This prevents a send loop during a broker outage. A `REJECTED` command is final; a new try is a new command key.
+* **Waiting instead of refusing.** A conflict, or an inert safety check that guards the command, keeps it waiting until it clears or the deadline passes (loop step 1). The coordinator reads the check's state, which `kernel.safety` alone records (`SAFETY_CHECK_STATE`), and never passes it silently. Admission check B3 refuses a conflict present at admission; after that, the relation's version changing is not a refusal.
 * **Ordering.** `dispatch.ordering_rule` is a refusing parameter (REQ-XC-003). This package defines one value, `admission_sequence`: among the account's eligible commands, the one whose `COMMAND_ADMITTED` has the lowest ledger sequence. A blocked command does not hold up the ones behind it, and a command that returns to `ADMITTED` keeps its original sequence. Any priority between protective actions and entries waits for [Q-004](../decisions/owner-questions.md#q-004).
 
 ### Revalidation at dispatch
@@ -161,8 +167,8 @@ on worker return (command_key, attempt_no, result, evidence_ref | None):
 Admission records one dependency set per command in `COMMAND_ADMITTED.dependencies`:
 
 ```text
-Dependencies(dispatch_deadline: Deadline, release_binding_id, grant_id, grant_version,
-             session_id | None, policy_version | None)     # session and policy for entries only
+Dependencies(dispatch_deadline: Deadline, release_binding_id, grant_id,
+             session_id | None)                            # session for entries only
 ```
 
 The coordinator checks, in this order, and records the first failure:
@@ -171,13 +177,14 @@ The coordinator checks, in this order, and records the first failure:
 |---|---|---|---|---|
 | 1 | Deadline | The clock contract's deadline rule ([sessions spec](sessions-authority-lifecycle.md#clock-contract-contractsclockpy-adaptersclockspy)) | It has passed (normally caught by loop step 1) | `DSP-R01` (`deadline_passed`) |
 | 2 | Release | Version comparison | The bound release binding differs from `release_binding_id` | `DSP-R02` (`release_changed`) |
-| 3 | Grant | The admitted grant itself: `authority.recheck(grant_id, grant_version, verb, account)`; no other grant substitutes | Revoked, expired, narrowed, or its delegation chain broken | `SES-R03`, `SES-R04`, `SES-R02`, `SES-R05` |
+| 3 | Grant | The admitted grant itself: `authority.recheck(grant_id, verb, account)`; no other grant substitutes | Revoked, expired, or its delegation chain broken | `SES-R03`, `SES-R04`, `SES-R05` |
 | 4 | Session (entries only) | The recorded `session_id` is still `OPEN` | It closed | `SES-R07` |
-| 5 | Safety state | The permission matrix now | Kill, latch or hold forbids this verb and actor, or a guarding check is inert | `PRT-R01`, `PRT-R03`, `PRT-R04`, `PRT-R06` |
-| 6 | Policy (entries only) | Version comparison | The session's policy binding differs from `policy_version` | `DSP-R03` (`policy_changed`) |
-| 7 | Target (cancel, modify, close) | Admission's effect check (B2) again, against an observation no older than 60 s (POL-021) | The order is no longer open, or the quantity now exceeds the open position | `ADM-R07`; a stale observation makes the command wait |
+| 5 | Safety state | The permission matrix now, in the order kill, hold, latch | Kill, hold or latch forbids this verb and actor | `PRT-R01`, `PRT-R04`, `PRT-R03` |
+| 6 | Target (cancel, modify, close) | Admission's effect check (B2) again, against the kernel's latest observation of the account ([polling](execution-domain-and-observations.md#polling)) | The order is no longer open, or the quantity now exceeds the open position | `ADM-R07`; while that observation is older than 60 s (POL-021) the result is **wait** |
 
 * An unrelated ledger append never invalidates a command (`README.md:736`).
+* D13's policy dependency (`README.md:758`) is met by row 4: a session's policy binding is fixed when it opens ([sessions spec](sessions-authority-lifecycle.md), PRF-SES-09), so an entry whose session is still `OPEN` still has its admitted policy.
+* A waiting command does not hold up the account's next eligible command; an observation arrival wakes the coordinator to try it again.
 * The review application's deadline is the dispatch deadline ([intent spec](intent-to-admission.md#contracts-contractsdecisionspy)), so each command has one deadline.
 
 ### Holds, kills and latches against in-flight requests
@@ -205,39 +212,14 @@ command_status(command_key) -> CommandStatus
 
 `CommandStatus` is defined with the execution contract types ([ledger](ledger-and-atomic-transaction.md#execution-contract-types-contractsexecutionpy)): the command's state, its latest attempt and outcome if any, broker order IDs, and its refusal if refused. It reads index tables only. A caller whose acceptance reply was lost uses it, and callers learn final outcomes the same way, or from the outcome events the interfaces stream ([security-and-operator](security-and-operator.md)).
 
-### Simulated broker (`adapters/simulated_broker.py`)
-
-```text
-SimulatedBroker(responder: ScriptResponder | RuleResponder, clock: Clock,
-                coverage: "yes" | "no" | "unknown" = "yes", domain: DomainEvidence = simulated)
-  send(request, plan | None, attempt_no) -> TransportResult                         # BrokerPort
-  orderbook(account, interval) / tradebook(account, interval) / positions(account) -> Observation
-```
-
-* **`ScriptResponder`** (tests and SLICE-01). Its steps (`{"account"?, "call", "result", "order_id"?, "reason"?, "legs"?, "stall"?}`) are consumed per account in call order; a missing step raises `AssertionError`, a test bug.
-
-  | Script `result` | `cls` | Carries |
-  |---|---|---|
-  | `not_sent` | `not_sent` | — |
-  | `reject` | `rejected` | reason |
-  | `ack` | `acknowledged` | `order_id`; the order enters the book as open |
-  | `timeout` | `ambiguous` | reason `timeout` |
-  | `raise` | — | raises inside the adapter, to exercise `adapter_error` |
-
-  A `"stall": "until_released"` step blocks the call until the test releases it (CUJ-DSP-1). `BookStep`s (fills and status changes at a clock time) refer to acknowledged orders, so the book stays coherent with the sends.
-* **`RuleResponder`** (simulation runs). It accepts every request and fills it under a versioned fill and cost model injected by the run (A07-F3, `README.md:889`; owned by the [research spec](research-rl-custody-promotion.md)), so an open-ended run needs no script.
-* `coverage` and `domain` let tests exercise incomplete coverage and domain conflicts.
-* It has no network or credential capability. Its composition binds only a simulation ledger, and every effect it reports is committed by the kernel through the normal outcome commit.
-
 ### Refusal codes
 
 | Code | Meaning |
 |---|---|
 | `DSP-R01` (`deadline_passed`) | The dispatch deadline passed before the claim |
 | `DSP-R02` (`release_changed`) | The bound release changed since admission |
-| `DSP-R03` (`policy_changed`) | The session's policy binding differs from the admitted one (entries) |
 
-Row 7 reuses admission's `ADM-R07`; the busy refusal is admission's `ADM-R12`.
+`DSP-R03` is unused: the policy dependency is met by row 4. Row 6 reuses admission's `ADM-R07`; the busy refusal is admission's `ADM-R12`.
 
 ## Failure modes and crash points
 
@@ -261,7 +243,7 @@ The ledger crash points CP-L2…CP-L4 and failure F-L5 apply ([ledger spec](ledg
 | Every write, including the deadline sweep, runs on the writer thread | Wakes are merged per pass; throughput is measured (A09-F4) |
 | A fatal commit failure stops every account | Only fatal refusals exit; deterministic ones are recorded per attempt; claims with published evidence are rebuilt after restart |
 | A stuck worker blocks its account | Total deadline on every call; stuck workers reported to the supervisor |
-| The admission-to-dispatch window | Revalidation rows 1–7, including the target recheck |
+| The admission-to-dispatch window | Revalidation rows 1–6, including the target recheck |
 | The simulated broker's fill model can differ from reality | It is a versioned, injected assumption; simulation results never count as live evidence (REQ-XC-007) |
 
 ## Policy inputs
@@ -298,7 +280,7 @@ All are refusing parameters (REQ-XC-003): a composition that leaves one unbound 
 | A worker timer shorter than the call's total deadline, freeing the slot early | Lets a second request start while the first may still reach the broker |
 | Refuse a command when a conflict appears after admission | Turns a temporary conflict into a lost command; waiting until the deadline keeps one rule |
 | Revalidate inside the claim's SQLite transaction | Equivalent here, because all writes run on one thread; the separate step keeps `transact` free of coordinator logic |
-| Trust admission's target check until dispatch | The position can change in between; row 7 rechecks it |
+| Trust admission's target check until dispatch | The position can change in between; row 6 rechecks it |
 
 ## Proofs
 
@@ -306,26 +288,26 @@ Class **T** is an automated test. "Must fail if" names the defect the test must 
 
 | Proof | Class | Test file | Expected outcome | Must fail if |
 |---|---|---|---|---|
-| PRF-DSP-01 | T | `tests/integration/test_dispatch_revalidation.py` | Rows 1–6: a change between admission and claim gives `DISPATCH_REFUSED` with that row's code, the first failing row wins; an unrelated append does not refuse; a session close does not refuse a cancel | revalidation is skipped |
+| PRF-DSP-01 | T | `tests/integration/test_dispatch_revalidation.py` | Rows 1–5: a change between admission and claim gives `DISPATCH_REFUSED` with that row's code, the first failing row wins; an unrelated append does not refuse; a session close does not refuse a cancel | revalidation is skipped |
 | PRF-DSP-02 | T | `tests/integration/test_entry_outcomes.py` | The adapter is called only after `DISPATCH_CLAIMED` is durable; one call per attempt; a scripted `timeout` gives `ambiguous` (SLICE-01) | the adapter is called before the claim |
-| PRF-DSP-03 | T | `tests/recovery/test_crash_boundaries.py` | CP-D1, F-D4, F-D5: readiness rebuilt; a claim gets its published outcome, or `AMBIGUOUS`; a deterministic refusal gives `outcome_refused` without exiting; no second call | readiness is persisted separately |
-| PRF-DSP-04 | T | `tests/integration/test_dispatch_revalidation.py` | A conflict or an inert conflict check appearing after admission keeps the command waiting; it is sent after it clears, or refused with `DSP-R01` when the deadline timer fires | a conflict refuses at dispatch, or the deadline never fires |
+| PRF-DSP-03 | T | `tests/recovery/test_crash_boundaries.py` | CP-D1, F-D4, F-D5: readiness rebuilt; a claim gets its published outcome, or `AMBIGUOUS`; a deterministic refusal gives `outcome_refused` without exiting; `LED-R09` exits; a partly rejected two-leg entry commits `reservation_after` and `RESIDUAL_RECORDED` with its outcome; no second call | readiness is persisted separately |
+| PRF-DSP-04 | T | `tests/integration/test_dispatch_revalidation.py` | A conflict or an inert guarding safety check appearing after admission keeps the command waiting; it is sent after it clears, or refused with `DSP-R01` when the deadline timer fires | a conflict refuses at dispatch, or the deadline never fires |
 | PRF-DSP-05 | T | `tests/integration/test_bounded_io.py` | CUJ-DSP-1: B's cancel is sent while A is stalled; F-D6 reports A's age | a global lock blocks B |
 | PRF-DSP-06 | T | `tests/integration/test_bounded_io.py` | CUJ-DSP-3 and F-D3: a timeout gives `ambiguous`; a disconnect creates no cancel | a timeout is retried |
 | PRF-DSP-07 | T | `tests/unit/test_scheduling.py` | `admission_sequence` picks the oldest eligible command and skips a blocked older one; an unbound rule refuses to load | head-of-line blocking or implicit FIFO |
 | PRF-DSP-08 | T | `tests/integration/test_dispatch_revalidation.py` | CUJ-DSP-2; a hold, kill or latch recorded after a claim leaves that request in flight and its outcome committed | an in-flight request is retracted, or a claim follows the hold |
-| PRF-DSP-09 | T | `tests/integration/test_dispatch_revalidation.py` | CUJ-DSP-4: row 7 refuses a close whose position is gone and a cancel whose order is terminal; a stale observation makes them wait | the target is trusted from admission |
+| PRF-DSP-09 | T | `tests/integration/test_dispatch_revalidation.py` | CUJ-DSP-4: row 6 refuses a close whose position is gone and a cancel whose order is terminal; a stale observation makes them wait without blocking the next eligible command; an observation arrival wakes the coordinator | the target is trusted from admission |
 | PRF-DSP-10 | T | `tests/integration/test_dispatch_revalidation.py` | Busy count: `ADM-R12` before any commit at the bound; `UNCERTAIN` and `WORKING` not counted; `command_status` returns each pending state after a lost reply | the count includes uncertain commands |
 | PRF-DSP-11 | T | `tests/integration/test_dispatch_revalidation.py` | F-D7: after `not_sent` no new attempt until `DISPATCH_RETRY_REQUESTED`; then attempt *n*+1 after fresh revalidation; a rejected command is never retried | a send loop occurs |
-| PRF-DSP-12 | T | `tests/contracts/test_capabilities.py` | The simulated broker opens no socket and reads no credential; script steps map as tabled; `RuleResponder` records its model version | a live adapter is reachable in simulation |
+| PRF-DSP-12 | T | `tests/contracts/test_capabilities.py` | The [simulated broker](execution-domain-and-observations.md#simulated-broker-adapterssimulated_brokerpy) opens no socket and reads no credential; script steps map as tabled there; every result's domain is `simulated`; `RuleResponder` records its model version | a live adapter is reachable in simulation |
 
 ## Delivery
 
 | Slice | Keys | Proofs |
 |---|---|---|
 | SLICE-01 | REQ-DSP-002, -011 (script responder), with a synchronous call outside any transaction and the revalidation hook before the claim | PRF-DSP-02, -12 |
-| SLICE-05 | REQ-DSP-001, -003…-010: per-account workers, deadline sweep, revalidation, scheduling, busy count, retries, kill and hold records, the cancel/modify/close verbs | PRF-DSP-01, -03…-11 |
-| SLICE-07 | The total-deadline proof against a socket-level fake (with the OpenAlgo adapter) | PRF-DOM-04 |
+| SLICE-05 | REQ-DSP-001, -003…-010: per-account workers, deadline sweep, revalidation, scheduling, busy count, retries, kill and hold records, the cancel/modify/close verbs | PRF-DSP-01, -03…-08, -10, -11 |
+| SLICE-07 | The total-deadline proof against a socket-level fake (with the OpenAlgo adapter); row 6 with the observation loop | PRF-DOM-04, PRF-DSP-09 |
 | SLICE-12 | `RuleResponder` with the research fill model | PRF-DSP-12 (rule part) |
 
 See [plan/delivery-plan.md](../plan/delivery-plan.md).

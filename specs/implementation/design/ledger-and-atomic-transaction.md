@@ -181,7 +181,7 @@ The writer validates each payload against `resources/events.schema.json`, which 
 | `PAUSE_STARTED`, `PAUSE_CLEARED` | `kernel.policy`; committed by admission (start) or on an owner command (clear) | [intent spec](intent-to-admission.md#review-application-kernelpolicypy) | `pause` |
 | `REVIEW_RECORDED`, `INTENT_SEEN` | `kernel.policy` | review fields and kernel arrival time; intent digest and first-seen time | `review` |
 | `DISPATCH_REFUSED` | `kernel.coordinator` | `code`, `dependency` | command `REFUSED`; reservation `RELEASED` |
-| `DISPATCH_RETRY_REQUESTED` | `kernel.coordinator`, on a request from a principal holding the command's verb | `attempt_no` (the `NOT_SENT` one), `principal` | attempt `retry_requested_sequence` |
+| `DISPATCH_RETRY_REQUESTED` | `kernel.admission`, on an identical resubmission by a principal holding the command's verb ([identity rule](#request-digest-and-the-identity-rule)) | `attempt_no` (the `NOT_SENT` one), `principal` | attempt `retry_requested_sequence` |
 | `DISPATCH_CLAIMED` | `kernel.coordinator` | `attempt_no`, `epoch_id` | attempt `CLAIMED`; command `IN_FLIGHT`; reservation `HELD` |
 | `OUTCOME_NOT_SENT` / `_REJECTED` / `_ACKNOWLEDGED` / `_AMBIGUOUS` | `kernel.coordinator`; `kernel.recovery` for outcomes rebuilt from published evidence and for `_AMBIGUOUS` | `attempt_no`, `epoch_id`, `legs`, `unassigned_order_ids`, `reason` (for `_AMBIGUOUS`: `timeout`, `adapter_error`, `interrupted`, `outcome_refused`, `evidence_unusable`, `evidence_unpublished`), `raw_digest`, `reservation_after` when legs were rejected | per the state table; `broker_identity` order IDs |
 | `RESOLVED_REACHED`, `RESOLVED_NEVER_REACHED` | `kernel.lifecycle` from reconciliation | `attempt_no`, `legs` (per-leg resolution), `observation_digest`, `broker_order_ids`, `reservation_after` | per the state table |
@@ -200,7 +200,8 @@ Every event that changes a reservation carries `reservation_after`: the post-cha
 * **`request_digest`** is `digest({"verb": <verb>, **<all fields of the request>})` with the envelope's normalization. It covers `command_key` and `principal`. Identity types are written as arrays (`AccountId` as `[broker, account]`).
 * The **identity rule** applies to `COMMAND_ADMITTED` and `ADMISSION_REFUSED`:
   * no row for the key: continue;
-  * a row with the same digest: append nothing and return `Existing(row)`; the caller builds its `Outcome` from the row and the latest attempt;
+  * a row with the same digest, the command `ADMITTED` and its latest attempt `NOT_SENT` with no retry recorded after it: after `authority.check` passes for the principal, append `DISPATCH_RETRY_REQUESTED` and return `Existing(row)` (this is how a caller retries, as in legacy `OA/src/tier1/coordinator.py:94-110`);
+  * any other row with the same digest: append nothing and return `Existing(row)`; the caller builds its `Outcome` from the row and the latest attempt;
   * a row with a different digest: return `LED-R02`.
 * `ADMISSION_REFUSED` creates no row, so a later request with the same key is evaluated afresh. A missing key is `LED-R01` and is never recorded.
 
@@ -342,7 +343,7 @@ PlanRef(plan_digest, account, legs: list[PlanLeg], amount, margin, worst_case_lo
 CommandStatus(command_key, state, verb, attempt_no | None, effect | None,
               broker_order_ids, refusal: Refusal | None)                 # read by command_status
 TransportResult(cls: not_sent | rejected | acknowledged | ambiguous, legs: list[LegResult],
-                domain: DomainEvidence, raw: EvidenceRef)                   # produced by an adapter
+                domain: DomainEvidence, raw: EvidenceRef | None)            # produced by an adapter; None if publishing failed
 LegResult(leg_role, cls: not_sent | rejected | acknowledged | ambiguous,
           broker_order_id | None, reason)                                   # one per plan leg
 Outcome(command_key, attempt_no | None, effect: not_sent | rejected | acknowledged | ambiguous | refused,
@@ -386,7 +387,7 @@ A request never carries a review result or a plan. `kernel.policy` and `kernel.p
 The ledger enforces two rules about external evidence (Combined-F2, `README.md:790`):
 
 * the evidence owner publishes durably before any decision refers to it; the writer refuses, in step 4, a reference that does not resolve (`LED-R06`);
-* the adapter's published result for an attempt can be found by its `attempt_id`, so recovery can rebuild a lost outcome ([sessions spec](sessions-authority-lifecycle.md#recovery-stages-kernelrecoverypy)).
+* the adapter's published result for an attempt can be found by its command key and attempt number, so recovery can rebuild a lost outcome ([sessions spec](sessions-authority-lifecycle.md#recovery-stages-kernelrecoverypy)).
 
 Who publishes what, and how the store keeps referenced content, belong to the evidence owners: the adapters for transport results and observations ([execution-domain spec](execution-domain-and-observations.md#evidence-contract-contractsevidencepy)), with storage classes from the [runtime spec](runtime-isolation-observability-deployment.md). Export of committed evidence (`kernel/ledger/export.py`) is written with SLICE-02.
 
