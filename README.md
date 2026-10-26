@@ -1,6 +1,6 @@
 # AutonomousTrading — boundary-first architecture with selective reuse
 
-**Research date:** 24 October 2026 UTC. **Inspected revision:** `445eb116514d97c2574c44d4d5374f938dec57a3`, branch `claude/openalgo-trading-architecture-uu1bxn`. **Status:** original research baseline; D01–D10 and the later requirements/transaction refinements D11–D16 were accepted on 25 October 2026 UTC. A01–A03 decisions were also accepted on 25 October; A04 recovery design was accepted on 26 October; A05 design is now accepted; A06 design is accepted; A07-F1–F4 and revised A08-F1–F5 and A09-F1–F4 and A10-F1–F3 and Combined-F1–F6 are accepted; the scoped policy-baseline direction is accepted with policy-by-policy reconciliation pending. Reviewed audit scopes are complete and implementation proof remains pending. See the [ATA review dispositions](ROADMAP.md#independent-ata-report-dispositions) for claims rejected or narrowed during review and clarifications not yet accepted. Acceptance authorizes this design update, not implementation, deployment or financial-policy changes.
+**Research date:** 24 October 2026 UTC. **Inspected revision:** `445eb116514d97c2574c44d4d5374f938dec57a3`, branch `claude/openalgo-trading-architecture-uu1bxn`. **Status:** original research baseline; D01–D10 and the later requirements/transaction refinements D11–D16 were accepted on 25 October 2026 UTC. A01–A03 decisions were also accepted on 25 October; A04 recovery design was accepted on 26 October; A05 design is now accepted; A06 design is accepted; A07-F1–F4 and revised A08-F1–F5 and A09-F1–F4 and A10-F1–F3 and Combined-F1–F6 are accepted; the scoped policy-baseline direction is accepted with policy-by-policy reconciliation pending. Reviewed audit scopes are complete and implementation proof remains pending. The corrected ATA-05/01/04/03/06 refinements are also accepted, with implementation proof pending. See the [ATA review dispositions](ROADMAP.md#independent-ata-report-dispositions) for claims rejected or narrowed during review and clarifications not yet accepted. Acceptance authorizes this design update, not implementation, deployment or financial-policy changes.
 
 ## Recommendation
 
@@ -441,6 +441,22 @@ Each inventory row records policy/behavior, decision ID/date and pinned evidence
 
 This is reconciliation work, not permission to change financial behavior: keep kill and recovery-hold semantics distinct; do not turn managed-host promotion values into universal defaults; a backup cadence does not settle RTO, failover authority or lost-evidence reconstruction; authorized automatic approval, where applicable, retains its evidence-track restrictions and exact-candidate binding. Existing A01–A10, Combined-F1–F6 and approved money policies remain the baseline. Populate the inventory before dependent specifications claim policy completeness; unrelated isolated planning and implementation need not wait. A smaller pinned reference list is cheaper initially but leaves applicability to repeated interpretation; the accepted explicit mapping costs more review and reduces that risk.
 
+### Accepted affected ATA contract refinements
+
+**26 October 2026 UTC — ✅ ATA-05, ATA-01, ATA-04, ATA-03 and ATA-06 recommended options accepted; ✅ documentation updated; implementation and production proof pending.** Owner selected A for each (reply “1” for ATA-01), then authorized both documents and publication. Review used README/ROADMAP only at `AutonomousTradingArchitect/main`, `461f9c2ad61e2f7f2df9b47711d305bc7bfc232d`; no new source, endpoint or runtime verification. These are the corrected recommendations below, not acceptance of the original external report wholesale. The scoped policy inventory remains pending.
+
+**ATA-05 — financial sessions:** `kernel.authority` validates session binding and activation; `kernel.lifecycle` defines attributable session transitions, committed by the existing sole ledger writer. Persist canonical session identity, scope, applicable versioned calendar/policy and transition evidence. Calendar and clock contracts supply boundary evidence, not independent activation authority. Consumers use the established binding; process restart does not create a new session. Cross-session transitions follow applicable approved rules and do not implicitly reset every safety condition or activate a staged candidate. Scope sessions by applicable market/account/policy contracts, not one universal ID. Preserve immutable process settings and Combined-F6 obligations. Prove midday restart, continuous operation across boundaries and crashes during transition without duplicate resets, premature activation or lost protection.
+
+**ATA-01 — protection execution:** `kernel.protection` runs bounded deterministic evaluation within the kernel process, independent of strategy/cognition workers and the supervisor. Supply attributable, view-identified market inputs, canonical session events and relevant reconciled obligation state under the applicable policy. Triggers and input requirements are policy-defined; no confirmed-bar-only cadence or new formula is imposed. Preserve distinct desired, attempted and broker-confirmed protection states. Persist required state and action causation through the sole writer, or prove reconstruction from retained inputs; crash recovery cannot mistake a desired ratchet for a broker-applied stop. Typed actions pass normal admission, safety, authorization and coordinator dispatch. Independent supervision observes/escalates and does not take over sending. Prove worker outages, uncertain modification, late observations, restart/replay and bounded evaluation cost without starving financial processing. Session-close behavior follows the applicable scoped policy, not an invented default.
+
+**ATA-04 — conflicts and scheduling:** `kernel.admission` with `kernel.safety` defines explicit, versioned conflict dependencies for typed actions, unresolved effects and shared exposure/capacity; `kernel.coordinator` separately schedules eligible durable commands under applicable approved ordering rules. Preserve account-wide risk accounting and one outbound request per account. Serialization does not itself define what may proceed after uncertainty. Neither account-wide blanket blocking nor per-target independence is inferred; shared exposure can connect different targets. Resolve applicable permissions/priorities from the scoped policy baseline, exposing genuine new financial choices rather than copying legacy lock order. Test uncertain entry/cancel/modify against later actions across same/different targets and accounts, with stalled transport and pending protection; independent expected outcomes follow the written relation. No new protective priority or emergency permission is selected.
+
+**ATA-03 — initial migration boundary:** the initial legacy-to-target migration is planned at a naturally flat, freshly reconciled boundary in the explicitly selected migration scope: no open positions, working orders or unresolved effects. Do not automatically flatten to create it or infer flatness from time of day. Defer the affected cutover when the condition is not established; isolated work continues. After the target's first broker-changing attempt, retire the old execution route permanently; subsequent recovery/rollback uses compatible target bundles and current financial history under exclusive authority. Before that boundary, any aborted handoff still requires proved exclusive ownership before resuming the prior route. Initial open-obligation import is not part of this selected migration route; historical evidence import remains subject to A04-F4/A02-F5. Combined-F6 continues to protect outstanding obligations during later target release/session transitions. This is an explicitly selected migration choice, not a claim that historical “quiescence” already meant flat. Prove refusal with non-flat or uncertain scope, crash-safe retirement at the first attempt and refusal of old-route reactivation thereafter.
+
+**ATA-06 — execution-domain evidence:** `adapters.openalgo` records domain evidence and provenance/limitations for requests, outcomes and observations; `kernel.reconciliation` validates attributable domain and identity before settlement, and research uses only evidence suitable for its claim. Cached or session-level mode reads are context, not proof of an individual effect. Represent unknown or contradictory attribution explicitly and apply existing scoped uncertainty rules; analyzer mode itself does not prohibit sending. An absent response marker is not automatically proof of live execution. Verify consumed endpoint contracts for the supported deployment before broker-specific acceptance. In isolated tests, toggle mode between request and observation, omit markers and introduce contradictions; prove no silent cross-domain settlement or analyzer result counted as live performance. No deployed response behavior is claimed here.
+
+These refinements keep the existing packages and approved financial semantics. Separate protection workers and calendar-derived-only session identities were not selected initially; they add handoff/coordination proof. Initial open-position migration would add translation risk; broader uncertainty blocking could delay permitted protection. The selected explicit contracts carry modest state/verification cost without adding a second authority. ATA-07's claimed contradiction remains rejected; ATA-08 remains optional traceability work; ATA-09 is corrected.
+
 ## 4. Open-source reference research
 
 Checked **24 October 2026**, cutoff approximately **09:38:37 UTC**, window **24 September–24 October**. Resolve default-branch SHA, request `https://api.github.com/repos/{owner}/{repo}/git/trees/{sha}?recursive=true`, inspect implementation/license and in-window relevant source commits. All listed recursive responses returned **truncated=false**; subtree traversal unnecessary. No repository was installed/executed. Nine qualify as maintained implementation references, not nine recommended dependencies.
@@ -496,6 +512,7 @@ The owner accepted D01–D16 as target design direction on 25 October; D11–D16
 ```mermaid
 flowchart TB
   INPUT[Validated licensed live market inputs] --> MARKET[Stable MarketView identity and deterministic Canvas]
+  MARKET -. attributable protection inputs .-> KERNEL
   MARKET --> DECIDE[Live strategies and typed intents]
   MARKET --> COG[Tier2 scoped cognition without financial credentials]
   COG -. typed intent generation when configured .-> DECIDE
@@ -503,7 +520,7 @@ flowchart TB
   COG -. record only exit advice .-> ADVICE[Attributable advice for human consideration]
   ADVICE --> OWNER
   OWNER -. authenticated exact action subject to admission .-> KERNEL
-  DECIDE --> KERNEL[Production Tier1 review policy admission and sole execution owner]
+  DECIDE --> KERNEL[Production Tier1 session protection review admission and sole execution owner]
   OWNER[Authenticated scoped owner governance and bound release policy] -. approved policy and session candidates .-> KERNEL
   KERNEL <--> LEDGER[Production SQLite WAL financial ledger]
   KERNEL --> DISPATCH[Revalidate dependencies and durably record attempt]
@@ -580,7 +597,12 @@ flowchart TB
     APPLY -. review binding evidence .-> ADMIT
     APPLY -->|eligible under approved policy| PLAN[Pure versioned planning within kernel authority]
     APPLY -->|non dispatch decision| NODISPATCH[Record decision and reason without send authority]
-    SESSION[Bound release settings policy candidate and live clock] --> PLAN
+    SESSION[Canonical financial session and bound release settings policy candidate] --> PLAN
+    VIEW --> PROTECT[Bounded kernel protection evaluation]
+    SESSION --> PROTECT
+    ACCOUNT --> PROTECT
+    PROTECT -. typed actions under approved policy .-> ADMIT
+    PROTECT -. recoverable desired state and causation .-> COMMIT
     SESSION --> APPLY
     PLAN --> ADMIT[Tier1 exact plan admission and safety checks]
     ACCOUNT[Reconciled account and pending obligations] --> ADMIT
@@ -593,10 +615,10 @@ flowchart TB
     ATTEMPT --> IO[Bounded I O one outbound request per account]
     IO --> OA[OpenAlgo adapter without hidden effect retries]
     OA --> EFFECT[Broker or OpenAlgo analyzer effects]
-    OA --> RESULT[Classified transport evidence]
+    OA --> RESULT[Classified transport and execution domain evidence]
     RESULT --> LIFE[Lifecycle command order and position obligations]
     OA --> BOBS[Observations with identity timing and coverage evidence]
-    BOBS --> RECON[Reconciliation validates coverage and matching]
+    BOBS --> RECON[Reconciliation validates domain coverage and matching]
     RECON --> LIFE
     LIFE --> OBLIG[Reservation changes under approved valuation]
     OBLIG --> COMMIT[Atomic outcome lifecycle and accounting commit]
@@ -606,6 +628,8 @@ flowchart TB
     NODISPATCH --> LEDGER
     LEDGER <--> COMMIT
     LEDGER <--> ATTEMPT
+    LEDGER --> SESSION
+    SESSION -. validated session transitions .-> COMMIT
     LEDGER --> CHECK
     LEDGER --> COMPAT[Verified compatibility projections with freshness status]
   end
@@ -618,7 +642,12 @@ flowchart TB
     SREVIEW -. review binding evidence .-> SADMIT
     SREVIEW -->|eligible under approved policy| SPLAN[Same planning port and versioned implementations]
     SREVIEW -->|non dispatch decision| SNO[Same decision evidence without send authority]
-    SBIND[Frozen simulation policy candidate and assumptions] --> SPLAN
+    SBIND[Frozen simulation policy candidate session and assumptions] --> SPLAN
+    SVIEW --> SPROTECT[Same bounded protection evaluation]
+    SBIND --> SPROTECT
+    SPROTECT -. typed actions .-> SADMIT
+    SPROTECT -. recoverable state .-> SLIFE
+    SLEDGER --> SPROTECT
     SPLAN --> SADMIT[Same admission and reservation transitions]
     SADMIT -->|admitted| SCOORD[Same dispatch and attempt rules without live capability]
     SADMIT -->|refused| SNO
@@ -776,7 +805,7 @@ A pivot requiring k right-hand bars is unavailable until those bars are final an
 
 **A01-F3 — readiness belongs to an operation:** the consuming strategy or Canvas algorithm declares its existing input requirements, optional fields, lookback, session/reset and partial-data rules. `market.view` assembles the view; `market.quality` reports the observations against those requirements. Missing, stale, unavailable and zero-valued inputs are different states. A row count alone cannot prove warm-up when rows are duplicated, intervals missing or session scope wrong. Account for join skew across spot, option and other inputs where consumed. Approved policy determines the financial consequence; a quality assessment cannot invent thresholds, silently fill missing values or create a global startup/readiness gate.
 
-**A01-F4 — bars and calendars:** use one versioned definition of timezone/session, interval start/end inclusion, breaks and expected coverage throughout market views, aggregation, Canvas and replay. A time interval ending does not prove its constituent data arrived or that the provider finalized it. Expose those facts separately, including partial-window and correction status. Normalize vendor-provided candles when their contract fits; local aggregation is not mandatory. Consumers may legitimately differ on partial-data usability under their declared rules. Calendar/window changes produce explicit new semantic identity rather than silently changing an old view.
+**A01-F4 — bars and calendars:** use one versioned definition of timezone/session, interval start/end inclusion, breaks and expected coverage throughout market views, aggregation, Canvas and replay. A time interval ending does not prove its constituent data arrived or that the provider finalized it. Expose those facts separately, including partial-window and correction status. Normalize vendor-provided candles when their contract fits; local aggregation is not mandatory. Consumers may legitimately differ on partial-data usability under their declared rules. Calendar/window changes produce explicit new semantic identity rather than silently changing an old view. Canonical financial-session transitions follow ATA-05; calendar boundaries alone grant no financial activation.
 
 **A01-F5 — corrections and derived state:** retain corrected base observations as revisions and resolve them against the requested view identity. Recompute affected aggregates and facts from that resolved input range, retaining prior facts for old views and linking supersession. Start with straightforward deterministic recomputation; incremental state/checkpoints require identity binding and comparison against that reference before adoption. A new view must not mix corrected raw bars with old dependent aggregates or swing state. Verify actual new results as well as unchanged old views; no general dependency framework is required without measured need.
 
@@ -869,7 +898,7 @@ Start with existing direction/abstention candidate boundary, not unconstrained o
 
 The supervisor independently gathers attributable order/trade/position and protection observations through OpenAlgo. Enforce read-only capability outside caller conventions: use verified native permissions if available, otherwise a narrowly restricted observation interface independent of the kernel. A06-F2 selects verified native permissions or restricted typed observation mediation; actual endpoint/isolation proof remains pending; do not give a general trading credential to the observer on trust. Validate account, broker and execution domain; analyzer observations cannot silently reconcile live obligations. Scope polling ownership, intentional overlap, rate/resource budgets and missing responses; simultaneous successful calls do not establish an atomic broker snapshot. Pure shared reconciliation calculations produce an assessment of matched, conflicting, unmatched and unknown effects. Apply Combined-F2 durable publication, retention and handoff to outage observations and assessment provenance for later kernel validation, in non-authoritative evidence storage: no reservation release, canonical settlement or financial permission originates there. Kernel ingestion deduplicates observations and commits accepted transitions through D15–D16. This is complete accounting of knowledge and gaps, not a promise of instantaneous broker truth during unavailable or in-flight effects.
 
-**A03-F5 — progress, protection and recovery:** measure progress relative to actual demand: oldest pending work, relevant committed-head lag, observation age, persistence failures and resource pressure. A quiet ledger is not automatically stalled; define the reference against which lag is measured. Independent supervision and resource isolation contain background work without granting money authority. Classify protection as broker-held and observed, runtime-dependent, or uncertain. Broker acknowledgement alone does not establish active protection; local trailing cannot advance while its owner is failed. The supervisor observes/escalates, never becomes an emergency sender. Controlled recovery of the same kernel must establish exclusive ownership, retain unresolved attempts and reconcile uncertainty before affected actions resume. A04-F1–F3 define recovery stages, ownership/effect separation and recorded releases; concrete restart eligibility, termination/fencing and activation still require implementation proof; no automatic restart policy or emergency permission is accepted here. Distinguish process failure from storage/host failure: a same-host supervisor cannot survive host loss, which needs separately proved alerting and off-host recovery. No shared-network SQLite or competing financial owner is introduced.
+**A03-F5 — progress, protection and recovery:** measure progress relative to actual demand: oldest pending work, relevant committed-head lag, observation age, persistence failures and resource pressure. A quiet ledger is not automatically stalled; define the reference against which lag is measured. Independent supervision and resource isolation contain background work without granting money authority. Classify protection as broker-held and observed, runtime-dependent, or uncertain. Broker acknowledgement alone does not establish active protection; local trailing cannot advance while its owner is failed. The supervisor observes/escalates, never becomes an emergency sender. Controlled recovery of the same kernel must establish exclusive ownership, retain unresolved attempts and reconcile uncertainty before affected actions resume. A04-F1–F3 define recovery stages, ownership/effect separation and recorded releases; concrete restart eligibility, termination/fencing and activation still require implementation proof; no automatic restart policy or emergency permission is accepted here. Distinguish process failure from storage/host failure: a same-host supervisor cannot survive host loss, which needs separately proved alerting and off-host recovery. No shared-network SQLite or competing financial owner is introduced. ATA-01 assigns bounded automatic protection evaluation to the kernel process with recoverable desired/attempted/confirmed state.
 
 
 Initial deployment: one Linux host, local durable Tier-1 storage, systemd, current operator surface, bounded research slice, independently scheduled protection/reconciliation readers. Critical supervisors may use the same installed package but retain independent process/restart/resource supervision. One host is a failure domain; honest RPO/RTO and fencing beat an unproved HA label.
@@ -967,14 +996,14 @@ AutonomousTrading/                         # Recompose existing behavior into on
 │       │   ├── memory.py                  # Partition causal working outcome and research memory
 │       │   └── reflection.py              # Produce experiments and candidate proposals
 │       ├── kernel/                        # Sole internal financial authority boundary
-│       │   ├── authority.py               # Validate actors grants and exclusive writer scope
+│       │   ├── authority.py               # Validate grants writer scope and financial session binding
 │       │   ├── policy.py                  # Apply approved policy and bound review semantics
 │       │   ├── planner.py                 # Compute pure versioned plans without persistence effects
 │       │   ├── selection.py               # Preserve instrument selection and sizing
 │       │   ├── admission.py               # Validate action effects plans bindings and state
 │       │   ├── reservations.py            # Compute obligation changes under approved valuation
-│       │   ├── lifecycle.py               # Own command order and position obligation transitions
-│       │   ├── protection.py              # Own protection behavior and obligation continuity
+│       │   ├── lifecycle.py               # Own financial session command and obligation transitions
+│       │   ├── protection.py              # Evaluate bounded protection with recoverable state
 │       │   ├── safety.py                  # Apply explicit condition and action precedence
 │       │   ├── coordinator.py             # Own durable dispatch scheduling and bounded I O
 │       │   ├── reconciliation.py          # Validate coverage identity and resolution evidence
@@ -1132,7 +1161,7 @@ Exercise the selected composition with deferred services absent. Preserve the fu
 | **4 Consolidate financial ownership** | D02 atomically commits monetary reservation, admission and command identity; D03 lifecycle and D04 verified indexes drive generated JSONL projections in the disarmed target only. Prove D13–D16 partial-fill, retry and coverage rules and compare same-head books/obligations; existing live owner remains authoritative. | Offline construction and disarmed shadow only. No financial ownership or canonical-state switch before Phase 7. |
 | **5 Cognition/Canvas** | D08 and A01-F1–F5 stable views, startup/window/quality/correction contracts plus D09 OS capability boundaries/job ports; approved review behavior preserved; no future leakage; compare simple vs specialists. | Parallel with extraction against frozen contracts, no broker proof or global close gate. Entry policy changes separately governed. |
 | **6 Research/RL packaging** | Custody/freeze/RL preserved where compatible; A07 fitting provenance, attributable attempts/resumes, transition-based rewards and exact approval binding; synthetic alias/restore/one-use checks; all trials retained. | Independent of production release; promotion depends on its own evidence/owner governance. |
-| **7 Recovery proof and exclusive cutover** | First prove A03 independent outage assessment and protection status, then pass D10 crash/restart and clean-host restore rehearsal for the exact candidate artifact/schema/backup, including custody continuity and exclusive activation. Then pin release/config, reconcile in-flight obligations, prove old writer incapable and activate one new writer with protection verified. | Production-sensitive boundary. Never auto-flatten to manufacture quiescence; independent work continues elsewhere. |
+| **7 Recovery proof and exclusive cutover** | First prove A03 independent outage assessment and protection status, then pass D10 crash/restart and clean-host restore rehearsal for the exact candidate artifact/schema/backup, including custody continuity and exclusive activation. Then pin release/config, establish the ATA-03 naturally flat freshly reconciled migration scope, prove old writer incapable and activate one new writer with protection verified. | Production-sensitive boundary. Never auto-flatten to manufacture quiescence; independent work continues elsewhere. |
 | **8 Recovery tuning/economics/growth** | Repeat recovery drills after relevant changes; tune measured RPO/RTO, tails/resources/AI economics and optional component need. Baseline restore/fencing proof was required before Phase 7 activation. | Rehearsals isolated. Live activation/exercises require own authority. Economic evidence candidate-specific, not gate to unrelated fixes. |
 
 ### Compatibility and no-dual-authority invariant
@@ -1148,7 +1177,7 @@ Before cutover, new kernel only shadows calculations using independent ledger, d
 
 **D10:** before authorizing Phase 7 activation, restore a consistent backup with the exact candidate artifact and schema on an isolated clean host; exercise crashes, unresolved effects, identity preservation, monotonic custody and refusal before fencing. Rehearsal evidence does not replace actual cutover fencing or fresh reconciliation.
 
-The sole production canonical-state/write-authority switch occurs in Phase 7, never Phase 4. At cutover prove old writer incapability, reconcile accepted/pending/unknown commands, transfer history with stable identities, activate one writer. Never resend an uncertain command merely because packaging/epoch changed. Rollback after effects keeps current history and uses compatible software under authorized epoch; never roll financial/custody state back to erase intervening effects/consumption. If handoff compatibility is unproved, retain the existing authorized owner and keep the replacement disarmed.
+The sole production canonical-state/write-authority switch occurs in Phase 7, never Phase 4. For initial migration apply ATA-03: establish a naturally flat, freshly reconciled scope with no working orders or unresolved effects, prove old writer incapability, transfer history with stable identities and activate one writer. Permanently retire the old execution route at the target’s first broker-changing attempt; subsequent rollback uses compatible target bundles, never that old route. Never resend an uncertain command merely because packaging/epoch changed. Rollback after effects keeps current history and uses compatible software under authorized epoch; never roll financial/custody state back to erase intervening effects/consumption. If handoff compatibility is unproved, retain the existing authorized owner and keep the replacement disarmed.
 
 ### Fresh target test suite and selective legacy evidence
 
@@ -1306,7 +1335,7 @@ Document checks confirmed nine primary sections, one current-state and exactly t
 
 ### Current design status — 26 October 2026 UTC
 
-**Accepted:** D01–D16, A01-F1–F5, A02-F1–F5, A03-F1–F5, A04-F1–F5, A05-F1–F5, A06-F1–F5, A07-F1–F4, A08-F1–F5, A09-F1–F4, A10-F1–F3, Combined-F1–F6, the scoped policy-baseline direction (inventory pending), corrected AUD-01–AUD-03 design refinements and AUD-04 independent observation/read contracts (security implementation proof pending) and AUD-05 migration audit task (route undecided), plus the boundary-first, selective-reuse principle; D11–D16 record the six later owner choices as design, not implementation proof. **Changed documents:** this master README and ROADMAP.md in `AutonomousTradingArchitect`; the trading source remains read-only. **Implementation status:** not implemented or production-accepted by this update; F1–F5 remain open. **Structure:** §6 keeps one installable namespace with packaged immutable resources and explicit financial, market, cognition, research and operations owners. **Paused after A10:** concrete first-release selection and implementation planning require their own scope; no production-readiness claim is made. A04 implementation must prove recovery stages, exclusive ownership, release transitions, migration and the recovery set. A01-F1–F5, A02-F1–F5 and A03-F1–F5 are accepted design decisions with implementation proof pending; A04 retains migration-route selection. D11–D16 are recorded design decisions, not work to re-decide by default. **Later implementation:** turn those contracts into isolated slices in implementation-roadmap order. Exact deadline, valuation and emergency-policy choices remain open where not already approved. Implementation, financial-policy changes and production activation require their own scope and evidence. Missing production proof blocks only its dependent operation.
+**Accepted:** D01–D16, A01-F1–F5, A02-F1–F5, A03-F1–F5, A04-F1–F5, A05-F1–F5, A06-F1–F5, A07-F1–F4, A08-F1–F5, A09-F1–F4, A10-F1–F3, Combined-F1–F6, the scoped policy-baseline direction (inventory pending), corrected ATA-05/01/04/03/06 refinements (implementation proof pending), corrected AUD-01–AUD-03 design refinements and AUD-04 independent observation/read contracts (security implementation proof pending) and AUD-05 migration audit task (route undecided), plus the boundary-first, selective-reuse principle; D11–D16 record the six later owner choices as design, not implementation proof. **Changed documents:** this master README and ROADMAP.md in `AutonomousTradingArchitect`; the trading source remains read-only. **Implementation status:** not implemented or production-accepted by this update; F1–F5 remain open. **Structure:** §6 keeps one installable namespace with packaged immutable resources and explicit financial, market, cognition, research and operations owners. **Paused after A10:** concrete first-release selection and implementation planning require their own scope; no production-readiness claim is made. A04 implementation must prove recovery stages, exclusive ownership, release transitions, migration and the recovery set. A01-F1–F5, A02-F1–F5 and A03-F1–F5 are accepted design decisions with implementation proof pending; A04 retains migration-route selection. D11–D16 are recorded design decisions, not work to re-decide by default. **Later implementation:** turn those contracts into isolated slices in implementation-roadmap order. Exact deadline, valuation and emergency-policy choices remain open where not already approved. Implementation, financial-policy changes and production activation require their own scope and evidence. Missing production proof blocks only its dependent operation.
 
 Review command:
 
