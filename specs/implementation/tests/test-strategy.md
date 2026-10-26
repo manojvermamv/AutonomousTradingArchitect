@@ -45,14 +45,14 @@ Nothing *specified* is ever reported as *passing*.
 
 * **Mechanism.** Crash points are named in the specs (CP-L*, CP-D*, CP-S*, CP-P*, CP-O*). A test-only `FaultPlan`, accepted only by the simulation composition (PRF-XC-02), calls `os._exit(86)` at the named point inside a subprocess.
 * **What the test then does.** It reopens the ledger in the test process, runs recovery and compares the state with the crash-point table.
-* **Persistence failures.** Disk-full and commit failures use a SQLite VFS shim or a read-only remount in the `isolation/` group (TASK-S02-04).
+* **Persistence failures.** SLICE-01 injects a commit failure with the legacy fault VFS (`apsw.FullError` from `xWrite`, PRF-LED-07). TASK-S02-04 adds the I/O-error and read-only-remount variants in the `isolation/` group.
 
 ## Stateful property tests
 
 Hypothesis rule-based state machines (planned dependency, test-only) are used **only** for ledger, lifecycle and reservations (PRF-LED-09). That is where interleavings matter most:
 
 * **Rules:** admit, claim, outcome, fill, resolve and crash/recover.
-* **Invariants:** I-1…I-5 from the [ledger spec](../design/ledger-and-atomic-transaction.md#command-and-attempt-state-machine).
+* **Invariants:** I-1…I-6 from the [ledger spec](../design/ledger-and-atomic-transaction.md#command-and-attempt-state-machine).
 
 ## Coverage map (prompt areas → proofs)
 

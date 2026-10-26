@@ -260,7 +260,7 @@ Assessment(matched: list[(command_key, attempt_no, leg_role | None, item)],
 2. **Identity matches**, per command and per leg (an item may match more than one command, for example an entry and a cancel of it; each is judged on its own), then the **domain** of each match.
 3. **Per-verb evidence** (below), fills, and completion by the ledger's [verb rules](ledger-and-atomic-transaction.md#command-and-attempt-state-machine).
 4. **Absence** findings, where absence is usable.
-5. **Unattributed orders**: an order no unresolved attempt or leg could account for becomes `FOREIGN_RECORDED`, once per order ID. It is an audit fact; capacity counts external activity from broker observations, not from this record ([intent spec](intent-to-admission.md#admission-kerneladmissionpy)).
+5. **Unattributed orders**: an order no unresolved attempt or leg could account for becomes `FOREIGN_RECORDED`, once per order ID, followed by the response `reconciliation.foreign_response` names ([Q-016](../decisions/owner-questions.md#q-016)): `record_only`, `escalate` (reason `foreign_activity`) or `hold_entries`. It is an audit fact; capacity counts external activity from broker observations, not from this record ([intent spec](intent-to-admission.md#admission-kerneladmissionpy)).
 
 **Per-verb evidence:**
 
@@ -298,7 +298,7 @@ Assessment(matched: list[(command_key, attempt_no, leg_role | None, item)],
 |---|---|---|
 | `CONFLICT_RECORDED` | `command_key` or none, `broker_order_id`, `attempt_domain`, `observed_domain`, `reason` (`domain_conflict`, `after_rejected`, `after_never_reached`, `cross_domain_id`), `observation_digest` | (`broker_order_id`, `reason`) |
 | `FOREIGN_RECORDED` | `broker_order_id`, `account`, `instrument`, `side`, `quantity`, `observation_digest` | `broker_order_id` |
-| `RECONCILIATION_ESCALATED` | `subject` (command key, broker order ID, or `position_id` for protection's reasons), `reason` (`domain_conflict`, `untagged_timeout` (Q-007), `unknown_domain_unresolved` (Q-012), `close_without_fill_total`, `working_without_completion`, or a protection reason from the [protection catalogue](protection-and-safety.md#event-catalogue)), `observation_digest` or none | (`subject`, `reason`) |
+| `RECONCILIATION_ESCALATED` | `subject` (command key, broker order ID, or `position_id` for protection's reasons), `reason` (`domain_conflict`, `untagged_timeout` (Q-007), `unknown_domain_unresolved` (Q-012), `close_without_fill_total`, `working_without_completion`, `foreign_activity` (Q-016), or a protection reason from the [protection catalogue](protection-and-safety.md#event-catalogue)), `observation_digest` or none | (`subject`, `reason`) |
 
 All three fold into the `reconciliation_fact` index table, keyed as shown, which is how each is recorded once.
 
@@ -363,6 +363,7 @@ All three fold into the `reconciliation_fact` index table, keyed as shown, which
 | `capacity.count_non_live_obligations` | [Q-008](../decisions/owner-questions.md#q-008) | None: refusing |
 | `reconciliation.clock_skew_secs` | Measured with the clock-quality evidence | None: refusing |
 | `reconciliation.working_escalation_secs` | Measured (A09-F4) | None: refusing |
+| `reconciliation.foreign_response` | [Q-016](../decisions/owner-questions.md#q-016) | None: refusing |
 | `observation.poll_interval_secs`, `observation.max_requests_per_minute` | Measured (A09-F4) | None: refusing |
 | Endpoint contracts (mode marker, coverage rule, `covers`, `visibility_secs`, client tag, status mapping) | Verified at source (TASK-S07-05) | No record: the conservative values above |
 

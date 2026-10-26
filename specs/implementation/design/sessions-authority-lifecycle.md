@@ -119,7 +119,7 @@ All times are IST (`Asia/Kolkata`). The NSE F&O calendar in the examples opens a
 | `SessionScope` | `account_id`, `calendar_id` (exchange-segment calendar) | ATA-05 scopes sessions by "market/account/policy contracts" (`README.md:450`); this package reads the policy contract as bound to the session at open rather than as a key field ([X-005](../consistency/master-contradictions.md#x-005)) |
 | `FinancialSessionId` | `scope`, `trading_date` (`YYYY-MM-DD` in the calendar's timezone) | One session per scope per trading date. Wire and digest form follows the ledger's array rule: `[[[broker, account], calendar_id], trading_date]`; the `session` table key is the derived string `"<broker>:<account>:<calendar_id>:<trading_date>"` |
 | `PolicyBindingId` | SHA-256 of the normalized policy document ([configuration spec](configuration-artifacts-release.md)) | Never changes once recorded |
-| `CandidateId` | SHA-256 of the normalized candidate manifest ([research spec](research-rl-custody-promotion.md)) | Never changes once recorded |
+| `CandidateId` | SHA-256 of the normalized candidate manifest. For a retained, hand-written strategy the manifest is `{"strategy": <name>, "strategy_version": <version>, "code_digest": <SHA-256 of the strategy package's files, sorted by path, LF-normalized>}`, defined here so SLICE-03, SLICE-04 and SLICE-14 do not depend on research; the [research spec](research-rl-custody-promotion.md) extends it for trained candidates (SLICE-12) | Never changes once recorded |
 | `CommandKey` | Caller-supplied string | REQ-LED-004 |
 | `EpochId` | Non-empty string chosen at writer open | One active per ledger |
 | `Principal` | `value`; `kind`: `human`, `service` or `kernel` | Never taken from a payload claim (`README.md:863`). SLICE-01 builds `human` and `kernel`; SLICE-03 adds `service` |
@@ -128,7 +128,7 @@ All times are IST (`Asia/Kolkata`). The NSE F&O calendar in the examples opens a
 **Grant actions**, grouped:
 
 * trading: `entry`, `cancel`, `modify`, `close`;
-* safety controls: `kill_engage`, `kill_release`, `hold_engage`, `hold_release`, `latch_unlock`, `pause_clear`;
+* safety controls: `kill_engage`, `kill_release`, `hold_engage`, `hold_release`, `latch_unlock`, `pause_clear`. `kill_release`, `latch_unlock`, `pause_clear`, and the cancel and close permitted under kill, are granted to the owner principal only, as the approved wording (POL-002, POL-004, POL-027) and legacy's `OwnerCommand`; [Q-014](../decisions/owner-questions.md#q-014) asks whether delegated operators may hold them;
 * administration: `binding_authorize`, `grant_admin`, `recovery_advance`.
 
 The **bound accounts** are the accounts in the scopes of unrevoked standing bindings. For `recovery_advance`, which acts on the whole ledger, the grant's `accounts` must include every bound account; `authority.check` is called with each in turn.

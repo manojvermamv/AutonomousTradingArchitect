@@ -172,13 +172,13 @@ The writer validates each payload against `resources/events.schema.json`, which 
 
 | Kind | Decided by | Payload fields | Index effect |
 |---|---|---|---|
-| `EPOCH_ACTIVATED` | `kernel.recovery` | `epoch_id`, `principal`, `retired_epoch_id` | `authority_epoch` |
+| `EPOCH_ACTIVATED` | `kernel.recovery` | `epoch_id`, `principal`, `retired_epoch_id`, `restore` (the restore marker or none) | `authority_epoch` |
 | `RUNTIME_OPENED` | `kernel.recovery` | binding, binding version, SQLite version | none |
 | `MIGRATION_APPLIED` | `kernel.recovery` | `migration_number`, `name`, `file_digest` | `ledger_meta` |
 | `RELEASE_BOUND` | `kernel.authority` | `binding_id`, `receipt`, `receipt_digest` | `release_binding` |
 | `COMMAND_ADMITTED` | `kernel.admission` | `verb`, `target`, `strategy`, `request` (normalized), `request_digest`, `plan_ref` and `plan_digest` (entries), `account`, `application`, `dependencies`, `state_heads` (reservation head; funds and position observation digests), `measured_ages`, `resulting_exposure`, reservation amounts (entries) or `reservation_after` (a modify that raises an entry's capital) | identity row; reservation `RESERVED` or raised |
 | `ADMISSION_REFUSED` | `kernel.admission` | `verb`, `request_digest`, `code`, `message`, `inputs` | none |
-| `PAUSE_STARTED`, `PAUSE_CLEARED` | `kernel.policy`; committed by admission (start) or on an owner command (clear) | [intent spec](intent-to-admission.md#review-application-kernelpolicypy) | `pause` |
+| `PAUSE_STARTED`, `PAUSE_CLEARED` | `kernel.policy`; committed in the `REVIEW_RECORDED` transaction (start) or on an owner command (clear) | [intent spec](intent-to-admission.md#review-application-kernelpolicypy) | `pause` |
 | `REVIEW_RECORDED`, `INTENT_SEEN` | `kernel.policy` | review fields, kernel arrival time and, for the first review of a digest, the frozen application; intent digest and first-seen time | `review` |
 | `DISPATCH_REFUSED` | `kernel.coordinator` | `code`, `dependency` | command `REFUSED`; reservation `RELEASED` |
 | `DISPATCH_RETRY_REQUESTED` | `kernel.admission`, on an identical resubmission by a principal holding the command's verb ([identity rule](#request-digest-and-the-identity-rule)) | `attempt_no` (the `NOT_SENT` one), `principal` | attempt `retry_requested_sequence` |
@@ -389,7 +389,21 @@ The ledger enforces two rules about external evidence (Combined-F2, `README.md:7
 * the evidence owner publishes durably before any decision refers to it; the writer refuses, in step 4, a reference that does not resolve (`LED-R06`);
 * the adapter's published result for an attempt can be found by its command key and attempt number, so recovery can rebuild a lost outcome ([sessions spec](sessions-authority-lifecycle.md#recovery-stages-kernelrecoverypy)).
 
-Who publishes what, and how the store keeps referenced content, belong to the evidence owners: the adapters for transport results and observations ([execution-domain spec](execution-domain-and-observations.md#evidence-contract-contractsevidencepy)), with storage classes from the [runtime spec](runtime-isolation-observability-deployment.md). Export of committed evidence (`kernel/ledger/export.py`) is written with SLICE-02.
+**The evidence store** (`kernel/ledger/evidence_store.py`, tree delta T-23 until the master places it, [X-007](../consistency/master-contradictions.md#x-007); built in SLICE-02):
+
+```text
+EvidenceStore(root: Path)
+    publish(content: dict, *, attempt: (command_key, attempt_no) | None = None) -> EvidenceRef
+    resolve(ref: EvidenceRef) -> dict              # raises EvidenceMissing
+    for_attempt(command_key, attempt_no) -> EvidenceRef | None
+```
+
+* Content-addressed: the object is `canonical(content)` (envelope rule) stored at `<root>/objects/<d[0:2]>/<d>.json`, where `d` is its SHA-256. Publishing writes a temporary file in the same directory, `fsync`s it, renames it into place and `fsync`s the directory, so a crash leaves either nothing or the whole object; publishing the same content twice is a no-op. The atomic publish pattern reuses legacy `CandidateRegistry.publish` (`OA/src/analysis/candidates/registry.py:285`).
+* An attempt-keyed publish also writes `<root>/attempts/<command_key>#<attempt_no>` holding the digest, the same way; `for_attempt` reads it. This is recovery's lookup.
+* `EvidenceRef.store` is `evidence` for this store and `simulated` for the simulated broker's inline refs; the writer's step 4 resolves `evidence` refs and checks `simulated` refs for form only.
+* Retention and storage classes are the runtime spec's (A09-F3).
+
+Who publishes what belongs to the evidence owners: the adapters for transport results and observations ([execution-domain spec](execution-domain-and-observations.md#evidence-contract-contractsevidencepy)), with storage classes from the [runtime spec](runtime-isolation-observability-deployment.md). Export of committed evidence (`kernel/ledger/export.py`) is written with SLICE-02.
 
 ### Refusals and their recording
 

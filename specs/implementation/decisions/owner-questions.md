@@ -16,6 +16,10 @@ Status: **open owner decision** unless a row says answered. Each question is a g
 | [Q-010](#q-010) | What does revoking a standing binding do to a session that is already open? | A07-F4 (`README.md:891`); [sessions spec](../design/sessions-authority-lifecycle.md#standing-bindings) | TASK-S03-02, TASK-S04-05 | open |
 | [Q-011](#q-011) | Dispatch deadline per verb (entry, cancel, modify, close) | D13 (`README.md:758`) | TASK-S05-08, TASK-S05-01 | open |
 | [Q-012](#q-012) | How is a timed-out cancel, modify, close or entry of unknown domain resolved, when absence in a book of one domain says nothing about another? | D15 (`README.md:762`), ATA-06 (`:458`); [execution-domain spec](../design/execution-domain-and-observations.md#reconciliation-kernelreconciliationpy) | TASK-S07-02, TASK-S07-05; protection retries (TASK-S06-01) | open |
+| [Q-013](#q-013) | Protective placement: legacy basket (entry, SL-M stop and LIMIT target together, at plan prices), stop placed on the first fill, or fill-priced protection? | `README.md:1345` (planned vs fill-based protection); [protection spec](../design/protection-and-safety.md#protective-stop-and-tick-exits-kernelprotectionpy); LD-22 | TASK-S06-01, TASK-S06-05 | open |
+| [Q-014](#q-014) | May delegated human principals, not only the authenticated owner, use the kill exceptions (cancel, close), `kill_release`, `latch_unlock` and `pause_clear`? | POL-002, POL-004, POL-027; `README.md:1343` | TASK-S03-01, TASK-S05-07, TASK-S06-04 | open |
+| [Q-015](#q-015) | Value of `account.max_worst_case_loss` for the first account | `README.md:776`; [intent spec](../design/intent-to-admission.md#b5-capacity) | TASK-S04-03 (binding a production value) | open |
+| [Q-016](#q-016) | Response to foreign (manual or outside) broker activity: record only, escalate, or hold entries for the affected account or underlying? | `README.md:1347` (foreign exposure response); POL-009; [execution-domain spec](../design/execution-domain-and-observations.md#reconciliation-kernelreconciliationpy) | TASK-S07-02 | open |
 
 ---
 
@@ -226,4 +230,77 @@ Proof: a timed-out stop modify, cancel, close and entry with no marker each end 
 - **A — Recommended:** A cancel, modify or close takes its domain from its target order's recorded domain (the order exists, and the verb acts on it); an entry stays under [Q-007](#q-007). Absence then works for the three target-bound verbs once their endpoint contract proves coverage and visibility (TASK-S07-05).
 - **B:** A human principal resolves each such attempt by a recorded action naming the evidence (the `attempt_resolve` action proposed in Q-007, widened to every verb).
 - **C:** Treat the deployment's mode, read at the time, as the domain. This makes a session-level read into per-effect proof, which ATA-06 rejects; listed only for completeness.
+- **D:** A free-text answer.
+
+## Q-013
+
+**Protective placement.**
+
+```text
+Requirement: The bound policy states protection.placement; a policy without it refuses to load.
+Owner: kernel.protection (placement), kernel.admission (the protective request).
+Proof: PRF-PRT-01 runs every value: the resting orders, their prices and when they are sent match the chosen rule.
+```
+
+**Why it matters.** The master keeps "planned vs fill-based protection" as an owner choice (`README.md:1345`) and keeps legacy money semantics unless a recorded decision changes them (`README.md:780`). Legacy sends the entry, a SELL SL-M stop and a SELL LIMIT target together in one basket, priced from the plan (`OA/src/core/framework/execution/orders.py:155-214`); its docstring records that the BuyerEdge baseline instead placed protection after the fill, priced from the executed price, and calls the basket a deliberate trade for a narrower unprotected window. The package's draft placed only a stop, on the first fill, and executed the target in the kernel. Each choice changes the unprotected window, the exit slippage and whether two resting full-quantity sells exist (POL-008).
+
+**Options.**
+
+- **A — Recommended:** Keep the legacy basket (`basket_at_plan`): entry, SL-M stop and LIMIT target at plan prices. It preserves legacy money behaviour; the spec then defines how the resting target and stop are kept within the owned quantity (OCO by the kernel on the first fill of either).
+- **B:** Stop on the first fill at plan levels; target and deep-OTM delta exits by the kernel on a tick (`stop_on_fill`, the draft's design).
+- **C:** Protection after the fill, priced from the executed price (`fill_priced`, the earlier BuyerEdge baseline).
+- **D:** A free-text answer.
+
+## Q-014
+
+**Who may use the kill exceptions and the unlocks.**
+
+```text
+Requirement: The safety matrix and the grant table name exactly which principals may cancel or close under kill, release kill, unlock the latch and clear a pause.
+Owner: kernel.safety (matrix), kernel.authority (grants).
+Proof: PRF-PRT-04 and PRF-SES-01 run each permitted and each refused principal.
+```
+
+**Why it matters.** The approved rows say "the authenticated owner" (POL-002, POL-004), and legacy requires an `OwnerCommand` from an authenticated owner entry point (`OA/src/core/framework/execution/sender.py:281-296`). The master keeps allowed actions and actors for cancel, close, protect and unlock as an owner choice (`README.md:1343`). Until answered, the package keeps the legacy reading: these actions are the owner principal's only.
+
+**Options.**
+
+- **A — Recommended:** Owner only, as legacy and the approved wording.
+- **B:** Any human principal holding the named grant action, including delegated operators.
+- **C:** A free-text answer.
+
+## Q-015
+
+**Worst-case-loss limit per account.**
+
+```text
+Requirement: The bound policy states account.max_worst_case_loss; a policy without it refuses to load.
+Owner: kernel.admission (check B5).
+Proof: PRF-ADM-09 refuses an entry whose worst-case loss exceeds the bound value; tests use labelled synthetic values.
+```
+
+**Why it matters.** This is a money limit. TASK-S04-03 characterizes the legacy rule's shape (how worst-case loss is computed and compared), which the master keeps (`README.md:780`); the number itself is policy, as the daily-loss budget is ([Q-002](#q-002)). Legacy values are evidence, not a default.
+
+**Options.**
+
+- **A — Recommended:** The owner states the value for the first account; TASK-S04-03 reports the legacy value beside it as evidence.
+- **B:** A free-text answer.
+
+## Q-016
+
+**Response to foreign broker activity.**
+
+```text
+Requirement: The bound policy states reconciliation.foreign_response; a policy without it refuses to load.
+Owner: kernel.reconciliation (finding), kernel.lifecycle and kernel.safety (response).
+Proof: PRF-DOM-02 runs each value against a foreign order observed on a bound account.
+```
+
+**Why it matters.** POL-009 says how outside orders arrive (as foreign broker observations). The response is a separate owner choice (`README.md:1347`): recording only leaves an unexpected position unremarked; holding entries stops trading on a manual action.
+
+**Options.**
+
+- **A — Recommended:** `escalate`: record `FOREIGN_RECORDED` and raise an operator alert (`RECONCILIATION_ESCALATED`, reason `foreign_activity`); nothing else changes.
+- **B:** `record_only`.
+- **C:** `hold_entries`: also engage a hold (reason `foreign_activity`) for the strategies on the affected account and underlying until a human releases it.
 - **D:** A free-text answer.

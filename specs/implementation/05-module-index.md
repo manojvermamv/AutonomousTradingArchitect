@@ -21,7 +21,7 @@ Status: **proposed**, non-normative. The canonical, fully commented target tree 
 | `contracts/market.py` | [market-data-and-canvas](design/market-data-and-canvas.md) | R | SLICE-04 (minimal), SLICE-08 | Providers/MarketView (`:1150`) |
 | `contracts/decisions.py` | [intent-to-admission](design/intent-to-admission.md) | R | SLICE-01 | Advisor/team/AI management (`:1152`) |
 | `contracts/execution.py` | [ledger-and-atomic-transaction](design/ledger-and-atomic-transaction.md) | R | SLICE-01 | Gateway/JSONL registry (`:1146`) |
-| `contracts/evidence.py` | [execution-domain-and-observations](design/execution-domain-and-observations.md) | R | SLICE-07 | — (new) |
+| `contracts/evidence.py` | [execution-domain-and-observations](design/execution-domain-and-observations.md) | R | SLICE-01 (subset), SLICE-07 | — (new) |
 | `contracts/clock.py` | [sessions-authority-lifecycle](design/sessions-authority-lifecycle.md) | R | SLICE-01 | — (new) |
 | `resources/defaults.yaml`, `events.schema.json`, `candidates.schema.json`, `canvas.schema.json` | [configuration-artifacts-release](design/configuration-artifacts-release.md) | R | SLICE-01 (events schema only) | Config scaffolding (`:1158`) |
 | `resources/migrations/001_initial.sql` | [ledger-and-atomic-transaction](design/ledger-and-atomic-transaction.md) | R | SLICE-01 (**provisional**, see [X-002](consistency/master-contradictions.md#x-002)) | Tier-1 schema (`:1143`) |
@@ -45,7 +45,7 @@ Status: **proposed**, non-normative. The canonical, fully commented target tree 
 | `kernel/reconciliation.py` | [execution-domain-and-observations](design/execution-domain-and-observations.md) | R | SLICE-07 | Gateway/JSONL registry/reconcile (`:1146`) |
 | `kernel/recovery.py` | [sessions-authority-lifecycle](design/sessions-authority-lifecycle.md) | RP | SLICE-03 | Authority service/release/fence (`:1145`) |
 | `kernel/ports.py` | [execution-domain-and-observations](design/execution-domain-and-observations.md) | R | SLICE-01 | Coordinator/OpenAlgoAdapter/ports (`:1144`) |
-| `kernel/ledger/runtime.py`, `envelope.py`, `store.py`, `schema.py`, `projections.py`, `export.py` | [ledger-and-atomic-transaction](design/ledger-and-atomic-transaction.md) | R | SLICE-01 (envelope, store, schema, runtime), SLICE-02 (projections, export) | Tier-1 envelope/runtime/ledger/schema/projections (`:1143`) |
+| `kernel/ledger/runtime.py`, `envelope.py`, `store.py`, `schema.py`, `projections.py`, `export.py` | [ledger-and-atomic-transaction](design/ledger-and-atomic-transaction.md) | R | SLICE-01 (envelope, store, schema, runtime, the `fold` in projections), SLICE-02 (D04 comparison and repair, export) | Tier-1 envelope/runtime/ledger/schema/projections (`:1143`) |
 | `adapters/openalgo.py` | [execution-domain-and-observations](design/execution-domain-and-observations.md) | RP | SLICE-07 | Coordinator/OpenAlgoAdapter/ports (`:1144`) |
 | `adapters/simulated_broker.py` | [execution-domain-and-observations](design/execution-domain-and-observations.md) | R (proof lane) | SLICE-01 | Legacy and shared worker replay (`:1151`) |
 | `adapters/unix_channel.py` | [security-and-operator](design/security-and-operator.md) | RP | SLICE-10 | Authority service/channel (`:1145`) |
@@ -73,7 +73,7 @@ Status: **proposed**, non-normative. The canonical, fully commented target tree 
 
 ## Proposed tree deltas
 
-These are test files the slices need that README §6 does not list (T-01…T-19). README §6 shows example test files, not an exhaustive list. Each delta stays inside an existing §6 test directory and adds no package. Together they are [X-003](consistency/master-contradictions.md#x-003) for the master's owner.
+These are files the slices need that README §6 does not list (T-01…T-23). T-01…T-22 are test files: README §6 shows example test files, not an exhaustive list. T-23 is a source module ([X-007](consistency/master-contradictions.md#x-007)). README §6 shows example test files, not an exhaustive list. Each delta stays inside an existing §6 test directory and adds no package. Together they are [X-003](consistency/master-contradictions.md#x-003) for the master's owner.
 
 | Delta | Path | Slice | Why |
 |---|---|---|---|
@@ -82,10 +82,10 @@ These are test files the slices need that README §6 does not list (T-01…T-19)
 | T-03 | `tests/integration/test_entry_outcomes.py` | SLICE-01 | Four entry outcomes through the simulated broker |
 | T-04 | `tests/conftest.py` | SLICE-01 | Temporary stores and injected clocks (A08-F4) |
 | T-05 | `tests/fixtures/slice01_entry.json` | SLICE-01 | Fixed recorded review and plan fixture |
-| T-06 | `tests/unit/test_ledger_invariants.py` | SLICE-02 | Hypothesis state machine for I-1…I-5 (PRF-LED-09) |
+| T-06 | `tests/unit/test_ledger_invariants.py` | SLICE-02 | Hypothesis state machine for I-1…I-6 (PRF-LED-09) |
 | T-07 | `tests/unit/test_authority_grants.py` | SLICE-03 | Grant matrix (PRF-SES-01/02) |
 | T-08 | `tests/recovery/test_session_transitions.py` | SLICE-03 | Session transitions and restarts (PRF-SES-03) |
-| T-09 | `tests/unit/test_clock_contract.py` | SLICE-03 | Clock domains and deadlines (PRF-SES-04) |
+| T-09 | `tests/unit/test_clock_contract.py` | SLICE-01 (types), SLICE-03 | Clock domains and deadlines (PRF-SES-04) |
 | T-10 | `tests/unit/test_admission_checks.py` | SLICE-04 | Admission table (PRF-ADM-04) |
 | T-11 | `tests/integration/test_dispatch_revalidation.py` | SLICE-05 | Revalidation and late results (PRF-DSP-01/04) |
 | T-12 | `tests/integration/test_bounded_io.py` | SLICE-05 | Slow I/O, timeouts, disconnects (PRF-DSP-05/06) |
@@ -99,3 +99,4 @@ These are test files the slices need that README §6 does not list (T-01…T-19)
 | T-20 | `tests/unit/test_conflict_relation.py` | SLICE-05 | ATA-04 conflict matrix (PRF-PRT-11) |
 | T-21 | `tests/recovery/test_release_continuity.py` | SLICE-06 | Protected legs across release changes (PRF-PRT-12) |
 | T-22 | `tests/integration/test_verb_completion.py` | SLICE-05 | Verb-specific completion (PRF-LED-16) |
+| T-23 | `src/autonomous_trading/kernel/ledger/evidence_store.py` | SLICE-02 | Durable evidence store ([ledger spec](design/ledger-and-atomic-transaction.md#evidence-references-req-led-014); X-007) |

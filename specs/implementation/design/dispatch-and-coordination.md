@@ -8,7 +8,7 @@
   * the broker port and transport classes in `kernel/ports.py` ([execution-domain-and-observations](execution-domain-and-observations.md#ports-kernelportspy));
   * grants, sessions and recovery stages ([sessions-authority-lifecycle](sessions-authority-lifecycle.md)).
 * **Supplies:** the busy count for admission checks A0 and B4 ([intent-to-admission](intent-to-admission.md#admission-kerneladmissionpy)).
-* **Commits through:** the atomic transaction ([ledger-and-atomic-transaction](ledger-and-atomic-transaction.md)): `DISPATCH_REFUSED`, `DISPATCH_RETRY_REQUESTED`, `DISPATCH_CLAIMED`, `OUTCOME_*`.
+* **Commits through:** the atomic transaction ([ledger-and-atomic-transaction](ledger-and-atomic-transaction.md)): `DISPATCH_REFUSED`, `DISPATCH_CLAIMED`, `OUTCOME_*`. `DISPATCH_RETRY_REQUESTED` is recorded by admission ([identity rule](ledger-and-atomic-transaction.md#request-digest-and-the-identity-rule)); the coordinator reads it.
 * **Master anchors:** D13 (`README.md:758`), D14 (`:760`), A03-F1 (`:914`), A03-F2 (`:916`), A03-F3 (`:918`), A03-F5 (`:924`), A07-F3 (`:889`), A09-F4 (`:935`), ATA-04 (`:454`), execution sequence step 5 (`:747`), shared engine (`:798-804`), diagram 2 (`:568-720`), §7 rows (`:1144`, `:1151`).
 * **Terms** (see the [package glossary](../README.md#terms-used-across-the-specs)):
   * the **claim** is the `DISPATCH_CLAIMED` event; it creates **attempt** *n*, the numbered record of one send;
@@ -160,7 +160,7 @@ on worker return (command_key, attempt_no, result: TransportResult):
   * its account's worker is idle.
 * **Retries are caller-driven**, as in legacy (`OA/src/tier1/coordinator.py:94-103`). After `OUTCOME_NOT_SENT` or `RESOLVED_NEVER_REACHED`, a principal holding the command's verb resubmits the identical request with the same command key. Admission rechecks the principal's grant and records `DISPATCH_RETRY_REQUESTED` instead of returning `Existing` ([ledger identity rule](ledger-and-atomic-transaction.md#request-digest-and-the-identity-rule)); `kernel.protection` does this for its own commands at its next evaluation. A retry is possible only before the original dispatch deadline; after it the command is refused (`DSP-R01`) and the caller submits a new command key. This prevents a send loop during a broker outage. A `REJECTED` command is final; a new try is a new command key.
 * **Waiting instead of refusing.** A conflict, or an inert safety check that guards the command, keeps it waiting until it clears or the deadline passes (loop step 1). The coordinator reads the check's state, which `kernel.safety` alone records (`SAFETY_CHECK_STATE`), and never passes it silently. Admission check B3 refuses a conflict present at admission; after that, the relation's version changing is not a refusal.
-* **Ordering.** `dispatch.ordering_rule` is a refusing parameter (REQ-XC-003). This package defines one value, `admission_sequence`: among the account's eligible commands, the one whose `COMMAND_ADMITTED` has the lowest ledger sequence. A blocked command does not hold up the ones behind it, and a command that returns to `ADMITTED` keeps its original sequence. Any priority between protective actions and entries waits for [Q-004](../decisions/owner-questions.md#q-004).
+* **Ordering** is fixed until [Q-004](../decisions/owner-questions.md#q-004) adds a second rule (a parameter with one legal value would only add a way to fail): among the account's eligible commands, the one whose `COMMAND_ADMITTED` has the lowest ledger sequence. A blocked command does not hold up the ones behind it, and a command that returns to `ADMITTED` keeps its original sequence. Any priority between protective actions and entries waits for [Q-004](../decisions/owner-questions.md#q-004).
 
 ### Revalidation at dispatch
 
@@ -252,7 +252,6 @@ All are refusing parameters (REQ-XC-003): a composition that leaves one unbound 
 
 | Input | Source | Default |
 |---|---|---|
-| `dispatch.ordering_rule` | `admission_sequence`, or a value added after [Q-004](../decisions/owner-questions.md#q-004) | None: refusing |
 | `adapter.http_timeout_ms` (total deadline) | Measured (A09-F4) | None: refusing; synthetic in tests |
 | `coordinator.max_pending_per_account` | Measured (A09-F4) | None: refusing; synthetic in tests |
 | `coordinator.busy_applies_to` | [Q-004](../decisions/owner-questions.md#q-004) | None: refusing |
@@ -294,7 +293,7 @@ Class **T** is an automated test. "Must fail if" names the defect the test must 
 | PRF-DSP-04 | T | `tests/integration/test_dispatch_revalidation.py` | A conflict or an inert guarding safety check appearing after admission keeps the command waiting; it is sent after it clears, or refused with `DSP-R01` when the deadline timer fires | a conflict refuses at dispatch, or the deadline never fires |
 | PRF-DSP-05 | T | `tests/integration/test_bounded_io.py` | CUJ-DSP-1: B's cancel is sent while A is stalled; F-D6 reports A's age | a global lock blocks B |
 | PRF-DSP-06 | T | `tests/integration/test_bounded_io.py` | CUJ-DSP-3 and F-D3: a timeout gives `ambiguous`; a disconnect creates no cancel | a timeout is retried |
-| PRF-DSP-07 | T | `tests/unit/test_scheduling.py` | `admission_sequence` picks the oldest eligible command and skips a blocked older one; an unbound rule refuses to load | head-of-line blocking or implicit FIFO |
+| PRF-DSP-07 | T | `tests/unit/test_scheduling.py` | the fixed rule picks the oldest eligible command and skips a blocked older one | head-of-line blocking or implicit FIFO |
 | PRF-DSP-08 | T | `tests/integration/test_dispatch_revalidation.py` | CUJ-DSP-2; a hold, kill or latch recorded after a claim leaves that request in flight and its outcome committed | an in-flight request is retracted, or a claim follows the hold |
 | PRF-DSP-09 | T | `tests/integration/test_dispatch_revalidation.py` | CUJ-DSP-4: row 6 refuses a close whose position is gone and a cancel whose order is terminal; a stale observation makes them wait without blocking the next eligible command; an observation arrival wakes the coordinator | the target is trusted from admission |
 | PRF-DSP-10 | T | `tests/integration/test_dispatch_revalidation.py` | Busy count: `ADM-R12` before any commit at the bound; `UNCERTAIN` and `WORKING` not counted; `command_status` returns each pending state after a lost reply | the count includes uncertain commands |

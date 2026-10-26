@@ -134,12 +134,13 @@ The retained exit function, `premium_exit`, tests three reasons on each tick in 
 | Stop | The broker | One resting stop order per position, moved by modifies as the ladder ratchets. The kernel does not also close on a stop tick |
 | Target, deep-OTM delta | The kernel, on a tick | Protection records `EXIT_STARTED` (reason `target` or `deep_otm_delta`, with the tick's price and time) once per position, then runs the **exit sequence**: cancel the resting stop, wait until it is observed terminal, then submit a market close of the owned quantity. The record drives the sequence to the end, even if the price moves back or the kernel restarts. Under kill, protection submits nothing and escalates (reason `exit_under_kill`) |
 
-* **Placement.** On the **first** `FILL` of an entry, protection creates the stop leg and submits `CloseRequest(order = stop(trigger, limit | None))` for the filled quantity, with the trigger from `Plan.protective_levels.stop` ([intent spec](intent-to-admission.md#contracts-contractsdecisionspy)) and the order type from `protection.stop_order_type` ([policy inputs](#policy-inputs)). Later fills raise the stop's quantity by a modify (admission allows a protective close up to the owned position). An ACK alone never starts protection.
+* **Placement depends on [Q-013](../decisions/owner-questions.md#q-013).** The refusing parameter `protection.placement` selects among `basket_at_plan` (legacy: entry, SL-M stop and LIMIT target sent together at plan prices, `OA/src/core/framework/execution/orders.py:155-214`), `stop_on_fill` and `fill_priced`. This section specifies `stop_on_fill` in full, because its states are the general case; the other two values are specified in the SLICE-06 file once Q-013 is answered, and the package chooses none of them ([LD-22](../legacy-divergence.md)).
+* **Placement (`stop_on_fill`).** On the **first** `FILL` of an entry, protection creates the stop leg and submits `CloseRequest(order = stop(trigger, limit | None))` for the filled quantity, with the trigger from `Plan.protective_levels.stop` ([intent spec](intent-to-admission.md#contracts-contractsdecisionspy)) and the order type from `protection.stop_order_type` ([policy inputs](#policy-inputs)). Later fills raise the stop's quantity by a modify (admission allows a protective close up to the owned position). An ACK alone never starts protection.
 * **Desire.** `PROTECTION_DESIRED` records `position_id`, `desired_level`, `desired_quantity` (the owned quantity), `ladder_state`, `ladder_version`, `policy_version` and `view_id`, only when one of them changes.
 * **Confirmed quantity** is the quantity of the leg's latest `COMPLETED` command (place or modify) minus the fills recorded against the stop order (ledger `FILL`), so a partly filled stop is not re-sent.
 * **When a modify completes at a different broker level** (POL-014), the confirmed level is the broker's; the desire becomes the tighter of the newer desired level and the broker level, so a ratchet computed meanwhile is not lost.
 * **Identity.** One leg per position: `leg_id` is the `position_id`. Command keys are `"prot:<leg_id>:<n>"`, where `n` is the number of the leg's admitted commands plus one; the leg's latest command has the highest `n`. Nothing stores the link: the leg's commands are read by key prefix.
-* **Retries.** On a `NOT_SENT` attempt or `RESOLVED_NEVER_REACHED`, protection records `DISPATCH_RETRY_REQUESTED` at its next evaluation ([dispatch spec](dispatch-and-coordination.md#eligibility-and-scheduling)). A transport-rejected modify is not resent at the same level; the next ratchet to a new level submits again.
+* **Retries.** On a `NOT_SENT` attempt or `RESOLVED_NEVER_REACHED`, protection resubmits the identical request with the same key at its next evaluation, and admission records `DISPATCH_RETRY_REQUESTED` ([dispatch spec](dispatch-and-coordination.md#eligibility-and-scheduling)). A transport-rejected modify is not resent at the same level; the next ratchet to a new level submits again.
 * **Nothing automatic is re-placed.** Protection escalates, and does not retry, a stop the broker rejects or expires (reason `stop_rejected` or `stop_expired`) and a desired level already through the market (reason `level_through_market`). No approved rule covers automatic re-placement; legacy behaviour is characterized in TASK-S06-01.
 * **Human principals win.** When a human principal cancels the stop, the leg ends with that cancel's command key as its reason; its `COMMAND_ADMITTED` is the record that a human took over the exit. An ended leg is never re-placed.
 * **Orphans.** When a position's owned quantity reaches zero by any route (broker square-off, a human principal's close, a foreign trade), protection cancels its remaining stop; under kill it escalates instead (reason `orphan_under_kill`).
@@ -193,12 +194,12 @@ A multi-leg structure entry creates one position per leg (ledger `position` row)
 
 | Condition | Entry | Cancel | Modify | Close | Source |
 |---|---|---|---|---|---|
-| Kill engaged | refused | human principal only, owned unfilled order | refused | human principal only, a non-resting close of an owned position; a new resting close is refused | POL-002 (`sender.py:281-292`) |
+| Kill engaged | refused | owner only, owned unfilled order | refused | owner only, a non-resting close of an owned position; a new resting close is refused | POL-002 (`sender.py:281-292`) |
 | Daily-loss latch tripped (this session, this strategy) | refused | not restricted by this condition | not restricted | not restricted | POL-004 |
-| Strategy held | refused | human principal: not restricted; automatic: per `safety.hold_automatic_actions` | same as cancel | same as cancel | POL-003 (`sender.py:293-296`) |
+| Strategy held | refused | owner: not restricted; automatic: per `safety.hold_automatic_actions` | same as cancel | same as cancel | POL-003 (`sender.py:293-296`) |
 
 * An action matching no restricting row is not restricted by this table; grant, conflict and freshness checks still apply.
-* "Human principal only" means a human principal's command for exactly this action and target, with fresh revalidation. "Unfilled" follows POL-002's wording; whether a partly filled order counts is characterized from `sender.py` in TASK-S05-07.
+* "Owner only" means a command from the authenticated owner principal for exactly this action and target, with fresh revalidation, as legacy's `OwnerCommand` (`OA/src/core/framework/execution/sender.py:281-296`). Whether delegated human principals may act too is [Q-014](../decisions/owner-questions.md#q-014). "Unfilled" follows POL-002's wording; whether a partly filled order counts is characterized from `sender.py` in TASK-S05-07.
 * `safety.hold_automatic_actions` (`allowed` or `refused`) is a refusing parameter, [Q-001](../decisions/owner-questions.md#q-001). Legacy behaviour is `allowed` (`sender.py:293-296`), which is evidence, not a default.
 * **Strategy of an action.** Every command records a `strategy` (ledger `command_identity`): an entry's comes from its intent; a cancel, modify or close takes the strategy of the position or order it targets.
 * **Several conditions.** Admission check A4 tests only the checks that guard the action, in the order: inert checks (`PRT-R06`), kill (`PRT-R01`), hold (`PRT-R04`), latch (`PRT-R03`); the first that refuses gives the code. Dispatch row 5 uses the same order without the inert test, because an inert check makes a command wait at dispatch eligibility instead. An AI-management pause is not a matrix condition; `kernel.policy` owns it.
@@ -320,7 +321,7 @@ Protection also records the ledger's `RECONCILIATION_ESCALATED` ([ledger catalog
 | A missing P&L field leaves the latch inert and refuses all entries | Characterized before production; the refusal is visible as `SAFETY_CHECK_STATE` |
 | Tick load on the writer thread | Latest-tick coalescing; ticks never submit a `DESIRED` leg; PRF-PRT-10 measures queue delay |
 | No automatic re-placement after a broker reject | Escalated at once; any re-placement rule is an owner decision |
-| Security: kill release, latch unlock and the cancel or close allowed under kill are the human principal's escape hatches | Each needs its named grant action ([sessions spec](sessions-authority-lifecycle.md)), a reason, and fresh revalidation; kernel principals hold none of `kill_release` or `latch_unlock` |
+| Security: kill release, latch unlock and the cancel or close allowed under kill are the owner's escape hatches ([Q-014](../decisions/owner-questions.md#q-014)) | Each needs its named grant action ([sessions spec](sessions-authority-lifecycle.md)), a reason, and fresh revalidation; kernel principals hold none of `kill_release` or `latch_unlock` |
 
 ## Policy inputs
 
@@ -331,7 +332,8 @@ Protection also records the ledger's `RECONCILIATION_ESCALATED` ([ledger catalog
 | `risk.max_daily_loss_amount` (optional `risk.max_daily_loss_pct`, `risk.capital`) | Bound policy | None: refusing ([Q-002](../decisions/owner-questions.md#q-002)) |
 | `safety.hold_automatic_actions` | [Q-001](../decisions/owner-questions.md#q-001) | None: refusing |
 | `protective_independence` | [Q-004](../decisions/owner-questions.md#q-004) | None: refusing |
-| `protection.stop_order_type` (`trigger_only` or `trigger_with_limit`, with its limit offset) | Bound policy; legacy's order type is characterized in TASK-S06-01 | None: refusing until characterized |
+| `protection.placement` | [Q-013](../decisions/owner-questions.md#q-013) | None: refusing |
+| `protection.stop_order_type` (`trigger_only` or `trigger_with_limit`, with its limit offset) | Bound policy; legacy sends SL-M, that is `trigger_only` (`orders.py:170`, `:209`), which is evidence, not a default | None: refusing |
 
 POL-010 also says a **misspelt** switch value means `square_off`. A02-F2 requires unknown-key and value-normalization behaviour to be defined in the resolver contract (`README.md:903`) and the package's resolver refuses unknown values; that tension is [X-004](../consistency/master-contradictions.md#x-004). Until it is decided, the loader refuses a misspelt value.
 
@@ -350,7 +352,7 @@ POL-010 also says a **misspelt** switch value means `square_off`. A02-F2 require
 | Protection in a separate worker | Adds a failure point and a second state lineage without gaining availability, since sending needs the kernel (`README.md:460`) |
 | Protection in the supervisor | The supervisor must not send (ATA-01, A03-F5) |
 | Protection keeps its own attempted/uncertain/confirmed states | Duplicates the command lifecycle and reconciliation |
-| Rest both stop and target at the broker | Two full-quantity sells can both fill and leave the account short (POL-008); legacy tests the target on a tick |
+| Choose one placement in this spec | The master keeps planned versus fill-based protection as an owner choice (`README.md:1345`); legacy rests both stop and target in one basket at plan prices, and `stop_on_fill` would change that ([Q-013](../decisions/owner-questions.md#q-013)) |
 | Broker OCO or bracket orders | Not proven on the OpenAlgo endpoints in use; an endpoint-contract item for later |
 | Place protection only when the entry completes | Leaves partial fills unprotected |
 | Automatic re-placement after a broker reject | No approved rule; it would loop on a gap through the trigger |

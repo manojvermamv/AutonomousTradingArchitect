@@ -132,6 +132,8 @@ This package labels its own content **proposed**. A master decision it cites is 
 | Bundle | The installed release artifact, including its migrations and endpoint contracts |
 | Receipt | The release binding's evidence that a bundle was installed and verified ([configuration spec](design/configuration-artifacts-release.md)) |
 | Refusing parameter | A policy field with no shipped default; the loader refuses a composition that needs it unbound (REQ-XC-003) |
+| Unresolved attempt | An attempt in `CLAIMED` or `AMBIGUOUS` ([ledger](design/ledger-and-atomic-transaction.md#command-and-attempt-state-machine)) |
+| Unresolved effect | A command in `IN_FLIGHT` or `UNCERTAIN`, or `WORKING` before its completion is observed ([protection spec](design/protection-and-safety.md#conflict-relation-kernelsafetypy)); used by conflicts, ATA-03 flatness and Q-004 |
 | Exposure group | A position together with its resting protective stop ([protection spec](design/protection-and-safety.md#conflict-relation-kernelsafetypy)) |
 | Hypothesis | The Python property-based testing library, used only for the ledger and lifecycle state-machine tests |
 

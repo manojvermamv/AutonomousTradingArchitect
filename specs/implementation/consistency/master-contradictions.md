@@ -8,7 +8,9 @@ Status: **proposed** findings for the master documents' owner. The master README
 | [X-002](#x-002) | Ledger schema needed before the upgrade-versus-import evaluation | none (SLICE-01 uses a provisional, disarmed schema) | open |
 | [X-003](#x-003) | Test files the slices need that README §6 does not list | none | open |
 | [X-004](#x-004) | POL-010 misspelt switch value vs A02-F2 unknown-value refusal | TASK-S06-05 (misspelt-value behaviour only) | open |
-| [X-005](#x-005) | ATA-05 "policy contracts" as a session-scope dimension | none | open |
+| [X-005](#x-005) | ATA-05 "policy contracts" as a session-scope dimension | TASK-S03-02 (session key and its unique index) | open |
+| [X-006](#x-006) | The policy inventory's classifications are staged, not accepted | none now; any spec citing an unaccepted row before acceptance | open |
+| [X-007](#x-007) | README §6 names no module for the durable evidence store | TASK-S02-03 (module placement only) | open |
 
 ---
 
@@ -97,10 +99,42 @@ See [POL-002, POL-004, POL-041, POL-047](../02-policy-inventory.md).
 **Evidence.**
 - ATA-05 (`README.md:450`) says to scope sessions "by applicable market/account/policy contracts".
 - The [sessions spec](../design/sessions-authority-lifecycle.md#identity-contract-contractsidentitypy) keys a session by account and exchange calendar only. It records exactly one policy binding in `SESSION_OPENED`, fixed for the session's life; a different policy can take effect only at the next open.
-- The legacy latch is keyed per account and IST date (LD-04), not per policy.
+- The legacy latch is keyed per strategy and IST date (LD-04), not per policy.
 
 **Effect if left.** If ATA-05 means policy is a key field, two policies on one account and calendar would need two concurrent sessions, and the latch and pause scopes would split per policy.
 
-**Package handling.** The package treats policy as bound to the session, not as a key field, and says so where the scope is defined. Nothing in SLICE-01 depends on this; SLICE-03 builds the scope.
+**Package handling.** The package treats policy as bound to the session, not as a key field, and says so where the scope is defined. Nothing in SLICE-01 depends on this; SLICE-03 builds the scope (TASK-S03-02), whose key and partial unique index change if policy becomes a key field.
 
 **Smallest correction (for the master's owner).** Confirm that "policy contracts" scope a session through its binding, or state that policy is a key dimension of `SessionScope`.
+
+---
+
+## X-006
+
+**Kind:** an acceptance the master requires and the package cannot give.
+
+**Evidence.**
+- The master says policy-inventory reconciliation is pending and that dependent specs must not claim policy completeness until it is done (`README.md:438`, `:444`, `:1339`).
+- The package's [policy inventory](../02-policy-inventory.md) classifies 54 rows (A, H, S, C, O), and the specs treat those classifications as settled.
+
+**Effect if left.** A spec could rest on a classification the owner has not accepted.
+
+**Package handling.** Every spec cites the POL row it rests on, so a change to a row identifies the dependent specs. No spec claims policy completeness.
+
+**Smallest correction (for the master's owner).** Accept the staged rows and their statuses into §9, or mark the rows that are not accepted; the package then updates the specs that cite them.
+
+---
+
+## X-007
+
+**Kind:** a module the design needs that README §6 does not list.
+
+**Evidence.**
+- Combined-F2 requires evidence to be published durably before any decision refers to it (`README.md:790`).
+- README §6 has `contracts/evidence.py` ("durable publication identities", types only) and `kernel/ledger/export.py` ("publish committed causal evidence asynchronously", after commit). Neither is the store that is written **before** a reference commits.
+
+**Effect if left.** The SLICE-02 builder would have to choose where the store lives.
+
+**Package handling.** The [ledger spec](../design/ledger-and-atomic-transaction.md#evidence-references-req-led-014) specifies the store's contract and places it in tree delta T-23, `kernel/ledger/evidence_store.py` ([module index](../05-module-index.md)), until the owner places it.
+
+**Smallest correction (for the master's owner).** Add `kernel/ledger/evidence_store.py` (or another path) to §6.

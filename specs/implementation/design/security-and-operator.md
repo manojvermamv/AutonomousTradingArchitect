@@ -27,7 +27,7 @@ These are named now so the kernel specs can point at them; their full design is 
 | Owner credential path: authenticates the owner and issues the root grant; re-establishes grants after a restore | [sessions spec](sessions-authority-lifecycle.md#grants-and-the-authority-check-kernelauthoritypy) |
 | Grant requests that `kernel.authority` records as `GRANT_ISSUED` / `GRANT_REVOKED` | sessions spec |
 | Operator commands, each needing its grant action: `kill_engage`, `kill_release`, `hold_engage`, `hold_release`, `latch_unlock`, `pause_clear`, `binding_authorize`, `recovery_advance` | [protection spec](protection-and-safety.md#kill-and-holds-kernelsafetypy), [intent spec](intent-to-admission.md#review-application-kernelpolicypy), sessions spec |
-| Read-only `command_status(command_key) -> Outcome` for a caller whose acceptance reply was lost | [dispatch spec](dispatch-and-coordination.md#busy-count-supplied-to-admission) |
+| Read-only `command_status(command_key) -> CommandStatus` for a caller whose acceptance reply was lost | [dispatch spec](dispatch-and-coordination.md#command-status-read-only) |
 | The operator alert route for recorded alerts and escalations | intent and execution-domain specs |
 
 ## What early slices need now
