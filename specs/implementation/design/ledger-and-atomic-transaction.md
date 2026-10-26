@@ -125,7 +125,7 @@ The master's answer is one canonical admission and outcome commit: D02, D01/D03,
 * **Migrations** are files `resources/migrations/NNN_<name>.sql` shipped inside the bundle. Pending ones are applied in `NNN` order during `RECOVERY_WRITING`, after epoch activation and before the D04 comparison, each in its own transaction with its `MIGRATION_APPLIED` event. They only move forward. The recovery order is in the [sessions spec](sessions-authority-lifecycle.md#recovery-stages-kernelrecoverypy).
 * **An empty file** is the one exception: there is no history to protect, so the writer applies `001` when it opens an empty file, and records `MIGRATION_APPLIED` for it right after the first `EPOCH_ACTIVATED`.
 * **`schema.check`** runs at every writer and reader open. It refuses with `LED-R04` when `migration_revision` is higher than the highest migration the bundle ships, or when `schema_revision` is unknown to this bundle after pending migrations would be applied.
-* **Tables.** This spec fixes each table's columns and meaning. The exact DDL is written in the slice file that adds the table ([SLICE-01 row 13](../plan/slices/SLICE-01-disarmed-financial-core.md) for the SLICE-01 tables), following the delivery plan's depth rule.
+* **Tables.** This spec fixes each table's columns and meaning. The exact DDL is written in the slice file that adds the table ([SLICE-01 row 14](../plan/slices/SLICE-01-disarmed-financial-core.md) for the SLICE-01 tables), following the delivery plan's depth rule.
 
 | Table | Columns and meaning | Written by events | Added in |
 |---|---|---|---|

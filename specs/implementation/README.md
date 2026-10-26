@@ -161,4 +161,18 @@ When the master moves, follow these steps:
 
 ## Results against the package targets
 
-See [consistency/cross-document-check.md](consistency/cross-document-check.md) for the numbers. Passing the checker shows only that the documents agree with each other and with the master. It does not show the design is correct.
+Run on 2026-10-26; the numbers and the checker's full text are in [consistency/cross-document-check.md](consistency/cross-document-check.md).
+
+| Target | Result |
+|---|---|
+| J1 EGM reviews: no unresolved Blocker | pass: stages 5–8 on the six full specs, stage 9 on the plan and SLICE-01, and the final package zoom-out ([egm/](egm/README.md)) |
+| J2 traceability | pass: 87 full-depth keys, each with decision, module, task and proof; 56 stub keys pointing at master acceptance rows |
+| J3 tree membership | pass: 0 paths outside README §6 and the tree deltas T-01…T-23 |
+| J4 links and IDs | pass: 0 broken links, 0 duplicate IDs |
+| J5 master citations | pass |
+| J6 SLICE-01 stage 9 | pass: round 2 found 0 Blockers |
+| J7 scope | pass: only `specs/implementation/` changed |
+
+Passing the checker shows only that the documents agree with each other and with the master. It does not show the design is correct. No proof is *executable* or *passing* yet.
+
+**Open for the owner:** [Q-001…Q-016](decisions/owner-questions.md) and [X-001…X-007](consistency/master-contradictions.md). SLICE-01 depends on none of them.

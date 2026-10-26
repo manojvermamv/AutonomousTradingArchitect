@@ -51,6 +51,36 @@ Counts: implementation readiness 5 Blocker, 22 Major, 17 Nit; codebase details 1
 
 All FIX, except: none contested.
 
-## Round 2
+## Round 2 (2026-10-26) — J6 result
 
-Recorded after the re-review of the rewritten SLICE-01, below.
+The rewritten SLICE-01 was re-reviewed by fresh `egm:egm-implementation-readiness` and `egm:egm-codebase-details` reviewers.
+
+| Reviewer | Blocker | Major | Nit |
+|---|---|---|---|
+| implementation readiness | **0** | 16 | 20 |
+| codebase details | **0** | 11 | 12 |
+
+**J6 (SLICE-01 passes stage 9 with 0 Blockers): met.** The codebase reviewer confirmed every cited legacy line range and README line, the DDL's validity, the APSW names and exception classes, and that an armed `xWrite` fault on a WAL database raises at `COMMIT` with nothing persisted.
+
+All Majors were resolved by FIX in the same session:
+
+| # | Finding (short) | Resolution |
+|---|---|---|
+| R2-1 | `ADM-R09` message contradicts the convention | FIX: stated exception — the message is the intent spec's reason (`amount` or `capacity_rule_unbound`) |
+| R2-2 | Claim, refusal-record, `activate_epoch` and `recover` results ignored | FIX: each call site's handling of `Refusal` and `CommitFailed` stated |
+| R2-3 | `outcome_refused` fallback underspecified; returned effect wrong | FIX: fallback draft fully specified; returns `ambiguous` |
+| R2-4 | `recover()` payload and return values open | FIX: `legs` `[]`; the returned `Outcome` stated |
+| R2-5 | Existing outcome's order IDs had no source | FIX: from the latest attempt's `legs` JSON |
+| R2-6 | `reservation_head` had no API | FIX: `LedgerWriter.head()` |
+| R2-7 | `EntryRequest` wire form missing | FIX: `COMMAND_ADMITTED.request` is the digest object itself |
+| R2-8 | Evidence-ref form check undefined | FIX: step 4 rule and a PRF-LED-12 test |
+| R2-9 | Lock leaked on exceptions; Windows lock not unlocked | FIX: release on any refusal or exception; explicit `LK_UNLCK`; parent directory created |
+| R2-10 | `test_cp_l1` reopen script; driver could not reach the fixture | FIX: per-test reopen steps; `load_fixture_entry` plain function; driver `sys.path` rule, clock and capacity stated |
+| R2-11 | Tests needed broker wrappers and a revalidate hook | FIX: `wrap`/`port`; `Coordinator.revalidate_hook` method |
+| R2-12 | Retired-epoch and I-3 test setups not derivable | FIX: in-process setups and exact decisions (attempt 2) |
+| R2-13 | PRF-LED-07 "admits once" branch unasserted | FIX: same-key retry after the injected admission failure |
+| R2-14 | Deferred proof parts owned by no slice | FIX: remainders placed in SLICE-02, -04, -07 and -11 rows |
+| R2-15 | `EventDraft` mutable default; `RUNTIME_OPENED` payload; `RecordedClock` naive parse; `Existing` inside an open transaction | FIX: tuple default; three identity keys; aware datetimes; `ROLLBACK` on every non-commit exit |
+| R2-16 | Adapted test launcher dropped legacy protections | FIX: `--basetemp` last, on-disk temp with `TMPDIR`/`TMP`/`TEMP`, `parse_known_args`, Windows priority, legacy memory figure, non-colliding exit codes |
+
+Nits: all FIX (integer revision compare, whole-file migration execute, disarm before close, fixture teardown, I-3 unchanged state, upsert order, base classes, label mapping, build-order checkpoints, stale row references in the ledger and execution-domain specs, completion condition wording, D02 phase citation).

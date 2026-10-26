@@ -159,7 +159,7 @@ SimulatedBroker(responder: ScriptResponder | RuleResponder, clock: Clock,
   positions(account) / funds(account) -> Observation
 ```
 
-* **`ScriptResponder`** (tests and SLICE-01). Its steps are consumed per account in call order; the step format is fixed in the SLICE-01 file ([row 10](../plan/slices/SLICE-01-disarmed-financial-core.md)), and a missing step is a test bug.
+* **`ScriptResponder`** (tests and SLICE-01). Its steps are consumed per account in call order; the step format is fixed in the SLICE-01 file ([row 11](../plan/slices/SLICE-01-disarmed-financial-core.md)), and a missing step is a test bug.
 
   | Script `result` | `cls` | Carries |
   |---|---|---|
