@@ -7,7 +7,7 @@
   * stable views, including the feed-gap flag ([market-data-and-canvas](market-data-and-canvas.md));
   * session events ([sessions-authority-lifecycle](sessions-authority-lifecycle.md));
   * reconciled fills, confirmed levels and command states ([execution-domain-and-observations](execution-domain-and-observations.md), [ledger](ledger-and-atomic-transaction.md));
-  * `session_pnl` from `kernel.reservations` ([ledger](ledger-and-atomic-transaction.md#reservations-and-session-pl-kernelreservationspy));
+  * position observations ([execution-domain-and-observations](execution-domain-and-observations.md#evidence-contract-contractsevidencepy)), from which `kernel.safety` computes session P&L;
   * the plan's protective levels and the tick-rounding function of `kernel.selection` ([intent-to-admission](intent-to-admission.md#planning-port-kernelplannerpy-kernelselectionpy)).
 * **Produces:** typed action requests to admission ([intent-to-admission](intent-to-admission.md)).
 * **Commits through:** the atomic transaction ([ledger-and-atomic-transaction](ledger-and-atomic-transaction.md)).
@@ -130,7 +130,7 @@ evaluate(trigger, view: StableView, session: SessionRow, position: PositionView,
 | Type | Fields |
 |---|---|
 | Triggers | `BarConfirmed(view_id, bar)`; `Tick(instrument, price, at)`; `SessionCloseTime(session_id)`; `ObservationChanged(observation_digest)` |
-| `SessionRow` | The `session` index row ([sessions spec](sessions-authority-lifecycle.md#bindings-and-session-transitions-kernellifecyclepy-session-part)) |
+| `SessionRow` | The `session` index row ([sessions spec](sessions-authority-lifecycle.md#bindings-and-sessions-kernellifecyclepy-session-part)) |
 | `PositionView` | Position ID, strategy, instrument, net quantity, its resting protective orders, and the linked commands of each leg, read from the ledger index |
 | `ProtectionPolicy` | `ladder_version`, ladder parameters (defaults below), `exit_owner`, `session_close`, `close_time`, protective order types |
 | `ProtectionLeg` | The persisted `PROTECTION_DESIRED` fields plus the derived state below |
@@ -209,7 +209,13 @@ evaluate(trigger, view: StableView, session: SessionRow, position: PositionView,
 
 ### Daily-loss latch (`kernel/safety.py`)
 
-* **Input.** `kernel.reservations.session_pnl(strategy, session_id)`: broker-reported realised plus mark-to-market P&L of the strategy's positions in the session (legacy basis, `OA/src/core/framework/execution/loss_latch.py:11-14`). It is gross of estimated charges, as legacy, and `Unavailable` when the position observation is older than 60 s.
+* **Input.** `kernel.safety` computes session P&L itself, as legacy does next to the latch (`OA/src/runtime/session_state.py:171`):
+
+  ```text
+  session_pnl(strategy, session_id) -> SessionPnl(realized, mtm, observation_digest, as_of) | Unavailable
+  ```
+
+  It sums broker-reported realised and mark-to-market P&L (`ObservedPosition.realized_pnl`, `mtm_pnl`) over the positions owned by the strategy: a position belongs to the strategy of the entry command that opened it, the same ownership join legacy makes through its registry (`reconcile.py` `mine`, `:107-117`). Two strategies cannot net on one instrument, because the slot rule allows one open position per underlying on an account (conflict row 1). It is gross of estimated charges, as legacy (`loss_latch.py:11-14`), and `Unavailable` when the position observation is older than 60 s (POL-021) or incomplete.
 * **Budget.** `risk.max_daily_loss_amount` is required ([Q-002](../decisions/owner-questions.md#q-002)); a policy without it refuses to load. If `risk.max_daily_loss_pct` and `risk.capital` are also bound, the budget is the smaller of the amount and that percent of capital (legacy `budget()`, `loss_latch.py:167-177`).
 * **When.** `kernel.safety` evaluates the latch on every new position observation and at admission check A4.
 * **Trip.** The first P&L at or below −budget records `LOSS_LATCH_TRIPPED` (`strategy`, `session_id`, `pnl`, `budget`, `observation_digest`). An already-tripped latch keeps its first trip (`trip`, `loss_latch.py:512`). Entries for that strategy are refused for the rest of the session.

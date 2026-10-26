@@ -212,8 +212,8 @@ Admission runs in two stages. Each stage stops at its first failed check, and th
 |---|---|---|---|
 | A1 | Request well-formed; command key present; an entry's intent resolves and does not abstain | all | ADM-R01 / LED-R01 |
 | A1a | Command identity: same key and digest returns the existing state; same key with a different digest is refused; a key with no row (including one whose earlier request was refused) continues | all | LED-R02 |
-| A2 | Actor grant: `authority.check(verb, principal, account, at="admission")` | all | SES-R01 … SES-R05, SES-R09 |
-| A3 | Session `OPEN` for the account's session scope and trading date | entry only | SES-R07 |
+| A2 | Actor grant: `authority.check(verb, principal, account, at="admission")`; the returned grant ID and version are recorded | all | SES-R01 … SES-R05, SES-R09 |
+| A3 | The request's session is `OPEN`, and the intent's candidate is in that session's `candidate_ids` | entry only | SES-R07; ADM-R10 |
 | A4 | Safety matrix permits this verb and actor (kill, latch, hold) | all | PRT-R01, PRT-R03, PRT-R04, PRT-R06, PRT-R07 |
 | A5 | `kernel.policy` application is `proceed` or `proceed_unavailable`; otherwise a non-dispatch decision is recorded (AUD-03) | entry | ADM-R11 `not_eligible` |
 
@@ -263,9 +263,10 @@ External commitments count broker-observed positions and working orders once, ex
 * `plan.plan_digest` equals the digest of the plan's other fields;
 * `plan.intent_digest`, `application.intent_digest` and `request.intent_ref` all equal `digest(intent)`;
 * the application's strategy, candidate and session equal the intent's;
-* `application.policy_version` equals the bound policy version now.
+* `application.policy_version` equals the session's `policy_binding_id` (the session's binding is the only source, [sessions spec](sessions-authority-lifecycle.md#standing-bindings));
+* every plan leg belongs to the request session's calendar ([sessions spec](sessions-authority-lifecycle.md#which-session-an-entry-belongs-to)); a plan spanning two calendars is refused earlier, at planning (`ADM-R13`, stage `calendar`).
 
-It fails when the policy was rebound between stage A and stage B, or when a wiring fault pairs the wrong objects.
+It fails when a wiring fault pairs the wrong objects or names the wrong session.
 
 **On success**, stage B commits `COMMAND_ADMITTED` with the request digest, plan digest, application, reservation, resulting exposure and the dependency set that dispatch rechecks ([dispatch dependency table](dispatch-and-coordination.md#revalidation-at-dispatch-req-dsp-001)).
 

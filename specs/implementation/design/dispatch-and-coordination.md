@@ -98,7 +98,7 @@ The master accepted these fixes:
 
 ### Coordinator loop (on the writer thread; one I/O worker per account)
 
-Every ledger write in the kernel runs on the one writer thread ([ledger spec](ledger-and-atomic-transaction.md#writer-runtime-and-readers)). The coordinator's revalidation and claim run there too, back to back, so no other decision can commit between them.
+Every ledger write in the kernel runs on the one writer thread ([ledger spec](ledger-and-atomic-transaction.md#writer-runtime-and-readers)). The coordinator's revalidation and claim run there too, back to back, so no other write can commit between them. The coordinator runs only in the `OPERATING` recovery stage ([sessions spec](sessions-authority-lifecycle.md#recovery-stages-kernelrecoverypy)); before that, admitted work waits.
 
 ```text
 on wake (any ledger commit, a worker's return, or the deadline timer):
@@ -126,7 +126,7 @@ on worker return (attempt, result: TransportResult):
   * the adapter's own `NotSent` becomes `not_sent` ([transport classes](execution-domain-and-observations.md#evidence-contract-contractsevidencepy));
   * any other exception raised after the call started becomes `ambiguous` with reason `adapter_error`.
 * There are no in-process late results. Broker evidence that appears later reaches the kernel only through observations and reconciliation.
-* **Evidence first.** Before the outcome commit, the adapter result is published to the evidence store under its `attempt_id` ([ledger evidence publication](ledger-and-atomic-transaction.md#evidence-publication-req-led-014)).
+* **Evidence first.** Before the outcome commit, the adapter result is published to the evidence store under its `attempt_id` ([ledger evidence publication](ledger-and-atomic-transaction.md#evidence-references-req-led-014)).
 * **Outcome commit failures.** If the outcome commit is refused (`LED-R03`, `LED-R06`, `LED-R08`, `LED-R09`, `LED-R10`) or raises `CommitFailed`, the worker stays busy and the kernel exits. Recovery then commits the outcome from the published evidence, or marks the claim `AMBIGUOUS` (reason `interrupted`) when none was published (ledger CP-L3).
 * A restart ends every worker with the process.
 
@@ -158,10 +158,10 @@ The coordinator checks them in this order and records the first failure:
 |---|---|---|---|---|
 | 1 | Deadline | Wall time against the recorded deadline | It has passed (normally caught by loop step 1) | DSP-R01 `deadline_passed` |
 | 2 | Release | Version comparison | The bound release binding differs from `release_binding_id` | DSP-R02 `release_changed` |
-| 3 | Grant | Current state: `authority.check(verb, principal, account, at="dispatch")` | Revoked, expired or narrowed | SES-R02 / SES-R03 / SES-R04 |
+| 3 | Grant | The admitted grant itself: `authority.recheck(grant_id, grant_version, verb, account)`; no other grant substitutes | Revoked, expired, narrowed, or its delegation chain broken | `SES-R03`, `SES-R04`, `SES-R02`, `SES-R05` |
 | 4 | Session (entries only) | Current state | No longer `OPEN` | SES-R07 |
 | 5 | Safety state | Current state: the permission matrix now | Kill, latch or hold forbids this verb and actor | PRT-R01, PRT-R03, PRT-R04, PRT-R06, PRT-R07 |
-| 6 | Policy (entries only) | Version comparison | The bound policy version differs from `policy_version` | DSP-R03 `policy_changed` |
+| 6 | Policy (entries only) | Version comparison | The session's policy binding differs from `policy_version` (possible only if the session changed) | DSP-R03 `policy_changed` |
 
 * The observation head is not a dependency. Observation freshness is an admission-time check (B1); reconciliation handles later evidence.
 * An unrelated ledger append never invalidates a command (`README.md:736`).
@@ -220,7 +220,7 @@ The ledger crash points CP-L2…CP-L4 and failure F-L5 apply ([ledger spec](ledg
 
 | CP | Failure | Required behaviour | Proof |
 |---|---|---|---|
-| CP-D1 | Crash with workers busy | On restart, readiness is rebuilt from index tables only; every claim with no outcome becomes ambiguous; nothing is duplicated | PRF-DSP-03 |
+| CP-D1 | Crash with workers busy | On restart, readiness is rebuilt from index tables only; recovery commits each busy claim's outcome from published evidence, or marks it ambiguous; nothing is duplicated | PRF-DSP-03 |
 | F-D3 | Whole-kernel hang (writer thread stalled) | A different failure from slow I/O. The independent supervisor reports stalled demand (A03-F5) | Proved with the supervisor ([runtime spec](runtime-isolation-observability-deployment.md)) |
 | F-D4 | Caller disconnects mid-request | The committed command continues; no cancel is created | PRF-DSP-06 |
 | F-D5 | Outcome commit refused or failed | The process exits; recovery rebuilds the outcome from published evidence, or marks the claim ambiguous | PRF-DSP-03 |
@@ -266,7 +266,7 @@ All four are refusing parameters (REQ-XC-003): a composition that leaves one unb
 |---|---|---|---|
 | PRF-DSP-01 | T `tests/integration/test_dispatch_revalidation.py` | Each dependency row: a change between admission and claim gives `DISPATCH_REFUSED` with that row's code, and the first failing row wins; an unrelated append does not refuse; a session close does not refuse a cancel | Skipping revalidation sends a stale command |
 | PRF-DSP-02 | T `tests/integration/test_entry_outcomes.py` | The adapter is called only after `DISPATCH_CLAIMED` is durable; the simulated broker sees exactly one call per attempt | Calling before the claim fails |
-| PRF-DSP-03 | T `tests/recovery/test_crash_boundaries.py` | CP-D1 and F-D5: rebuilt readiness equals the pre-crash readiness; the busy claim becomes ambiguous; no second call | Persisting readiness separately creates a second queue |
+| PRF-DSP-03 | T `tests/recovery/test_crash_boundaries.py` | CP-D1 and F-D5: rebuilt readiness equals the pre-crash readiness; the busy claim gets its published outcome, or becomes ambiguous without one; no second call | Persisting readiness separately creates a second queue |
 | PRF-DSP-04 | T `tests/integration/test_dispatch_revalidation.py` | A conflict appearing after admission keeps the command waiting; it is sent after the conflict clears, or refused with `DSP-R01` when the deadline timer fires while it still waits | Refusing on conflict at dispatch, or never firing the deadline, fails |
 | PRF-DSP-05 | T `tests/integration/test_bounded_io.py` | CUJ-DSP-1: B's cancel is sent while A is stalled | A global lock blocks B |
 | PRF-DSP-06 | T `tests/integration/test_bounded_io.py` | CUJ-DSP-3 and F-D4: timeout gives ambiguous; a disconnect creates no cancel | Retrying on timeout fails |

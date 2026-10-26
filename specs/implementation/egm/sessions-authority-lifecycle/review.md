@@ -61,6 +61,26 @@ All applied in one rewrite: states reduced to `OPEN`/`CLOSED`; `SESSION_OPENED` 
 | 7T-12 | Major | Delivery has no keys or proofs | FIX: table |
 | 7T-13…20 | Nit | Open items section; header shape; proof columns; unlinked references; overloaded subsection; refusal codes scattered; reuse format; `clock.jump_record_ms` default | FIX; the 1000 ms default becomes a measured value with no shipped default (it gates nothing, but the package does not ship thresholds) |
 
-## Stage 7 — design
+## Stage 7 — design (3 Blocker, 13 Major, 6 Nit)
 
-Recorded below when it reports.
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| 7D-1 | Blocker | Advance possible with no old-owner exclusion proof | FIX: `OLD_HOST_FENCED` required after any restore, host change or gap (legacy `recovery.py:117-133`, `:808-851`, re-read at `445eb116`); CUJ-SES-5; PRF-SES-10 |
+| 7D-2 | Blocker | Wall ratchet stretches deadlines; forward jumps spread | FIX: in-process deadlines on the monotonic clock; wall time only across restarts, never extending; ratchet kept only for grant windows; session boundaries wait out an unconfirmed forward jump |
+| 7D-3 | Blocker | Check lets an invalid grant set pass | FIX: `Allowed` only when one grant passes every condition; deterministic choice; refusal code by furthest grant |
+| 7D-4 | Major | Validity and revocation on raw wall time | FIX: revocation at ledger sequence; expiry on the ratchet |
+| 7D-5 | Major | Dispatch not tied to the admitted grant | FIX: `authority.recheck(grant_id, version, ...)`; dispatch row 3 aligned |
+| 7D-6 | Major | Delegation and grant administration incomplete | FIX: `grant_admin` action; parent revocation cascades; child window within parent |
+| 7D-7 | Major | Principal model vs strategy workers and kernel principals | FIX: `service` kind; kernel principals authenticated by construction with built-in grants on all bound accounts |
+| 7D-8 | Major | Stage table covers four actions | FIX: actions-per-stage table for all thirteen |
+| 7D-9 | Major | Recovery writes would refuse queued work | FIX: the coordinator runs only in `OPERATING`; admitted work waits |
+| 7D-10 | Major | In-process re-entry undefined | FIX: exit and restart (shared with ledger stage 8) |
+| 7D-11 | Major | Consumers not tied to the session's binding | FIX: session binding is the only source; admission checks candidate and policy against it |
+| 7D-12 | Major | Binding revocation mid-session undefined | **Q-010**; refusing parameter `binding.revocation_effect` |
+| 7D-13 | Major | Who decides an entry's session | FIX: the kernel, from the plan's calendar; B6 confirms; multi-calendar plans refused |
+| 7D-14 | Major | Calendar failure loses the day | FIX: retry on every kernel tick |
+| 7D-15 | Major | Transition triggers and order; boundary clock | FIX: evaluated each tick; closes before opens; close reason rule; forward-jump wait |
+| 7D-16 | Major | Target did not yet contain the recorded stage-7 fixes | Explained: the record was written before the rewrite; the rewrite now contains them |
+| 7D-17…22 | Nit | Alternatives; hold release; close-effects row; I-S3; deadline domain; Combined-F6 hook | FIX |
+
+Recovery's ordered steps (migrate, compare, repair, rebuild outcomes, owed closes, continuity, gaps) moved here from the ledger spec (ledger stage 8, finding 10).

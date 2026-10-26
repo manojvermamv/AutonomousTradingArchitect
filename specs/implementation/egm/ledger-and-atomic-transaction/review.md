@@ -102,3 +102,19 @@ All ten were applied in one rewrite of the spec:
 | 7D-14…19 | Nit | Alternatives; CUJ-LED-1 retry; not-sent commit failure; transaction boundary and re-entrancy; reader settings; missing transitions | FIX |
 
 Note: the style reviewer suggested renaming `test_projection_integrity.py`; CONTEST, because the master tree names that file (`README.md:1117`). `kernel/ledger/projections.py` (`README.md:1040`) holds the fold.
+
+## Stage 8 — intermediate zoom-out (0 Blocker, 10 Major, 3 Nit)
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| 8-1 | Major | Exit-and-restart vs in-process re-entry disagree with the sessions spec | FIX: exit-and-restart everywhere; sessions spec corrected |
+| 8-2 | Major | Outcomes committed while `LED-R05` stands are judged against wrong rows | FIX: exemption removed; recovery repairs before any other write |
+| 8-3 | Major | D04 before migrations gives false mismatches | FIX: one order: migrate, compare, repair (in `RECOVERY_WRITING`) |
+| 8-4 | Major | `ledger_meta` both folded and excluded | FIX: folded from `MIGRATION_APPLIED` and compared by D04 |
+| 8-5 | Major | Reservation arithmetic check has no input or code | FIX: removed; I-6 and PRF-LED-09 carry it |
+| 8-6 | Major | `commit_failed` vs `commit_unknown` changes nothing for the caller | FIX: one value, `commit_failed`, meaning persistence unknown; same-key retry |
+| 8-7 | Major | Session P&L in the wrong module and defined twice | FIX: moved to `kernel.safety` (protection spec), legacy `session_state.py:171`; attribution justified by the legacy ownership join and the slot rule |
+| 8-8 | Major | Head anchoring specifies `operations.backup` | FIX: ledger keeps only the `LED-R11` rule; the anchor source lives in the migration spec with A04-F5 |
+| 8-9 | Major | Evidence store has no owner | FIX: section cut to the two rules the ledger enforces; owners are the adapters, storage classes the runtime spec |
+| 8-10 | Major | Recovery rules written outside their owner; dispatch drift | FIX: recovery rules belong to the sessions spec; dispatch CP-D1 and PRF-DSP-03 aligned |
+| 8-11…13 | Nit | Redundant `UNCERTAIN → FILL` row; `Refusal.schema_revision`; `export.py` unowned | FIX |

@@ -127,11 +127,11 @@ TransportResult(cls: Literal["not_sent","rejected","acknowledged","ambiguous"],
                 legs: tuple[LegResult, ...], domain: DomainEvidence, raw: EvidenceRef)
 Outcome(command_key: CommandKey, attempt_no: int | None,
         effect: Literal["not_sent","rejected","acknowledged","ambiguous","refused"],
-        canonical: Literal["committed","unchanged","commit_failed","commit_unknown"],
+        canonical: Literal["committed","unchanged","commit_failed"],
         compat_projection: Literal["none","fresh","repair_scheduled"],
         broker_order_ids: Mapping[str, str], domain: DomainEvidence | None, sent: bool,
         refusal: "Refusal | None")
-Refusal(code: str, message: str, command_key: str | None, decision: str, schema_revision: int)
+Refusal(code: str, message: str, command_key: str | None, decision: str)
 ```
 
 * `EntryRequest` carries no review application and no plan ([ledger spec](../../design/ledger-and-atomic-transaction.md#execution-contract-types-contractsexecutionpy)). In SLICE-01 the test passes them to `submit_entry` as separate in-process arguments.
@@ -386,7 +386,7 @@ usage: python scripts/safe_tests.py [pytest args...]
 | `test_entry_outcomes.py::test_binding_mismatch` | An application whose `intent_digest` differs from `intent_ref` gives a recorded `ADM-R10`; nothing reserved | PRF-ADM-05 |
 | `test_entry_outcomes.py::test_non_canonical_money_refused` | A plan with `amount="1.5e3"` or `"1500"` gives `LED-R06`; no events are appended | PRF-LED-04 |
 | `test_entry_outcomes.py::test_outcome_from_wrong_state` | Committing a second `OUTCOME_ACKNOWLEDGED` for an attempt already `ACKNOWLEDGED` gives `LED-R09`; nothing is appended | PRF-LED-12 |
-| `test_crash_boundaries.py::test_commit_failure` | A fault that makes the outcome `COMMIT` raise `SQLITE_FULL` returns `canonical="commit_failed"` with the adapter's class; an injected I/O error returns `commit_unknown`; the next `transact` returns `LED-R10`; after reopen and `recover()` the attempt is `AMBIGUOUS(interrupted)` and the broker sees no second call | PRF-LED-07 |
+| `test_crash_boundaries.py::test_commit_failure` | A fault that makes the outcome `COMMIT` raise returns `canonical="commit_failed"` with the adapter's class; the next `transact` returns `LED-R10`; after reopen and `recover()` the attempt is `AMBIGUOUS(interrupted)` and the broker sees no second call | PRF-LED-07 |
 | `test_capabilities.py::test_unsafe_sqlite_refused` | With `runtime_identity` monkeypatched to report 3.46.1, opening a writer raises `UnsafeRuntime`; reporting 3.50.7 opens | PRF-LED-13 |
 | `test_crash_boundaries.py::test_cp_l1` … `test_cp_l5` | Run `submit_entry` in a subprocess with the fault point; reopen; call `recover()`. Expected: CP-L1 no events after the three bootstrap events; CP-L2 command `ADMITTED`, reservation `RESERVED`, no attempt; CP-L3/L4/L5 attempt `AMBIGUOUS(interrupted)`, command `UNCERTAIN`, reservation `HELD`, and a new broker in the recovering process records **0** calls | PRF-LED-05 |
 | `test_capabilities.py::test_simulation_has_no_live_adapter` | `compose_simulation` returns an object graph with no `adapters.openalgo` module in `sys.modules` and no socket opened (monkeypatched `socket.socket` raises) | PRF-XC-02 |

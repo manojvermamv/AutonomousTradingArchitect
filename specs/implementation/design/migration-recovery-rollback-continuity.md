@@ -5,6 +5,10 @@
 * **Specified here (exclusive):** `operations/deployment.py`, `backup.py`, `restore.py`, `adapters/compatibility.py`, `scripts/migrate_legacy.py`, `compare_parity.py`, `verify_recovery.py`, `check_release.py`.
 * **Master anchors:** ATA-03 (`README.md:456`), Phase 7 text (`:1203`), A04-F3…F5 (`:796`, `:897`), D10 (`:1201`), AUD-05 / A02-F5 / A04-F4 (`:1195`), A10-F3 (`:1192`), Combined-F3 (`:1197`), Combined-F6 (`:909`).
 
+## Interfaces the full-depth specs already rely on
+
+* **Anchored ledger head.** The recovery-set manifest (A04-F5, `README.md:796`) records the ledger head (`sequence`, `event_hash`) off the host; `kernel.recovery` supplies the latest one to the writer, which refuses a file that lacks it ([ledger spec](ledger-and-atomic-transaction.md#event-envelope-reuse-with-two-added-fields)). When anchors are written is decided here at SLICE-11.
+
 ## Requirement keys (pointers)
 
 | Key | Label | Decision (anchor) |

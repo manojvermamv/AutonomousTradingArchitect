@@ -84,17 +84,17 @@ Counts: **85** keys in full-depth specs, each with a module, a task and a proof;
 | REQ-PRT-012 | LD-03; REQ-XC-004 | PRF-PRT-05 | `kernel/safety.py` | [protection-and-safety](design/protection-and-safety.md#requirement-keys) | TASK-S06-06 | PRF-PRT-05 | specified |
 | REQ-PRT-013 | POL-015 | PRF-PRT-02 | `kernel/protection.py` | [protection-and-safety](design/protection-and-safety.md#requirement-keys) | TASK-S06-01 | PRF-PRT-02 | specified |
 | REQ-PRT-014 | Combined-F6 (`README.md:909`) | PRF-PRT-12 | `kernel/protection.py` | [protection-and-safety](design/protection-and-safety.md#requirement-keys) | TASK-S06-07, TASK-S14-01 | PRF-PRT-12 | specified |
-| REQ-SES-001 | A06-F1 (`README.md:863`); D13 (`:758`) | `kernel/authority.py` | [sessions-authority-lifecycle](design/sessions-authority-lifecycle.md#requirement-keys) | TASK-S03-01 | PRF-SES-01 | specified |
-| REQ-SES-002 | A04-F2 (`README.md:794`); F9 (`:203`) | `kernel/authority.py, kernel/recovery.py` | [sessions-authority-lifecycle](design/sessions-authority-lifecycle.md#requirement-keys) | TASK-S03-04 | PRF-SES-05, PRF-SES-07 | specified |
-| REQ-SES-003 | ATA-05 (`README.md:450`); Financial session row (`:730`) | `kernel/lifecycle.py, contracts/identity.py` | [sessions-authority-lifecycle](design/sessions-authority-lifecycle.md#requirement-keys) | TASK-S03-02 | PRF-SES-03 | specified |
-| REQ-SES-004 | ATA-05 (`README.md:450`) | `kernel/lifecycle.py` | [sessions-authority-lifecycle](design/sessions-authority-lifecycle.md#requirement-keys) | TASK-S03-02 | PRF-SES-03 | specified |
-| REQ-SES-005 | POL-004, POL-027; LD-04 | `kernel/safety.py, kernel/lifecycle.py` | [sessions-authority-lifecycle](design/sessions-authority-lifecycle.md#requirement-keys) | TASK-S03-02, TASK-S06-04 | PRF-SES-03, PRF-PRT-04 | specified |
-| REQ-SES-006 | Combined-F1 (`README.md:786`) | `contracts/clock.py, adapters/clocks.py` | [sessions-authority-lifecycle](design/sessions-authority-lifecycle.md#requirement-keys) | TASK-S01-05, TASK-S01-09, TASK-S03-03 | PRF-SES-04 | specified |
-| REQ-SES-007 | ATA-05 (`README.md:450`); `README.md:829` | `kernel/authority.py` | [sessions-authority-lifecycle](design/sessions-authority-lifecycle.md#requirement-keys) | TASK-S03-02 | PRF-SES-03 | specified |
-| REQ-SES-008 | A04-F1 (`README.md:792`); A04-F2 (`:794`) | `kernel/recovery.py` | [sessions-authority-lifecycle](design/sessions-authority-lifecycle.md#requirement-keys) | TASK-S03-04 | PRF-SES-03, PRF-SES-05 | specified |
-| REQ-SES-009 | A04-F2 (`README.md:794`) | `kernel/recovery.py` | [sessions-authority-lifecycle](design/sessions-authority-lifecycle.md#requirement-keys) | TASK-S03-04 | PRF-SES-05 | specified |
-| REQ-SES-010 | Combined-F4 (`README.md:863`, `:365`) | `kernel/authority.py` | [sessions-authority-lifecycle](design/sessions-authority-lifecycle.md#requirement-keys) | TASK-S03-05 | PRF-SES-06 | specified |
-| REQ-SES-011 | A07-F4 (`README.md:891`); A02-F3 (`:905`) | `kernel/authority.py` | [sessions-authority-lifecycle](design/sessions-authority-lifecycle.md#requirement-keys) | TASK-S03-02 | PRF-SES-03 | specified |
+| REQ-SES-001 | A06-F1 (`README.md:863`); D13 (`:758`) | PRF-SES-01, -02 | `kernel/authority.py` | [sessions-authority-lifecycle](design/sessions-authority-lifecycle.md#requirement-keys) | TASK-S03-01 | PRF-SES-01 | specified |
+| REQ-SES-002 | A04-F2 (`README.md:794`); F9 (`:203`) | PRF-SES-05 | `kernel/authority.py, kernel/recovery.py` | [sessions-authority-lifecycle](design/sessions-authority-lifecycle.md#requirement-keys) | TASK-S03-04 | PRF-SES-05 | specified |
+| REQ-SES-003 | ATA-05 (`README.md:450`); Financial session row (`:730`) | PRF-SES-03 | `kernel/lifecycle.py, contracts/identity.py` | [sessions-authority-lifecycle](design/sessions-authority-lifecycle.md#requirement-keys) | TASK-S03-02 | PRF-SES-03 | specified |
+| REQ-SES-004 | ATA-05 (`README.md:450`) | PRF-SES-03 | `kernel/lifecycle.py` | [sessions-authority-lifecycle](design/sessions-authority-lifecycle.md#requirement-keys) | TASK-S03-02 | PRF-SES-03 | specified |
+| REQ-SES-005 | POL-004, POL-027; LD-04 | PRF-SES-08 | `kernel/safety.py, kernel/lifecycle.py` | [sessions-authority-lifecycle](design/sessions-authority-lifecycle.md#requirement-keys) | TASK-S03-02, TASK-S06-04 | PRF-SES-08 | specified |
+| REQ-SES-006 | Combined-F1 (`README.md:786`) | PRF-SES-04 | `contracts/clock.py, adapters/clocks.py` | [sessions-authority-lifecycle](design/sessions-authority-lifecycle.md#requirement-keys) | TASK-S01-05, TASK-S01-09, TASK-S03-03 | PRF-SES-04 | specified |
+| REQ-SES-007 | ATA-05 (`README.md:450`); `README.md:829` | PRF-SES-09 | `kernel/authority.py` | [sessions-authority-lifecycle](design/sessions-authority-lifecycle.md#requirement-keys) | TASK-S03-02 | PRF-SES-09 | specified |
+| REQ-SES-008 | A04-F1 (`README.md:792`); A04-F2 (`:794`) | PRF-SES-05 | `kernel/recovery.py` | [sessions-authority-lifecycle](design/sessions-authority-lifecycle.md#requirement-keys) | TASK-S03-04 | PRF-SES-03, PRF-SES-05 | specified |
+| REQ-SES-009 | A04-F2 (`README.md:794`) | PRF-SES-10, PRF-SES-07 | `kernel/recovery.py` | [sessions-authority-lifecycle](design/sessions-authority-lifecycle.md#requirement-keys) | TASK-S03-04 | PRF-SES-10, PRF-SES-07 | specified |
+| REQ-SES-010 | Combined-F4 (`README.md:863`, `:365`) | PRF-SES-06 | `kernel/authority.py` | [sessions-authority-lifecycle](design/sessions-authority-lifecycle.md#requirement-keys) | TASK-S03-05 | PRF-SES-06 | specified |
+| REQ-SES-011 | A07-F4 (`README.md:891`); A02-F3 (`:905`) | PRF-SES-09 | `kernel/authority.py` | [sessions-authority-lifecycle](design/sessions-authority-lifecycle.md#requirement-keys) | TASK-S03-02 | PRF-SES-09 | specified |
 
 ## Stub domains (deepened at their slice)
 

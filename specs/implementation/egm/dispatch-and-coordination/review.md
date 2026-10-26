@@ -41,6 +41,26 @@ Ledger finding 6-5: a rejected command is final. Eligibility and REQ-DSP-010 now
 | 6-13 | Major | F-D3 proof does not test it | FIX: proof moved to the runtime slice; PRF-DSP-05 no longer cited |
 | 6-14…21 | Nit | Queue; ordering wording; loop arguments; unexpected exceptions; terms; interfaces; PRT codes; two keys with no behaviour | FIX |
 
-## Stages 7–8
+## Stage 7 — style (0 Blocker, 6 Major, 10 Nit) and structural (1 Blocker, 10 Major, 6 Nit)
 
-Recorded below as they run.
+| # | Lens | Sev | Finding (short) | Resolution |
+|---|---|---|---|---|
+| 7S-M1 | style | Major | Four names for the claim | FIX: "claim" for the event, "attempt" for the record |
+| 7S-M2 | style | Major | "Busy" means three things; "slot" undefined | FIX: busy count only for admission; worker idle/in flight |
+| 7S-M3 | style | Major | Five forms of "ambiguous" | FIX: mapping sentence; backticked forms |
+| 7S-M4 | style | Major | Refusal code formats | FIX |
+| 7S-M5 | style | Major | Key labels are paragraphs | FIX: one-sentence labels |
+| 7S-M6 | style | Major | Passive voice on evidence and reservations | FIX: the worker publishes; the refusal transaction releases |
+| 7T-1 | structural | Blocker | No Risks and limits | FIX |
+| 7T-2…5 | structural | Major | No Proof column; CUJs name no proof; proof columns; Delivery not a table | FIX |
+| 7T-6 | structural | Major | Timeout proof ID differs from SLICE-01 | FIX: PRF-DSP-02 covers the SLICE-01 timeout case; PRF-DSP-06 the worker case |
+| 7T-7 | structural | Major | REQ-DSP-007 has no plan text | FIX |
+| 7T-8 | structural | Major | REQ-DSP-008 has no plan text | FIX |
+| 7T-9 | structural | Major | `command_status` defined nowhere | FIX: defined here (read-only query over index tables); the security stub points here |
+| 7T-10 | structural | Major | Broken evidence anchor | FIX |
+| 7T-11 | structural | Major | Goals miss A03-F3 and the simulated broker | FIX |
+| 7S-N, 7T-12…17 | both | Nit | Wording, failure table shape, links, anchors, duplicated policy input, kill/latch ordering proof | FIX |
+
+## Stage 7 — design
+
+Recorded below when it reports.

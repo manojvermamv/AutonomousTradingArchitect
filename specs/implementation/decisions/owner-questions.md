@@ -13,6 +13,7 @@ Status: **open owner decision** unless a row says answered. Each question is a g
 | [Q-007](#q-007) | How is a timed-out place with no broker ID resolved when no client tag round-trips? | D15 (`README.md:762`); [execution-domain spec](../design/execution-domain-and-observations.md#reconciliation-kernelreconciliationpy); LD-20 | TASK-S07-02, TASK-S07-05 | open |
 | [Q-008](#q-008) | Do analyzer, unknown and conflicting obligations count against live capacity? | ATA-06 (`README.md:458`), D16 (`:764`); [execution-domain spec](../design/execution-domain-and-observations.md#domain-attribution-rules) | TASK-S04-03, TASK-S07-04 | open |
 | [Q-009](#q-009) | May a standing authorization advance a routine restart to `OPERATING`, or does every restart need a human `RECOVERY_ADVANCED`? | A04-F1/F2 (`README.md:792-794`); [sessions spec](../design/sessions-authority-lifecycle.md#recovery-stages-kernelrecoverypy) | TASK-S03-04; SLICE-14 operating procedure | open |
+| [Q-010](#q-010) | What does revoking a standing binding do to a session that is already open? | A07-F4 (`README.md:891`); [sessions spec](../design/sessions-authority-lifecycle.md#standing-bindings) | TASK-S03-02, TASK-S04-05 | open |
 
 ---
 
@@ -164,4 +165,24 @@ Proof: Restart mid-session with an open position; the time until protection resu
 
 - **A — Recommended:** Keep a human advance after every restart for the first release, and have the supervisor alert at once when a restart is waiting. This follows A04-F2 literally. Revisit after measured restart frequency.
 - **B:** Allow a standing authorization, recorded once by the owner, that advances a restart automatically only when every condition holds: same trading date, same release and policy binding, D04 clean, no recovery gap, no unresolved attempt. Anything else waits for a human. This needs the master's owner to confirm it is not a "blanket" activation (an X item would record that).
+- **C:** A free-text answer.
+
+---
+
+## Q-010
+
+**Revoking a standing binding while its session is open.**
+
+```text
+Requirement: The bound policy states binding.revocation_effect (next_session | stop_new_entries_now); a policy without it refuses to load.
+Owner: kernel.lifecycle (session), kernel.admission (entries).
+Proof: Revoke the binding of an open session; new entries follow the chosen value, and protective and owner actions on existing exposure continue either way.
+```
+
+**Why it matters.** A07-F4 leaves "revocation consequences" to the owner (`README.md:891`). The [sessions spec](../design/sessions-authority-lifecycle.md#standing-bindings) records `BINDING_REVOKED` but must not decide what it does to a session that is already open. Without an answer, entries under a revoked binding either continue until the close or stop at once, and either is a choice the owner has not made.
+
+**Options.**
+
+- **A — Recommended:** `stop_new_entries_now`. A revocation is usually a reaction to a problem; new entries stop at once, and existing exposure is managed normally.
+- **B:** `next_session`. The open session keeps its binding until it closes; the revocation prevents the next opening. This matches how a staged binding waits for the next session.
 - **C:** A free-text answer.
