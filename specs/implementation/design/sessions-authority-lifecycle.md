@@ -301,6 +301,7 @@ Every process start begins at `INSPECTING`. The stage is held in memory; enterin
 | `kill_engage`, `hold_engage`, `grant_admin` (revoke only) | refused (no writes before activation) | allowed | allowed |
 | `kill_release`, `hold_release`, `latch_unlock`, `pause_clear`, `binding_authorize`, `grant_admin` (issue) | refused | refused (`SES-R09`) | allowed |
 | `recovery_advance` (including recording `OLD_HOST_FENCED`) | refused | allowed | not applicable |
+| Reconciliation records (`RESOLVED_*`, `FILL`, `COMPLETED`, `CONFLICT_RECORDED`, `FOREIGN_RECORDED`, `RECONCILIATION_ESCALATED`), by `kernel.lifecycle` | refused (no writes) | allowed after recovery steps 1–3 (A04-F1) | allowed |
 
 Restrictions can be added while recovering; permissions are widened only in `OPERATING`.
 

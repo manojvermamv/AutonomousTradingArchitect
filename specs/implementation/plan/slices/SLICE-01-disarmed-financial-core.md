@@ -111,8 +111,7 @@ ReviewApplication(intent_digest: str, mode: Literal["off","observe","enforce_ent
                   applied: Literal["proceed","blocked","paused","proceed_unavailable"],
                   review_id: str | None, cause: str | None, policy_version: str)
 
-DomainEvidence(value: Literal["simulated","analyzer","live","unknown","conflicting"],
-               basis: Literal["response_marker","account_binding","simulated_adapter","none"])
+DomainEvidence(value: Literal["simulated","analyzer","live","unknown","conflicting"])
 EvidenceRef(store: str, content_digest: str, published_at: Timestamp)
 
 EntryRequest(command_key: CommandKey, principal: Principal, account: AccountId,
@@ -176,7 +175,7 @@ Each step maps to one result with one leg, named by the plan's single leg role (
 | `ack` | `cls="acknowledged"` with `order_id` as the leg's broker order ID |
 | `timeout` | `cls="ambiguous"`, reason `timeout`, after recording the call. This stands in for the HTTP client timeout that the live adapter classifies as ambiguous ([dispatch spec](../../design/dispatch-and-coordination.md#bounded-io)) |
 
-* Every result has `domain=DomainEvidence("simulated", "simulated_adapter")` and `raw=EvidenceRef("simulated", digest(step), clock.now())`.
+* Every result has `domain=DomainEvidence("simulated")` and `raw=EvidenceRef("simulated", digest(step), clock.now())`.
 * A call number with no script step raises `AssertionError` (a test bug, not a runtime path).
 * The broker imports nothing from `adapters.openalgo` and opens no socket.
 * No client tag is sent or recorded. The broker order ID is the only identity ([execution-domain spec](../../design/execution-domain-and-observations.md#reconciliation-kernelreconciliationpy)).

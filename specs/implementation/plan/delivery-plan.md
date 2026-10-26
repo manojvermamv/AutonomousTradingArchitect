@@ -23,11 +23,11 @@
 | SLICE-04 intent to admission | 3 | S | D07, D12, AUD-01, AUD-03, POL-007/015/018/020/021/022/027 | SLICE-01, SLICE-03 | Q-003 (stamp field only), Q-008 (capacity domains) | PRF-ADM-01…06 |
 | SLICE-05 dispatch, conflicts and scheduling | 1 | S | D13 revalidation, A03-F1/F2/F3, ATA-04; kill and hold events (POL-002, POL-003) | SLICE-04 | Q-004, Q-001, Q-011 | PRF-DSP-01, -03…-11, PRF-LED-16, PRF-PRT-04 (kill and hold rows), PRF-PRT-11 |
 | SLICE-06 protection and safety | 1/3 | S | ATA-01, POL-004…POL-006, POL-010…POL-015, A03-F5 kernel side, Combined-F6 protection part | SLICE-05, SLICE-07 | Q-001, Q-002, X-004 | PRF-PRT-01…10, PRF-PRT-12 |
-| SLICE-07 observations, reconciliation, domain, OpenAlgo adapter | 1/3 | S → R | D15, D16, ATA-06, A06-F2 decision | SLICE-05 | Q-006, Q-007, Q-008 | PRF-DOM-01…05, -08, -09, PRF-LED-11; PRF-DOM-07 on authorization |
+| SLICE-07 observations, reconciliation, domain, OpenAlgo adapter | 1/3 | S → R | D15, D16, ATA-06, A06-F2 decision | SLICE-05 | Q-006, Q-007, Q-008, Q-012 | PRF-DOM-01…05, -08, -09, PRF-LED-11; PRF-DOM-07 on authorization |
 | SLICE-08 market data and views | 5 | S | A01-F1…F5, D08 | SLICE-03 | POL-O04 | Stub deepened; proofs from `README.md:1234-1236` |
 | SLICE-09 strategies and cognition | 5 | S | A05-F1…F5, Combined-F5, D09, D12 evidence | SLICE-04, SLICE-08 | none | Stub deepened; proofs from `README.md:1243` |
-| SLICE-10 security and operator | 2/5 | S | A06-F1…F5, Combined-F4; the observation mediator (A06-F2) | SLICE-03 | none | Stub deepened; proofs from `README.md:1244`; PRF-DOM-06 |
-| SLICE-11 packaging, release, supervision, isolation, backup and restore | 2/7 (rehearsal only) | S → P (rehearsal on a real backup) | D05, D06, A02-F1…F4, A04-F3/F5, A03-F4/F5, A09-F1…F4, D10 | SLICE-02, SLICE-03, SLICE-07 | Q-005 (real rehearsal only), POL-O01 | Stub deepened; D10 rehearsal evidence |
+| SLICE-10 security and operator | 2/5 | S | A06-F1…F5, Combined-F4 | SLICE-03 | none | Stub deepened; proofs from `README.md:1244` |
+| SLICE-11 packaging, release, supervision, isolation, backup and restore | 2/7 (rehearsal only) | S → P (rehearsal on a real backup) | D05, D06, A02-F1…F4, A04-F3/F5, A03-F4/F5, A09-F1…F4, D10; the observation mediator only without native read-only proof (A06-F2) | SLICE-02, SLICE-03, SLICE-07 | Q-005 (real rehearsal only), POL-O01 | Stub deepened; D10 rehearsal evidence; PRF-DOM-06 when the mediator is built |
 | SLICE-12 research, RL, custody, promotion | 6 | S | A07-F1…F4, POL-038…POL-045 | SLICE-03 (binding) | none | Stub deepened; proofs from `README.md:1245` |
 | SLICE-13 disarmed shadow, compatibility projections, conversion method | 4 | D | D02 ownership in shadow, A10-F3, AUD-05/A04-F4 comparison, A02-F5 | SLICE-07, SLICE-11 | X-002 | Same-head comparison (`README.md:1199`); conversion method recorded |
 | SLICE-14 initial cutover | 7 | P | ATA-03, D10, A04-F2 cross-host, Combined-F6 | all required slices for the selected composition | Q-005 | Owner-authorized cutover record |
@@ -77,11 +77,11 @@ Task IDs are stable. SLICE-01 tasks are its file rows. Other tasks get exact fil
 | TASK-S07-03 | 07 | Fills, partial fills and obligation accounting (D16) | PRF-LED-09 |
 | TASK-S07-04 | 07 | Domain attribution and settlement rule (Q-006 for production) | PRF-DOM-01, PRF-DOM-08 |
 | TASK-S07-05 | 07 | Capture and classify deployed analyze and live responses at the source (needs authorization) | PRF-DOM-07 |
-| TASK-S07-06 | 07 | Native read-only credential proof (on authorization); the mediator itself is built in SLICE-10 | PRF-DOM-10 |
-| TASK-S10-01 | 10 | Observation mediator for non-kernel processes (authenticated socket, three queries) | PRF-DOM-06 |
+| TASK-S07-06 | 07 | Native read-only credential proof (on authorization); without it, the mediator is built in SLICE-11 | PRF-DOM-10 |
 | TASK-S11-01 | 11 | Installable artifact and entrypoints outside the checkout | `README.md:1221` |
 | TASK-S11-02 | 11 | Settings resolver, immutability, bundle manifest | `README.md:1226-1227` |
 | TASK-S11-03 | 11 | Supervisor and protection-status reporting | `README.md:1240`; PRF-PRT-14 |
+| TASK-S11-06 | 11 | Observation mediator for non-kernel processes, only if TASK-S07-06 does not prove native read-only credentials | PRF-DOM-06 |
 | TASK-S11-04 | 11 | Resource envelopes and storage classes | `README.md:1247` |
 | TASK-S11-05 | 11 | Recovery manifest, backup and clean-host restore rehearsal | `README.md:1232`; D10 |
 | TASK-S13-01 | 13 | Compare upgrade versus import with actual mappings; record the choice and reason; confirm or replace the provisional schema | REQ-MIG-005; X-002 |

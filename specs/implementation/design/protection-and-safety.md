@@ -298,7 +298,7 @@ Protection also records the ledger's `RECONCILIATION_ESCALATED` ([ledger catalog
 | F-P5 | Kernel down or not `OPERATING` | The broker stop remains; tick exits do not run; reporting is the supervisor's | PRF-PRT-06 |
 | F-P6 | Feed gap | One gap-peak record per gap (POL-013) | PRF-PRT-02 |
 | F-P7 | No fresh session P&L | Latch check inert; entries refused with `PRT-R06` | PRF-PRT-05 |
-| F-P8 | An older observation arrives after a newer one | It changes nothing (`observed_order` `as_of` order) | PRF-PRT-09 |
+| F-P8 | An older observation arrives after a newer one | It changes nothing (the observation loop ignores an older `as_of` per order; the ledger state guards refuse a regression) | PRF-PRT-09 |
 | F-P9 | The stop order fills while a modify of it is in flight | The modify completes with `target_terminal`; the group is free | PRF-PRT-11 |
 | F-P10 | The broker rejects or expires the stop, or the desired level is already through the market | Escalated; nothing re-placed | PRF-PRT-01 |
 | F-P11 | A modify is rejected by transport | Not resent at the same level; the next ratchet to a new level submits again | PRF-PRT-01 |

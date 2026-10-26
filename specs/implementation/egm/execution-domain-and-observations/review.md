@@ -89,3 +89,26 @@ Process record (not normative). Target: [design/execution-domain-and-observation
 | 7T-6 | Major | No proof for the native-credential branch or the liveness rule | FIX: PRF-DOM-10 (manual, on authorization); liveness is a rules-table row proved in PRF-DOM-02 |
 | 7T-7 | Major | Delivery table misaligned with the plan | FIX: SLICE-01 via PRF-DSP-12; SLICE-02 PRF-DOM-05; SLICE-07 incl. native proof; SLICE-10 mediator only; TASK-S07-02/06 updated |
 | 7T-N | Nit | Header Commits through and Terms; refusal-code table; POL rows; Goal-4 key (REQ-DOM-015); failure rows F-O9…F-O11; zero-price and F-O6 proof coverage | FIX |
+
+## Stage 8 — intermediate zoom-out (1 Blocker, 11 Major, 6 Nit)
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| 8-B1 | Blocker | Absence needs a known attempt domain, so never-reached cannot fire for timed-out attempts; cancel/modify/close silently left unresolved | Q-012 raised (all verbs; option A: target-bound verbs take the target order's domain); never-reached rows apply only to known-domain attempts until decided; such attempts escalate once (`unknown_domain_unresolved`); risk row |
+| 8-M1 | Major | `observed_order` not event-sourced; `gap` finding has no home; escalations repeat | FIX: `observed_order` dropped — ledger state guards make findings idempotent and the loop ignores older `as_of` in memory; `reconciliation_fact` index folds conflicts, foreign records and escalations once per key; `gap` kept in the assessment only; stale reuse citation removed |
+| 8-M2 | Major | `foreign_order` duplicates capacity's observation source | FIX: dropped; `FOREIGN_RECORDED` is an audit fact |
+| 8-M3 | Major | Event payloads undefined; free-text reasons | FIX: payload table with closed reason sets |
+| 8-M4 | Major | Coverage interval cannot be built for OpenAlgo | FIX: `interval` argument removed; endpoint contract declares `covers`; window ends at outcome time + visibility + skew, so a day-to-read coverage can contain it |
+| 8-M5 | Major | Observation loop has no owner | FIX: `ObservationLoop` in `kernel/reconciliation.py`, one reader thread per account, queued to the writer thread; runs in `RECOVERY_WRITING` after steps 1–3 and `OPERATING`; sessions stage table row added |
+| 8-M6 | Major | Contradicts admission on stale observations | FIX: admission refuses (`ADM-R05`), dispatch waits, reconciliation ignores |
+| 8-M7 | Major | Mediator unconditional and mis-sequenced | FIX: native read-only proof means no mediator; otherwise built in SLICE-11 (TASK-S11-06); this spec owns its definition |
+| 8-M8 | Major | Publisher inconsistent; eager publishing | FIX: adapter publishes (dispatch 8-1); observations published only before a referencing decision |
+| 8-M9 | Major | Hidden orderbook read inside `send` | FIX: the join uses an `ObservationPort.orderbook` call inside the send's total deadline, published like any observation |
+| 8-M10 | Major | Liveness escalation off by default | FIX: refusing parameter `reconciliation.working_escalation_secs` for both rows |
+| 8-M11 | Major | Cross-domain identity conflicts with the ledger key | FIX: identity is the value alone; ledger PK (`kind`, `value`) with `domain` as attribute; a cross-domain sighting is a conflict (escalation only) |
+| 8-N1 | Nit | `basis` and attached mode read redundant | FIX: dropped; mode read is its own display reading; SLICE-01 aligned |
+| 8-N2 | Nit | Simulator lacks `funds` | FIX (dispatch 8-7) |
+| 8-N3 | Nit | Header lists `RESIDUAL_RECORDED` | FIX |
+| 8-N4 | Nit | REQ-DOM-002 remainder undelivered | FIX: SLICE-07 |
+| 8-N5 | Nit | Missing reuse (read allowlist, REST backend) | FIX |
+| 8-N6 | Nit | Repeated paging text | FIX |

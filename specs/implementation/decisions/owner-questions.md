@@ -15,6 +15,7 @@ Status: **open owner decision** unless a row says answered. Each question is a g
 | [Q-009](#q-009) | May a standing authorization advance a routine restart to `OPERATING`, or does every restart need a human `RECOVERY_ADVANCED`? | A04-F1/F2 (`README.md:792-794`); [sessions spec](../design/sessions-authority-lifecycle.md#recovery-stages-kernelrecoverypy) | TASK-S03-04; SLICE-14 operating procedure | open |
 | [Q-010](#q-010) | What does revoking a standing binding do to a session that is already open? | A07-F4 (`README.md:891`); [sessions spec](../design/sessions-authority-lifecycle.md#standing-bindings) | TASK-S03-02, TASK-S04-05 | open |
 | [Q-011](#q-011) | Dispatch deadline per verb (entry, cancel, modify, close) | D13 (`README.md:758`) | TASK-S05-08, TASK-S05-01 | open |
+| [Q-012](#q-012) | How is a timed-out cancel, modify, close or entry of unknown domain resolved, when absence in a book of one domain says nothing about another? | D15 (`README.md:762`), ATA-06 (`:458`); [execution-domain spec](../design/execution-domain-and-observations.md#reconciliation-kernelreconciliationpy) | TASK-S07-02, TASK-S07-05; protection retries (TASK-S06-01) | open |
 
 ---
 
@@ -207,3 +208,22 @@ Proof: A command still unclaimed at its deadline is refused with DSP-R01 and its
 - **A — Recommended:** Measure the time from admission to claim on recorded sessions (A09-F4), then set an entry deadline shortly above its high percentile, and longer deadlines for cancel and close. Until measured, simulation and tests use labelled synthetic values; production refuses to load.
 - **B:** One deadline for every verb, chosen by the owner now.
 - **C:** A free-text answer.
+
+## Q-012
+
+**Resolving a timed-out attempt whose domain is unknown.**
+
+```text
+Requirement: A timed-out attempt (any verb) whose response carried no verified domain marker has a defined route to RESOLVED_REACHED or RESOLVED_NEVER_REACHED, so its command, reservation and any protection waiting on it do not stay UNCERTAIN for ever.
+Owner: kernel.reconciliation (decision), kernel.lifecycle (transition), kernel.authority (if a human resolves).
+Proof: a timed-out stop modify, cancel, close and entry with no marker each end in the chosen resolution; none is resolved by a book of another domain.
+```
+
+**Why it matters.** Absence in a book proves an attempt never reached the broker only when the book and the attempt share a domain (ATA-06; D15). A timed-out attempt has no usable response, so its domain is `unknown`, and the package's absence rule can never fire for it. Every timed-out cancel, modify or close therefore stays `UNCERTAIN`: it cannot be retried, and a timed-out trailing-stop modify freezes that stop's ratchet. Legacy has no per-effect domain at all and resolves by the live book (LD-12).
+
+**Options.**
+
+- **A — Recommended:** A cancel, modify or close takes its domain from its target order's recorded domain (the order exists, and the verb acts on it); an entry stays under [Q-007](#q-007). Absence then works for the three target-bound verbs once their endpoint contract proves coverage and visibility (TASK-S07-05).
+- **B:** A human principal resolves each such attempt by a recorded action naming the evidence (the `attempt_resolve` action proposed in Q-007, widened to every verb).
+- **C:** Treat the deployment's mode, read at the time, as the domain. This makes a session-level read into per-effect proof, which ATA-06 rejects; listed only for completeness.
+- **D:** A free-text answer.
