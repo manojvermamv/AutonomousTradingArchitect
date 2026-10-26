@@ -39,6 +39,26 @@ Process record (not normative). Target: [design/execution-domain-and-observation
 | 6-M11 | Major | Simulated broker port signatures differ | FIX: dispatch spec aligned |
 | 6-N1…N8 | Nit | `analyze`/`analyzer`; `basis: none`; envelope mapping; cursors; corroborating evidence; links; README Q range; switching identity mode | FIX |
 
-## Stages 7–8
+## Stage 7 — design (3 Blocker, 15 Major, 8 Nit)
 
-Recorded below as they run.
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| 7D-B1 | Blocker | Absence over an empty, inverted or too-early window gives `RESOLVED_NEVER_REACHED` | FIX: `as_of` must be at least the outcome time plus a visibility bound (endpoint-contract item, measured refusing parameter); empty or inverted windows are not covered |
+| 7D-B2 | Blocker | An unmarked attempt "proven" absent by another domain's book | FIX: `unknown + X → X` only on a positive identity match; absence needs the attempt's own known domain to equal the book's |
+| 7D-B3 | Blocker | The domain gate blocked recording facts, so `forbid` left live positions unprotected | FIX: reach, fills and completion are recorded for any identity match, labelled; the gate applies only to releasing obligations and to performance claims; Q-006 consequences restated |
+| 7D-M1 | Major | Basket leg roles; returned IDs without a role lost | FIX: attempt-level unassigned IDs recorded; role assigned only by the legacy validated join on our own returned IDs (`openalgo_adapter.py:25-28`, `:85-90`) |
+| 7D-M2 | Major | Cancel/modify resolution wrong; modify level; replaced IDs; shared items | FIX: per-verb reached and never-reached evidence; modify proven only by a changed level (legacy `reconcile.py:756-757`); replacement IDs; per-command evaluation; liveness escalation |
+| 7D-M3 | Major | Unresolved legs could not account for orders | FIX: unresolved legs count; per-leg absence |
+| 7D-M4 | Major | Freshness base differs from legacy; `assess` impure | FIX: pre-read `as_of` with `abs(age)` (legacy `not_fresh`, `:693-711`); `now` passed in; admission B1 aligned |
+| 7D-M5 | Major | Skew only at the window start | FIX: window end `as_of + skew` |
+| 7D-M6 | Major | Ledger cannot supply attempt domain and claim time; double reduction; reconciliation built ledger decisions | FIX: attempt columns added; `RESERVATION_REDUCED` removed (reductions ride on the outcome or resolution); reconciliation returns findings, lifecycle decides |
+| 7D-M7 | Major | POL-016 unrepresentable | FIX: optional `filled_quantity`; the close stays working and escalates |
+| 7D-M8 | Major | Close completion by netted position bypasses identity | FIX: a close completes by its own order's fills; positions only corroborate |
+| 7D-M9 | Major | Late order for a rejected or never-reached attempt; snapshot conflict; ordering | FIX: `CONFLICT_RECORDED` and escalation; `observed_order` index table holds the latest `as_of` per order; older observations ignored |
+| 7D-M10 | Major | Different-domain books produce conflicts; circular order; event storms | FIX: identity first, then domain; only an identity-matched order in another domain conflicts; edge-triggered recording against index tables |
+| 7D-M11 | Major | Q-008 interim answer built in | FIX: refusing parameter `capacity.count_non_live_obligations` |
+| 7D-M12 | Major | `account_binding` cannot be verified | FIX: basis removed |
+| 7D-M13 | Major | Mediator mis-targeted | FIX: the kernel observes directly; the mediator serves the supervisor, with caller authentication, supervision and kernel-down availability proofs |
+| 7D-M14 | Major | Polling and evidence volume | FIX: refusing poll interval and request budget; supervisor never polls faster; only referenced observations are kept as evidence |
+| 7D-M15 | Major | No Risks and limits | FIX |
+| 7D-N1…N8 | Nit | Basis order; cites; anchor; 429 and bodiless 4xx; non-entry legs; ID domain; simulated interval; stale foreign | FIX |

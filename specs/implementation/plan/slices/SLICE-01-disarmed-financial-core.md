@@ -188,7 +188,7 @@ Each step maps to one result with one leg, named by the plan's single leg role (
 | `EPOCH_ACTIVATED` | `epoch_id`, `principal`, `retired_epoch_id` | `none` |
 | `RUNTIME_OPENED` | `binding`, `binding_version`, `sqlite_version` | `none` |
 | `MIGRATION_APPLIED` | `migration_number` (1), `name`, `file_digest` | `none` |
-| `COMMAND_ADMITTED` | `verb`, `strategy`, `request_digest`, `plan_digest`, `account`, `reservation_id`, `amount`, `margin`, `worst_case_loss`, `currency`, `application` | `none` |
+| `COMMAND_ADMITTED` | `verb`, `strategy`, `request` (normalized), `request_digest`, `plan_ref`, `plan_digest`, `account`, `reservation_id`, `amount`, `margin`, `worst_case_loss`, `currency`, `application` | `none` |
 | `ADMISSION_REFUSED` | `request_digest`, `code`, `message` | `none` |
 | `DISPATCH_CLAIMED` | `attempt_no`, `epoch_id` | `none` |
 | `OUTCOME_NOT_SENT` | `attempt_no`, `reason`, `raw_digest` | from the result |
@@ -308,9 +308,9 @@ Coordinator(writer, broker: BrokerPort, clock: Clock, fault_plan: FaultPlan | No
 Coordinator.submit_entry(request, application, plan, synthetic_capacity) -> Outcome
     t1: writer.transact(admission.admit ...)                   # CP-L1 before, CP-L2 after
     if refused or existing: return Outcome(effect="refused" | existing state, ...)
+    revalidate_hook(cmd) -> Allowed                            # SLICE-01: always Allowed; SLICE-05 replaces; runs BEFORE the claim
     t2: writer.transact(claim attempt n = max+1: DISPATCH_CLAIMED, attempt CLAIMED,
                         command IN_FLIGHT, reservation HELD)                # CP-L3 after
-    revalidate_hook(cmd) -> Allowed                            # SLICE-01: always Allowed; SLICE-05 replaces
     result = broker.send(request, plan, n)                     # no transaction held; CP-L4 inside
     # CP-L5 here: result in memory, not yet committed
     t3: writer.transact(OUTCOME_<cls>, attempt state, command state, reservation RELEASED if rejected)

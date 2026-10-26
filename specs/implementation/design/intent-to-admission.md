@@ -238,7 +238,7 @@ Stage B first repeats A1a, A2, A3, A4 and the pause lookup, because another requ
 |---|---|---|
 | View age: wall now minus the decision bar's stamp (the bar's open, [Q-003](../decisions/owner-questions.md#q-003)) | ≤ 90 s (POL-018) | Entries in a live composition only. A replay composition, flagged when it is built, does not apply it. A CP-A1 retry is a live entry and is judged |
 | Spot and chain age | ≤ 2 × `market.poll_interval_secs` from the bound market-data policy (POL-020) | Entries |
-| Broker observation of the account's orders and positions | `arrived_at` ≤ 60 s before now (POL-021) | All verbs |
+| Broker observation of the account's orders and positions | `abs(now − as_of)` ≤ 60 s, with `as_of` stamped before the read (POL-021; legacy `not_fresh`) | All verbs |
 
 The measured ages are written into `Plan.measured_ages` (POL-020).
 
@@ -268,7 +268,7 @@ External commitments count broker-observed positions and working orders once, ex
 
 It fails when a wiring fault pairs the wrong objects or names the wrong session.
 
-**On success**, stage B commits `COMMAND_ADMITTED` with the request digest, plan digest, application, reservation, resulting exposure and the dependency set that dispatch rechecks ([dispatch dependency table](dispatch-and-coordination.md#revalidation-at-dispatch-req-dsp-001)).
+**On success**, stage B commits `COMMAND_ADMITTED` with the request digest, plan digest, application, reservation, resulting exposure and the dependency set that dispatch rechecks ([dispatch dependency table](dispatch-and-coordination.md#revalidation-at-dispatch)).
 
 **Slot scope.** The POL-007 slot rule ("one open position at a time") is one row of the conflict relation, so B3 enforces it. Its scope is (account, underlying), matching legacy `max_positions_per_underlying = 1` (`OA/src/strategies/buyer_edge.py:687`). Admission has no separate slot check.
 

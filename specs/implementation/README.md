@@ -128,7 +128,7 @@ This package labels its own content **proposed**. A master decision it cites is 
 | Index tables | Tables in the ledger database derived from events by `fold`, written in the same transaction |
 | Compatibility projection | A derived file outside the database for legacy readers; may lag (none exists before SLICE-13) |
 | Send intent / claim | The durable `DISPATCH_CLAIMED` event written before any broker call |
-| Revalidation | Re-checking an admitted command's recorded dependencies before its claim ([dispatch spec](design/dispatch-and-coordination.md#revalidation-at-dispatch-req-dsp-001)) |
+| Revalidation | Re-checking an admitted command's recorded dependencies before its claim ([dispatch spec](design/dispatch-and-coordination.md#revalidation-at-dispatch)) |
 | Bundle | The installed release artifact, including its migrations and endpoint contracts |
 | Receipt | The release binding's evidence that a bundle was installed and verified ([configuration spec](design/configuration-artifacts-release.md)) |
 | Refusing parameter | A policy field with no shipped default; the loader refuses a composition that needs it unbound (REQ-XC-003) |

@@ -231,7 +231,7 @@ Recorded in the same transaction as `SESSION_CLOSED`, only where an approved rul
 | Kill switch | Unchanged | POL-002 (no session expiry) |
 | Holds | Unchanged | POL-003; [Q-001](../decisions/owner-questions.md#q-001) |
 | Uncertain commands, open positions, protection | Carried unchanged | REQ-SES-004; Combined-F6 |
-| Admitted entries not yet claimed | Refused at dispatch (revalidation row 4 of the [dispatch spec](dispatch-and-coordination.md#revalidation-at-dispatch-req-dsp-001), `SES-R07`) when they next become eligible, or at their deadline; the coordinator releases their reservations then | REQ-DSP-001 |
+| Admitted entries not yet claimed | Refused at dispatch (revalidation row 4 of the [dispatch spec](dispatch-and-coordination.md#revalidation-at-dispatch), `SES-R07`) when they next become eligible, or at their deadline; the coordinator releases their reservations then | REQ-DSP-001 |
 | Staged bindings | Take effect only at the next `SESSION_OPENED` | REQ-SES-011 |
 
 Session-close **exits** (square-off) belong to `kernel.protection`, which runs them while the session is still `OPEN` (POL-010).
@@ -282,7 +282,7 @@ Every process start begins at `INSPECTING`. The stage is held in memory; each tr
 * **`RECOVERY_WRITING` does these steps, in this order:**
   1. apply pending migrations (`MIGRATION_APPLIED`);
   2. run the D04 comparison and, on a mismatch, repair (`INDEX_REPAIRED`) before any other write;
-  3. for each `CLAIMED` attempt, commit its outcome from the adapter result published under its `attempt_id`, or `OUTCOME_AMBIGUOUS` (reason `interrupted`) when none exists ([ledger CP-L3](ledger-and-atomic-transaction.md#failure-modes-and-crash-points));
+  3. for each `CLAIMED` attempt, commit its outcome from the adapter result published under its `attempt_id`; `OUTCOME_AMBIGUOUS` with reason `interrupted` when none exists, or `evidence_unusable` when the rebuilt outcome is refused ([ledger CP-L3](ledger-and-atomic-transaction.md#failure-modes-and-crash-points));
   4. commit owed session closes (CUJ-SES-2);
   5. check authorization continuity after a restore (below);
   6. record gaps: anything recovery could not verify, such as an unresolved attempt, a missing evidence object, a grant without continuity evidence, a restore, or a host change.

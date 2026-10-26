@@ -191,7 +191,7 @@ evaluate(trigger, view: StableView, session: SessionRow, position: PositionView,
 
 * Kill applies to the whole desk and does not expire at session close (POL-002).
 * A strategy is **held** while at least one reason is engaged. The master's "explicit operator hold" (`README.md:772`) and the legacy recovery hold (POL-003) are the two reasons.
-* Each takes effect at its event's ledger sequence ([dispatch spec](dispatch-and-coordination.md#holds-and-in-flight-requests-req-dsp-009)).
+* Each takes effect at its event's ledger sequence ([dispatch spec](dispatch-and-coordination.md#holds-kills-and-latches-against-in-flight-requests)).
 
 ### Permission matrix (`kernel/safety.py`)
 
@@ -256,7 +256,7 @@ evaluate(trigger, view: StableView, session: SessionRow, position: PositionView,
 | Latch | `session_pnl` is `Unavailable` | Same | The strategy's entries |
 | Conflict | The observation needed for the target is stale | Same | The action being checked |
 
-A change of state is recorded as `SAFETY_CHECK_STATE` (`check`, `scope`, `state`, `reason`). An `inert` or `damaged` check refuses the actions it guards. It never passes them silently (LD-03).
+A change of state is recorded as `SAFETY_CHECK_STATE` (`check`, `scope`, `state`, `reason`). An `inert` or `damaged` check refuses the actions it guards at admission; at dispatch eligibility the command waits ([dispatch spec](dispatch-and-coordination.md#eligibility-and-scheduling)). It never passes them silently (LD-03).
 
 ### Refusal codes
 

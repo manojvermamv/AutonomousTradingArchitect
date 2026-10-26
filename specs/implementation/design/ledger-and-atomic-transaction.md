@@ -133,12 +133,13 @@ The master's answer is one canonical admission and outcome commit: D02, D01/D03,
 | `ledger_event` | One row per event: the envelope fields below, plus `event_hash`; append-only triggers refuse UPDATE and DELETE | every event | SLICE-01 |
 | `authority_epoch` | `epoch_id`, `principal`, `state` (`active`/`retired`), `activated_sequence`; a partial unique index allows one active row (legacy `OA/src/tier1/schema.py:48-57`) | `EPOCH_ACTIVATED` | SLICE-01 |
 | `command_identity` | `command_key` (PK), `verb`, `target` (broker order ID or position ID; null for entries), `strategy`, `request_digest`, `plan_digest` (entries), `principal`, `account`, `first_sequence`, `state`, `updated_sequence` | `COMMAND_ADMITTED` and every command transition | SLICE-01 |
-| `command_attempt` | `attempt_id` (= `"<command_key>#<attempt_no>"`), `command_key`, `attempt_no`, `epoch_id`, `state`, `legs` (per-leg state), `claimed_sequence`, `outcome_sequence`; a partial unique index allows one unresolved attempt per command ([I-2](#invariants)) | `DISPATCH_CLAIMED`, `OUTCOME_*`, `RESOLVED_*` | SLICE-01 |
-| `reservation` | `reservation_id`, `command_key` (unique; entries only), `account`, `amount`, `margin`, `worst_case_loss`, `currency`, `state`, `updated_sequence` | `COMMAND_ADMITTED`, `DISPATCH_CLAIMED`, `RESERVATION_REDUCED`, release events | SLICE-01 |
-| `broker_identity` | `kind` (`order_id`, `fill_id`), `value`, `command_key`, `first_sequence`, and for fills `quantity`, `price`; PK (`kind`, `value`) | `OUTCOME_ACKNOWLEDGED`, `RESOLVED_REACHED` (order IDs); `FILL` (fill IDs) | SLICE-01 |
+| `command_attempt` | `attempt_id` (= `"<command_key>#<attempt_no>"`), `command_key`, `attempt_no`, `epoch_id`, `claimed_at`, `domain`, `contract_version`, `state`, `legs` (per-leg state), `unassigned_order_ids`, `retry_requested_sequence`, `claimed_sequence`, `outcome_sequence`; a partial unique index allows one unresolved attempt per command ([I-2](#invariants)) | `DISPATCH_CLAIMED`, `OUTCOME_*`, `RESOLVED_*`, `DISPATCH_RETRY_REQUESTED` | SLICE-01 |
+| `reservation` | `reservation_id`, `command_key` (unique; entries only), `account`, `amount`, `margin`, `worst_case_loss`, `currency`, `state`, `updated_sequence` | `COMMAND_ADMITTED`, `DISPATCH_CLAIMED`, and any event carrying `reservation_after` | SLICE-01 |
+| `broker_identity` | `kind` (`order_id`, `fill_id`), `value`, `domain`, `command_key`, `first_sequence`, and for fills `quantity`, `price`; PK (`kind`, `value`, `domain`) | `OUTCOME_ACKNOWLEDGED`, `RESOLVED_REACHED` (order IDs); `FILL` (fill IDs) | SLICE-01 |
 | `release_binding` | `binding_id`, `epoch_id`, `receipt`, `receipt_digest`, `bound_sequence`; keeps the legacy check (`README.md:780`; `OA/src/tier1/schema.py:96-101`, `OA/src/tier1/gateway_route.py:360`) | `RELEASE_BOUND` | SLICE-03 |
 | `session`, `grant` | [Sessions spec](sessions-authority-lifecycle.md) | session, binding and grant events | SLICE-03 |
 | `protection_state` | [Protection spec](protection-and-safety.md) | protection events | SLICE-06 |
+| `observed_order`, `foreign_order` | Latest observed state and `as_of` per broker order ID; foreign orders for capacity ([execution-domain spec](execution-domain-and-observations.md#reconciliation-kernelreconciliationpy)) | Reconciliation findings | SLICE-07 |
 | `import_manifest` | Legacy import accounting, defined with the AUD-05 method | import events | SLICE-13 |
 
 `schema_revision 1` and its migration `001_initial.sql` are **provisional** until the AUD-05 comparison (TASK-S13-01, [X-002](../consistency/master-contradictions.md#x-002)). Before then only disarmed simulation and test ledgers use them.
@@ -172,15 +173,15 @@ The writer validates each payload against `resources/events.schema.json`, which 
 | `RUNTIME_OPENED` | `kernel.recovery` | binding, binding version, SQLite version | none |
 | `MIGRATION_APPLIED` | `kernel.recovery` | `migration_number`, `name`, `file_digest` | `ledger_meta` |
 | `RELEASE_BOUND` | `kernel.authority` | `binding_id`, `receipt`, `receipt_digest` | `release_binding` |
-| `COMMAND_ADMITTED` | `kernel.admission` | `verb`, `target`, `strategy`, `request_digest`, `plan_digest`, `account`, `application`, `dependencies`, `resulting_exposure`, reservation amounts (entries) | identity row; reservation `RESERVED` |
+| `COMMAND_ADMITTED` | `kernel.admission` | `verb`, `target`, `strategy`, `request` (normalized), `request_digest`, `plan_ref` and `plan_digest` (entries), `account`, `application`, `dependencies`, `resulting_exposure`, reservation amounts (entries) | identity row; reservation `RESERVED` |
 | `ADMISSION_REFUSED` | `kernel.admission` | `verb`, `request_digest`, `code`, `message`, `inputs` | none |
 | `PAUSE_STARTED`, `PAUSE_CLEARED` | `kernel.policy`; committed by admission (start) or on an owner command (clear) | [intent spec](intent-to-admission.md#review-application-kernelpolicypy) | none |
 | `DISPATCH_REFUSED` | `kernel.coordinator` | `code`, `dependency` | command `REFUSED`; reservation `RELEASED` |
+| `DISPATCH_RETRY_REQUESTED` | `kernel.coordinator`, on a request from a principal holding the command's verb | `attempt_no` (the `NOT_SENT` one), `principal` | attempt `retry_requested_sequence` |
 | `DISPATCH_CLAIMED` | `kernel.coordinator` | `attempt_no`, `epoch_id` | attempt `CLAIMED`; command `IN_FLIGHT`; reservation `HELD` |
-| `OUTCOME_NOT_SENT` / `_REJECTED` / `_ACKNOWLEDGED` / `_AMBIGUOUS` | `kernel.coordinator`; `kernel.recovery` for `_AMBIGUOUS` with reason `interrupted` and for outcomes rebuilt from published evidence | `attempt_no`, `legs`, `reason`, `raw_digest`, and `reservation_after` when legs were rejected | per the state table; `broker_identity` order IDs |
+| `OUTCOME_NOT_SENT` / `_REJECTED` / `_ACKNOWLEDGED` / `_AMBIGUOUS` | `kernel.coordinator`; `kernel.recovery` for outcomes rebuilt from published evidence and for `_AMBIGUOUS` | `attempt_no`, `epoch_id`, `legs`, `unassigned_order_ids`, `reason` (for `_AMBIGUOUS`: `timeout`, `adapter_error`, `interrupted`, `outcome_refused`, `evidence_unusable`, `evidence_unpublished`), `raw_digest`, `reservation_after` when legs were rejected | per the state table; `broker_identity` order IDs |
 | `RESOLVED_REACHED`, `RESOLVED_NEVER_REACHED` | `kernel.lifecycle` from reconciliation | `attempt_no`, `legs` (per-leg resolution), `observation_digest`, `broker_order_ids`, `reservation_after` | per the state table |
 | `FILL` | `kernel.lifecycle` from reconciliation | `fill_id`, `broker_order_id`, `quantity`, `price`, `observation_digest`, `reservation_after` | `broker_identity` (`fill_id`); reservation reduced |
-| `RESERVATION_REDUCED` | `kernel.lifecycle` (rejected or never-reached legs) | `reason`, `leg_roles`, `reservation_after` | reservation amounts replaced |
 | `RESIDUAL_RECORDED` | `kernel.lifecycle` | `legs` that reached the broker while others did not | none (read by reconciliation and protection) |
 | `COMPLETED` | `kernel.lifecycle` from reconciliation | `observation_digest`, `filled_quantity`, `confirmed_level` (modify and resting close) | command `COMPLETED`; reservation per the state table |
 | `CONFLICT_RECORDED`, `FOREIGN_RECORDED`, `RECONCILIATION_ESCALATED` | `kernel.lifecycle` from reconciliation; `kernel.protection` also escalates missing protection under kill | [execution-domain spec](execution-domain-and-observations.md#reconciliation-kernelreconciliationpy) | none (foreign orders are read by capacity's external commitments) |
@@ -188,7 +189,7 @@ The writer validates each payload against `resources/events.schema.json`, which 
 | Session, binding, grant and recovery-stage events | `kernel.lifecycle`, `kernel.authority`, `kernel.recovery` | [sessions spec](sessions-authority-lifecycle.md#bindings-and-sessions-kernellifecyclepy-session-part) | `session`, `grant` |
 | Protection, kill, hold and latch events | `kernel.protection`, `kernel.safety` | [protection spec](protection-and-safety.md) | `protection_state` |
 
-`reservation_after` carries the post-change `amount`, `margin` and `worst_case_loss` exactly as `kernel.reservations` decided them. The fold copies them; it never computes or rounds money.
+Every event that changes a reservation carries `reservation_after`: the post-change `amount`, `margin` and `worst_case_loss`, exactly as `kernel.reservations` decided them. The fold copies them; it never computes or rounds money.
 
 ### Request digest and the identity rule
 
@@ -217,7 +218,7 @@ Steps 1–3 run before `BEGIN IMMEDIATE`; steps 4–8 inside it. The first failu
 3. The writer epoch is the active epoch (`LED-R03`).
 4. Every payload matches `events.schema.json`, is finite JSON, has normalized decimal money fields, and every `EvidenceRef` resolves to a published object (`LED-R06`).
 5. Identity rule (`LED-R01`, `LED-R02`, or `Existing`).
-6. The guard (`LED-R09 transition_not_allowed`): the command's state is in `command_state_in` (the "From" column of the [state table](#command-and-attempt-state-machine)), the attempt number matches, and the attempt's epoch is the active one for coordinator outcomes, or a retired one for recovery's `interrupted` outcomes.
+6. The guard (`LED-R09 transition_not_allowed`): the command's state is in `command_state_in` (the "From" column of the [state table](#command-and-attempt-state-machine)), the attempt number matches, and the attempt's epoch is the active one for the coordinator's outcomes, or a retired one for recovery's outcomes (rebuilt from evidence, or `_AMBIGUOUS`).
 7. Load the **touched rows** (the rows whose keys appear in the events: the command key, its attempts and reservation, any broker IDs), compute `rows = fold(touched rows, new events)`, then check I-3 and I-4 (`LED-R08`).
 8. Commit.
 
@@ -262,7 +263,7 @@ Reservations exist for entries only. Their states are the legacy ones:
 A reduction lowers the amounts and keeps the state. Every change is decided here and carried in the event as `reservation_after`:
 
 * **On a fill** (legacy `reduce()`, `reservations.py:644`; event checks at `:130-133`): the fill's amount (quantity × price) is removed from `amount`. For a **single-leg** entry, `margin` and `worst_case_loss` scale by `ratio = (amount − r) / amount` (legacy `:205-216`), with `money.rounding` applied. The filled part becomes position exposure, which capacity counts through broker observations; removing it here avoids counting it twice (D16).
-* **On rejected or never-reached legs** of a multi-leg entry: `amount` drops by those legs' planned amounts; `margin` and `worst_case_loss` stay at the plan's values until the structure completes or closes, because a spread with a missing hedge can need more margin, not less (`README.md:776`). The reached legs are recorded with `RESIDUAL_RECORDED`.
+* **On rejected or never-reached legs** of a multi-leg entry (carried by the outcome or the resolution that found them, never a separate event): `amount` drops by those legs' planned amounts; `margin` and `worst_case_loss` stay at the plan's values until the structure completes or closes, because a spread with a missing hedge can need more margin, not less (`README.md:776`). The reached legs are recorded with `RESIDUAL_RECORDED`.
 * **On completion or dispatch refusal:** `RELEASED` (the demonstrated unused part).
 
 I-6 below states the head rule these changes keep.
@@ -289,17 +290,17 @@ Attempt states: `CLAIMED`, `NOT_SENT`, `REJECTED`, `ACKNOWLEDGED`, `AMBIGUOUS`. 
 | — | `ADMISSION_REFUSED` | none (no row) | — | none |
 | `ADMITTED` | `DISPATCH_REFUSED` | `REFUSED` | — | `RELEASED` |
 | `ADMITTED` | `DISPATCH_CLAIMED` (attempt *n*) | `IN_FLIGHT` | *n* `CLAIMED` | `HELD` |
-| `IN_FLIGHT` | `OUTCOME_NOT_SENT` | `ADMITTED` | `NOT_SENT` | `HELD` |
+| `IN_FLIGHT` | `OUTCOME_NOT_SENT` | `ADMITTED` (a new claim needs `DISPATCH_RETRY_REQUESTED`) | `NOT_SENT` | `HELD` |
 | `IN_FLIGHT` | `OUTCOME_REJECTED` | `REJECTED` | `REJECTED` | `RELEASED` |
 | `IN_FLIGHT` | `OUTCOME_ACKNOWLEDGED` | `WORKING` | `ACKNOWLEDGED` | `HELD`, reduced by any rejected legs |
 | `IN_FLIGHT` | `OUTCOME_AMBIGUOUS` | `UNCERTAIN` | `AMBIGUOUS` | `HELD` |
 | `UNCERTAIN` | `RESOLVED_REACHED` (some or all legs) | `WORKING` | `ACKNOWLEDGED` | `HELD`, reduced by never-reached legs |
 | `UNCERTAIN` | `RESOLVED_NEVER_REACHED` (every leg) | `ADMITTED` | `NOT_SENT` | `HELD` |
 | `WORKING` | `FILL` | `WORKING` | — | reduced |
-| `WORKING` | `RESERVATION_REDUCED` | `WORKING` | — | reduced |
 | `WORKING` | `COMPLETED` | `COMPLETED` | — | `RELEASED` |
 | `COMPLETED` | late fill or correction | `COMPLETED` | — | unchanged; `RECONCILIATION_ESCALATED` instead |
 
+* Reductions ride on `OUTCOME_*`, `RESOLVED_*` and `FILL` as `reservation_after`; there is no separate reduction event, so nothing is reduced twice.
 * A fill seen for an `UNCERTAIN` command proves the order reached the broker: lifecycle commits `RESOLVED_REACHED` and `FILL` in one decision.
 * A multi-leg attempt with some legs reached and others never reached is resolved per leg; the command goes to `WORKING` and is **never** resent, because resending would duplicate the reached legs.
 * If the broker rejects an entry after an ACK, reconciliation observes the order as terminal. The command ends `COMPLETED` and its reservation is released. `REJECTED` comes only from a transport outcome.
@@ -312,7 +313,7 @@ Attempt states: `CLAIMED`, `NOT_SENT`, `REJECTED`, `ACKNOWLEDGED`, `AMBIGUOUS`. 
 | entry | The broker order is observed terminal (filled, cancelled, rejected or expired), with fills accounted | Transport ACK alone |
 | cancel | The target order is observed terminal | Cancel ACK (`README.md:750`) |
 | modify | The observed order shows the requested parameters, or the broker's level for a proven timed-out modify (POL-014) | Modify ACK (`README.md:750`) |
-| close (market or limit, not resting) | The position quantity is observed reduced by the closed quantity | Close ACK; cancel completion |
+| close (market or limit, not resting) | The close's own order is observed filled, its fills recorded by fill ID; position quantities only corroborate | Close ACK; cancel completion; a netted position change alone |
 | close (resting stop or limit protective order) | The order is observed resting at the requested parameters; its later fill or cancel is recorded by `FILL` and order observations | Close ACK alone |
 
 #### Invariants
@@ -334,6 +335,8 @@ CloseRequest(command_key, principal, account, position_id, quantity,
              order: market | limit(price) | stop(trigger, limit | None))
 ModifyChanges(trigger_price | None, limit_price | None, quantity | None)
 PlanRef(plan_digest, account, legs: list[PlanLeg], amount, margin, worst_case_loss, currency)
+CommandStatus(command_key, state, verb, attempt_no | None, effect | None,
+              broker_order_ids, refusal: Refusal | None)                 # read by command_status
 TransportResult(cls: not_sent | rejected | acknowledged | ambiguous, legs: list[LegResult],
                 domain: DomainEvidence, raw: EvidenceRef)                   # produced by an adapter
 LegResult(leg_role, cls: not_sent | rejected | acknowledged | ambiguous,

@@ -52,11 +52,16 @@ This pattern is used by these refusing fields:
 | `safety.hold_automatic_actions` | Q-001 | [protection-and-safety](protection-and-safety.md#permission-matrix-kernelsafetypy) |
 | `dispatch.ordering_rule` | Q-004 | [dispatch-and-coordination](dispatch-and-coordination.md#policy-inputs) |
 | `protective_independence` | Q-004 | [protection-and-safety](protection-and-safety.md#conflict-relation-kernelsafetypy) |
-| `reconciliation.unknown_domain_settlement` | Q-006 | [execution-domain-and-observations](execution-domain-and-observations.md#domain-attribution-rules) |
+| `reconciliation.unknown_domain_settlement` | Q-006 | [execution-domain-and-observations](execution-domain-and-observations.md#domain-attribution-and-combination) |
 | `reconciliation.clock_skew_secs` | measured | [execution-domain-and-observations](execution-domain-and-observations.md#policy-inputs) |
 | `adapter.http_timeout_ms` | measured (A09-F4) | [dispatch-and-coordination](dispatch-and-coordination.md#policy-inputs) |
 | `coordinator.max_pending_per_account` | measured (A09-F4) | [dispatch-and-coordination](dispatch-and-coordination.md#policy-inputs) |
-| `dispatch.deadline_ms.<verb>` | open (`README.md:758`) | [dispatch-and-coordination](dispatch-and-coordination.md#policy-inputs) |
+| `coordinator.busy_applies_to` | Q-004 | [dispatch-and-coordination](dispatch-and-coordination.md#policy-inputs) |
+| `capacity.count_non_live_obligations` | Q-008 | [execution-domain-and-observations](execution-domain-and-observations.md#policy-inputs) |
+| `observation.poll_interval_secs`, `observation.max_requests_per_minute` | measured (A09-F4) | [execution-domain-and-observations](execution-domain-and-observations.md#policy-inputs) |
+| `binding.revocation_effect` | Q-010 | [sessions-authority-lifecycle](sessions-authority-lifecycle.md#policy-inputs) |
+| `clock.jump_record_ms` | measured | [sessions-authority-lifecycle](sessions-authority-lifecycle.md#policy-inputs) |
+| `dispatch.deadline_ms.<verb>` | Q-011 (`README.md:758`) | [dispatch-and-coordination](dispatch-and-coordination.md#policy-inputs) |
 | `account.freshness_secs`, `account.max_worst_case_loss` | TASK-S04-03 (legacy values) | [intent-to-admission](intent-to-admission.md#policy-inputs) |
 | `review.timeout_ms` | TASK-S04-01 (legacy value) | [intent-to-admission](intent-to-admission.md#policy-inputs) |
 | `money.rounding` | TASK-S04-03 (legacy behaviour) | [ledger-and-atomic-transaction](ledger-and-atomic-transaction.md#money-and-quantity-representation) |

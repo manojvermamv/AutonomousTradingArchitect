@@ -61,6 +61,18 @@ Ledger finding 6-5: a rejected command is final. Eligibility and REQ-DSP-010 now
 | 7T-11 | structural | Major | Goals miss A03-F3 and the simulated broker | FIX |
 | 7S-N, 7T-12…17 | both | Nit | Wording, failure table shape, links, anchors, duplicated policy input, kill/latch ordering proof | FIX |
 
-## Stage 7 — design
+## Stage 7 — design (2 Blocker, 8 Major, 8 Nit)
 
-Recorded below when it reports.
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| 7D-1 | Blocker | No dispatch recheck of a cancel/modify/close target; a stale close could sell a flat position | FIX: revalidation row 7 re-runs the effect check against a fresh observation |
+| 7D-2 | Blocker | The ledger does not hold the request and plan to send | FIX: `COMMAND_ADMITTED` carries the normalized request and `PlanRef`; `next_eligible` loads them from it |
+| 7D-3 | Major | `command_status -> Outcome` cannot show pending states | FIX: `CommandStatus` type in `contracts/execution.py` |
+| 7D-4 | Major | Automatic re-dispatch after `not_sent` spins and is new behaviour | FIX: caller-driven, as legacy (`coordinator.py:94-99`): a new attempt needs `DISPATCH_RETRY_REQUESTED`; protection requests it at its next evaluation |
+| 7D-5 | Major | Uniform busy bound decides protective-vs-entry priority | Q-004 extended; refusing parameter `coordinator.busy_applies_to` |
+| 7D-6 | Major | HTTP timeout is not a total deadline; a stuck worker blocks its account | FIX: total-deadline requirement including resolution; stuck-worker failure row reported to the supervisor; socket-level proof in PRF-DOM-04 |
+| 7D-7 | Major | Refused outcome commit exits the kernel and recovery can loop | FIX: deterministic refusals give `OUTCOME_AMBIGUOUS` (reason `outcome_refused`) without exiting; only fatal ones exit; recovery falls back to `evidence_unusable`; ledger guard allows recovery's rebuilt outcomes |
+| 7D-8 | Major | Inert conflict check at eligibility undefined | FIX: the command waits and the check state is recorded; protection spec aligned |
+| 7D-9 | Major | Simulated broker unfit for simulation runs; untestable paths | FIX: scripted responder for tests plus a versioned rule responder for simulation runs (fill model owned by the research spec, A07-F3); `raise`, coverage and domain knobs; acks enter the book |
+| 7D-10 | Major | No Risks and limits | FIX (with 7T-1) |
+| 7D-11…18 | Nit | Deadline clock; deadline values (**Q-011**); line 166; session row; evidence publication thread and failure; wake coalescing; replay cite; SLICE-01 hook order | FIX |

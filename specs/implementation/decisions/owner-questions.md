@@ -9,11 +9,12 @@ Status: **open owner decision** unless a row says answered. Each question is a g
 | [Q-003](#q-003) | View-age stamp: bar open (current) or bar close | POL-018 (existing open record item) | TASK-S04-04 (only the stamp field; the 90 s value is decided) | open, not blocking |
 | [Q-004](#q-004) | Protective-vs-entry ordering and protective actions under unresolved effects | ATA-04 (`README.md:454`) | TASK-S05-03, TASK-S05-04 | open |
 | [Q-005](#q-005) | First-release workflow, strategy and account scope | A10-F2 (`README.md:1165`) | Production-bound steps of SLICE-11 and SLICE-14 only | open |
-| [Q-006](#q-006) | Value of `reconciliation.unknown_domain_settlement`: may an identity-verified effect with `unknown` domain settle obligations? | ATA-06 (`README.md:458`); [execution-domain spec](../design/execution-domain-and-observations.md#domain-attribution-rules) | TASK-S07-04 (binding the production value), TASK-S07-05 | open |
+| [Q-006](#q-006) | Value of `reconciliation.unknown_domain_settlement`: may an identity-verified effect with `unknown` domain settle obligations? | ATA-06 (`README.md:458`); [execution-domain spec](../design/execution-domain-and-observations.md#domain-attribution-and-combination) | TASK-S07-04 (binding the production value), TASK-S07-05 | open |
 | [Q-007](#q-007) | How is a timed-out place with no broker ID resolved when no client tag round-trips? | D15 (`README.md:762`); [execution-domain spec](../design/execution-domain-and-observations.md#reconciliation-kernelreconciliationpy); LD-20 | TASK-S07-02, TASK-S07-05 | open |
-| [Q-008](#q-008) | Do analyzer, unknown and conflicting obligations count against live capacity? | ATA-06 (`README.md:458`), D16 (`:764`); [execution-domain spec](../design/execution-domain-and-observations.md#domain-attribution-rules) | TASK-S04-03, TASK-S07-04 | open |
+| [Q-008](#q-008) | Do analyzer, unknown and conflicting obligations count against live capacity? | ATA-06 (`README.md:458`), D16 (`:764`); [execution-domain spec](../design/execution-domain-and-observations.md#domain-attribution-and-combination) | TASK-S04-03, TASK-S07-04 | open |
 | [Q-009](#q-009) | May a standing authorization advance a routine restart to `OPERATING`, or does every restart need a human `RECOVERY_ADVANCED`? | A04-F1/F2 (`README.md:792-794`); [sessions spec](../design/sessions-authority-lifecycle.md#recovery-stages-kernelrecoverypy) | TASK-S03-04; SLICE-14 operating procedure | open |
 | [Q-010](#q-010) | What does revoking a standing binding do to a session that is already open? | A07-F4 (`README.md:891`); [sessions spec](../design/sessions-authority-lifecycle.md#standing-bindings) | TASK-S03-02, TASK-S04-05 | open |
+| [Q-011](#q-011) | Dispatch deadline per verb (entry, cancel, modify, close) | D13 (`README.md:758`) | TASK-S05-08, TASK-S05-01 | open |
 
 ---
 
@@ -68,7 +69,7 @@ Proof: Bind a policy without the amount and activation is refused; bind it with 
 **Protective-vs-entry ordering under uncertainty.**
 
 ```text
-Requirement: When one account has an unresolved broker effect, the system knows which later actions may proceed and in what order eligible commands use the account's single outbound slot.
+Requirement: When one account has an unresolved broker effect, the system knows which later actions may proceed, in what order eligible commands use the account's single outbound worker, and whether the busy bound (coordinator.busy_applies_to) also refuses protective actions.
 Owner: kernel.admission with kernel.safety (conflict relation); kernel.coordinator (scheduling).
 Proof: A matrix test (ambiguous entry, modify and cancel against each later action on the same and different targets) matches the written relation and order.
 ```
@@ -104,7 +105,7 @@ Proof: Recorded-interface tests with unmarked responses give the bound value's o
 **Options.**
 
 - **A — Recommended:** First verify the deployed responses at the source (TASK-S07-05). If a per-effect marker or an account binding identifies the domain, use it. If not, bind `accounting_only`: identity-verified `unknown` settlement **for obligation accounting only**. Such effects are labelled `unknown` and excluded from any live-performance, promotion or economics claim. `conflicting` never settles.
-- **B:** Bind `forbid`. Obligations stay reserved until a marker exists. This is strictest, but it may block new entries once capacity is used.
+- **B:** Bind `forbid`. Obligations stay reserved until a marker exists. Facts (reach, fills, completion) are still recorded, so protection is placed either way; the cost is capacity, not protection. This is strictest, but it may block new entries once capacity is used.
 - **C:** A free-text answer.
 
 ---
@@ -185,4 +186,24 @@ Proof: Revoke the binding of an open session; new entries follow the chosen valu
 
 - **A — Recommended:** `stop_new_entries_now`. A revocation is usually a reaction to a problem; new entries stop at once, and existing exposure is managed normally.
 - **B:** `next_session`. The open session keeps its binding until it closes; the revocation prevents the next opening. This matches how a staged binding waits for the next session.
+- **C:** A free-text answer.
+
+---
+
+## Q-011
+
+**Dispatch deadline per verb.**
+
+```text
+Requirement: The bound policy states dispatch.deadline_ms for entry, cancel, modify and close; a policy without them refuses to load.
+Owner: kernel.coordinator (deadline sweep), kernel.admission (records the deadline).
+Proof: A command still unclaimed at its deadline is refused with DSP-R01 and its reservation released; synthetic values in tests are labelled.
+```
+
+**Why it matters.** D13 leaves deadline values to owner policy (`README.md:758`). A deadline bounds how long an admitted command may wait for a busy worker or a clearing conflict before it is refused, so a stale entry is never sent late. Too short refuses useful work; too long sends on stale grounds. Protective verbs (cancel, close) may deserve longer deadlines than entries. Legacy had no deadline: a request waited on the route lock as long as it took (`OA/src/tier1/gateway_route.py:621-652`).
+
+**Options.**
+
+- **A — Recommended:** Measure the time from admission to claim on recorded sessions (A09-F4), then set an entry deadline shortly above its high percentile, and longer deadlines for cancel and close. Until measured, simulation and tests use labelled synthetic values; production refuses to load.
+- **B:** One deadline for every verb, chosen by the owner now.
 - **C:** A free-text answer.
