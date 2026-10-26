@@ -179,7 +179,7 @@ The writer validates each payload against `resources/events.schema.json`, which 
 | `COMMAND_ADMITTED` | `kernel.admission` | `verb`, `target`, `strategy`, `request` (normalized), `request_digest`, `plan_ref` and `plan_digest` (entries), `account`, `application`, `dependencies`, `state_heads` (reservation head; funds and position observation digests), `measured_ages`, `resulting_exposure`, reservation amounts (entries) or `reservation_after` (a modify that raises an entry's capital) | identity row; reservation `RESERVED` or raised |
 | `ADMISSION_REFUSED` | `kernel.admission` | `verb`, `request_digest`, `code`, `message`, `inputs` | none |
 | `PAUSE_STARTED`, `PAUSE_CLEARED` | `kernel.policy`; committed by admission (start) or on an owner command (clear) | [intent spec](intent-to-admission.md#review-application-kernelpolicypy) | `pause` |
-| `REVIEW_RECORDED`, `INTENT_SEEN` | `kernel.policy` | review fields and kernel arrival time; intent digest and first-seen time | `review` |
+| `REVIEW_RECORDED`, `INTENT_SEEN` | `kernel.policy` | review fields, kernel arrival time and, for the first review of a digest, the frozen application; intent digest and first-seen time | `review` |
 | `DISPATCH_REFUSED` | `kernel.coordinator` | `code`, `dependency` | command `REFUSED`; reservation `RELEASED` |
 | `DISPATCH_RETRY_REQUESTED` | `kernel.admission`, on an identical resubmission by a principal holding the command's verb ([identity rule](#request-digest-and-the-identity-rule)) | `attempt_no` (the `NOT_SENT` one), `principal` | attempt `retry_requested_sequence` |
 | `DISPATCH_CLAIMED` | `kernel.coordinator` | `attempt_no`, `epoch_id` | attempt `CLAIMED`; command `IN_FLIGHT`; reservation `HELD` |
@@ -333,7 +333,7 @@ Attempt states: `CLAIMED`, `NOT_SENT`, `REJECTED`, `ACKNOWLEDGED`, `AMBIGUOUS`. 
 ### Execution contract types (`contracts/execution.py`)
 
 ```text
-EntryRequest(command_key, principal, account, session_id, intent_ref, review_ref | None)
+EntryRequest(command_key, principal, account, session_id, intent_ref)
 CancelRequest(command_key, principal, account, broker_order_id)
 ModifyRequest(command_key, principal, account, broker_order_id, changes: ModifyChanges)
 CloseRequest(command_key, principal, account, position_id, quantity,
@@ -359,7 +359,6 @@ Refusal(code, message, command_key, decision)
 | `command_key` | `CommandKey` ([identity contract](sessions-authority-lifecycle.md#identity-contract-contractsidentitypy)) |
 | `principal`, `account`, `session_id` | `Principal`, `AccountId`, `FinancialSessionId` (identity contract) |
 | `intent_ref` | The intent's digest ([intent spec](intent-to-admission.md#contracts-contractsdecisionspy)) |
-| `review_ref` | A `Review.review_id`: a pointer to review evidence, which `kernel.policy` reads. It is not a review result or an approval |
 | `broker_order_id`, `position_id` | Strings from `broker_identity` and the position index |
 | `PlanLeg` | Defined in the [intent spec](intent-to-admission.md#contracts-contractsdecisionspy); `PlanRef` is the subset the coordinator and adapter need |
 | money fields, `price`, `trigger` | Normalized decimal strings |
@@ -374,6 +373,7 @@ A request never carries a review result or a plan. `kernel.policy` and `kernel.p
 |---|---|---|---|---|
 | Refused and recorded (admission or dispatch) | `refused` | `committed` | `False` | No |
 | Refused and not recorded (`LED-R01`, `LED-R02`, `ADM-R12`) | `refused` | `unchanged` | `False` | No |
+| `ADM-R15` (`review_pending`); only `INTENT_SEEN` may be written | `refused` | `unchanged` | `False` | Yes, the same request and key, until the review deadline |
 | Admission commit failed (persistence unknown) | `refused` | `commit_failed` | `False` | No; after restart the caller retries with the **same** key, which returns `Existing` if the commit persisted, and never resubmits under a new key |
 | Adapter returned `not_sent`; outcome committed | `not_sent` | `committed` | `False` | Only through the normal loop after fresh revalidation |
 | Adapter returned another class; outcome committed | that class | `committed` | `True` | No |
@@ -407,7 +407,7 @@ Who publishes what, and how the store keeps referenced content, belong to the ev
 | `LED-R10 writer_failed` | A commit failed earlier; the writer accepts nothing until restart |
 | `LED-R11 head_behind_anchor` | The file does not contain the anchored head |
 
-**Recording rule (the one place it is stated).** The writer returns refusals and never records them. The deciding caller records a refusal as a non-dispatch decision in its own `transact` call when its spec says to (AUD-03, `README.md:756`). Admission records `ADMISSION_REFUSED` for an ineligible request, but never for `LED-R01`, `LED-R02` or `ADM-R12`.
+**Recording rule (the one place it is stated).** The writer returns refusals and never records them. The deciding caller records a refusal as a non-dispatch decision in its own `transact` call when its spec says to (AUD-03, `README.md:756`). Admission records `ADMISSION_REFUSED` for an ineligible request, but never for `LED-R01`, `LED-R02`, `ADM-R12` or `ADM-R15`.
 
 How the coordinator reacts to a refused outcome commit is in the [dispatch spec](dispatch-and-coordination.md#coordinator-loop-on-the-writer-thread-one-io-worker-per-account).
 

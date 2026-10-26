@@ -109,13 +109,13 @@ class Clock(Protocol):
 
 ReviewApplication(intent_digest: str, mode: Literal["off","observe","enforce_entry_holds"],
                   applied: Literal["proceed","blocked","paused","proceed_unavailable"],
-                  review_id: str | None, cause: str | None, policy_version: str)
+                  review_id: str | None, cause: str | None, policy_binding_id: str)
 
 DomainEvidence(value: Literal["simulated","analyzer","live","unknown","conflicting"])
 EvidenceRef(store: str, content_digest: str, published_at: Timestamp)
 
 EntryRequest(command_key: CommandKey, principal: Principal, account: AccountId,
-             session_id: FinancialSessionId, intent_ref: str, review_ref: str | None = None)
+             session_id: FinancialSessionId, intent_ref: str)
 PlanLeg(leg_role: str, instrument: str, product: str, side: Literal["BUY"], quantity: int,
         limit_price: str | None)                                       # SLICE-01 subset of the intent spec's PlanLeg
 PlanRef(plan_digest: str, account: AccountId, legs: tuple[PlanLeg, ...], amount: str, margin: str,
@@ -141,7 +141,7 @@ Refusal(code: str, message: str, command_key: str | None, decision: str)
 ```text
 {"verb": "entry", "command_key", "principal", "account": [broker, account],
  "session_id": [[[broker, account], calendar_id], trading_date],
- "intent_ref", "review_ref"}
+ "intent_ref"}
 ```
 
 This is the [ledger rule](../../design/ledger-and-atomic-transaction.md#request-digest-and-the-identity-rule) for an entry.
@@ -351,9 +351,9 @@ usage: python scripts/safe_tests.py [pytest args...]
 {"request": {"command_key": "slice01-entry-0001", "principal": "test-principal",
              "account": ["sim", "acct-sim"],
              "session_id": [[["sim", "acct-sim"], "NSE-FO-sim"], "2026-11-02"],
-             "intent_ref": "f00d", "review_ref": "rev-1"},
+             "intent_ref": "f00d"},
  "application": {"intent_digest": "f00d", "mode": "observe", "applied": "proceed",
-                 "review_id": "rev-1", "cause": null, "policy_version": "synthetic-1"},
+                 "review_id": "rev-1", "cause": null, "policy_binding_id": "synthetic-1"},
  "plan": {"account": ["sim", "acct-sim"],
           "legs": [{"leg_role": "entry", "instrument": "NIFTY-SIM-CE", "product": "SIM", "side": "BUY",
                     "quantity": 75, "limit_price": null}],

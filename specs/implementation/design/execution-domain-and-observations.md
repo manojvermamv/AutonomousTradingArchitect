@@ -105,11 +105,14 @@ Observation(account_id, source, endpoint, as_of, arrived_at, coverage: Coverage,
             domain: DomainEvidence, raw: EvidenceRef)
 ObservedOrder(broker_order_id, instrument, side, quantity, filled_quantity | None,
               status: open | filled | cancelled | rejected | expired | unknown,
-              price | None, trigger_price | None, placed_at | None, client_tag | None)
+              price | None, trigger_price | None, placed_at | None, client_tag | None,
+              amount | None, margin | None)                      # broker-reported; capacity's input
 ObservedTrade(fill_id, broker_order_id, instrument, side, quantity, price, traded_at)
 ObservedPosition(instrument, net_quantity, average_price | None,   # average price is never fill evidence
-                 realized_pnl | None, mtm_pnl | None)              # broker-reported; the latch's input
-ObservedFunds(available, margin_available, as_of)        # broker-reported; capacity's input
+                 realized_pnl | None, mtm_pnl | None,              # broker-reported; the latch's input
+                 amount | None, margin | None)                     # broker-reported; capacity's input
+ObservedFunds(available, margin_available, position_margin | None, working_margin | None,
+              as_of)                                       # broker-reported; capacity's input
 EndpointContract(endpoint, deployment_version, mode_marker_field | None,
                  coverage_rule: complete_when_all_pages | unknown, covers: trading_day_to_read | None,
                  visibility_secs | None,

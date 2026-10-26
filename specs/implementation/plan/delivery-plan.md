@@ -20,7 +20,7 @@
 | [SLICE-01](slices/SLICE-01-disarmed-financial-core.md) disarmed financial core | 3 (+2 minimal) | S | D01, D02, D13, D14, AUD-02; the SQLite safe-version rule | none | none | Its test table passes |
 | SLICE-02 ledger integrity and independent reads | 1 | S | D04, A03-F4 reader side, Combined-F2 | SLICE-01 | none | PRF-LED-08, -09, -10, -14, -15; reader-impact measurement recorded |
 | SLICE-03 sessions, authority, clocks, recovery stages | 1 | S | ATA-05, Combined-F1, A04-F1/F2 (local), A06-F1 kernel side, Combined-F4 kernel side | SLICE-01, SLICE-02 (D04 step) | Q-001 (session-close effects for holds only), Q-009 (operating procedure only), Q-010 | PRF-SES-01…06, PRF-SES-08…10 |
-| SLICE-04 intent to admission | 3 | S | D07, D12, AUD-01, AUD-03, POL-007/015/018/020/021/022/027 | SLICE-01, SLICE-03 | Q-003 (stamp field only), Q-008 (capacity domains) | PRF-ADM-01…06 |
+| SLICE-04 intent to admission | 3 | S | D07, D12, AUD-01, AUD-03, POL-007/015/018/020/021/022/023/027 | SLICE-01, SLICE-03 (later inputs as fixture ports) | Q-003 (stamp field only), Q-008 (capacity domains), Q-010 | PRF-ADM-01…06, -08 |
 | SLICE-05 dispatch, conflicts and scheduling | 1 | S | D13 revalidation, A03-F1/F2/F3, ATA-04; kill and hold events (POL-002, POL-003) | SLICE-04 | Q-004, Q-001, Q-011 | PRF-DSP-01, -03…-11, PRF-LED-16, PRF-PRT-04 (kill and hold rows), PRF-PRT-11 |
 | SLICE-06 protection and safety | 1/3 | S | ATA-01, POL-004…POL-006, POL-010…POL-015, A03-F5 kernel side, Combined-F6 protection part | SLICE-05, SLICE-07 | Q-001, Q-002, X-004 | PRF-PRT-01…10, PRF-PRT-12, PRF-PRT-13 |
 | SLICE-07 observations, reconciliation, domain, OpenAlgo adapter | 1/3 | S → R | D15, D16, ATA-06, A06-F2 decision | SLICE-05 | Q-006, Q-007, Q-008, Q-012 | PRF-DOM-01…05, -08, -09, PRF-LED-11; PRF-DOM-07 on authorization |
@@ -53,9 +53,10 @@ Task IDs are stable. SLICE-01 tasks are its file rows. Other tasks get exact fil
 | TASK-S03-05 | 03 | Restored-authorization continuity | PRF-SES-06 |
 | TASK-S04-01 | 04 | Review application (`kernel.policy`) | PRF-ADM-01/02 |
 | TASK-S04-02 | 04 | Planning port with `one_leg_v1` and `structure_v1` extracted pure | PRF-ADM-03 |
-| TASK-S04-03 | 04 | Characterize the legacy reservation-amount rule (`reservations.py:377`) and bind it as the policy rule | PRF-ADM-04 |
-| TASK-S04-04 | 04 | Freshness checks (POL-018/020/021), stamp field per Q-003 | PRF-ADM-04 |
+| TASK-S04-03 | 04 | Characterize the legacy reservation-amount and external-commitment rules (`reservations.py:352-437`, `:473-497`) and bind them as the policy rule | PRF-ADM-04, PRF-ADM-09 |
+| TASK-S04-04 | 04 | Freshness checks (POL-018/020/021), stamp field per Q-003; minimal `contracts/market.py` field list from the legacy planner | PRF-ADM-04 |
 | TASK-S04-05 | 04 | Full admission table and non-dispatch recording | PRF-ADM-04, PRF-ADM-06 |
+| TASK-S04-06 | 04 | `SessionStats` derivation from the ledger and the latch's P&L, field by field against legacy `orchestrator.py` | PRF-ADM-03 |
 | TASK-S05-01 | 05 | Dispatch revalidation | PRF-DSP-01 |
 | TASK-S05-02 | 05 | Bounded I/O per account | PRF-DSP-05/06 |
 | TASK-S05-03 | 05 | Conflict relation in `kernel.safety` (exposure groups, the `protective_independence` parameter) | PRF-PRT-11 |

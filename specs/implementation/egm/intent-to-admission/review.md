@@ -93,3 +93,24 @@ Process record (not normative). Target: [design/intent-to-admission.md](../../de
 | 7D-M15 | Major | Product missing | FIX: `PlanLeg.product` (POL-017) |
 | 7D-M16, M17 | Major | Risks; alternatives | FIX |
 | 7D-N1…N5 | Nit | Non-entries skip stage A planning; deadline origin per verb; future snapshot; cleared basis; recorded grant | FIX |
+
+## Stage 8 — intermediate zoom-out (3 Blocker, 10 Major, 8 Nit)
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| 8-B1 | Blocker | A caller's `review_ref` can turn a BLOCK into proceed | FIX: `review_ref` removed from `EntryRequest` (intent, ledger, SLICE-01); the kernel finds the review by digest only |
+| 8-B2 | Blocker | Host timing decides application: BLOCK can expire into proceed; PAUSE starts only if the intent returns | FIX: the first review is judged at arrival and applied once in the `REVIEW_RECORDED` transaction, which also commits `PAUSE_STARTED`; the application is frozen in the `review` row (legacy `service.py:418-423`, `:465-479`); A5 pause re-read removed |
+| 8-B3 | Blocker | `SessionStats` cannot feed `session_gates`; structure path loses the gates; no producer | FIX: the full legacy `Session` field set; `structure_v1` runs the one-leg preflight; POL-023 owned through the planner; `kernel.policy` derives the stats, characterized in TASK-S04-06; an underivable field sets `unavailable`, which the gate refuses on as legacy |
+| 8-M1 | Major | First sight not durable; intent body source; retries unbounded | FIX: `INTENT_SEEN` committed on first sight; header lists it and `PAUSE_CLEARED`; intent published as evidence and resolved by `intent_ref`; retries stop at the deadline |
+| 8-M2 | Major | Ledger rule and Outcome table omit `ADM-R15` | FIX: ledger rule and Outcome row ("resend until the deadline"); this spec links to the rule |
+| 8-M3 | Major | Invented `planner_version` selector | FIX: selection by `structure_id` (legacy `planner.py:114`); `structure_id`, `market_bias` on `Intent`; `planner_version` kept only as recorded evidence; refusing parameter dropped |
+| 8-M4 | Major | Planner duplicates the slot and daily-loss rules | FIX: kept unchanged for parity (no gate changed); precedence stated: an earlier planner refusal is `ADM-R13`, B3 and A4 stay authoritative |
+| 8-M5 | Major | Two-calendar check has two owners | FIX: B6 (`ADM-R10`) is the one owner; sessions wording aligned ("the request names the session, the kernel confirms it") |
+| 8-M6 | Major | B2 restates conflict row 3 | FIX: removed; B3 alone |
+| 8-M7 | Major | Planner inputs have no contract | FIX: minimal `StableView`, `ChainSnapshot`, `ReferenceFacts` defined in the market-data spec (its module); field list fixed by TASK-S04-04; poll interval is POL-020's bound value |
+| 8-M8 | Major | Coverage `unknown` unhandled | FIX: accepted for snapshots and positive evidence; admission never concludes from absence |
+| 8-M9 | Major | External margin has no input | FIX: optional broker-reported `amount`/`margin` fields and aggregate margins on the observation contract; characterized in TASK-S04-03/S07-05; a missing field refuses, never counts as zero |
+| 8-M10 | Major | Delivery cannot be built as written | FIX: SLICE-04 uses named fixture ports; PRF-ADM-09 in SLICE-07, PRF-ADM-07 in SLICE-08 |
+| 8-N1…N8 | Nit | A1a repeat; future-date check in B5; REQ-ADM-011 wording; position keying; `Plan.account`; `ADM-R09` reasons; Q-010 reference; inactive pause | FIX |
+
+Cross-spec: `application.policy_version` renamed `policy_binding_id` (sessions 8-15), including SLICE-01.

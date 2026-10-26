@@ -23,7 +23,12 @@ The decision text is the requirement; the label is a reminder.
 
 * SLICE-01…SLICE-05 use **fixture views**: a `StableView` record with an identity, cutoff and the bars a test needs, built from synthetic data. No ingestion is needed.
 * SLICE-06 (protection) consumes `BarConfirmed` and `Tick` triggers from fixture views, under POL-019's 7 s confirmation rule.
-* The `StableView` type shape is defined in SLICE-04 `contracts/market.py` as a **minimal record** (identity, cutoff, bars), because the pure planner needs it. It is extended, not replaced, in SLICE-08.
+* SLICE-04 defines a **minimal** `contracts/market.py`, because the pure planner needs it, and SLICE-08 extends it without replacing it:
+  * `StableView(view_id, underlying, cutoff, bars, spot)`;
+  * `ChainSnapshot(underlying, expiry, as_of, rows)`, each row carrying instrument, strike, option type, lot size, tick size, price, delta and gamma, as the legacy one-leg planner reads them (`OA/src/core/framework/runtime/orchestrator.py:385`; exact field list fixed by TASK-S04-04 from that code);
+  * `ReferenceFacts(underlying, trading_date, lot_size, tick_size)` from the daily recorder (POL-046, POL-022).
+  * `market.poll_interval_secs` is POL-020's value in the bound policy; the spot and chain age limit is twice it.
+  * SLICE-06 adds fixture fields for the feed-gap interval and its bars and for `Tick.delta` ([protection spec](protection-and-safety.md#delivery)).
 
 ## Reuse rows and divergences
 

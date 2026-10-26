@@ -236,8 +236,8 @@ Session-close **exits** (square-off) belong to `kernel.protection`, which runs t
 
 #### Which session an entry belongs to
 
-* The **kernel** decides, not the request: the session is the `OPEN` session for the account and the calendar of the plan's instruments.
-* Admission check A3 tests the request's `session_id` before planning ([intent spec](intent-to-admission.md#admission-kerneladmissionpy)); check B6 confirms after planning that all plan legs belong to that session's calendar. A plan whose legs span two calendars is refused (`ADM-R13`, stage `calendar`).
+* The request names the session and the **kernel confirms** it: admission check A3 requires it to be the `OPEN` session for the account and the calendar of the intent's underlying.
+* Admission check A3 tests the request's `session_id` before planning ([intent spec](intent-to-admission.md#admission-kerneladmissionpy)); check B6 confirms after planning that all plan legs belong to that session's calendar. A plan whose legs span two calendars is refused there (`ADM-R10`).
 * Only new entries need an `OPEN` session (`SES-R07` at admission check A3 and at dispatch). Cancel, modify, close, owner actions, protection and reconciliation follow their own safety, grant and conflict rules.
 
 #### Invariants
