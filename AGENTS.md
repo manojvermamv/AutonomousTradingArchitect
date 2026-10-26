@@ -21,6 +21,18 @@
 - Compare keeping, extracting, wrapping, refactoring, adopting a library and rebuilding where relevant. Recommend the simplest defensible option using correctness, migration risk, maintainability, delivery effort, operational cost and measurable benefit. Do not assume existing code is best, or that a new framework is better because it is popular.
 - Use source paths/lines for current behavior and pinned implementation/license evidence for external reuse claims. Distinguish evidence-backed conclusions from design reasoning and assumptions. If alternatives have not been investigated, say so; do not call a recommendation proven or optimal.
 
+### Prevent misleading chains of architecture decisions
+
+The owner's broader goal is a coherent, production-ready target whose later module boundaries and implementation choices are not built on false assumptions, narrow source-specific fixes, or unproved claims. Optimize the whole system and its failure behavior, not merely agreement with each isolated recommendation.
+
+- Review related accepted decisions together: trace a representative input through data availability, configuration/version binding, decision, admission, dispatch, evidence, failure and recovery. Check module ownership and cross-contract assumptions as well as each local rule.
+- Preserve accepted choices and approved money policies as the working baseline. Acceptance is not evidence of correctness. If a contradiction or stronger evidence warrants changing an accepted choice, name the affected decision IDs, explain the failure scenario and downstream impact, compare alternatives, and request the specific revision; never silently replace it or ask the owner to reapprove unaffected decisions.
+- Separate confirmed contradictions, missing contract details, optional improvements and already-deferred proof tasks. Do not turn a known A04/A06 implementation question into a newly discovered defect or imply that accepted design is production acceptance.
+- For each consequential recommendation, identify its assumptions, responsible owner, consuming boundaries, trade-offs and independent acceptance proof. Mark unknowns explicitly; never let a conditional assumption become an unconditional premise in later work.
+- Prefer the smallest coherent correction within the clean target package structure. Compare a wider redesign only when concrete correctness, availability, delivery or maintenance benefits justify it; source implementations and tests remain optional reuse evidence.
+- Challenge end-to-end behavior under delay, overload, partial data, incompatible releases and process/storage/host failure. Distinguish complete accounting of known facts and uncertainties from impossible guarantees of instantaneous external truth.
+- Keep README behavior/contracts and ROADMAP status/dependencies consistent when edits are authorized. Record unresolved assumptions and affected follow-up work there, without inventing duplicate registers or blocking unrelated isolated development. An audit ends with clear findings and the next meaningful choice, not a blanket claim that the architecture is fully proven.
+
 ### Explain each finding and recommendation
 
 Use short, friendly language, with a concrete example when it clarifies the effect. Scale detail to the decision; avoid repeating the whole audit. For each meaningful finding, explain:
