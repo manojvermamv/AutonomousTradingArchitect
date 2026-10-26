@@ -62,8 +62,7 @@ This pattern is used by these refusing fields:
 | `binding.revocation_effect` | Q-010 | [sessions-authority-lifecycle](sessions-authority-lifecycle.md#policy-inputs) |
 | `clock.jump_record_ms` | measured | [sessions-authority-lifecycle](sessions-authority-lifecycle.md#policy-inputs) |
 | `dispatch.deadline_ms.<verb>` | Q-011 (`README.md:758`) | [dispatch-and-coordination](dispatch-and-coordination.md#policy-inputs) |
-| `account.freshness_secs`, `account.max_worst_case_loss` | TASK-S04-03 (legacy values) | [intent-to-admission](intent-to-admission.md#policy-inputs) |
-| `review.timeout_ms` | TASK-S04-01 (legacy value) | [intent-to-admission](intent-to-admission.md#policy-inputs) |
+| `account.max_worst_case_loss`, `policy.planner_version` | TASK-S04-03 (legacy values) | [intent-to-admission](intent-to-admission.md#policy-inputs) |
 | `money.rounding` | TASK-S04-03 (legacy behaviour) | [ledger-and-atomic-transaction](ledger-and-atomic-transaction.md#money-and-quantity-representation) |
 
 ## Proofs

@@ -108,6 +108,7 @@ ObservedOrder(broker_order_id, instrument, side, quantity, filled_quantity | Non
 ObservedTrade(fill_id, broker_order_id, instrument, side, quantity, price, traded_at)
 ObservedPosition(instrument, net_quantity, average_price | None,   # average price is never fill evidence
                  realized_pnl | None, mtm_pnl | None)              # broker-reported; the latch's input
+ObservedFunds(available, margin_available, as_of)        # broker-reported; capacity's input
 EndpointContract(endpoint, deployment_version, mode_marker_field | None,
                  coverage_rule: complete_when_all_pages | unknown, visibility_secs | None,
                  client_tag_field | None, status_mapping, verified_by: EvidenceRef)
@@ -147,6 +148,7 @@ BrokerPort.send(request: ActionRequest, plan: PlanRef | None, attempt_no: int) -
 ObservationPort.orderbook(account, interval: Interval) -> Observation
 ObservationPort.tradebook(account, interval: Interval) -> Observation
 ObservationPort.positions(account) -> Observation          # a snapshot; interval is None
+ObservationPort.funds(account) -> Observation              # one ObservedFunds item; a snapshot
 ```
 
 * The adapter fetches every page of one query. If any page fails, it returns the pages it has with `complete = no`. Observations are never merged across calls.
@@ -264,7 +266,7 @@ A command `WORKING` whose completion has not been observed after `visibility_sec
 
 ### Polling
 
-* The kernel's observation loop polls each bound account's orderbook, tradebook and positions every `observation.poll_interval_secs` (a measured refusing parameter). The supervisor polls through the mediator and never faster.
+* The kernel's observation loop polls each bound account's orderbook, tradebook, positions and funds every `observation.poll_interval_secs` (a measured refusing parameter). The supervisor polls through the mediator and never faster.
 * Both stay inside `observation.max_requests_per_minute` per account (a measured refusing parameter, A09-F4), so OpenAlgo's rate limits are respected (`README.md:922`).
 * **Dependent decisions** that need a fresh observation: admission checks B1 and B2, dispatch revalidation row 7, and every finding above. While the latest observation is stale, they wait.
 

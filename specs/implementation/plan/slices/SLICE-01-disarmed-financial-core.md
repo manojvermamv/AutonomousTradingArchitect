@@ -117,7 +117,7 @@ EvidenceRef(store: str, content_digest: str, published_at: Timestamp)
 
 EntryRequest(command_key: CommandKey, principal: Principal, account: AccountId,
              session_id: FinancialSessionId, intent_ref: str, review_ref: str | None = None)
-PlanLeg(leg_role: str, instrument: str, side: Literal["BUY"], quantity: int,
+PlanLeg(leg_role: str, instrument: str, product: str, side: Literal["BUY"], quantity: int,
         limit_price: str | None)                                       # SLICE-01 subset of the intent spec's PlanLeg
 PlanRef(plan_digest: str, account: AccountId, legs: tuple[PlanLeg, ...], amount: str, margin: str,
         worst_case_loss: str, currency: Literal["INR"])                # money fields: decimal strings
@@ -356,7 +356,7 @@ usage: python scripts/safe_tests.py [pytest args...]
  "application": {"intent_digest": "f00d", "mode": "observe", "applied": "proceed",
                  "review_id": "rev-1", "cause": null, "policy_version": "synthetic-1"},
  "plan": {"account": ["sim", "acct-sim"],
-          "legs": [{"leg_role": "entry", "instrument": "NIFTY-SIM-CE", "side": "BUY",
+          "legs": [{"leg_role": "entry", "instrument": "NIFTY-SIM-CE", "product": "SIM", "side": "BUY",
                     "quantity": 75, "limit_price": null}],
           "amount": "1500.00", "margin": "1500.00", "worst_case_loss": "1500.00", "currency": "INR"},
  "synthetic_capacity": "5000.00", "_label": "synthetic test values, not defaults"}

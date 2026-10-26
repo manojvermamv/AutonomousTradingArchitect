@@ -195,7 +195,7 @@ Each is requested through its operator or kernel path and takes effect at the le
 
 * The **busy count** for an account is the number of its commands in `ADMITTED` or `IN_FLIGHT`. `UNCERTAIN`, `WORKING` and final states do not count.
 * `coordinator.max_pending_per_account` bounds it (a measured refusing parameter, A09-F4). Admission refuses with `ADM-R12` (`busy`) at or above the bound, **before** any commit.
-* Whether the bound also applies to protective actions on owned exposure is part of [Q-004](../decisions/owner-questions.md#q-004): the refusing parameter `coordinator.busy_applies_to` (`all` or `entries_only`). A busy refusal of a `kernel:protection` request is recorded as `SAFETY_CHECK_STATE` so it is visible.
+* Whether the bound also applies to protective actions on owned exposure is part of [Q-004](../decisions/owner-questions.md#q-004): the refusing parameter `coordinator.busy_applies_to` (`all` or `entries_only`). A busy refusal is never recorded, including for `kernel:protection`, which simply submits again at its next evaluation.
 
 ### Command status (read-only)
 

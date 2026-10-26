@@ -56,7 +56,7 @@ Before stage 5, the AI PAUSE row and `PRT-R05` were removed: `kernel.policy` own
 | 6-14 | Major | `kernel:recovery` hold grant; overlapping holds | FIX: built-in grant added in the sessions spec; a strategy is held while any reason is engaged |
 | 6-15 | Major | Hold parameter name and values | FIX: `safety.hold_automatic_actions` (`allowed`, `refused`), refusing |
 | 6-16 | Major | Strategy attribution of non-entry commands and positions | FIX: every command records a strategy; positions inherit the entry's |
-| 6-17 | Major | Session P&L contract missing; trigger, fields, re-trip | FIX: `kernel.reservations.session_pnl` defined in the ledger spec; evaluated on each position observation; legacy re-trip after unlock kept (`loss_latch.py:576-583`) |
+| 6-17 | Major | Session P&L contract missing; trigger, fields, re-trip | FIX: `session_pnl` defined (later moved to `kernel.safety` by ledger stage 8); evaluated on each position observation; legacy re-trip after unlock kept (`loss_latch.py:576-583`) |
 | 6-18 | Major | Percent-only budget vs Q-002 | FIX: amount required; percent optional |
 | 6-19 | Major | Combining matrix rows; code order | FIX: order damaged, inert, kill, hold, latch |
 | 6-20 | Major | Inert/damaged per check | FIX: per-check table |
@@ -65,6 +65,25 @@ Before stage 5, the AI PAUSE row and `PRT-R05` were removed: `kernel.policy` own
 | 6-23 | Major | Classification overlaps | FIX: per-leg rules in order |
 | 6-24…31 | Nit | Mapping, delivery split, boundary, B1 note, desk, wording, link, `broker` value | FIX |
 
-## Stages 7–8
+## Stage 7 — design (3 Blocker, 14 Major, 10 Nit)
 
-Recorded below as they run.
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| 7D-1 | Blocker | A modify or cancel whose target ends never completes and freezes the group | FIX: completes with reason `target_terminal` (ledger verb table) |
+| 7D-2 | Blocker | No position identity or index | FIX: `position` index table in the ledger, maintained by fills |
+| 7D-3 | Blocker | Stop and target both rest at full quantity; double sale | FIX: only the stop rests at the broker; target and deep-OTM delta are kernel tick exits, as legacy (`trail.py:370-392`) |
+| 7D-4 | Major | Retry after `NOT_SENT` / never reached | FIX: protection records `DISPATCH_RETRY_REQUESTED` |
+| 7D-5 | Major | Busy refusal recorded or not | FIX: not recorded; dispatch spec aligned |
+| 7D-6 | Major | Clock-dependent classification stored by `fold` | FIX: computed on read |
+| 7D-7 | Major | Quantity not in the desire | FIX: desired quantity persisted; mismatch reads `DESIRED` |
+| 7D-8 | Major | POL-014 rewrite drops a newer ratchet | FIX: desire becomes the tighter of the two |
+| 7D-9 | Major | Unbounded re-placement; stop already crossed | FIX: no automatic re-placement after a broker reject or expiry; escalated; a level already through the market is escalated, not sent |
+| 7D-10 | Major | Owner cannot exit without kill; orphaned orders | FIX: an owner cancel of a stop stops re-placement; orphaned stops are cancelled (escalated under kill) |
+| 7D-11 | Major | Kill cell ambiguous for resting closes | FIX: under kill only non-resting owner closes; placing a new resting close is refused |
+| 7D-12 | Major | One `exit_owner` per ladder does not fit three exit reasons | FIX: per reason: stop at the broker; target and delta by tick; latency in Risks; marketable-stop alternative for TASK-S06-01 |
+| 7D-13 | Major | Conflict rows overlap; row 2 too coarse; version ownership | FIX: row 3 is a note; row 2 narrowed to actions that can add sale or remove the last stop; version computed in code |
+| 7D-14 | Major | P&L attribution and fields | FIX: legacy single P&L field or realised plus mark-to-market, characterized against the endpoint; limits in Risks |
+| 7D-15 | Major | Tick evaluation unbounded on the writer thread | FIX: latest tick per position; exit test off the writer thread; PRF-PRT-10 measures queue delay |
+| 7D-16 | Major | Unprotected partial-fill window | FIX: placed on the first fill; quantity raised on later fills (admission B2 allows a protective close up to the owned position) |
+| 7D-17 | Major | `damaged` unreachable | FIX: dropped with `PRT-R07`; `LED-R05` covers it; `safety_state` index table |
+| 7D-18…27 | Nit | Gap peak once per gap; no requests under kill; guarding checks only; conflict-inert duplicate; continuity policy version; square-off kill escalation; synchronous admission; SLICE-05 stub; X-004 wording; record fix | FIX |

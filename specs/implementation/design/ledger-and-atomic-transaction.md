@@ -137,7 +137,10 @@ The master's answer is one canonical admission and outcome commit: D02, D01/D03,
 | `reservation` | `reservation_id`, `command_key` (unique; entries only), `account`, `amount`, `margin`, `worst_case_loss`, `currency`, `state`, `updated_sequence` | `COMMAND_ADMITTED`, `DISPATCH_CLAIMED`, and any event carrying `reservation_after` | SLICE-01 |
 | `broker_identity` | `kind` (`order_id`, `fill_id`), `value`, `domain`, `command_key`, `first_sequence`, and for fills `quantity`, `price`; PK (`kind`, `value`, `domain`) | `OUTCOME_ACKNOWLEDGED`, `RESOLVED_REACHED` (order IDs); `FILL` (fill IDs) | SLICE-01 |
 | `release_binding` | `binding_id`, `epoch_id`, `receipt`, `receipt_digest`, `bound_sequence`; keeps the legacy check (`README.md:780`; `OA/src/tier1/schema.py:96-101`, `OA/src/tier1/gateway_route.py:360`) | `RELEASE_BOUND` | SLICE-03 |
-| `session`, `grant` | [Sessions spec](sessions-authority-lifecycle.md) | session, binding and grant events | SLICE-03 |
+| `session`, `grant`, `standing_binding` | [Sessions spec](sessions-authority-lifecycle.md) | session, binding and grant events | SLICE-03 |
+| `position` | `position_id` (= the entry command key), `account`, `instrument`, `strategy`, `owned_quantity`, `state` (`open`/`closed`), `opened_sequence`, `closed_sequence`; created by the entry's first fill, changed by fills of its entry and of closes against it, `closed` at zero | `FILL` | SLICE-07 |
+| `pause`, `review` | Pause state per scope; the first recorded review and first-seen time per intent digest ([intent spec](intent-to-admission.md#review-application-kernelpolicypy)) | `PAUSE_*`, `REVIEW_RECORDED`, `INTENT_SEEN` | SLICE-04 |
+| `safety_state` | Kill, holds per strategy and reason, latch per strategy and session ([protection spec](protection-and-safety.md#kill-and-holds-kernelsafetypy)) | kill, hold and latch events | SLICE-05, SLICE-06 |
 | `protection_state` | [Protection spec](protection-and-safety.md) | protection events | SLICE-06 |
 | `observed_order`, `foreign_order` | Latest observed state and `as_of` per broker order ID; foreign orders for capacity ([execution-domain spec](execution-domain-and-observations.md#reconciliation-kernelreconciliationpy)) | Reconciliation findings | SLICE-07 |
 | `import_manifest` | Legacy import accounting, defined with the AUD-05 method | import events | SLICE-13 |
@@ -173,9 +176,10 @@ The writer validates each payload against `resources/events.schema.json`, which 
 | `RUNTIME_OPENED` | `kernel.recovery` | binding, binding version, SQLite version | none |
 | `MIGRATION_APPLIED` | `kernel.recovery` | `migration_number`, `name`, `file_digest` | `ledger_meta` |
 | `RELEASE_BOUND` | `kernel.authority` | `binding_id`, `receipt`, `receipt_digest` | `release_binding` |
-| `COMMAND_ADMITTED` | `kernel.admission` | `verb`, `target`, `strategy`, `request` (normalized), `request_digest`, `plan_ref` and `plan_digest` (entries), `account`, `application`, `dependencies`, `resulting_exposure`, reservation amounts (entries) | identity row; reservation `RESERVED` |
+| `COMMAND_ADMITTED` | `kernel.admission` | `verb`, `target`, `strategy`, `request` (normalized), `request_digest`, `plan_ref` and `plan_digest` (entries), `account`, `application`, `dependencies`, `state_heads` (reservation head; funds and position observation digests), `measured_ages`, `resulting_exposure`, reservation amounts (entries) or `reservation_after` (a modify that raises an entry's capital) | identity row; reservation `RESERVED` or raised |
 | `ADMISSION_REFUSED` | `kernel.admission` | `verb`, `request_digest`, `code`, `message`, `inputs` | none |
-| `PAUSE_STARTED`, `PAUSE_CLEARED` | `kernel.policy`; committed by admission (start) or on an owner command (clear) | [intent spec](intent-to-admission.md#review-application-kernelpolicypy) | none |
+| `PAUSE_STARTED`, `PAUSE_CLEARED` | `kernel.policy`; committed by admission (start) or on an owner command (clear) | [intent spec](intent-to-admission.md#review-application-kernelpolicypy) | `pause` |
+| `REVIEW_RECORDED`, `INTENT_SEEN` | `kernel.policy` | review fields and kernel arrival time; intent digest and first-seen time | `review` |
 | `DISPATCH_REFUSED` | `kernel.coordinator` | `code`, `dependency` | command `REFUSED`; reservation `RELEASED` |
 | `DISPATCH_RETRY_REQUESTED` | `kernel.coordinator`, on a request from a principal holding the command's verb | `attempt_no` (the `NOT_SENT` one), `principal` | attempt `retry_requested_sequence` |
 | `DISPATCH_CLAIMED` | `kernel.coordinator` | `attempt_no`, `epoch_id` | attempt `CLAIMED`; command `IN_FLIGHT`; reservation `HELD` |
@@ -187,7 +191,7 @@ The writer validates each payload against `resources/events.schema.json`, which 
 | `CONFLICT_RECORDED`, `FOREIGN_RECORDED`, `RECONCILIATION_ESCALATED` | `kernel.lifecycle` from reconciliation; `kernel.protection` also escalates missing protection under kill | [execution-domain spec](execution-domain-and-observations.md#reconciliation-kernelreconciliationpy) | none (foreign orders are read by capacity's external commitments) |
 | `INDEX_REPAIRED` | `kernel.recovery` | `tables`, `before_digest`, `after_digest` | rebuilt rows |
 | Session, binding, grant and recovery-stage events | `kernel.lifecycle`, `kernel.authority`, `kernel.recovery` | [sessions spec](sessions-authority-lifecycle.md#bindings-and-sessions-kernellifecyclepy-session-part) | `session`, `grant` |
-| Protection, kill, hold and latch events | `kernel.protection`, `kernel.safety` | [protection spec](protection-and-safety.md) | `protection_state` |
+| Protection events; kill, hold and latch events | `kernel.protection`; `kernel.safety` | [protection spec](protection-and-safety.md) | `protection_state`; `safety_state` |
 
 Every event that changes a reservation carries `reservation_after`: the post-change `amount`, `margin` and `worst_case_loss`, exactly as `kernel.reservations` decided them. The fold copies them; it never computes or rounds money.
 
@@ -311,8 +315,8 @@ Attempt states: `CLAIMED`, `NOT_SENT`, `REJECTED`, `ACKNOWLEDGED`, `AMBIGUOUS`. 
 | Verb | Completes when | Never completes on |
 |---|---|---|
 | entry | The broker order is observed terminal (filled, cancelled, rejected or expired), with fills accounted | Transport ACK alone |
-| cancel | The target order is observed terminal | Cancel ACK (`README.md:750`) |
-| modify | The observed order shows the requested parameters, or the broker's level for a proven timed-out modify (POL-014) | Modify ACK (`README.md:750`) |
+| cancel | The target order is observed terminal (by the cancel, or for another reason: `target_terminal`) | Cancel ACK (`README.md:750`) |
+| modify | The observed order shows the requested parameters, or the broker's level for a proven timed-out modify (POL-014), or the target is observed terminal for another reason (`target_terminal`) | Modify ACK (`README.md:750`) |
 | close (market or limit, not resting) | The close's own order is observed filled, its fills recorded by fill ID; position quantities only corroborate | Close ACK; cancel completion; a netted position change alone |
 | close (resting stop or limit protective order) | The order is observed resting at the requested parameters; its later fill or cancel is recorded by `FILL` and order observations | Close ACK alone |
 

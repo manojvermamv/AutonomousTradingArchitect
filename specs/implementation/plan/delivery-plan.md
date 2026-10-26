@@ -18,15 +18,15 @@
 | Slice | Phase | Class | Decisions proved | Prerequisites | Open questions touched | Completion evidence |
 |---|---|---|---|---|---|---|
 | [SLICE-01](slices/SLICE-01-disarmed-financial-core.md) disarmed financial core | 3 (+2 minimal) | S | D01, D02, D13, D14, AUD-02; the SQLite safe-version rule | none | none | Its test table passes |
-| SLICE-02 ledger integrity and independent reads | 1 | S | D04, A03-F4 reader side, Combined-F2 | SLICE-01 | none | PRF-LED-06, -07, -08, -09; reader-impact measurement recorded |
-| SLICE-03 sessions, authority, clocks, recovery stages | 1 | S | ATA-05, Combined-F1, A04-F1/F2 (local), A06-F1 kernel side, Combined-F4 kernel side | SLICE-01 | Q-001 (session-close effects for holds only), Q-009 (operating procedure only) | PRF-SES-01…06 |
+| SLICE-02 ledger integrity and independent reads | 1 | S | D04, A03-F4 reader side, Combined-F2 | SLICE-01 | none | PRF-LED-08, -09, -10, -14, -15; reader-impact measurement recorded |
+| SLICE-03 sessions, authority, clocks, recovery stages | 1 | S | ATA-05, Combined-F1, A04-F1/F2 (local), A06-F1 kernel side, Combined-F4 kernel side | SLICE-01 | Q-001 (session-close effects for holds only), Q-009 (operating procedure only), Q-010 | PRF-SES-01…06, PRF-SES-08…10 |
 | SLICE-04 intent to admission | 3 | S | D07, D12, AUD-01, AUD-03, POL-007/015/018/020/021/022/027 | SLICE-01, SLICE-03 | Q-003 (stamp field only), Q-008 (capacity domains) | PRF-ADM-01…06 |
-| SLICE-05 dispatch, conflicts and scheduling | 1 | S | D13 revalidation, A03-F1/F2/F3, ATA-04; kill and hold events (POL-002, POL-003) | SLICE-04 | Q-004, Q-001 | PRF-DSP-01…08, PRF-PRT-04 (kill and hold rows), PRF-PRT-11 |
+| SLICE-05 dispatch, conflicts and scheduling | 1 | S | D13 revalidation, A03-F1/F2/F3, ATA-04; kill and hold events (POL-002, POL-003) | SLICE-04 | Q-004, Q-001, Q-011 | PRF-DSP-01, -03…-11, PRF-LED-16, PRF-PRT-04 (kill and hold rows), PRF-PRT-11 |
 | SLICE-06 protection and safety | 1/3 | S | ATA-01, POL-004…POL-006, POL-010…POL-015, A03-F5 kernel side, Combined-F6 protection part | SLICE-05, SLICE-07 | Q-001, Q-002, X-004 | PRF-PRT-01…10, PRF-PRT-12 |
-| SLICE-07 observations, reconciliation, domain, OpenAlgo adapter | 1/3 | S → R | D15, D16, ATA-06, A06-F2 decision | SLICE-05 | Q-006, Q-007, Q-008 | PRF-DOM-01…06, PRF-DOM-08, PRF-LED-11; PRF-DOM-07 on authorization |
+| SLICE-07 observations, reconciliation, domain, OpenAlgo adapter | 1/3 | S → R | D15, D16, ATA-06, A06-F2 decision | SLICE-05 | Q-006, Q-007, Q-008 | PRF-DOM-01…05, -08, -09, PRF-LED-11; PRF-DOM-07 on authorization |
 | SLICE-08 market data and views | 5 | S | A01-F1…F5, D08 | SLICE-03 | POL-O04 | Stub deepened; proofs from `README.md:1234-1236` |
 | SLICE-09 strategies and cognition | 5 | S | A05-F1…F5, Combined-F5, D09, D12 evidence | SLICE-04, SLICE-08 | none | Stub deepened; proofs from `README.md:1243` |
-| SLICE-10 security and operator | 2/5 | S | A06-F1…F5, Combined-F4 | SLICE-03 | none | Stub deepened; proofs from `README.md:1244` |
+| SLICE-10 security and operator | 2/5 | S | A06-F1…F5, Combined-F4; the observation mediator (A06-F2) | SLICE-03 | none | Stub deepened; proofs from `README.md:1244`; PRF-DOM-06 |
 | SLICE-11 packaging, release, supervision, isolation, backup and restore | 2/7 (rehearsal only) | S → P (rehearsal on a real backup) | D05, D06, A02-F1…F4, A04-F3/F5, A03-F4/F5, A09-F1…F4, D10 | SLICE-02, SLICE-03, SLICE-07 | Q-005 (real rehearsal only), POL-O01 | Stub deepened; D10 rehearsal evidence |
 | SLICE-12 research, RL, custody, promotion | 6 | S | A07-F1…F4, POL-038…POL-045 | SLICE-03 (binding) | none | Stub deepened; proofs from `README.md:1245` |
 | SLICE-13 disarmed shadow, compatibility projections, conversion method | 4 | D | D02 ownership in shadow, A10-F3, AUD-05/A04-F4 comparison, A02-F5 | SLICE-07, SLICE-11 | X-002 | Same-head comparison (`README.md:1199`); conversion method recorded |
@@ -64,6 +64,7 @@ Task IDs are stable. SLICE-01 tasks are its file rows. Other tasks get exact fil
 | TASK-S05-06 | 05 | Busy count and acceptance-reply lookup | PRF-DSP-03 |
 | TASK-S05-07 | 05 | Kill and hold events with their matrix rows; hold-versus-claim ordering | PRF-PRT-04 (kill and hold rows), PRF-DSP-08 |
 | TASK-S05-08 | 05 | Deadline sweep and timer | PRF-DSP-04 |
+| TASK-S05-09 | 05 | Target recheck at dispatch, caller-driven retries, command status | PRF-DSP-09, -10, -11 |
 | TASK-S06-01 | 06 | Protection evaluation, legs and placement; characterize `exit_owner` for the retained ladder | PRF-PRT-01/02/09 |
 | TASK-S06-02 | 06 | Protection crash recovery | PRF-PRT-03 |
 | TASK-S06-03 | 06 | Hold rows per Q-001; characterize the legacy recovery-hold trigger | PRF-PRT-04 |

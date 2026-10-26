@@ -42,6 +42,54 @@ Process record (not normative). Target: [design/intent-to-admission.md](../../de
 | 6-22 | Nit | Undefined terms; slot scope | FIX: links and a slot-scope definition |
 | 6-23 | Nit | ADM code gaps | FIX: note on unused codes |
 
-## Stages 7–8
+## Stage 7 — style (0 Blocker, 8 Major, 8 Nit)
 
-Recorded below as they run.
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| 7S-M1 | Major | Refusal codes written five ways | FIX: `ADM-Rnn` (`name`) everywhere |
+| 7S-M2 | Major | Review values written three ways | FIX: backticked enum values |
+| 7S-M3 | Major | "Bound" means binding and numeric limit | FIX: "limit" for numbers |
+| 7S-M4 | Major | AI mode and "eligibility" have several names | FIX: "AI mode"; "stage A passes" |
+| 7S-M5 | Major | Terms line is one run-on sentence | FIX: table |
+| 7S-M6 | Major | Pause cell unreadable | FIX: cell plus a bullet rule |
+| 7S-M7 | Major | Two code names narrower than their use | FIX: `ADM-R05` (`stale_input`), `ADM-R07` (`effect_mismatch`) |
+| 7S-M8 | Major | Break-check column inconsistent | FIX: "Must fail if" column |
+| 7S-N1…N8 | Nit | Table names, failure header, stage B sentence, B1 cell, pronouns, overview structure, problem table, link labels | FIX |
+
+## Stage 7 — structural (0 Blocker, 7 Major, 8 Nit)
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| 7T-1 | Major | No Risks and limits | FIX |
+| 7T-2 | Major | No Proof column; REQ-ADM-001/005/009/011 unproved | FIX: Proof column; PRF-ADM-08 (intent and plan contracts), PRF-ADM-04 extended (exposure), PRF-DSP-01 cited for -011 |
+| 7T-3 | Major | CUJs name no proof; CUJ-ADM-3 unproved; CUJ-ADM-4 has no observable outcome | FIX |
+| 7T-4 | Major | Proof table columns | FIX |
+| 7T-5 | Major | Delivery not a table | FIX |
+| 7T-6 | Major | Codes do not line up (A3 with `ADM-R10`; `ADM-R05` name; incomplete observation) | FIX: `ADM-R14` (`candidate_not_bound`) for A3; renamed codes; F-A5 gives `ADM-R05` |
+| 7T-7 | Major | Failure table shape and proofs | FIX |
+| 7T-8…15 | Nit | Header shape; `selection.py`; contract restatement; repeated pause cites; stage B repeats; bold labels; policy inputs; busy exception | FIX |
+
+## Stage 7 — design (3 Blocker, 17 Major, 5 Nit)
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| 7D-B1 | Blocker | The caller picks or omits the review | FIX: reviews are recorded by the kernel (`REVIEW_RECORDED`) and found by intent digest, first by kernel arrival; with a review required and none yet, admission returns `ADM-R15` (`review_pending`) until the blueprint deadline from the kernel's first sight of the intent |
+| 7D-B2 | Blocker | Capacity against a pre-planning snapshot | FIX: B5 reads reservations and funds on the writer thread and binds the state heads in `COMMAND_ADMITTED` |
+| 7D-B3 | Blocker | Planner signature misses legacy inputs | FIX: `SessionStats`, intent scores, Greeks and `now` are explicit inputs with named owners |
+| 7D-M1 | Major | Pause race and timing | FIX: every stage A refusal commits on the writer thread with a pause re-read; `started_at` is the commit time; kernel arrival order |
+| 7D-M2 | Major | No pause index; rule 3 fails open on the ledger | FIX: `pause` index table; rule 3 removed (an unreadable ledger is integrity failure, no send) |
+| 7D-M3 | Major | Cleared-pause and unavailable consequences changed | FIX: cleared gives `proceed_unavailable` with alert, as legacy (`service.py:487-493`); cite corrected |
+| 7D-M4 | Major | Review timing untrusted; missing validity checks; timeout origin | FIX: kernel clock; `valid_until`; configuration and lineage checks (legacy `service.py:390-429`); blueprint `deadline_seconds` |
+| 7D-M5 | Major | Measured ages inside the plan digest | FIX: recorded in `COMMAND_ADMITTED` |
+| 7D-M6 | Major | Two session sources | FIX: A1 refuses a mismatch |
+| 7D-M7 | Major | Close check: position identity; aggregate | FIX: owned position from the ledger `position` table; a non-resting close needs resting closes cancelled (conflict row 5) |
+| 7D-M8 | Major | Modify of a working entry bypasses capacity | FIX: B5 applies to a modify that raises committed capital |
+| 7D-M9 | Major | Worst intermediate obligation not designed | FIX: the structure planner's phase and cover rules (legacy `structures/planner.py:33-76`) give the worst intermediate state |
+| 7D-M10 | Major | Busy check decides Q-004; runs late | FIX: reads `coordinator.busy_applies_to`; cheap pre-check in stage A |
+| 7D-M11 | Major | Alert lost on unrecorded refusals | FIX: `kernel.policy` raises the alert when it applies, not via the admission record |
+| 7D-M12 | Major | Freshness vs POL-018, two owners for stale observations, spot/chain scope | FIX: "re-plans of a past day" quoted from the record; B1 is the only owner; live entries |
+| 7D-M13 | Major | Pause after admission | FIX: stated as kept legacy behaviour (pause checked only at review time) |
+| 7D-M14 | Major | Account snapshot and funds source | FIX: `ObservationPort.funds`; legacy double-count statement |
+| 7D-M15 | Major | Product missing | FIX: `PlanLeg.product` (POL-017) |
+| 7D-M16, M17 | Major | Risks; alternatives | FIX |
+| 7D-N1…N5 | Nit | Non-entries skip stage A planning; deadline origin per verb; future snapshot; cleared basis; recorded grant | FIX |
