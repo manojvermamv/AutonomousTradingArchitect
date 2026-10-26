@@ -1,12 +1,12 @@
 # AutonomousTrading — boundary-first architecture with selective reuse
 
-**Research date:** 24 October 2026 UTC. **Inspected revision:** `445eb116514d97c2574c44d4d5374f938dec57a3`, branch `claude/openalgo-trading-architecture-uu1bxn`. **Status:** original research baseline; D01–D10 and the later requirements/transaction refinements D11–D16 were accepted on 25 October 2026 UTC. A01–A03 decisions were also accepted on 25 October; A04 recovery design was accepted on 26 October; A05 design is now accepted; A06 design is accepted; A07-F1–F4 and revised A08-F1–F5 are accepted; A09 is next when resumed. Acceptance authorizes this design update, not implementation, deployment or financial-policy changes.
+**Research date:** 24 October 2026 UTC. **Inspected revision:** `445eb116514d97c2574c44d4d5374f938dec57a3`, branch `claude/openalgo-trading-architecture-uu1bxn`. **Status:** original research baseline; D01–D10 and the later requirements/transaction refinements D11–D16 were accepted on 25 October 2026 UTC. A01–A03 decisions were also accepted on 25 October; A04 recovery design was accepted on 26 October; A05 design is now accepted; A06 design is accepted; A07-F1–F4 and revised A08-F1–F5 and A09-F1–F4 and A10-F1–F3 are accepted; reviewed audit scopes are complete and implementation proof remains pending. Acceptance authorizes this design update, not implementation, deployment or financial-policy changes.
 
 ## Recommendation
 
 **Accepted design principle — 25 October 2026 UTC:** Design around the best justified boundaries, then reuse code only where it fits. Preserve approved money policies and useful contracts—not accidental directory layouts, coupling, or implementation limitations. These are recommended improvements; implementation tests and measurements must establish their correctness and practical benefit.
 
-The existing project is evidence and a source of reusable implementations, not the template that fixes the target's boundaries. Evaluate retention, extraction, replacement and new implementation against correctness, delivery cost, operational simplicity and acceptance evidence. Reuse is a means to a better system, not a requirement to reproduce its defects. The clean Python layout in §6 remains the target; compatibility adapters are migration tools, not permanent competing owners.
+The existing project is evidence and a source of reusable implementations, not the template that fixes the target's boundaries. Evaluate retention, extraction, replacement and new implementation against correctness, delivery cost, operational simplicity and acceptance evidence. Reuse is a means to a better system, not a requirement to reproduce its defects. The clean Python layout in §6 remains the target; compatibility adapters must not become competing owners. Retire obsolete live routes by their consumers and obligations; retain or replace verified readers required to interpret retained history under A10-F3.
 
 Recompose the existing system into one installable Python application around its deterministic financial kernel. Reuse the existing Tier-1 ledger/coordinator, causal market contracts, strategy/planning/protection logic, bounded AI review, research custody, candidate evaluation and offline RL implementations where they satisfy the accepted boundaries and proof obligations. Correct persistence/projection behavior in isolated target slices before production acceptance; source repairs are not a prerequisite for extraction. Add Market Canvas through the current market-data seam. A wholesale engine replacement is not justified by the current evidence; reconsider a component when a better-supported implementation demonstrably fits the target.
 
@@ -396,6 +396,31 @@ Source evidence distinguishes legacy constraints from useful scenarios: `tests/t
 
 All approved business rules, financial policies, A01–A07 and Combined-F1–F5 remain intact. A fresh test suite does not require rewriting reusable production functionality. A09 deployment simplicity and measured optimization is next when resumed.
 
+### Accepted A09 deployment and optimization decisions
+
+**26 October 2026 UTC — ✅ reviewed A09 scope complete; ✅ README/ROADMAP updated; implementation and production proof pending.** Owner accepted recommended A09-F1–F4 and authorized documentation without commit/push, then pause. Target-only review at architecture `main`, `5ff225c0d0868ff266a3814dd278e82327040a6d`; no source/runtime/broker inspection or capacity benchmark in this audit. These clarify deployment contracts, not measured production defects. A01–A08, Combined-F1–F5, approved policies and the clean package structure remain intact. A10 is next when resumed.
+
+| Decision | Accepted behavior and owner | Trade-off and acceptance proof |
+|---|---|---|
+| **A09-F1** | Settings/bootstrap/deployment define supported compositions and required participants; optional workers run when needed. | An unrelated research outage does not block trading; missing required capability follows approved scoped consequences. Full-service deployment is simpler to configure but costs idle resources. No new AI fallback or all-services-ready gate. |
+| **A09-F2** | Isolation/deployment define aggregate host resource envelopes and admission for optional background work, including descendants. | Exercise concurrent research/tests/builds/backups and measure kernel, ingestion and supervisor progress. Derive limits/headroom from measurements; another host offers stronger separation at greater cost. No market-hours ban or new financial priority. |
+| **A09-F3** | Storage owners classify authoritative state, required evidence, reproducible artifacts and disposable scratch; deployment/isolation enforce capacity separation or quotas. | Fill isolated scratch allocation, then inject critical-store failure separately; no false success, unsafe resend or deletion of required evidence. Separate physical storage is an alternative, not mandated; directories alone are insufficient isolation. |
+| **A09-F4** | Verification/telemetry records pinned workload, artifact/configuration and host/storage environment; compare measured improvements within existing operations boundaries. | Reproduce the bottleneck and compare correctness, tail behavior, recovery, resource interference and cost. Separate local processing from external delay. No invented capacity/latency/RPO/RTO values or infrastructure without demonstrated need. |
+
+No new service, distributed writer, automatic failover, emergency permission or numerical operating objective is selected. Implementation must prove the supported composition and measured limits before making corresponding production claims.
+
+### Accepted A10 coherence and delivery decisions
+
+**26 October 2026 UTC — ✅ reviewed A10 scope complete; ✅ README/ROADMAP updated; implementation and production proof pending.** Owner selected option A for A10-F1–F3 and authorized these updates, preserving local A09 edits, without commit/push, then pause. Target-only review at architecture `main`, `5ff225c0d0868ff266a3814dd278e82327040a6d`, plus accepted local A09. No new source/runtime/broker verification. These clarify presentation and delivery contracts without reversing accepted financial boundaries.
+
+| Decision | Accepted behavior and owner | Trade-off and acceptance proof |
+|---|---|---|
+| **A10-F1** | Both target diagrams explicitly distinguish strategy hosting, typed review evidence, record-only advice, scoped research submission and custody-controlled access. | Trace entry review, advice application and research requests through diagrams and prose; owners/checks agree. A legend-only alternative is more compact but leaves critical boundaries implicit. No new process/package mandated. |
+| **A10-F2** | Settings/bootstrap/deployment define one first-release composition with required, optional and deferred capabilities, preserving the full target. | Run with deferred services absent; required decision/execution/protection/evidence/recovery paths remain complete. Implementing every capability first offers breadth but delays integration. Selected strategy and unresolved owner policies are not silently chosen. |
+| **A10-F3** | Compatibility and migration owners identify each surface's purpose, consumers and retirement obligations. Retire obsolete live routes while retaining or replacing verified required historical readers. | Remove a candidate route in isolation and exercise supported callers, replay and restore. Indefinite compatibility costs maintenance; retirement cannot make required evidence unreadable or authorize deletion. |
+
+A01–A10 reviewed scopes are now recorded as design decisions, not a certification of the system. Concrete first-release selection, implementation planning and all dependent proofs remain outstanding; no implementation or production action is authorized by this update.
+
 ## 4. Open-source reference research
 
 Checked **24 October 2026**, cutoff approximately **09:38:37 UTC**, window **24 September–24 October**. Resolve default-branch SHA, request `https://api.github.com/repos/{owner}/{repo}/git/trees/{sha}?recursive=true`, inspect implementation/license and in-window relevant source commits. All listed recursive responses returned **truncated=false**; subtree traversal unnecessary. No repository was installed/executed. Nine qualify as maintained implementation references, not nine recommended dependencies.
@@ -453,7 +478,11 @@ flowchart TB
   INPUT[Validated licensed live market inputs] --> MARKET[Stable MarketView identity and deterministic Canvas]
   MARKET --> DECIDE[Live strategies and typed intents]
   MARKET --> COG[Tier2 scoped cognition without financial credentials]
-  COG -. typed proposals reviews and advice .-> KERNEL
+  COG -. typed intent generation when configured .-> DECIDE
+  COG -. fixed intent review evidence only .-> KERNEL
+  COG -. record only exit advice .-> ADVICE[Attributable advice for human consideration]
+  ADVICE --> OWNER
+  OWNER -. authenticated exact action subject to admission .-> KERNEL
   DECIDE --> KERNEL[Production Tier1 review policy admission and sole execution owner]
   OWNER[Authenticated scoped owner governance and bound release policy] -. approved policy and session candidates .-> KERNEL
   KERNEL <--> LEDGER[Production SQLite WAL financial ledger]
@@ -477,10 +506,16 @@ flowchart TB
   SBROKER --> SKERNEL
   LEDGER --> EV[Committed causal evidence with explicit outcome class]
   SLEDGER --> EV
-  EV --> LAB[Research evaluation and RL]
-  LAB --> CUSTODY[Global custody frozen candidates protected evaluation]
+  EV --> CUSTODY[Global evidence custody and scoped access]
   CUSTODY --> DEV
-  CUSTODY -. evaluated candidates requiring governance .-> OWNER
+  DEV --> LAB[Research evaluation and RL]
+  COG -. scoped experiment request .-> JOBS[Authorized research job submission]
+  JOBS -. permitted execution and data access .-> LAB
+  CUSTODY -. permitted evidence access .-> JOBS
+  LAB --> FREEZE[Frozen candidate and claim]
+  FREEZE --> EXAM[Protected claim specific evaluation]
+  CUSTODY -. protected evaluation capability .-> EXAM
+  EXAM -. evaluated candidate requiring governance .-> OWNER
   LEDGER --> BACKUP[Consistent off box backup and isolated restore]
   BACKUP --> REC[Recovery after exclusive authority proof]
   REC -. exclusive recovery writes then authorized operation .-> KERNEL
@@ -509,11 +544,17 @@ flowchart TB
     WF[Optional CognitiveWorkflowPort] -. schedules bounded cognition .-> COG
     COG --> REVIEW[Purpose typed fixed intent review exit advice or research proposal]
   end
-  subgraph F[Production Tier1 kernel and live financial state]
+  subgraph STRATEGIES[Strategy hosting under declared capabilities outside financial authority]
     VIEW --> STRAT[Identified invocation ordered within state scope and typed Intent]
     REG[Validated declarative strategy descriptor] -. host and input contract .-> STRAT
     COG -. typed intent generation result when configured .-> STRAT
     STRAT -. fixed intent for review when required .-> COG
+  end
+  subgraph OPERATOR[Authenticated operator interface outside financial authority]
+    HUMAN[Authenticated owner commands] --> AUTH[Current verified grant and exact action binding]
+    REVIEW -. record only exit advice .-> HUMAN
+  end
+  subgraph F[Production Tier1 kernel and live financial state]
     STRAT --> APPLY[Kernel policy applies bound review evidence]
     REVIEW -. typed review evidence only .-> APPLY
     APPLY -. review binding evidence .-> ADMIT
@@ -523,9 +564,7 @@ flowchart TB
     SESSION --> APPLY
     PLAN --> ADMIT[Tier1 exact plan admission and safety checks]
     ACCOUNT[Reconciled account and pending obligations] --> ADMIT
-    HUMAN[Authenticated owner commands] --> AUTH[Current verified grant and exact action binding]
     AUTH -. typed request revalidated by kernel .-> ADMIT
-    REVIEW -. record only exit advice .-> HUMAN
     ADMIT -->|admitted| RESERVE[Atomic reservation identity and command commit]
     ADMIT -->|refused| NODISPATCH
     RESERVE -->|durable work with reconstructible wakeup| COORD[Sole live ExecutionCoordinator]
@@ -580,7 +619,9 @@ flowchart TB
     DEV --> HIST
     DEV --> LAB[Recorded attempts and RL simulated transitions and rewards]
     LAB -. runs disarmed simulation composition .-> SBIND
-    REVIEW -. experiments and reflection only .-> LAB
+    REVIEW -. experiment proposal only .-> JOBS[Scoped research submission and lease owned execution]
+    CUSTODY -. permitted evidence access .-> JOBS
+    JOBS -. authorized experiment execution .-> LAB
     LAB --> FREEZE[Freeze code data fitted transforms model and claim]
     FREEZE --> EXAM[Protected one use locked evaluation]
     CUSTODY --> EXAM
@@ -608,7 +649,7 @@ flowchart TB
   end
 ```
 
-These are exactly two primary target diagrams plus the separate current-state diagram. Separate production/simulation ledgers are explicit: no runtime broker-mode toggle and no shared financial state. All simulation decisions, applications, reservations and lifecycle events enter its own history before export. The same code serves both compositions. The cognition/strategy edges are distinct typed invocations: optional intent generation precedes a fixed-intent review only where approved policy requires it; they are not a recursive generation/review loop. `CognitiveWorkflowPort` remains a conceptual seam, not a required service/package. Locked evaluation uses its custody-scoped evaluator and disarmed engine with protected access, never the ordinary development dataset path.
+These are exactly two primary target diagrams plus the separate current-state diagram. **A10-F1:** subgraphs distinguish responsibility/authority, not a mandatory process per box. Strategy hosting follows its validated descriptor and granted capabilities; extension discovery does not execute arbitrary code in the financial kernel. Cross-boundary arrows are typed contracts, not unrestricted sockets or credentials. Advice is recorded for human consideration; any resulting action is independently authorized and admitted. Research submissions use the bounded job port and custody-scoped data, never direct ordinary access to locked evaluation. Separate production/simulation ledgers are explicit: no runtime broker-mode toggle and no shared financial state. All simulation decisions, applications, reservations and lifecycle events enter its own history before export. The same code serves both compositions. The cognition/strategy edges are distinct typed invocations: optional intent generation precedes a fixed-intent review only where approved policy requires it; they are not a recursive generation/review loop. `CognitiveWorkflowPort` remains a conceptual seam, not a required service/package. Locked evaluation uses its custody-scoped evaluator and disarmed engine with protected access, never the ordinary development dataset path.
 
 ### Financial authority and executable contracts
 
@@ -811,9 +852,17 @@ The supervisor independently gathers attributable order/trade/position and prote
 
 Initial deployment: one Linux host, local durable Tier-1 storage, systemd, current operator surface, bounded research slice, independently scheduled protection/reconciliation readers. Critical supervisors may use the same installed package but retain independent process/restart/resource supervision. One host is a failure domain; honest RPO/RTO and fencing beat an unproved HA label.
 
+**A09-F1 — supported runtime compositions:** settings/bootstrap/deployment identify available entrypoints separately from the participants required by each supported workflow. Enable optional workers when needed; validate dependencies against the selected strategy and approved policy. Preserve the sole writer, independent supervision, required protection and exact relevant contract versions. A required cognitive capability cannot be silently removed or replaced with a new fallback; approved unavailable behavior still applies. An unrelated research outage is not a universal trading gate. Use existing configuration/installation owners, not a second composition framework.
+
+**A09-F2 — aggregate host resources:** operations isolation and deployment coordinate CPU, memory, I/O and process demand across concurrent research, tests, builds, backups and services, including descendants. Define aggregate envelopes and admission for optional background work using measured host capacity and necessary headroom; independent per-job limits do not prove combined demand fits. Measure critical progress under representative overlap. If isolation cannot support a workload, defer only that workload or move it to separately scoped compute. Preserve isolated market-hours work, A02 activation rules and A03 overload contracts; no new financial action priority, threshold or blanket calendar restriction is selected.
+
+**A09-F3 — storage capacity and failure:** storage owners distinguish authoritative state, retained evidence, reproducible artifacts and disposable scratch. Deployment/isolation enforce suitable capacity separation or quotas and observe growth; separate directories alone do not prevent exhaustion of a shared filesystem. Cleanup remains subject to Combined-F2 publication/retention and custody requirements, never emergency deletion of referenced evidence. Define truthful disk-full behavior at each persistence boundary, preserving D01/D13–D16 uncertain-effect and retry semantics. Test scratch exhaustion separately from critical-store write failure. Separate physical storage may be justified by capacity/performance evidence but is not mandatory. This grants no liquidation, evidence-deletion or new emergency authority.
+
+**A09-F4 — measurement before optimization:** existing verification/telemetry tooling records workload, artifact/configuration identities, host/storage environment and relevant results. Separate queue, processing and persistence delays from external-provider delay; examine representative bursts, concurrent work, tail behavior, recovery and storage growth. Compare tuning the current deployment, moving optional compute and adopting infrastructure against the same claim/workload, including operating cost and correctness/isolation effects. Measurements remain bounded and non-authoritative; routine edits do not require a full capacity campaign. Capacity/latency objectives and RPO/RTO remain explicitly unselected until justified or owner-decided as applicable. Financial-writer relocation/failover still requires separately proved exclusive authority; replication cannot grant it.
+
 | Timing | Capability | Adoption trigger and proof |
 |---|---|---|
-| **Reuse/build now** | Ledger/projections, OpenAlgo, existing teams, providers, custody/RL, independent readers | Repair active defects and demonstrate parity; no distributed runtime needed. |
+| **Reuse/build now** | Ledger/projections, OpenAlgo, existing teams, providers, custody/RL, independent readers | Fit reused code to accepted target contracts and prove named behavior under A08; enable only required runtime participants. No source-repair prerequisite or distributed runtime needed. |
 | **Build incrementally now** | Canvas facts/tools/history and existing UI renderer | Valid inputs, causal reproducibility, no changed financial policy. Adopt chart library rather than invent rendering. |
 | **Interface now/adopt later** | Cognitive workflow/provider backend | Meaningful interruption/human-wait/remote recovery cost. Compare existing runtime vs Temporal/Restate/Pydantic AI; one backend, sandbox/version proof, server/license/operations cost. |
 | **Interface now/adopt later** | Artifacts/export/optional MLflow and observability | Measured artifact discovery/retention/debugging cost. MLflow is metadata; OTel/Logfire/OpenLLMetry bounded async/drop-capable, never blocks/authorizes money. |
@@ -846,7 +895,7 @@ AutonomousTrading/                         # Recompose existing behavior into on
 │   └── autonomous_trading/                # Single unambiguous Python namespace
 │       ├── __init__.py                    # Export version and public contracts
 │       ├── __main__.py                    # Invoke operator CLI
-│       ├── bootstrap.py                   # Compose mode-specific capabilities explicitly
+│       ├── bootstrap.py                   # Compose supported workflows and required capabilities
 │       ├── contracts/                     # Shared types without authority or I/O
 │       │   ├── __init__.py                # Export stable contract types
 │       │   ├── identity.py                # Define account session candidate and command IDs
@@ -921,7 +970,7 @@ AutonomousTrading/                         # Recompose existing behavior into on
 │       │   ├── simulated_broker.py        # Model orders fills costs and uncertainty
 │       │   ├── unix_channel.py            # Authenticate local calls and exact contract versions
 │       │   ├── clocks.py                  # Implement clock domains uncertainty and recorded advances
-│       │   └── compatibility.py           # Convert supported history bundles and external contracts
+│       │   └── compatibility.py           # Own scoped compatibility and required historical readers
 │       ├── research/                      # Experiments without execution authority
 │       │   ├── bundles.py                 # Validate licenses and publish immutable inputs
 │       │   ├── datasets.py                # Bind causal datasets and fitted transformation provenance
@@ -942,8 +991,8 @@ AutonomousTrading/                         # Recompose existing behavior into on
 │       │   ├── deployment.py              # Record staged release transitions and compatibility
 │       │   ├── backup.py                  # Publish recovery manifest and retained off-box artifacts
 │       │   ├── restore.py                 # Verify recovery set and authorization continuity gaps
-│       │   ├── isolation.py               # Validate workspace credential store and resource scope
-│       │   ├── verification.py            # Record observations without global work gates
+│       │   ├── isolation.py               # Enforce aggregate resources and storage isolation
+│       │   ├── verification.py            # Record scoped proofs and reproducible capacity measurements
 │       │   └── telemetry.py               # Emit bounded asynchronous diagnostics
 │       └── interfaces/                    # Human and bounded tool entrypoints
 │           ├── cli.py                     # Preserve operator commands through compatibility names
@@ -957,7 +1006,7 @@ AutonomousTrading/                         # Recompose existing behavior into on
 │       ├── api.ts                         # Consume authenticated typed contracts
 │       └── canvas.tsx                     # Render geometry annotations and evidence
 ├── deploy/                                # Small-host installation templates
-│   ├── install.py                         # Render pinned service identities and paths
+│   ├── install.py                         # Render supported participants and pinned service identities
 │   └── systemd/                           # Independently supervised services
 │       ├── at-kernel.service              # Run sole writer with scoped credential
 │       ├── at-market.service              # Collect canonical market inputs
@@ -1037,6 +1086,19 @@ Effort is relative, not a schedule estimate: low = narrow adapter/move, medium =
 | Canvas algorithms/history/tools | **Build on market seam** | Medium, staged. Main new capability; adopt renderer and build causal domain geometry. |
 | Broad engine/framework rewrite | **Reject initially** | Very high migration risk; no evidence it is fastest route to equivalent behavior. |
 
+### First-release composition and full-target scope
+
+**A10-F2:** define one explicit first-release composition through existing settings/bootstrap/deployment, with each capability owner recording required, optional or deferred status and its dependencies. This is a delivery selection, not a reduced final product. The actual strategy/account scope and unresolved owner-controlled policies remain explicit selection work; this decision does not silently choose them.
+
+| Scope | First-release treatment | Completion evidence |
+|---|---|---|
+| Selected trading workflow | Required: its market inputs, strategy/intent contract, policy-required review, planning/admission, execution, reconciliation/protection, evidence and operator permissions | Complete supported path under approved behavior; absent required capabilities have their existing scoped consequences. |
+| Reliability and activation | Required for dependent production use: packaging/settings identity, isolation, durable state, independent supervision, recovery/backup and exclusive activation | Relevant A01–A09 proofs for the exact composition; optional services cannot substitute for a missing safeguard. |
+| Canvas/cognition extensions | Required where consumed by the selected workflow; richer tools, teams or renderers may be optional/deferred | No hidden required dependency on a deferred capability and no silent removal of required review. |
+| Research/RL and new candidates | Offline training/experiments may be delivered independently; custody, evidence and governed binding needed for a selected candidate remain required | Deferred training services do not block the existing supported workflow; a candidate cannot bypass its applicable promotion rules. |
+
+Exercise the selected composition with deferred services absent. Preserve the full clean repository and future capability contracts; phases 5/6 are not blanket prerequisites for phase 7, but any capabilities actually required by the selected workflow and its proofs are prerequisites. This updates delivery scoping without authorizing cutover or choosing missing money policies.
+
 ### Roadmap and independent lanes
 
 | Phase | Working outcome and acceptance | Dependencies |
@@ -1052,6 +1114,9 @@ Effort is relative, not a schedule estimate: low = narrow adapter/move, medium =
 | **8 Recovery tuning/economics/growth** | Repeat recovery drills after relevant changes; tune measured RPO/RTO, tails/resources/AI economics and optional component need. Baseline restore/fencing proof was required before Phase 7 activation. | Rehearsals isolated. Live activation/exercises require own authority. Economic evidence candidate-specific, not gate to unrelated fixes. |
 
 ### Compatibility and no-dual-authority invariant
+
+**A10-F3 — compatibility retirement:** identify each compatibility surface's purpose, supported consumers and migration obligations through the existing adapter/schema/release owners. Retire obsolete live routes when those obligations are resolved; retain or replace with a verified supported reader the ability to interpret history needed for recovery, audit and declared replay. Preserve original bytes, identity and provenance. Test supported callers, replay and restore after removal in isolation. A temporary API and a required historical reader have different lifetimes; neither indefinite duplication nor arbitrary retirement dates are mandated. This authorizes no evidence deletion or retention-policy change.
+
 
 **AUD-05 / A04-F4 — migration contract accepted; route remains evidence-dependent:** compare upgrading existing databases with initializing a target schema and importing verified legacy history. Choose from compatibility, rollback/recovery and migration evidence, not the filename `001_initial.sql`. Preserve original event bytes/digests, identity and provenance; keep imported evidence distinct from newly derived target projections. Rebuild/check supported state and explicitly report missing historical information rather than synthesizing claims of past admission or observation completeness. No `002` migration or source-schema reuse is mandated before that comparison. **A02-F5:** pin the source boundary/digest for each input store and record their relationship, converter version and source-to-target identity mapping. Account for 100% of captured source records as transferred or explicitly rejected/quarantined with reasons; preserve original evidence and distinguish derived projections. An unknown authoritative event cannot be silently dropped or assigned invented meaning. Quarantine is evidence retention, not proof of a complete financial migration: unresolved authoritative meaning blocks dependent activation while unrelated inspection/development continues. Validate required derived state at the same captured boundary; A04-F4 requires a consistent pinned capture boundary across input stores, durable resumable conversion progress, deterministic duplicate handling and final delta/handoff accounting. Repeating a batch must not duplicate financial effects. Record whether each step is complete or interrupted; changed source boundaries require explicit reconciliation rather than silent continuation. Compare actual schema mappings and recovery complexity before selecting in-place upgrade or verified import, and record the reason. Isolated rehearsal remains independent; only production-dependent capture/cutover requires its justified quiescence and authorization. No clean-database preference or new migration file is mandated.
 
@@ -1105,6 +1170,8 @@ The sole production canonical-state/write-authority switch occurs in Phase 7, ne
 | Security/operator contracts (A06-F1–F5) | Forge delegation/cross-account grants, revoke queued permission, substitute confirmed arguments, replay requests, attempt observer writes/bypass, rotate credentials, cross cache scopes and export to unauthorized destinations | Native read-only capability needs endpoint proof; revocation does not recall effects; no new financial permission, blanket confirmation or secret-bearing telemetry. |
 | A07 research contracts (F1–F4) | Mutate evaluation-only data; interrupt/resume attempts; duplicate jobs; reject/delay/partially fill simulated actions; substitute approved artifacts/configuration/session scope | Fitting provenance, complete attempts, reconciled reward and exact approval binding; no retroactive historical cleanliness, profitability or production proof. |
 | Fresh target verification (A08-F1–F5) | Run core tests without legacy checkout or ambient state; refactor helpers; inject wrong outcomes and forbidden access; consolidate duplicate cases and recheck distinct risks | No bulk suite inheritance, universal source parity, arbitrary test-count limit or claim that all legacy tests are obsolete; approved money rules remain. |
+| Deployment and optimization (A09-F1–F4) | Remove unrelated/required participants separately; overlap background workloads; exhaust scratch capacity; inject critical persistence failures; repeat pinned load comparisons | Approved dependency consequences, aggregate resource protection and truthful persistence; measured gains do not grant financial authority or establish untested host-failure guarantees. |
+| End-to-end coherence (A10-F1–F3) | Trace authority/data paths in diagrams and contracts; run first-release composition without deferred services; retire a candidate compatibility route and replay/restore retained history | No arbitrary strategy/policy selection, implied process-per-box, hidden optional dependency or loss of required historical interpretation. |
 | Operational acceptance | Authorized fresh OpenAlgo observations, deployed identity, supervised protection and proven backup/fencing | Gaps block their dependent operation, not unrelated development. |
 
 Build fresh tests against the [required target behavior](#required-behavior-before-source-parity) under A08-F1–F5. Legacy tests were excluded from the original production audit; the 26 October A08 review statically inventoried tests and inspected selected bodies/source without running them. No test pass, runtime benchmark, fault-campaign outcome, live proof or economic measurement is claimed. Reuse assessed scenario knowledge without requiring legacy layout, output parity or complete legacy-test classification.
@@ -1175,16 +1242,16 @@ The table below defines the remaining target questions. **A01–A10 are audit ag
 | **6 · A06 — ✅ Audit complete; docs updated** | **Security boundaries and operator control** | Which identities may read evidence, submit proposals, change configuration or request privileged operations, and how do authentication, credential isolation, operator confirmation and attribution enforce those boundaries without becoming a second financial authority? |
 | **7 · A07 — ✅ Reviewed scope complete; docs updated; proof pending** | **Research and governed improvement** — refines old item 6 | How should datasets, experiment runners, simulators, evaluation and custody separate their responsibilities so comparisons are reproducible, future information stays excluded, and only exact frozen candidates reach governed session binding? |
 | **8 · A08 — ✅ Revised scope complete; docs updated; proof pending** | **Verification and acceptance architecture** — replaces old item 7 wording | What independent expected results, controllable clocks/adapters, fault-injection seams, simulation assumptions and evidence classifications will prove the target contracts, and which conclusions need synthetic, integration, broker-specific or production evidence? |
-| **9 · A09** | **Deployment simplicity and measured optimization** — refines old item 8 | What is the smallest deployable process and storage arrangement that meets the agreed boundaries, which latency/resource/recovery costs need measurement, and what evidence would justify additional infrastructure? |
-| **10 · A10 — New closing review** | **End-to-end coherence and delivery scope** | Do the agreed contracts, diagrams, package tree, configuration ownership, lifecycle states and roadmap describe one system, and can optional work be deferred without leaving duplicate owners, circular dependencies or an incomplete first production slice? |
+| **9 · A09 — ✅ Reviewed scope complete; docs updated; proof pending** | **Deployment simplicity and measured optimization** — refines old item 8 | What is the smallest deployable process and storage arrangement that meets the agreed boundaries, which latency/resource/recovery costs need measurement, and what evidence would justify additional infrastructure? |
+| **10 · A10 — ✅ Reviewed scope complete; docs updated; proof pending** | **End-to-end coherence and delivery scope** | Do the agreed contracts, diagrams, package tree, configuration ownership, lifecycle states and roadmap describe one system, and can optional work be deferred without leaving duplicate owners, circular dependencies or an incomplete first production slice? |
 
 **A01 reviewed and design accepted:** For example, if the application starts at 11:20, a strategy should receive an explicit statement of which historical bars are usable, whether its warm-up is sufficient, and whether the current bar is partial. Neither Canvas nor replay should quietly convert later-arriving information into knowledge supposedly available at 11:20. The audit must identify which missing inputs affect which operations, without inventing new trading thresholds or treating startup time as a global readiness gate.
 
-**Paused after revised A08 documentation. Next when resumed: A09**, deployment simplicity and measured optimization, preserving accepted A01–A08 and Combined-F1–F5 contracts. A08-F1–F5 select a fresh requirement-based test suite with selective legacy reuse, independent expectations, isolated fixtures and risk-based verification. A07-F1–F4 clarify fitted transformations, trial resumption, simulated rewards and promotion approval; implementation proof remains pending. The combined A01–A06 review adds authorization continuity and scoped strategy-state ordering; both remain subject to implementation proof. Accepted A02-F1–F5 extend D05–D06 to schema evolution and effective configuration identity; it does not repeat the packaging decision. A03 has accepted progress/resource ownership and independent outage assessment; implementation proof remains pending and no new action priority was selected. A04-F1–F5 now specify recovery/release design atop D10/D13–D16; implementation proof and evidence-based migration-route selection remain open. A05-F1–F5 retain D12 review ownership and add explicit extension/invocation, typed assembly and execution-evidence contracts. A06-F1–F5 specify scoped identity, observation enforcement, credential lifecycle, exact operator intent and disclosure boundaries; implementation proof remains pending and emergency permissions are unchanged. A10 checks integration of accepted decisions, not a fresh rewrite mandate.
+**Paused after A10 documentation.** A01–A10 reviewed scopes and Combined-F1–F5 are recorded. Next work, when authorized, is concrete first-release selection and requirement-based implementation planning; no additional audit or production action is started here. A09-F1–F4 clarify supported compositions, aggregate resources, storage capacity and measured optimization; implementation proof remains pending. A08-F1–F5 select a fresh requirement-based test suite with selective legacy reuse, independent expectations, isolated fixtures and risk-based verification. A07-F1–F4 clarify fitted transformations, trial resumption, simulated rewards and promotion approval; implementation proof remains pending. The combined A01–A06 review adds authorization continuity and scoped strategy-state ordering; both remain subject to implementation proof. Accepted A02-F1–F5 extend D05–D06 to schema evolution and effective configuration identity; it does not repeat the packaging decision. A03 has accepted progress/resource ownership and independent outage assessment; implementation proof remains pending and no new action priority was selected. A04-F1–F5 now specify recovery/release design atop D10/D13–D16; implementation proof and evidence-based migration-route selection remain open. A05-F1–F5 retain D12 review ownership and add explicit extension/invocation, typed assembly and execution-evidence contracts. A06-F1–F5 specify scoped identity, observation enforcement, credential lifecycle, exact operator intent and disclosure boundaries; implementation proof remains pending and emergency permissions are unchanged. A10 checks integration of accepted decisions, not a fresh rewrite mandate.
 
 **Verification accompanies every row.** A08 later consolidates the proof architecture; it is not permission to postpone failure reasoning. Existing tests and fixtures are optional evidence assessed for relevance, provenance and independent expected results—not inherited requirements or a prerequisite for new target design. Preserve the clean repository structure; add or split a module only when the audit establishes a concrete owner or dependency need. Safe isolated work continues regardless of market hours and unrelated broker evidence. Approval of this agenda does not accept its future findings or authorize implementation, deployment or money-policy changes.
 
-**Audit status legend:** ✅ means the named audit/design scope is complete and its accepted documentation is updated, not implemented, tested or production-accepted. ✅ A01–A08 reviewed scopes and the combined review are recorded; A09–A10 retain their stated pending scope.
+**Audit status legend:** ✅ means the named audit/design scope is complete and its accepted documentation is updated, not implemented, tested or production-accepted. ✅ A01–A10 reviewed scopes and the combined review are recorded; implementation, testing and production acceptance remain pending.
 
 ### Owner choices retained
 
@@ -1215,7 +1282,7 @@ Document checks confirmed nine primary sections, one current-state and exactly t
 
 ### Current design status — 26 October 2026 UTC
 
-**Accepted:** D01–D16, A01-F1–F5, A02-F1–F5, A03-F1–F5, A04-F1–F5, A05-F1–F5, A06-F1–F5, A07-F1–F4, A08-F1–F5, Combined-F1–F5, corrected AUD-01–AUD-03 design refinements and AUD-04 independent observation/read contracts (security implementation proof pending) and AUD-05 migration audit task (route undecided), plus the boundary-first, selective-reuse principle; D11–D16 record the six later owner choices as design, not implementation proof. **Changed documents:** this master README and ROADMAP.md in `AutonomousTradingArchitect`; the trading source remains read-only. **Implementation status:** not implemented or production-accepted by this update; F1–F5 remain open. **Structure:** §6 keeps one installable namespace with packaged immutable resources and explicit financial, market, cognition, research and operations owners. **Paused; next architecture audit when resumed:** A09 deployment simplicity and measured optimization. A04 implementation must prove recovery stages, exclusive ownership, release transitions, migration and the recovery set. A01-F1–F5, A02-F1–F5 and A03-F1–F5 are accepted design decisions with implementation proof pending; A04 retains migration-route selection. D11–D16 are recorded design decisions, not work to re-decide by default. **Later implementation:** turn those contracts into isolated slices in implementation-roadmap order. Exact deadline, valuation and emergency-policy choices remain open where not already approved. Implementation, financial-policy changes and production activation require their own scope and evidence. Missing production proof blocks only its dependent operation.
+**Accepted:** D01–D16, A01-F1–F5, A02-F1–F5, A03-F1–F5, A04-F1–F5, A05-F1–F5, A06-F1–F5, A07-F1–F4, A08-F1–F5, A09-F1–F4, A10-F1–F3, Combined-F1–F5, corrected AUD-01–AUD-03 design refinements and AUD-04 independent observation/read contracts (security implementation proof pending) and AUD-05 migration audit task (route undecided), plus the boundary-first, selective-reuse principle; D11–D16 record the six later owner choices as design, not implementation proof. **Changed documents:** this master README and ROADMAP.md in `AutonomousTradingArchitect`; the trading source remains read-only. **Implementation status:** not implemented or production-accepted by this update; F1–F5 remain open. **Structure:** §6 keeps one installable namespace with packaged immutable resources and explicit financial, market, cognition, research and operations owners. **Paused after A10:** concrete first-release selection and implementation planning require their own scope; no production-readiness claim is made. A04 implementation must prove recovery stages, exclusive ownership, release transitions, migration and the recovery set. A01-F1–F5, A02-F1–F5 and A03-F1–F5 are accepted design decisions with implementation proof pending; A04 retains migration-route selection. D11–D16 are recorded design decisions, not work to re-decide by default. **Later implementation:** turn those contracts into isolated slices in implementation-roadmap order. Exact deadline, valuation and emergency-policy choices remain open where not already approved. Implementation, financial-policy changes and production activation require their own scope and evidence. Missing production proof blocks only its dependent operation.
 
 Review command:
 
