@@ -7,6 +7,8 @@ Status: **proposed** findings for the master documents' owner. The master README
 | [X-001](#x-001) | Stale summary after the scoped policy baseline | none | open |
 | [X-002](#x-002) | Ledger schema needed before the upgrade-versus-import evaluation | none (SLICE-01 uses a provisional, disarmed schema) | open |
 | [X-003](#x-003) | Test files the slices need that README §6 does not list | none | open |
+| [X-004](#x-004) | POL-010 misspelt switch value vs A02-F2 unknown-value refusal | TASK-S06-05 (misspelt-value behaviour only) | open |
+| [X-005](#x-005) | ATA-05 "policy contracts" as a session-scope dimension | none | open |
 
 ---
 
@@ -85,3 +87,20 @@ See [POL-002, POL-004, POL-041, POL-047](../02-policy-inventory.md).
 **Package handling.** The [protection spec](../design/protection-and-safety.md#policy-inputs) keeps "omitted means `square_off`" (no conflict) and refuses a misspelt value until this item is decided. TASK-S06-05 depends on it.
 
 **Smallest correction (for the master's owner).** Either note POL-010's misspelt-value rule as a named exception to A02-F2, or confirm that a misspelt value is refused.
+
+---
+
+## X-005
+
+**Kind:** reading of an accepted master rule that the package had to make.
+
+**Evidence.**
+- ATA-05 (`README.md:450`) says to scope sessions "by applicable market/account/policy contracts".
+- The [sessions spec](../design/sessions-authority-lifecycle.md#identity-contract-contractsidentitypy) keys a session by account and exchange calendar only. It records exactly one policy binding in `SESSION_OPENED`, fixed for the session's life; a different policy can take effect only at the next open.
+- The legacy latch is keyed per account and IST date (LD-04), not per policy.
+
+**Effect if left.** If ATA-05 means policy is a key field, two policies on one account and calendar would need two concurrent sessions, and the latch and pause scopes would split per policy.
+
+**Package handling.** The package treats policy as bound to the session, not as a key field, and says so where the scope is defined. Nothing in SLICE-01 depends on this; SLICE-03 builds the scope.
+
+**Smallest correction (for the master's owner).** Confirm that "policy contracts" scope a session through its binding, or state that policy is a key dimension of `SessionScope`.

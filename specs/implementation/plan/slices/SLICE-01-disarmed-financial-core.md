@@ -102,7 +102,7 @@ FinancialSessionId(scope: SessionScope, trading_date: str)          # trading_da
 
 Timestamp(utc_iso: str, domain: Literal["wall", "exchange", "recorded"], uncertainty_ms: int | None = None)
 Elapsed(monotonic_ns: int)
-Deadline(origin: Timestamp, budget_ms: int)
+Deadline(origin: Timestamp, budget_ms: int, started: Elapsed)   # started: elapsed() when the deadline was set
 class Clock(Protocol):
     def now(self) -> Timestamp: ...
     def elapsed(self) -> Elapsed: ...
@@ -153,7 +153,7 @@ This is the [ledger rule](../../design/ledger-and-atomic-transaction.md#request-
 
 * `RecordedClock(start_utc_iso: str)`:
   * `now()` returns the current recorded instant with `domain="recorded"`;
-  * `advance(ms: int)` moves both the instant and `elapsed()`.
+  * `advance(ms: int)` appends one recorded step, moving both the instant and `elapsed()` by `ms` (the sessions spec's recorded `(Timestamp, Elapsed)` pairs).
 * `LiveClock()`:
   * `now()` uses `datetime.now(timezone.utc)` with `domain="wall"`;
   * `elapsed()` uses `time.monotonic_ns()`.

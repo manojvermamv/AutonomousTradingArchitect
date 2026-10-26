@@ -84,3 +84,23 @@ All applied in one rewrite: states reduced to `OPEN`/`CLOSED`; `SESSION_OPENED` 
 | 7D-17…22 | Nit | Alternatives; hold release; close-effects row; I-S3; deadline domain; Combined-F6 hook | FIX |
 
 Recovery's ordered steps (migrate, compare, repair, rebuild outcomes, owed closes, continuity, gaps) moved here from the ledger spec (ledger stage 8, finding 10).
+
+## Stage 8 — intermediate zoom-out (1 Blocker, 10 Major, 4 Nit)
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| 8-1 | Blocker | Fence rule broader than legacy and the master; no gap event; restore not detectable | FIX: legacy scope only — a restore-marked epoch (marker on `EPOCH_ACTIVATED`, set by the restore path) needs `OLD_HOST_FENCED` in that epoch, and any `RECOVERY_GAP` needs a later fence; `RECOVERY_GAP` defined (legacy `events.py:86`); other unverified items listed for the human, resolved by D13–D16; citation corrected |
+| 8-2 | Major | Nothing authorizes `OLD_HOST_FENCED` | FIX: a human principal holding `recovery_advance`, in `RECOVERY_WRITING`; stage table row |
+| 8-3 | Major | `kernel:recovery` revokes without `grant_admin` | FIX: listed as that principal's one built-in revocation (`restore_unverified`), decided through `kernel.authority`; catalogue aligned |
+| 8-4 | Major | Close effects duplicate session-keyed state | FIX: "Ends" rows and the `effects` payload dropped; I-S2 says no session reads another's state |
+| 8-5 | Major | Boundary wait after a clock jump is a new clock gate and may never end | FIX: closes judged on the ratchet (early close only refuses); opens on wall now as legacy; no wait; unbound `clock.jump_record_ms` disables recording only |
+| 8-6 | Major | Contract types differ from SLICE-01 | FIX: array wire form with derived string key; SLICE-01 builds `human`/`kernel`, SLICE-03 adds `service`; `Deadline.started` added to SLICE-01; `RecordedClock.advance` defined as appending a recorded step |
+| 8-7 | Major | Grant version and narrowing have no producer | FIX: grants immutable; `version` dropped from `Grant`, `check`, `recheck` and dispatch `Dependencies`; one `parent_grant_id` |
+| 8-8 | Major | Two close triggers; one before repair | FIX: tick evaluation in `RECOVERY_WRITING` starts after steps 1–3; step 4 is its first run |
+| 8-9 | Major | "Staged" is redundant; I-S3 ambiguous | FIX: dropped; I-S3 is "covering and unrevoked"; continuity hook fires when the binding differs from the previous session's |
+| 8-10 | Major | Scope omits the master's "policy contracts" | X-005 raised; scope row cites it |
+| 8-11 | Major | SLICE-03 needs SLICE-02 | FIX: plan dependency added |
+| 8-12 | Nit | `writer_state()` unused | FIX: removed |
+| 8-13 | Nit | First `RECOVERY_STAGE` duplicates `EPOCH_ACTIVATED` | FIX: `EPOCH_ACTIVATED` records that transition |
+| 8-14 | Nit | `at` parameter; "bound accounts" undefined | FIX: `at` dropped; bound accounts defined |
+| 8-15 | Nit | Neighbour references | FIX: ledger catalogue row lists the recovery and clock events and `standing_binding`; dispatch policy row already removed; the policy-version name is aligned in the intent resolution |
