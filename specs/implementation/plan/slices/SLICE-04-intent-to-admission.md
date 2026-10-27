@@ -1,6 +1,6 @@
 # SLICE-04 — Intent to admission
 
-* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-04-review-2026-10-27)). **Step 1 built** on 2026-10-27 in a local repository (commit `2ed1c39`, branch `slice-04`): 235 tests passed, including every SLICE-01…03 test, and every break check failed as required ([as built](#step-1-as-built)). That is a build record, not production acceptance. Step 2 is deepened to decision depth below and is under EGM review; step 3 is deepened before it is built.
+* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-04-review-2026-10-27)). **Step 1 built** on 2026-10-27 in a local repository (commit `2ed1c39`, branch `slice-04`): 235 tests passed, including every SLICE-01…03 test, and every break check failed as required ([as built](#step-1-as-built)). That is a build record, not production acceptance. Step 2 is decision-complete below after its EGM review and is not yet built; step 3 is deepened before it is built.
 * **Precedence:** the master README, then the ROADMAP, then this package. The authority is the [intent spec](../../design/intent-to-admission.md); every deviation is marked **Deviation**. No score, threshold or money value is set: every refusing setting is bound only to labelled synthetic values in tests.
 * **Phase:** master Phase 1, finishing in Phase 3 with real views (SLICE-08). Class S.
 * **Builds on:** [SLICE-03](SLICE-03-sessions-authority-recovery.md) as built; branch `slice-04` cut from `slice-03`.
@@ -200,23 +200,25 @@ Commit `2ed1c39` on `slice-04` (checkpoint `bac5777` before it). The commit pair
 
 ## Step 2 — cancel, modify and close admission
 
-Deepened after step 1 landed (OA_NEW `2ed1c39`). It closes the five gaps the readiness review named: the owned-position and owned-order fields, how a resting protective close is identified, the `COMMAND_ADMITTED` payload for non-entry verbs, the not-sent `Outcome`, and the modify capital increase. Dispatch of these verbs is SLICE-05, so step 2 admits and does not send.
+Deepened after step 1 landed (OA_NEW `2ed1c39`), then reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-04-step-2-review-2026-10-27)); this text includes their fixes. It closes the five gaps the first readiness review named: the owned-position and owned-order fields, how a protective order is identified, the `COMMAND_ADMITTED` payload for non-entry verbs, the not-sent `Outcome`, and the modify capital increase. Dispatch of these verbs is SLICE-05, so step 2 admits and does not send.
 
 ### Files
 
 | File | Change |
 |---|---|
-| `src/autonomous_trading/contracts/execution.py` | `CancelRequest`, `ModifyRequest`, `ModifyChanges`, `CloseRequest`, `MarketOrder`, `LimitOrder`, `StopOrder`; their wire forms; `OwnedOrder`, `OwnedPosition` (ledger-derived ownership, beside the ledger's execution types) |
+| `src/autonomous_trading/contracts/execution.py` | `CancelRequest`, `ModifyRequest`, `ModifyChanges`, `CloseRequest`, `MarketOrder`, `LimitOrder`, `StopOrder`, their wire forms; `OwnedOrder`, `OwnedPosition`, `ActionFacts` |
 | `src/autonomous_trading/contracts/evidence.py` | `ObservedOrder` gains the spec's `price` and `trigger_price` (keyword, default `None`) |
-| `src/autonomous_trading/kernel/ports.py` | `HoldingsPort`; `AdmissionPorts.holdings` |
-| `src/autonomous_trading/kernel/admission.py` | `ActionAdmission`; `action_admitted_decision`; B2 as `effect_check` |
-| `src/autonomous_trading/kernel/coordinator.py` | `Coordinator.admit_action(request, *, auth=None) -> Outcome` |
-| `src/autonomous_trading/kernel/ledger/store.py`, `projections.py` | The entry-only fields of `COMMAND_ADMITTED` are null for other verbs; no reservation row without a `reservation_id` |
-| `src/autonomous_trading/resources/events.schema.json` | `COMMAND_ADMITTED`: entry-only fields nullable; adds `effect` |
+| `src/autonomous_trading/kernel/ports.py` | `HoldingsPort`; `SafetyPort.check(facts, auth)` and `ConflictPort.check(facts)` replace the step-1 signatures; `AdmissionPorts.holdings` (last field, no default) |
+| `src/autonomous_trading/kernel/admission.py` | `ActionAdmission`; `effect_check`; `action_facts`; `action_admitted_decision`; the `prot:` rule (`prot_key_check`) at A1 of both doors; `refused_decision` takes the verb from `wire(request)["verb"]`; `admitted_decision` adds `"effect": None` and `"underlying"` |
+| `src/autonomous_trading/kernel/coordinator.py` | `Coordinator.action_admission = None`; `admit_action(request, *, auth=None) -> Outcome`, raising `RuntimeError` when not composed, as `admit_entry` |
+| `src/autonomous_trading/bootstrap.py` | Sets `coordinator.action_admission = ActionAdmission(coordinator, ports=admission, settings=settings)` beside `EntryAdmission` |
+| `src/autonomous_trading/kernel/ledger/store.py`, `projections.py` | The `COMMAND_ADMITTED` shape check (below) in `_inside` step 4, after `validate_payload`, raising `PayloadInvalid` (`LED-R06`); the fold writes a reservation only when `reservation_id` is not `null` |
+| `src/autonomous_trading/resources/events.schema.json` | `COMMAND_ADMITTED`: the entry-only fields nullable (the validator accepts a type list, `envelope.py:94-97`); adds `effect` (`["object","null"]`) and `underlying` (`string`) |
 | `src/autonomous_trading/settings/schema.py`, `loader.py`, `resources/defaults.yaml` | `dispatch.deadline_ms_cancel`, `_modify`, `_close` (refusing) |
-| `tests/conftest.py` | `FixtureHoldings`; owned-order and owned-position builders |
-| `tests/unit/test_admission_checks.py` | The action rows of PRF-ADM-04, CUJ-ADM-2, CUJ-ADM-4 (a section after the entry rows) |
-| `tests/contracts/test_capabilities.py` | The step 1 capability test also covers `admit_action` |
+| `tests/conftest.py` | `FixtureHoldings`; `make_observed_order(**changes)`, `make_owned_order`, `make_owned_position`; the action fixture issues a second grant `g-act` (`cancel`, `modify`, `close`) |
+| `tests/unit/test_admission_checks.py` | The action rows of PRF-ADM-04, CUJ-ADM-2, CUJ-ADM-4 (a section after the entry rows); the entry door's `prot:` refusal |
+| `tests/unit/test_policy_parameters.py` | The three new settings; `AdmissionPorts` built with `holdings` |
+| `tests/contracts/test_capabilities.py` | `"ActionAdmission(": {"bootstrap.py"}` and `".action_admission.admit": {"kernel/coordinator.py"}` join `_BUILDERS` |
 
 ### Contracts
 
@@ -227,99 +229,128 @@ ModifyChanges(trigger_price | None, limit_price | None, quantity | None)
 CloseRequest(command_key, principal, account, position_id, quantity: int, order: MarketOrder | LimitOrder | StopOrder)
 MarketOrder()    LimitOrder(price)    StopOrder(trigger, limit | None)
 OwnedOrder(broker_order_id, command_key, verb, leg_role, account, strategy, underlying, instrument,
-           side: BUY | SELL, position_id | None, protective: bool)
+           side: BUY | SELL, position_id, order_kind: market | limit | stop, managed_by_protection: bool)
 OwnedPosition(position_id, entry_command_key, leg_role, account, strategy, underlying, instrument,
-              owned_quantity: int)                     # signed; the ledger `position` row's columns
+              owned_quantity: int)                     # signed
+ActionFacts(verb, principal, account, strategy, underlying, position_id | None, target_order_id | None,
+            order_kind | None, resting: bool, target_protective: bool, target_unfilled: bool | None,
+            owned_quantity: int | None, filled: int | None, new_total: int | None, sale_delta: int,
+            removes_stop: bool)
 HoldingsPort.order(account, broker_order_id) -> OwnedOrder | None
 HoldingsPort.position(account, position_id) -> OwnedPosition | None
+SafetyPort.check(facts: ActionFacts, auth) -> Refusal | None
+ConflictPort.check(facts: ActionFacts) -> Refusal | None
 ```
 
-* **Construction rules.** `ModifyChanges` needs at least one field; prices are canonical decimal strings above zero; `quantity` is an int above zero and is the new **total** order quantity (filled + remaining). `CloseRequest.quantity` is an int above zero. A violation raises `ValueError` at construction and never reaches admission.
+* **Construction rules.** `ModifyChanges` needs at least one field; its prices and `LimitOrder.price`, `StopOrder.trigger` and `StopOrder.limit` satisfy `is_money(v)` and are above zero; `quantity` is an int above zero and is the new **total** order quantity (filled + remaining). `CloseRequest.quantity` is an int above zero. A violation raises `ValueError` at construction and never reaches admission.
 * **Wire forms** (the request digest's input): `{"verb": "cancel", "command_key", "principal", "account", "broker_order_id"}`; modify adds `"changes": {"trigger_price", "limit_price", "quantity"}`; close is `{"verb": "close", …, "position_id", "quantity", "order": {"kind": "market"} | {"kind": "limit", "price"} | {"kind": "stop", "trigger", "limit"}}`.
-* **There is no side field.** The package admits long positions only, so every close and every protective order is a SELL; a request cannot name a side, so it cannot name the wrong one.
+* **There is no side field.** The package admits long positions only, so every close is a SELL; a request cannot name a side, so it cannot name the wrong one.
+* **Entries use `ActionFacts` too.** Step 1's ports change signature: the entry door passes `ActionFacts(verb="entry", principal, account, strategy, underlying, position_id=None, …, resting=False, target_protective=False, sale_delta=0, removes_stop=False)`, all other fields `None`. The fixture ports ignore the extra fields; SLICE-05 and SLICE-06 bind the real relation and matrix without changing admission (design review D-B1, D-B2).
 
-### Ownership in step 2
+### Ownership
 
-* `HoldingsPort` is a **fixture** (`FixtureHoldings`) in step 2: no close or protective order can reach the ledger before SLICE-05 dispatches it, and the `position` table arrives with `FILL` in SLICE-07. `OwnedPosition` carries exactly the ledger `position` row's columns that admission reads, so binding the real port in SLICE-05 (orders: `broker_identity` kind `order_id` joined to `command_identity` of the same account) and SLICE-07 (positions: the `position` row) changes no admission code.
+* **Where each field comes from** (the real port, bound in SLICE-05 for orders and SLICE-07 for positions; `FixtureHoldings` supplies the same fields in step 2, since no close or protective order reaches the ledger before SLICE-05 dispatches it):
+
+  | Field | Source |
+  |---|---|
+  | `OwnedOrder.command_key`, `leg_role`, `account` | `broker_identity` (kind `order_id`) joined to `command_identity` of the same account |
+  | `verb`, `strategy` | `command_identity` |
+  | `underlying` | the command's `COMMAND_ADMITTED.underlying` (an entry: its intent's; an action: its target's) |
+  | `instrument`, `side`, `order_kind` | an entry leg: `plan.legs` by role, BUY, `limit` if the leg has a limit price else `market`; a basket `stop` or `target` leg: `PlanRef.protective_legs` by role, SELL, `stop` or `limit`; a close: the position's instrument, SELL, `request.order.kind` |
+  | `position_id` | an entry leg or basket leg: digest(entry `command_key`, the **entry** leg's role) (ledger `position` rule); a close: `request.position_id`. Never null |
+  | `managed_by_protection` | the command key has the prefix `prot:` |
+  | `OwnedPosition.*` | the ledger `position` row; `underlying` from its entry's `COMMAND_ADMITTED.underlying`. Before the entry's first fill the port returns the same `position_id` with `owned_quantity` 0, as the protection spec's `PositionView` does |
+
 * **Owned** means the port returns a row for that account. A row of another account is not owned.
-* **Protective** (`OwnedOrder.protective`) is derived from the ledger, never from a broker flag: the order's command key has the prefix `prot:<position_id>:stop:` or `prot:<position_id>:target:` ([protection spec, Identity](../../design/protection-and-safety.md#protective-stop-and-tick-exits-kernelprotectionpy)), or the order is a basket's `stop` or `target` leg (`broker_identity.leg_role`) of an entry command. A **resting protective close** is a protective order whose fresh observation shows status `open`.
-* **The `prot:` prefix is reserved.** A request whose command key starts with `prot:` from any principal other than `kernel:protection` is `ADM-R01` (A1, recorded). Without this, a caller could make its own close look protective.
+* **Protective** is one predicate, `is_protective(order)`: an owned **SELL** whose `order_kind` is `stop` or `limit`, created by a close (from any principal) or as a basket `stop` or `target` leg. It is never a broker flag. B2, the facts given to the conflict relation, and from SLICE-05 capacity's `protective_order_ids` all use it (design review D-M2). For every order legacy could place (its protective legs and trail stops) it gives the same set as legacy's `protective_order_ids`; until SLICE-05 no such order exists, so capacity's set stays empty, as built. A **resting protective order** is a protective order whose fresh observation shows status `open`.
+* **The `prot:` key rule** (`prot_key_check`, A1 of **both** doors, `ADM-R01` recorded): a command key starting `prot:` is admitted only when `request.principal == Principal("kernel:protection", "kernel")` (A2 then also requires `auth.principal == request.principal`, in stage A and in the stage-B repeat), the verb is not `entry`, and the key `prot:<position_id>:<role>:<n>` matches the request: a close's `position_id` equals the key's, and role `stop` goes with `StopOrder`, `target` with `LimitOrder`, `close` with `MarketOrder`; a cancel's or modify's target order has that `position_id`, and its `leg_role` or its command's key role equals the key's role. Otherwise a caller could make its order look like a protection leg and corrupt the leg state protection reads by key prefix (design review D-M1, D-M3).
 
 ### `Coordinator.admit_action(request, *, auth=None) -> Outcome`
 
-One front door for the three verbs; `admit_entry` stays the entry door. Each check stops at its first failure; every refusal is recorded `ADMISSION_REFUSED` with `inputs.check` except `LED-R01`, `LED-R02` and `ADM-R12`.
+One front door for the three verbs; `admit_entry` stays the entry door. Each check stops at its first failure; every refusal is recorded `ADMISSION_REFUSED` (`verb` from the request's wire form, `inputs.check`, and for B2 `inputs.reason`) except `LED-R01` and `LED-R02`.
 
 | # | Check | Refusal |
 |---|---|---|
-| A0 | Busy, only when `coordinator.busy_applies_to` is `all` (the first release binds `entries_only`, so actions never wait: Q-004) | `ADM-R12` (not recorded) |
-| A1 | Key present; the `prot:` rule | `LED-R01`; `ADM-R01` |
+| A1 | Key present; `prot_key_check` | `LED-R01`; `ADM-R01` |
 | A1a | Identity pre-check (SLICE-01) | `LED-R02` / existing outcome |
 | A2 | `authority.check(verb, auth, account)` | `SES-R01…R05`, `SES-R09` |
-| A4 | `safety.check(verb, auth, strategy)`, `strategy` = the target's owned strategy, or `None` when the target is not owned (B2 then refuses it) | its refusal |
-| B | Inside the `COMMAND_ADMITTED` transaction (`Decision.precheck`, as step 1): repeat A2 and A4 (records `B:A2`, `B:A4`), then B1–B5 | as above |
+| A4 | `safety.check(facts, auth)`, `facts = action_facts(...)` built from the latest observation read outside the transaction (a target that is not owned gives `strategy = None`; B2 then refuses it) | its refusal |
+| B | Inside the `COMMAND_ADMITTED` transaction (`Decision.precheck`, as step 1), in this order: B:A2, B1, B2, B:A4, B3, B5 | as above, `B:A2`, `B:A4` |
 | B1 | The account observation exists; orders, positions and funds each complete or `unknown`, age 0 … `reconciliation.max_observation_age_secs`. No view and no spot or chain limit | `ADM-R05` |
-| B2 | `effect_check` (below) | `ADM-R07` with a reason |
-| B3 | `conflicts.check(verb, account, underlying)`, `underlying` from the owned target | its refusal |
-| B4 | As A0 | `ADM-R12` (not recorded) |
+| B2 | `effect_check` (below) on the fresh observation | `ADM-R07`, reason in `inputs.reason` |
+| B:A4 | `safety.check(facts, auth)` with the facts B2 computed from the fresh observation; the kill exceptions (an owned unfilled order; a non-resting close) are judged here | its refusal |
+| B3 | `conflicts.check(facts)` | its refusal |
 | B5 | Only a modify that raises committed capital (below) | `ADM-R09` |
 
-There is no A3: an action needs no open session, so a close after the session's `CLOSED` is admitted (CUJ-ADM-4; the protection spec's session-close exits depend on it). There is no A5, planning or B6.
+* **No busy check for actions.** The first release binds `coordinator.busy_applies_to: entries_only` (Q-004), the only value the loader accepts, so actions never wait on the busy bound. If the owner ever binds `all`, the loader, `_busy` (given the verb) and a test arrive together (readiness review R-M1).
+* **No A3, A5, planning or B6.** An action needs no open session, so a close after the session's `CLOSED` is admitted (CUJ-ADM-4; the protection spec's session-close exits depend on it).
+* **Deviation (order of stage B):** the intent spec repeats A4 before B1. For actions B:A4 runs after B2, because the kill exceptions need the facts only the fresh observation gives (design review D-B2). Only which refusal code wins changes when two checks fail together.
 
 ### B2 effect (`effect_check`)
 
-Notation: `o` is the target's row in the fresh orders observation (by `broker_order_id`); `filled = o.filled_quantity`; `remaining = o.quantity − filled`. `owned(p)` is `min(p.owned_quantity, net)`, where `net` is the `net_quantity` of the position observation row for `p.instrument`. With no such row, `net` is 0 when the positions observation's coverage is `yes`, and unknown otherwise.
+```text
+effect_check(request, order: OwnedOrder | None, position: OwnedPosition | None, observation)
+    -> tuple[str | None, dict, dict]          # (refusal reason or None, resulting_exposure, effect)
+```
+
+A pure function, so each row is tested directly. `action_facts` reuses its intermediate values.
+
+Notation: `o` is the target's row in the fresh orders observation (by `broker_order_id`); `filled = o.filled_quantity`; `remaining = o.quantity − filled`. `net` is the `net_quantity` of the single position-observation row whose `instrument` is `p.instrument`: with no row, `net` is 0 when the positions observation's coverage is `yes` and unknown otherwise; with more than one row, unknown. `owned(p) = min(p.owned_quantity, net)`, unknown when `net` is.
 
 | Verb | Admitted only when | Reason on refusal |
 |---|---|---|
-| cancel | the order is owned; `o` exists with status `open` | `not_owned`, `not_open` |
-| modify | the order is owned; `o` exists with status `open`; `filled` is not `None` | `not_owned`, `not_open`, `filled_unknown` |
-| | `trigger_price` is set only on an order with `o.trigger_price` not `None` (legacy refuses a target moved as a stop, `execution_gateway/__init__.py:1356-1360` @445eb116); `limit_price` only on an order with `o.price` not `None` | `wrong_field` |
+| all orders | the order is owned; `o` exists; `o.instrument` and `o.side` equal the owned order's | `not_owned`, `not_open`, `identity_mismatch` |
+| cancel | `o.status` is `open` | `not_open` |
+| modify | `o.status` is `open`; when `changes.quantity` is set, `filled` is not `None` | `not_open`, `filled_unknown` |
+| | `trigger_price` is set only on a `stop` order, `limit_price` only on a `limit` order, or a `stop` order with a limit (legacy refuses a target moved as a stop, `src/runtime/execution_gateway/__init__.py:1356-1360` @445eb116) | `wrong_field` |
 | | `quantity` (new total) ≥ `filled` | `below_filled` |
-| | new remaining (`quantity − filled`) ≤ `remaining`; **except** a resting protective close, whose new remaining may reach `owned(p)` of its `position_id` and no more | `above_remaining`, `above_owned`, `broker_net_unknown` |
+| | new remaining (`quantity − filled`) ≤ `remaining`; **except** a resting protective order, whose new remaining may reach `owned(p)` of its `position_id` and no more | `above_remaining`, `above_owned`, `broker_net_unknown` |
 | close | the position is owned; `owned(p)` is known and above 0 | `not_owned`, `broker_net_unknown`, `not_open` |
 | | `quantity` ≤ `owned(p)` (market, limit or stop alike) | `above_owned` |
 
-* `ADM-R07`'s message is `effect_mismatch`; the reason goes in `inputs.reason`. CUJ-ADM-2 (sell 100 against an owned 50) is `above_owned`.
+* `ADM-R07`'s message is `effect_mismatch`. CUJ-ADM-2 (sell 100 against an owned 50) is `above_owned`.
 * Two closes against one position are each judged alone here; whether the second may run while the first is unresolved is conflict row 2, at B3 (SLICE-05).
-* **Resulting exposure** (REQ-ADM-009): `{instrument: owned(p) − quantity}` for a close; for a cancel or modify, `{instrument: owned(p)}` of the order's position, or `{}` when the order has no `position_id` (an entry order).
+* **Resulting exposure** (REQ-ADM-009): `{instrument: owned(p) − quantity}` for a close; `{instrument: owned(p)}` of the order's position for a cancel or modify, with `null` in place of the number when `owned(p)` is unknown.
+* **`ActionFacts`** from B2: `order_kind` (close: the request's order kind; cancel, modify: the target's); `resting` (a close with a `LimitOrder` or `StopOrder`; a modify of a resting order); `target_protective` (`is_protective`); `target_unfilled` (`filled == 0`, `None` when `filled` is `None`); `owned_quantity` = `owned(p)`; `filled`; `new_total` (modify); `sale_delta` (close: `quantity`; a modify of a SELL: `max(0, new remaining − remaining)`; otherwise 0); `removes_stop` (a cancel of a protective `stop`).
 
 ### B5 for a modify (Q-018 open)
 
-A modify raises committed capital only when its target is a non-protective **BUY** order (an entry leg) and `limit_price` rises above `o.price`; only an entry order can, since B2 forbids raising its quantity. The intent spec says such a modify is checked on the increase and the entry's reservation raised in the same commit, but legacy never modifies an entry order (its `modify` moves resting protective legs only, `execution_gateway/__init__.py:1292-1300` @445eb116), so there is no retained arithmetic for the increase in amount, margin and worst-case loss. That is a money rule, so it is the owner's: [Q-018](../../decisions/owner-questions.md#q-018). Until it is answered, B5 refuses such a modify with `ADM-R09`, reason `modify_increase_unbound`, like any refusing setting. No first-release entry can hit this: every one-leg entry is a MARKET order with no limit to raise ([protection spec, basket placement](../../design/protection-and-safety.md#basket-placement-basket_at_plan-kernelprotectionpy)).
+A modify raises committed capital only when its target is a non-protective **BUY** order (an entry leg) and `limit_price` rises above `o.price`; only an entry order can, since B2 forbids raising its quantity. The intent spec says such a modify is checked on the increase and the entry's reservation raised in the same commit, but legacy never modifies an entry order (its `modify` moves resting protective legs only, `src/runtime/execution_gateway/__init__.py:1292-1300` @445eb116), so there is no retained arithmetic for the increase. That is a money rule, so it is the owner's: [Q-018](../../decisions/owner-questions.md#q-018). Until it is answered, B5 refuses such a modify with `ADM-R09`, reason `modify_increase_unbound`, like any refusing setting. No first-release **one-leg** entry can hit this, since each is a MARKET order ([protection spec, basket placement](../../design/protection-and-safety.md#basket-placement-basket_at_plan-kernelprotectionpy)); structure legs may carry limits, so a structure entry could, and is refused.
 
 ### `COMMAND_ADMITTED` for an action
 
 | Field | Value |
 |---|---|
 | `verb`, `target` | the verb; the `broker_order_id` (cancel, modify) or `position_id` (close) |
-| `strategy` | the owned target's strategy |
+| `strategy`, `underlying` | the owned target's |
 | `request`, `request_digest`, `account` | as for an entry |
-| `plan_ref`, `plan_digest`, `plan`, `application`, `reservation_id`, `amount`, `margin`, `worst_case_loss`, `currency` | `null` (the schema allows `null` for these; the writer refuses `LED-R06` when `verb` is `entry` and any is `null`, or `verb` is not `entry` and any is set) |
+| `plan_ref`, `plan_digest`, `plan`, `application`, `reservation_id`, `amount`, `margin`, `worst_case_loss`, `currency` | `null` |
 | `dependencies` | `{dispatch_deadline: {origin, budget_ms: dispatch.deadline_ms_<verb>}, release_binding_id: null, grant_id, session_id: null}` |
 | `state_heads` | `{reservation_head, orders_observation, positions_observation, funds_observation}` (each observation's own digest), as step 1 |
 | `measured_ages` | `{observation_ms}` (the oldest of the three) |
 | `resulting_exposure` | as B2 |
-| `effect` (new, `null` for entries) | cancel `{remaining}`; modify `{before: {quantity, filled, price, trigger_price}, after: {quantity, price, trigger_price}, protective}`; close `{quantity, order (wire), owned_quantity, broker_net}` |
+| `effect` (`null` for entries) | cancel `{remaining}` (`null` when `filled` is `None`); modify `{before: {quantity, filled, price, trigger_price}, after: {quantity, price, trigger_price}, protective}`, an unchanged field copying its `before` value; close `{quantity, order (wire), owned_quantity: owned(p), broker_net: net}` |
 
-The fold writes `command_identity` (`verb`, `target`, `plan_digest` null, state `ADMITTED`) and no reservation row.
+* **Shape check** (writer, `_inside` step 4, after `validate_payload`; `LED-R06` on failure): `verb == "entry"` requires every entry-only field above and `effect is None`; any other verb requires every entry-only field `null`, `effect` an object and `target` set. `admitted_decision` writes `"effect": None`, which also covers `_submit_admitted`.
+* The fold writes `command_identity` (`verb`, `target`, `plan_digest` null, state `ADMITTED`) and no reservation row.
 
 ### The not-sent `Outcome`
 
-`admit_action` returns `Outcome(command_key, attempt_no=None, effect="not_sent", canonical="committed", compat_projection="none", broker_order_ids={}, domain=None, sent=False, refusal=None)`. `not_sent` with no attempt means "admitted, no attempt yet", the same reading `_existing_outcome` already gives an admitted command with no attempt, so the same request again returns that outcome with `canonical="unchanged"`. `Coordinator.recover` reads `CLAIMED` attempts only, so an admitted action stays `ADMITTED` across a restart until SLICE-05 dispatches it.
+`admit_action` returns `Outcome(command_key, attempt_no=None, effect="not_sent", canonical="committed", compat_projection="none", broker_order_ids={}, domain=None, sent=False, refusal=None)`: **admitted, awaiting dispatch**. The [ledger spec's `Outcome` table](../../design/ledger-and-atomic-transaction.md#execution-contract-types-contractsexecutionpy) gains this row (`attempt_no` `None`; resend: no, dispatch runs it), so a caller never reads it as the adapter's `not_sent` retry cue (design review D-M6). The same request again returns it with `canonical="unchanged"`, which is what `_existing_outcome` already gives an admitted command with no attempt. `Coordinator.recover` reads `CLAIMED` attempts only, so an admitted action stays `ADMITTED` across a restart until SLICE-05 dispatches it.
 
 ### Settings added
 
 | Setting | Type | Env (`test` profile) | Notes |
 |---|---|---|---|
-| `dispatch.deadline_ms_cancel`, `_modify`, `_close` | int > 0 | `AT_DEADLINE_MS_CANCEL`, `_MODIFY`, `_CLOSE` | Q-011: measured (TASK-S11-07); refusing, in `Settings.ADMISSION_REQUIRED` |
+| `dispatch.deadline_ms_cancel`, `_modify`, `_close` | int > 0 | `AT_DEADLINE_MS_CANCEL`, `_MODIFY`, `_CLOSE` | Q-011: measured (TASK-S11-07); refusing, in `Settings.ADMISSION_REQUIRED`. **Deviation (naming):** the dispatch spec writes `dispatch.deadline_ms.<verb>`; the loader keeps one flat key per verb under `dispatch`, as step 1 did for `deadline_ms_entry` |
 
 ### Step 2 tests (`tests/unit/test_admission_checks.py`, action section)
 
-* Each row: `LED-R01`; the `prot:` prefix from a human → `ADM-R01` (A1); A1a same request → existing outcome, other request → `LED-R02`; A2 → `SES-R01`; A4 and B3 fixture refusals recorded with their checks; B1 incomplete or old orders observation → `ADM-R05`; under `entries_only` a busy account still admits an action.
-* B2, one test per row of the table, each against a hand-worked observation: cancel of another account's order; modify below filled; a non-protective remaining increase; a resting stop raised to `owned(p)` admitted and one more refused; a trigger change on a target leg (`wrong_field`); a limit raise on an entry order → `ADM-R09` `modify_increase_unbound`; CUJ-ADM-2; a close capped by a smaller broker net; a close of an overclosed position; coverage `unknown` with no position row → `broker_net_unknown`.
-* CUJ-ADM-4: the session `CLOSED`, a market close of the owned quantity is admitted.
-* The `COMMAND_ADMITTED` fields above, no reservation row, the `Outcome` above, the same request again `unchanged`, and a reopen leaves the command `ADMITTED`.
-* Break checks (added to the file's docstring): cap a protective raise at `remaining` instead of `owned(p)`; accept a trigger change on a target; record `ADM-R12`; accept the `prot:` prefix from a human.
+* `LED-R01`; the `prot:` rule: a human's `prot:` key, a protection key naming another position, and a role that does not fit the order each `ADM-R01` (A1, recorded), and an entry with a `prot:` key `ADM-R01`; A1a same request → existing outcome, other request → `LED-R02`; A2 → `SES-R01`; A4, B:A4 and B3 fixture refusals recorded with their checks, and the facts each received; B1 with only the orders book incomplete or old (`dataclasses.replace(observation, orders=...)`) → `ADM-R05`; a busy account still admits an action.
+* `effect_check` directly, one test per row against a hand-worked observation: another account's order (`not_owned`); a filled order (`not_open`); an observed side that differs (`identity_mismatch`); modify below filled (`below_filled`); a quantity change with `filled` unknown (`filled_unknown`) while a trigger-only change with `filled` unknown is admitted; a non-protective remaining increase (`above_remaining`); a resting stop raised to `owned(p)` admitted and one more refused (`above_owned`); a trigger change on a target (`wrong_field`); CUJ-ADM-2 (`above_owned`); a close capped by a smaller broker net (`above_owned`); an overclosed position (`not_open`); coverage `unknown` with no position row, and two rows for one instrument (`broker_net_unknown`).
+* Through the door: a limit raise on an entry order → `ADM-R09` `modify_increase_unbound`; CUJ-ADM-4 (the clock past 10:00 UTC, `recovery.tick()`, `world.fresh()`; a market close of the owned quantity admitted).
+* The `COMMAND_ADMITTED` fields above, the shape check refusing an action with a `reservation_id` and an entry with an `effect`, no reservation row, the `Outcome` above, the same request again `unchanged`, and a reopen leaves the command `ADMITTED`.
+* Break checks (added to the file's docstring): cap a protective raise at `remaining` instead of `owned(p)`; accept a trigger change on a target; accept a `prot:` key from a human; apply the busy bound to an action under `entries_only`; build `ActionAdmission` in `operations/verification.py` (the capability test).
 
 ## Step 3 — the planning port (deepened before build)
 

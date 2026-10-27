@@ -170,3 +170,27 @@ The new [SLICE-04 slice file](../../plan/slices/SLICE-04-intent-to-admission.md)
 | R-M7, R-M9, R-M10 | Major | Wire forms and test publishing; refusal records; evidence contract versions | FIX: the built contracts win; stage-B repeats recorded as `B:A2…B:A5` |
 | D-1 | Nit | `REVIEW_DEADLINE_PASSED` missing from the ledger catalogue | FIX: added to the ledger spec's event catalogue |
 | N | Nit | Proof list; T-25; naming; F-A7 wording; lineage equality | FIX: T-25 registered; lineage is exact equality; others in the slice text |
+
+## SLICE-04 step 2 review (2026-10-27)
+
+After step 1 was built (OA_NEW `2ed1c39`), [step 2](../../plan/slices/SLICE-04-intent-to-admission.md#step-2--cancel-modify-and-close-admission) was deepened and reviewed by fresh `egm:egm-design` and `egm:egm-implementation-readiness` reviewers (read-only) against the intent, ledger, protection, dispatch and execution-domain specs and the built code. Design: 2 Blocker, 6 Major, 5 Nit. Readiness: 0 Blocker, 7 Major, 6 Nit. The design reviewer could not run `git show`, so its note that the legacy citations were unverified was checked by hand: `execution_gateway/__init__.py:1292-1300` (modify moves resting protective legs only) and `:1356-1360` (a target cannot be moved as a stop) at `445eb116` say what the slice cites. All findings are resolved by FIX in the slice file; Q-018 stays the owner's.
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| D-B1 | Blocker | `conflicts.check(verb, account, underlying)` cannot express conflict rows 2, 3, 5 | FIX: `ConflictPort.check(facts: ActionFacts)`; entries pass `ActionFacts` too |
+| D-B2 | Blocker | `safety.check(verb, auth, strategy)` cannot judge the kill exceptions; stage A has no observation | FIX: `SafetyPort.check(facts, auth)`; facts from the latest observation at A4, from the fresh one at B:A4, after B2 (deviation named) |
+| D-M1 | Major | `prot:` rule only in the action door; an entry could look protective | FIX: `prot_key_check` at A1 of both doors; protective = SELL of a close or basket leg |
+| D-M2 | Major | Two protective definitions (B2 vs capacity) | FIX: one `is_protective`; `managed_by_protection` separate; equals legacy's set on every legacy-reachable order |
+| D-M3 | Major | A `prot:` key need not match the request | FIX: position and role must match, else `ADM-R01` |
+| D-M4 | Major | Ownership field sources wrong; `position_id` null for entry orders | FIX: a source table; `underlying` added to `COMMAND_ADMITTED`; `position_id` never null; q = 0 before the first fill |
+| D-M5 | Major | Instrument is not a unique position key | FIX: more than one row → `net` unknown → `broker_net_unknown` |
+| D-M6 | Major | "Admitted, no attempt" read as the adapter's `not_sent` | FIX: a new row in the ledger spec's `Outcome` table (resend: no) |
+| D-N1…N5 | Nit | Deadline key naming; `filled` needed only for quantity; principal on the `prot:` rule; exposure when unknown and identity mismatch; Q-018 scope and I-6 | FIX: naming deviation marked; `filled_unknown` only with `quantity`; principal equality plus A2; `null` exposure, `identity_mismatch`; Q-018 narrowed to one-leg entries, option B names `reservation_after` and I-6 |
+| R-M1 | Major | Actions' busy check could never fire; its break check could not fail | FIX: no busy check for actions under `entries_only`; the break check now applies busy to an action |
+| R-M2 | Major | Bootstrap wiring and `action_admission` missing | FIX: in the file list, as `entry_admission` |
+| R-M3 | Major | `ADMISSION_REFUSED.verb` hard-coded `entry` | FIX: from `wire(request)["verb"]` |
+| R-M4 | Major | Exposure and `effect` gaps | FIX: `null` exposure when unknown; `remaining: null`; unchanged fields copy `before`; `owned(p)` and `broker_net` |
+| R-M5 | Major | `effect_check` had no signature | FIX: a pure function returning (reason, exposure, effect) |
+| R-M6 | Major | The test grant covers `entry` only | FIX: a second grant `g-act` in the action fixture |
+| R-M7 | Major | Capability rule unnamed | FIX: two `_BUILDERS` needles |
+| R-N1…N6 | Nit | `holdings` field order; shape check placement; money format; duplicate rows; reason names and builders; principal equality | FIX: in the slice text |

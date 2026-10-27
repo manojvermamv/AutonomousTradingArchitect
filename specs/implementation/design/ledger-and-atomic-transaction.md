@@ -384,6 +384,7 @@ A request never carries a review result or a plan. `kernel.policy` and `kernel.p
 | Refused and not recorded (`LED-R01`, `LED-R02`, `ADM-R12`) | `refused` | `unchanged` | `False` | No |
 | `ADM-R15` (`review_pending`); only `INTENT_SEEN` may be written | `refused` | `unchanged` | `False` | Yes, the same request and key, until the review deadline |
 | Admission commit failed (persistence unknown) | `refused` | `commit_failed` | `False` | No; after restart the caller retries with the **same** key, which returns `Existing` if the commit persisted, and never resubmits under a new key |
+| Admitted, awaiting dispatch (an action before SLICE-05 dispatches it); `attempt_no` is `None` | `not_sent` | `committed` | `False` | No; dispatch runs it ([SLICE-04 step 2](../plan/slices/SLICE-04-intent-to-admission.md#the-not-sent-outcome)) |
 | Adapter returned `not_sent`; outcome committed | `not_sent` | `committed` | `False` | Only through the normal loop after fresh revalidation |
 | Adapter returned another class; outcome committed | that class | `committed` | `True` | No |
 | Adapter returned a result; outcome commit failed | the adapter's class, with its broker IDs | `commit_failed` | `True` unless the class is `not_sent` | No; recovery rebuilds the outcome from published evidence |

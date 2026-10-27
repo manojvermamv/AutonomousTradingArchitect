@@ -335,10 +335,10 @@ Owner: kernel.admission (B5 for a modify), kernel.reservations.
 Proof: TASK-S04-02 tests the chosen arithmetic against hand calculations; until then B5 refuses (ADM-R09, modify_increase_unbound).
 ```
 
-**Why it matters.** The spec requires the check but no source gives its arithmetic: legacy never modifies an entry order (its `modify` moves resting protective legs only, `src/runtime/execution_gateway/__init__.py:1292-1300` @445eb116), and the retained capacity rule has no modify path (`reservations.py` @445eb116). The increase in amount, margin and worst-case loss is a money rule. No first-release entry reaches it, because every one-leg entry is a MARKET order with no limit, so the step 2 build refuses such a modify until this is answered.
+**Why it matters.** The spec requires the check but no source gives its arithmetic: legacy never modifies an entry order (its `modify` moves resting protective legs only, `src/runtime/execution_gateway/__init__.py:1292-1300` @445eb116), and the retained capacity rule has no modify path (`reservations.py` @445eb116). The increase in amount, margin and worst-case loss is a money rule. No first-release one-leg entry reaches it, because each is a MARKET order with no limit; a structure entry's legs may carry limits. The step 2 build refuses such a modify until this is answered.
 
 **Options.**
 
 - **A — Recommended:** Refuse it in the first release (legacy parity): a modify may not raise an entry order's limit (`ADM-R07`, `wrong_field`). Revisit when a strategy places limit entries.
-- **B:** Admit it on the increase, with Δamount = (new limit − current limit) × remaining quantity, and margin and worst-case loss raised by the same Δ (the most a long option can add), the entry's reservation raised by Δ in the same commit.
+- **B:** Admit it on the increase, with Δamount = (new limit − current limit) × remaining quantity, and margin and worst-case loss raised by the same Δ (the most a long option can add), the entry's reservation raised by Δ in the same commit through a `reservation_after` on the modify's `COMMAND_ADMITTED`, and ledger invariant I-6 extended so a raise counts toward the admitted amount.
 - **C:** A free-text answer.
