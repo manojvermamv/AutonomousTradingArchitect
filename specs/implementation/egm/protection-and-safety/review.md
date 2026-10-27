@@ -153,3 +153,30 @@ After the owner's answers, the new basket section was reviewed by fresh `egm:egm
 | B-12 | Major | IDs left unassigned by the join had no later role assignment | FIX: `LEG_ASSIGNED` by reconciliation; protection waits and escalates `protective_roles_unassigned` |
 | B-13 | Major | Missing stop, `LegResult` count, entry completion with protective legs, transient-refusal retry, sibling-timeout clock | FIX: `no_stop_planned`; results per `legs` then `protective_legs`; completion on `PlanRef.legs` only (never-reached counts terminal); transient refusals retried; clock from `OUTCOME_AMBIGUOUS` event time |
 | B-N | Nit | Row 5 exemption dead; leg field sources; human replacement stop; join price normalization | FIX |
+
+## Post-answer review, round 3 — `basket_at_plan` (2026-10-27)
+
+The rewritten basket section was reviewed again by fresh `egm:egm-design` and `egm:egm-implementation-readiness` reviewers (direct dispatch, read-only). Across the basket section and the routine-restart checks, readiness reported 3 Blocker, 23 Major and 10 Nit, and design 2 Blocker, 14 Major and 8 Nit; the basket findings are merged below. Resolved by FIX, except one Q.
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| C-1 | Blocker | A leg could submit a second request while its first was unresolved (`ORPHANED` outranked `PENDING`); a `NOT_SENT` request had no identical retry | FIX: one request at a time per leg; `PENDING` above `ORPHANED` in both state tables; a `NOT_SENT` request is resubmitted identically under its key |
+| C-2 | Blocker | A second overclose or failure while held collided with the hold guard; escalation once per subject and reason could never recur | FIX: distinct hold reasons `overclose`, `sibling_failed`; `HOLD_ENGAGED` only when the reason is not engaged, escalation recorded either way; escalation keyed by subject, reason and episode (`episode` on `RECONCILIATION_ESCALATED`); `HOLD_RELEASED` payload and `safety.release_hold` defined; F-P24 |
+| C-3 | Blocker | Conflict row 2 blocked the one-cancels-other or orphan cancel behind an unresolved modify forever; `PRT-R10` transient forever | FIX: row 2 exempts a cancel when `q` ≤ 0, a modify to fills plus `q`, and a human principal's cancel; transient refusals become hold-bearing after `reconciliation.working_escalation_secs` |
+| C-4 | Blocker | A cloned host passed the routine checks | FIX in the sessions spec (send lease, round 3 there) |
+| C-5 | Major | Failure classes incomplete (`ADM-R07` on a terminal target, `PRT-R01`, `PRT-R04`, long `WORKING`) | FIX: one classification table for every outcome |
+| C-6 | Major | A position closed by square-off, a human or a foreign trade dropped out of protection with a SELL still resting | FIX: protected subjects include any position with a protective order not observed terminal; F-P25 |
+| C-7 | Major | Entries may be admitted while that residual SELL rests | Q-017 raised (an entry gate is the owner's); row 1 unchanged meanwhile |
+| C-8 | Major | Exit sequence fought the quantity rule and could close a zero or negative `q` | FIX: quantity rule suspended while `EXIT_STARTED` is open; close only if `q` > 0; `EXIT_STARTED` closes when `q` ≤ 0 and every leg is `ENDED` |
+| C-9 | Major | B2 and dispatch row 6 judged a modify by remaining quantity while `ModifyChanges.quantity` is a total | FIX: both restated in total terms (total ≥ filled; total − filled within the owned position) |
+| C-10 | Major | A protective leg unresolved at entry completion could never be resolved | FIX: per-leg `RESOLVED_*` from `COMPLETED` (ledger state table) |
+| C-11 | Major | Role wait blocked on legs never reached; fills on unassigned IDs had no rule; replacement IDs lost the leg | FIX: the wait covers legs with an order ID; fills wait for `LEG_ASSIGNED`; a replacement ID inherits command key and `leg_role`; a leg's live order defined |
+| C-12 | Major | `PositionView` had no order observation; staleness undefined | FIX: `observed` per leg from the latest fresh complete orderbook (60 s, POL-021); stale reads `PENDING` |
+| C-13 | Major | Order quantity after a modify, and basket `desired_quantity`, undefined | FIX: order quantity is the latest observed modify quantity, else the placement's; basket `desired_quantity` is the stop's desired order quantity |
+| C-14 | Major | `excess_quantity` not in the payload | FIX: field on `RECONCILIATION_ESCALATED` (execution-domain spec) |
+| C-15 | Major | F-P21 merged a basket reject with a never-reached leg | FIX: reject gives `stop_rejected`; never reached or transport-rejected gives `unprotected` |
+| C-16 | Major | Kill path named both `PRT-R01` refusal and no submission | FIX: protection submits nothing; one reason `orphan_under_kill` |
+| C-17 | Major | `attempt_resolve` had no entry point | FIX: `lifecycle.resolve_attempt(principal, command_key, attempt_no, legs, observation_digest)` |
+| C-18 | Major | Proofs missed the new cases | FIX: PRF-PRT-01 and PRF-PRT-03 extended |
+| C-19…C-25 | Major | Hold-bearing `HELD_BACK` state; `PRT-R04` path under `refused`; `HOLD_ENGAGED` actor for protection; sibling clock from event time; legacy citations for retry and hold; CP-B4 wording; CP-B6 re-derivation | FIX |
+| C-N | Nit | `ADM-R13` reason `limit_entry_in_basket`; protective legs outside `plan_digest`; `trigger_with_limit` offset unit; `LegResult` count wording; F-P16, PRF-PRT-01 "only a missing stop escalates"; table order; anchors | FIX |

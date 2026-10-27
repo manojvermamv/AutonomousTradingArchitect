@@ -243,7 +243,7 @@ Each stage stops at its first failed check. Every refusal of every verb is recor
 * Cancel, modify and close run A0–A2 and A4, then go to stage B; they have no review or planning.
 * An A5 refusal is committed on the writer thread. Pauses start only in the `REVIEW_RECORDED` transaction, never with a refusal, and a PAUSE during an active pause starts nothing, so two PAUSE reviews never start two pauses.
 
-**Planning** (entries only). A `PlanRefusal` is recorded as `ADM-R13` (`plan_refused`) with its stage and reason; a planner exception is stage `internal`. Under `protection.placement: basket_at_plan`, a one-leg plan with a limit price is refused with stage `placement` ([protection spec](protection-and-safety.md#basket-placement-basket_at_plan-kernelprotectionpy)), and `kernel.protection.basket_legs` adds the protective legs to the `PlanRef` before stage B.
+**Planning** (entries only). A `PlanRefusal` is recorded as `ADM-R13` (`plan_refused`) with its stage and reason; a planner exception is stage `internal`. Under `protection.placement: basket_at_plan`, admission refuses a one-leg plan with a limit price with stage `placement` and reason `limit_entry_in_basket` ([protection spec](protection-and-safety.md#basket-placement-basket_at_plan-kernelprotectionpy)), and `kernel.protection.basket_legs` adds the protective legs to the `PlanRef` before stage B.
 
 #### Stage B (serialized admission, on the writer thread)
 
@@ -275,7 +275,7 @@ Stage B first repeats A2, A3, A4 and the pause read, since a grant, session, saf
 
 * **Owned** positions are the ledger's `position` rows ([ledger](ledger-and-atomic-transaction.md#schema-and-migrations)), one per entry leg; owned orders are tied to the account's commands by verified identity ([execution-domain](execution-domain-and-observations.md#reconciliation-kernelreconciliationpy)).
 * **Cancel:** the target order is owned and open in the fresh observation.
-* **Modify:** the target is owned and open; `changes` uses only the `ModifyChanges` fields; a new quantity is not above the order's unfilled quantity, except that a resting protective close may be raised up to the owned position.
+* **Modify:** the target is owned and open; `changes` uses only the `ModifyChanges` fields. `changes.quantity` is the new **total** order quantity: it may not be below the order's filled quantity, and the new remaining quantity (total − filled) may not exceed the order's current remaining quantity, except that a resting protective close may be raised so its remaining quantity reaches the owned position.
 * **Close:** a non-resting close's quantity is not above the owned position (the smaller of the ledger's owned quantity and the broker's net quantity); the side reduces the position (SELL for a long-only buyer). A resting protective close is not above the owned position. Whether the stop must end first is conflict row 3, checked at B3, not here.
 * The resulting exposure (REQ-ADM-009) is recorded in the admission.
 

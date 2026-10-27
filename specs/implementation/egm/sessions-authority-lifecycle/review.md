@@ -120,3 +120,21 @@ Reviewed by fresh `egm:egm-design` and `egm:egm-implementation-readiness` review
 | R-7 | Major | Source of the standing authorization undefined | FIX: deployment configuration recorded with the release binding; `release_binding_digest` on the record; `kernel:recovery` built-in capability |
 | R-8 | Major | Stage table and PRF-SES-05 still required a human | FIX: both updated; PRF-SES-05 runs under `human`; PRF-SES-10 has one case per check |
 | R-N | Nit | Gap wording; field-list alignment; `activate_epoch` seam | FIX |
+
+## Post-answer review, round 3 — routine restart (2026-10-27)
+
+The routine-restart checks were reviewed again by fresh `egm:egm-design` and `egm:egm-implementation-readiness` reviewers. The routine-restart findings of that pass are merged below (readiness's anchor-store Blocker and design's clone Blocker share one root). All resolved by FIX.
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| S-1 | Blocker | A cloned or rolled-back ledger passed the anchor check; the anchor store was unspecified | FIX: the anchor, account-lock, exit-marker and inode design is replaced by one off-host **send lease** per account, stored with the recovery set (`LeaseStore.read`/`cas`); a send needs the lease; `SES-R10` (`lease_held`); renewal writes the head; a lost cas exits |
+| S-2 | Major | The host-change gap was not atomic with activation | FIX: `host_id` is recorded on `EPOCH_ACTIVATED`; a host change is derived from consecutive epochs; `RECOVERY_GAP` is restore-only |
+| S-3 | Major | `host_id` source unspecified on Windows; tests could not replace it | FIX: `runtime.host_identity()` (SLICE-01; `/etc/machine-id`, `MachineGuid`, else `unknown:<random>`), replaceable in tests; `test_host_identity` |
+| S-4 | Major | Fence evidence had no entry point or payload | FIX: `recovery.record_fence(principal, FenceEvidence(...))`; `OLD_HOST_FENCED` payload is its fields |
+| S-5 | Major | Release-binding change not detectable | FIX: `RELEASE_BOUND` recorded in the activation transaction when the receipt differs; check 5 compares receipt digests |
+| S-6 | Major | Routine evaluation after each commit could advance mid-recovery | FIX: evaluated once, after step 6 |
+| S-7 | Major | Abnormal exit was unobservable | FIX: the lease's `released` field (`clean`, `abnormal`, unreleased and expired) is check 6 |
+| S-8 | Major | Crash-loop limit window undefined | FIX: check 8 counts routine advances in the 24 h before `effective_now` |
+| S-9 | Major | Lease timing and store location were unbound | FIX: `recovery.lease_secs`, `recovery.lease_renew_secs` (measured) and the store location in the register; adapter at TASK-S11-05; SLICE-03 uses a fake |
+| S-10 | Major | Proofs did not cover the clone or the lease | FIX: PRF-SES-05 (`SES-R10`, lost cas exits); PRF-SES-10 one case per check plus the clone |
+| S-N | Nit | Actions-per-stage row; risks rows; CUJ-SES-1 wording; `kernel:recovery` built-ins; `kernel.lock_dir` removed; neighbour references | FIX |

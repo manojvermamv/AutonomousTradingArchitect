@@ -20,6 +20,7 @@ Status: **open owner decision** unless a row says answered. Each question is a g
 | [Q-014](#q-014) | May delegated human principals, not only the authenticated owner, use the kill exceptions (cancel, close), `kill_release`, `latch_unlock` and `pause_clear`? | POL-002, POL-004, POL-027; `README.md:1343` | TASK-S03-01, TASK-S05-07, TASK-S06-04 | answered 2026-10-27 ([answers](owner-answers-2026-10-27.md)) |
 | [Q-015](#q-015) | Value of `account.max_worst_case_loss` for the first account | `README.md:776`; [intent spec](../design/intent-to-admission.md#b5-capacity) | TASK-S04-03 (binding a production value) | answered 2026-10-27 ([answers](owner-answers-2026-10-27.md)) |
 | [Q-016](#q-016) | Response to foreign (manual or outside) broker activity: record only, escalate, or hold entries for the affected account or underlying? | `README.md:1347` (foreign exposure response); POL-009; [execution-domain spec](../design/execution-domain-and-observations.md#reconciliation-kernelreconciliationpy) | TASK-S07-02 | answered 2026-10-27 ([answers](owner-answers-2026-10-27.md)) |
+| [Q-017](#q-017) | May a new entry be admitted while a closed position's protective order still rests on the same underlying? | POL-007; [protection spec](../design/protection-and-safety.md#conflict-relation-kernelsafetypy) | TASK-S05-03, TASK-S06-01 | open |
 
 ---
 
@@ -304,3 +305,21 @@ Proof: PRF-DOM-02 runs each value against a foreign order observed on a bound ac
 - **B:** `record_only`.
 - **C:** `hold_entries`: also engage a hold (reason `foreign_activity`) for the strategies on the affected account and underlying until a human releases it.
 - **D:** A free-text answer.
+
+## Q-017
+
+**Entry while a closed position's protective order still rests.**
+
+```text
+Requirement: Conflict row 1 states whether a resting protective order of a closed position blocks a new entry on the same account and underlying.
+Owner: kernel.safety (conflict relation row 1), applied by kernel.admission check B3.
+Proof: PRF-PRT-04 runs the chosen row against a closed position whose stop still rests.
+```
+
+**Why it matters.** Under `basket_at_plan` a position can reach `closed` (a square-off, a human close, a foreign trade, or the other leg's fill) while one protective SELL order still rests until its cancel lands. Row 1 today blocks an entry only while a position is open or an entry is unresolved (POL-007, `buyer_edge.py:687`), so a new entry on the same underlying can be admitted while that SELL rests. If the new entry is the same instrument, the old SELL can fill against it. The protection spec keeps such a position a protected subject and cancels the order either way; the question is only whether entries wait for that. Changing it changes an entry gate, so it is the owner's (found by the third EGM design review of the basket section).
+
+**Options.**
+
+- **A — Recommended:** Row 1 also blocks an entry while any position on the same account and underlying has a protective order not observed terminal.
+- **B:** Row 1 unchanged (POL-007 as written); the residual SELL is cancelled by protection without blocking entries.
+- **C:** A free-text answer.

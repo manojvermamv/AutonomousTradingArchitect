@@ -26,7 +26,7 @@ SLICE-01 → 02 → 03 → 04 → 05 → 07 → 06, then 08 and 09 (in that orde
 |---|---|---|---|---|---|---|
 | [SLICE-01](slices/SLICE-01-disarmed-financial-core.md) disarmed financial core | 1 (+2 minimal) | S | D01, D02, D13, D14, AUD-02, Combined-F1 (types), ATA-06 (`simulated`); the SQLite safe-version rule; REQ-XC-002, REQ-XC-003 | none | none | REQ-DOM-002 (`simulated`); PRF-LED-01, PRF-LED-02, PRF-LED-03 (SLICE-01 part), PRF-LED-04, PRF-LED-05 (SLICE-01 part), PRF-LED-07, PRF-LED-12 (SLICE-01 rows), PRF-LED-13, PRF-DSP-02, PRF-DSP-12 (script part), PRF-ADM-05 (SLICE-01 part), PRF-SES-04 (types), PRF-XC-02 (SLICE-01 part), PRF-XC-03 (SLICE-01 part) |
 | SLICE-02 ledger integrity, evidence store and independent reads | 1 | S | D04, A03-F4 reader side, Combined-F2 | SLICE-01 | X-007 | PRF-LED-08, PRF-LED-09, PRF-LED-10, PRF-LED-14, PRF-LED-15, PRF-DOM-05; PRF-LED-05 and PRF-LED-12 (evidence-store parts); reader-impact measurement recorded |
-| SLICE-03 sessions, authority, clocks, recovery stages | 1 | S | ATA-05, Combined-F1, A04-F1/F2 (local), A06-F1 kernel side, Combined-F4 kernel side | SLICE-01, SLICE-02 (TASK-S02-01) | Q-001 (holds at session close only), Q-009 (operating procedure only), Q-010, Q-014, X-005 | PRF-SES-01…06, PRF-SES-08…10 |
+| SLICE-03 sessions, authority, clocks, recovery stages | 1 | S | ATA-05, Combined-F1, A04-F1/F2 (local), A06-F1 kernel side, Combined-F4 kernel side | SLICE-01, SLICE-02 (TASK-S02-01) | Q-001 (holds at session close only), Q-009 (routine path built and proved with a fake lease store; usable in production from SLICE-11), Q-010, Q-014, X-005 | PRF-SES-01…06, PRF-SES-08…10 |
 | SLICE-04 intent to admission | 1/3 | S | D07, D12, AUD-01, AUD-03, POL-007, POL-015, POL-018, POL-020…POL-023, POL-027 | SLICE-01, SLICE-03; later inputs as the fixture ports in the [intent spec's Delivery](../design/intent-to-admission.md#delivery) | Q-003 (stamp field only), Q-008, Q-010, Q-011, Q-015 | PRF-ADM-01…06, PRF-ADM-08; PRF-LED-03 (stage B twin) |
 | SLICE-05 dispatch, conflicts and scheduling | 1 | S | D13 revalidation, A03-F1/F2/F3, ATA-04; kill and hold events (POL-002, POL-003) | SLICE-04 | Q-001, Q-004, Q-011, Q-014 | PRF-DSP-01, PRF-DSP-03…08, PRF-DSP-10, PRF-DSP-11, PRF-LED-16, PRF-PRT-04 (kill and hold rows), PRF-PRT-11 |
 | SLICE-07 observations, reconciliation, domain, OpenAlgo adapter | 1/3 | S → R | D15, D16, ATA-06, A06-F2 decision | SLICE-05 | Q-006, Q-007, Q-008, Q-012, Q-016 | PRF-DOM-01…04, PRF-DOM-08, PRF-DOM-09, PRF-DSP-09, PRF-ADM-09, PRF-LED-11, PRF-LED-12 (redelivered fill); PRF-DOM-07 and PRF-DOM-10 on authorization |
@@ -55,7 +55,7 @@ Task IDs are stable. SLICE-01 tasks are its file rows. Tasks of a stub slice are
 | TASK-S03-01 | 03 | Grant model and checks at admission and dispatch; the kill exceptions and unlocks for the owner and delegated grant holders (Q-014); the `attempt_resolve` action (Q-007) | PRF-SES-01, PRF-SES-02 |
 | TASK-S03-02 | 03 | Financial session transitions | PRF-SES-03 |
 | TASK-S03-03 | 03 | Clock contract, deadlines and clock-quality events | PRF-SES-04 |
-| TASK-S03-04 | 03 | Exclusive writer, epoch activation and recovery stages; the routine-restart advance (`recovery.routine_advance`, Q-009) | PRF-SES-05, PRF-SES-10 |
+| TASK-S03-04 | 03 | Exclusive writer, epoch activation and recovery stages; the fence rule; the routine-restart advance (`recovery.routine_advance`, Q-009); the send lease against a fake store; the operator entry points | PRF-SES-05, PRF-SES-10 |
 | TASK-S03-05 | 03 | Restored-authorization continuity | PRF-SES-06 |
 | TASK-S03-06 | 03 | Standing bindings, the session's binding and candidate identity | PRF-SES-08, PRF-SES-09 |
 | TASK-S04-01 | 04 | Review application (`kernel.policy`) | PRF-ADM-01, PRF-ADM-02 |
@@ -92,7 +92,7 @@ Task IDs are stable. SLICE-01 tasks are its file rows. Tasks of a stub slice are
 | TASK-S11-02 | 11 | Settings resolver, immutability, bundle manifest | `README.md:1226-1227` |
 | TASK-S11-03 | 11 | Supervisor and protection-status reporting | `README.md:1240`; PRF-PRT-14 |
 | TASK-S11-04 | 11 | Resource envelopes and storage classes | `README.md:1247` |
-| TASK-S11-05 | 11 | Recovery manifest, backup and clean-host restore rehearsal | `README.md:1232`; D10 |
+| TASK-S11-05 | 11 | Recovery manifest, backup and clean-host restore rehearsal; the send-lease store adapter | `README.md:1232`; D10 |
 | TASK-S11-06 | 11 | Observation mediator for non-kernel processes, only if TASK-S07-06 does not prove native read-only credentials | PRF-DOM-06 |
 | TASK-S11-07 | 11 | Measure each measured refusing value in the [register](../design/cross-cutting-invariants.md#refusing-parameter-pattern-req-xc-003) on recorded sessions (A09-F4); record the measurement with the release binding for the owner's approval | Measurement records |
 | TASK-S13-01 | 13 | Compare upgrade versus import with actual mappings; record the choice and reason; confirm or replace the provisional schema | REQ-MIG-005; X-002 |

@@ -9,6 +9,8 @@
 
 * **Anchored ledger head.** The recovery-set manifest (A04-F5, `README.md:796`) records the ledger head (`sequence`, `event_hash`) off the host; `kernel.recovery` supplies the latest one to the writer, which refuses a file that lacks it ([ledger spec](ledger-and-atomic-transaction.md#event-envelope-reuse-with-two-added-fields)). When anchors are written is decided here at SLICE-11.
 
+**Send lease.** The per-account send lease of the [sessions spec](sessions-authority-lifecycle.md#send-lease-kernelrecoverypy) is stored with the off-host recovery set; its adapter is built here at SLICE-11.
+
 ## Requirement keys (pointers)
 
 | Key | Label | Decision (anchor) |

@@ -59,8 +59,8 @@ This table is the **single register** of refusing fields. PRF-XC-03 is built fro
 | `reconciliation.foreign_response` | Q-016 | `escalate` | TASK-S07-02 | [execution-domain](execution-domain-and-observations.md#policy-inputs) |
 | `binding.revocation_effect` | Q-010 | `stop_entries` | TASK-S03-02 | [sessions](sessions-authority-lifecycle.md#policy-inputs) |
 | `recovery.routine_advance` | Q-009 | `standing` (in the deployment configuration recorded with the release binding) | TASK-S03-04 | [sessions](sessions-authority-lifecycle.md#policy-inputs) |
-| `recovery.routine_advance_limit` | Measured (A09-F4) | measured | TASK-S11-07 | [sessions](sessions-authority-lifecycle.md#policy-inputs) |
-| `kernel.lock_dir` | Deployment configuration | the host's lock directory | TASK-S03-04 | [ledger](ledger-and-atomic-transaction.md#writer-runtime-and-readers), [sessions](sessions-authority-lifecycle.md#policy-inputs) |
+| `recovery.routine_advance_limit` | Approved with the release binding | approved at TASK-S11-07 | TASK-S11-07 | [sessions](sessions-authority-lifecycle.md#policy-inputs) |
+| `recovery.lease_secs`, `recovery.lease_renew_secs` | Measured (A09-F4) | measured | TASK-S11-07 | [sessions](sessions-authority-lifecycle.md#send-lease-kernelrecoverypy) |
 | `market.view_age_stamp` | Q-003 | `bar_close` | TASK-S04-04 | [intent-to-admission](intent-to-admission.md#policy-inputs) |
 | `dispatch.deadline_ms.<verb>` | Q-011 | measured, then set per verb; cancel and close longer | TASK-S11-07, TASK-S05-08 | [dispatch](dispatch-and-coordination.md#policy-inputs) |
 | `account.max_worst_case_loss` | Q-015 | per account, set in the account's config at deployment | TASK-S04-03 (legacy value as evidence) | [intent-to-admission](intent-to-admission.md#policy-inputs) |

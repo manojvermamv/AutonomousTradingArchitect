@@ -180,7 +180,7 @@ The coordinator checks, in this order, and records the first failure:
 | 3 | Grant | The admitted grant itself: `authority.recheck(grant_id, verb, account)`; no other grant substitutes | Revoked, expired, or its delegation chain broken | `SES-R03`, `SES-R04`, `SES-R05` |
 | 4 | Session (entries only) | The recorded `session_id` is still `OPEN` | It closed | `SES-R07` |
 | 5 | Safety state | The permission matrix now, in the order kill, hold, latch | Kill, hold or latch forbids this verb and actor | `PRT-R01`, `PRT-R04`, `PRT-R03` |
-| 6 | Target (cancel, modify, close) | Admission's effect check (B2) again, against the kernel's latest observation of the account ([polling](execution-domain-and-observations.md#polling)) | The order is no longer open, or the quantity now exceeds the open position | `ADM-R07`; while that observation is older than 60 s (POL-021) the result is **wait** |
+| 6 | Target (cancel, modify, close) | Admission's effect check (B2) again, against the kernel's latest observation of the account ([polling](execution-domain-and-observations.md#polling)) | The order is no longer open, or the requested remaining quantity (for a modify, the new total − filled) now exceeds the open position | `ADM-R07`; while that observation is older than 60 s (POL-021) the result is **wait** |
 
 * An unrelated ledger append never invalidates a command (`README.md:736`).
 * D13's policy dependency (`README.md:758`) is met by row 4: a session's policy binding is fixed when it opens ([sessions spec](sessions-authority-lifecycle.md), PRF-SES-09), so an entry whose session is still `OPEN` still has its admitted policy.

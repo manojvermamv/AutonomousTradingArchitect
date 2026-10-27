@@ -301,7 +301,7 @@ The field names are the [ledger catalogue's](../../design/ledger-and-atomic-tran
 |---|---|---|
 | `EPOCH_ACTIVATED` | `retired_epoch_id` | the previously active epoch, or `null` for the first |
 | | `restore` | `null` (no restore path yet) |
-| | `host_id` | `runtime.host_identity(path)` (read by the SLICE-03 routine-restart check) |
+| | `host_id` | `runtime.host_identity()` (read by the SLICE-03 fence rule and routine check) |
 | `COMMAND_ADMITTED` | `target` | `null` (entries have none) |
 | | `strategy` | `application.strategy` |
 | | `request`, `plan_ref`, `application` | the wire forms |
@@ -391,7 +391,7 @@ SettingsError(ValueError)
 
 Adapted from the legacy runtime (`OA/src/tier1/runtime.py:1-112` @445eb116):
 
-* `host_identity(path) -> str` returns `f"{machine}:{st.st_dev}:{st.st_ino}"`, where `machine` is the stripped text of `/etc/machine-id` on Linux or the `MachineGuid` value under `HKLM\SOFTWARE\Microsoft\Cryptography` (read with `winreg`) on Windows, and `st = os.stat(path)`.
+* `host_identity() -> str` never raises. On Linux it returns the stripped text of `/etc/machine-id`. On Windows (`sys.platform == "win32"`, with `winreg` imported only there) it returns `winreg.QueryValueEx(winreg.OpenKey(winreg.HKEY_LOCAL_MACHINE, r"SOFTWARE\Microsoft\Cryptography", 0, winreg.KEY_READ | winreg.KEY_WOW64_64KEY), "MachineGuid")[0]`. If the value is missing, empty or unreadable, or on any other platform, it returns `"unknown:" + uuid.uuid4().hex`, which never equals another value.
 * `runtime_identity() -> dict` returns `{"binding": "apsw", "binding_version": apsw.apsw_version(), "sqlite_version": apsw.sqlite_lib_version(), "safe": bool, "minimum": "3.51.3"}`.
 * "Safe" means the version tuple is ≥ (3, 51, 3), or is exactly (3, 44, 6) or (3, 50, 7).
 * `require_safe() -> dict` returns the identity, or raises `UnsafeRuntime` when `safe` is false.
@@ -688,6 +688,7 @@ Expected outcomes are derived from the specs, not from the code. Each test's doc
 | `test_command_identity.py::test_non_canonical_money_refused` | With `plan_digest` recomputed after each change: `amount` of `"1.5e3"`, `"1500"`, `"01500.00"`, `"-0.00"`, `"١٥٠٠.٠٠"` and `"0.00"` each return `LED-R06`; no events are appended | PRF-LED-12 |
 | `test_clock_contract.py::test_recorded_clock` | `RecordedClock` starts at `Elapsed(0)`; `advance(1500)` moves `now()` by 1.5 s and `elapsed()` by 1_500_000_000 ns; `now().utc_iso` ends in `Z` and has six fractional digits | PRF-SES-04 |
 | `test_clock_contract.py::test_deadline_uses_elapsed` | A `Deadline(origin, 1000, started=clock.elapsed())` is not expired at `clock.elapsed()` after `advance(999)`, and is expired after `advance(1)`; `expired` reads only `Elapsed` | PRF-SES-04 |
+| `test_capabilities.py::test_host_identity` | Two calls return the same value; with `/etc/machine-id` (or the registry read) monkeypatched to fail, the value starts with `unknown:` and two calls differ | PRF-LED-13 |
 | `test_clock_contract.py::test_live_clock_domains` | `LiveClock().now().domain == "wall"` and the format matches `format_utc` | PRF-SES-04 |
 | `test_policy_parameters.py::test_capacity_is_refusing` | `compose_simulation` with `capacity_synthetic_amount=None` raises `RefusingParameterUnbound("capacity.synthetic_amount")`; `defaults.yaml` holds `null` for it | PRF-XC-03 |
 | `test_policy_parameters.py::test_synthetic_values_reported` | A composition built with `"5000.00"` reports `synthetic_values == {"capacity.synthetic_amount": "5000.00"}` | PRF-XC-03 |
@@ -697,7 +698,7 @@ Expected outcomes are derived from the specs, not from the code. Each test's doc
 
 | Test | Setup and expected outcome | Proof |
 |---|---|---|
-| `test_entry_outcomes.py::test_ack` | Script `[ack ORD1]`: outcome `acknowledged`, `sent=True`, `canonical="committed"`, `broker_order_ids={"entry": "ORD1"}`, `domain.value == "simulated"`; command `WORKING`; reservation `HELD`; events = bootstrap + `[COMMAND_ADMITTED, DISPATCH_CLAIMED, OUTCOME_ACKNOWLEDGED]`; `OUTCOME_ACKNOWLEDGED.execution_domain == "simulated"`; one `broker_identity` row `("order_id", "ORD1", "simulated")` | PRF-DSP-02 |
+| `test_entry_outcomes.py::test_ack` | Script `[ack ORD1]`: outcome `acknowledged`, `sent=True`, `canonical="committed"`, `broker_order_ids={"entry": "ORD1"}`, `domain.value == "simulated"`; command `WORKING`; reservation `HELD`; events = bootstrap + `[COMMAND_ADMITTED, DISPATCH_CLAIMED, OUTCOME_ACKNOWLEDGED]`; `OUTCOME_ACKNOWLEDGED.execution_domain == "simulated"`; one `broker_identity` row with `kind` `order_id`, `value` `ORD1`, `domain` `simulated` and `leg_role` `entry` | PRF-DSP-02 |
 | `test_entry_outcomes.py::test_claim_precedes_call` | `simulation([ack ORD1], wrap=…)` with a wrapper whose `send` opens a `LedgerReader` on the path before delegating: it sees `DISPATCH_CLAIMED` already committed | PRF-DSP-02 |
 | `test_entry_outcomes.py::test_reservation_states` | Monkeypatch `Coordinator.revalidate_hook` to read the reservation (it runs after admission, before the claim): `RESERVED` with `amount == "1500.00"`; a `wrap` broker reads it inside `send`: `HELD` | PRF-LED-04 |
 | `test_entry_outcomes.py::test_reject` | Script `[reject]`: command `REJECTED`, attempt `REJECTED`, reservation `RELEASED`, `sent=True` | PRF-LED-04 |
