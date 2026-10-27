@@ -1,6 +1,6 @@
 # SLICE-04 — Intent to admission
 
-* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-04-review-2026-10-27)). **Step 1 built** on 2026-10-27 in a local repository (commit `2ed1c39`, branch `slice-04`): 235 tests passed, including every SLICE-01…03 test, and every break check failed as required ([as built](#step-1-as-built)). That is a build record, not production acceptance. Step 2 is decision-complete below after its EGM review and is not yet built; step 3 is deepened before it is built.
+* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-04-review-2026-10-27)). **Step 1 built** on 2026-10-27 in a local repository (commit `2ed1c39`, branch `slice-04`): 235 tests passed, including every SLICE-01…03 test, and every break check failed as required ([as built](#step-1-as-built)). That is a build record, not production acceptance. **Step 2 built** the same day (commit `575c897`): 252 tests passed and every break check failed as required ([as built](#step-2-as-built)). Step 3 is deepened before it is built.
 * **Precedence:** the master README, then the ROADMAP, then this package. The authority is the [intent spec](../../design/intent-to-admission.md); every deviation is marked **Deviation**. No score, threshold or money value is set: every refusing setting is bound only to labelled synthetic values in tests.
 * **Phase:** master Phase 1, finishing in Phase 3 with real views (SLICE-08). Class S.
 * **Builds on:** [SLICE-03](SLICE-03-sessions-authority-recovery.md) as built; branch `slice-04` cut from `slice-03`.
@@ -351,6 +351,42 @@ A modify raises committed capital only when its target is a non-protective **BUY
 * Through the door: a limit raise on an entry order → `ADM-R09` `modify_increase_unbound`; CUJ-ADM-4 (the clock past 10:00 UTC, `recovery.tick()`, `world.fresh()`; a market close of the owned quantity admitted).
 * The `COMMAND_ADMITTED` fields above, the shape check refusing an action with a `reservation_id` and an entry with an `effect`, no reservation row, the `Outcome` above, the same request again `unchanged`, and a reopen leaves the command `ADMITTED`.
 * Break checks (added to the file's docstring): cap a protective raise at `remaining` instead of `owned(p)`; accept a trigger change on a target; accept a `prot:` key from a human; apply the busy bound to an action under `entries_only`; build `ActionAdmission` in `operations/verification.py` (the capability test).
+
+### Step 2 as built
+
+Commit `575c897` on `slice-04`, after `2ed1c39`. It changes exactly the 16 paths of the step 2 files table.
+
+**Choices made while building** (none sets a money value):
+
+| Topic | As built |
+|---|---|
+| `underlying` | Nullable in the schema: the private SLICE-01 seam `_submit_admitted` has no intent and writes `null`; the shape check requires it for actions, and the entry door writes the intent's. **Deviation** from the payload table's `string` |
+| Price form | `contracts/execution.py` checks prices against its own copy of the ledger's money pattern (above zero), because `contracts` never imports `kernel` |
+| `FixtureHoldings` | Returns a row by ID whatever its account, so `effect_check`'s own account test is exercised |
+| Observed order | `effect_check` uses the target's row only when exactly one orders-observation row has its ID; none or several → `not_open` |
+| `prot:` role for cancel and modify | The key's role must equal the target order's `leg_role`, or the role in its own `prot:` command key |
+| Deadlines in tests | `deadline_ms_cancel` and `_modify` 8000, `_close` 9000: labelled synthetic values |
+
+**Tests** (252 passed with `scripts/safe_tests.py`, no broker variables; the step 1 tests unchanged):
+
+| File | Cases |
+|---|---|
+| `test_admission_checks.py`, action section | `effect_check` directly: ownership, not open, missing row, identity mismatch; modify below filled, `filled_unknown` only with a quantity, a target's trigger and an SL-M stop's limit (`wrong_field`); a protective raise to 50 admitted and 51 refused, an entry order's increase `above_remaining`; CUJ-ADM-2, a smaller broker net, overclosed, unknown and ambiguous nets, another account's position. Through the door: the admitted payload, no reservation, the admitted-awaiting-dispatch `Outcome`, same request `unchanged`, `LED-R02`; the command stays `ADMITTED` across a reopen; A2, A4, B3 and B2 records with verb and reason; the facts the safety and conflict ports receive; B1 on the orders book alone; a busy account still admits an action; the `prot:` rule on both doors (a human's key, another position, a role that does not fit, protection's valid modify, an entry); a limit raise on an entry order `ADM-R09` `modify_increase_unbound` and a lowering admitted; CUJ-ADM-4 after the session `CLOSED`; the shape check refusing an action with a reservation and an entry-shaped field set |
+| `test_policy_parameters.py` | The three deadlines resolve and refuse unbound |
+| `test_capabilities.py` | `ActionAdmission(` only in `bootstrap.py`; `.action_admission.admit` only in the coordinator |
+
+**Break checks** (each applied, run, and reverted byte for byte; every one failed its test):
+
+| Change | Test that failed |
+|---|---|
+| Cap a protective raise at `remaining` | `test_b2_protective_raise_reaches_owned_and_no_more` |
+| Accept a trigger change on a target | `test_b2_modify_rows` |
+| Accept a `prot:` key from a human | `test_prot_key_rule_both_doors` |
+| Apply the busy bound to an action | `test_busy_never_holds_an_action` |
+| Accept an ambiguous broker net | `test_b2_close_rows` |
+| Remove the shape check | `test_shape_check_refuses_mixed_admissions` |
+| Admit a modify that raises capital | `test_modify_raising_capital_refuses_until_q018` |
+| Build `ActionAdmission` in `operations/verification.py` | the capability test |
 
 ## Step 3 — the planning port (deepened before build)
 
