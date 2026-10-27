@@ -40,6 +40,7 @@
 | [00-provenance.md](00-provenance.md) | Pins, working-tree state, instruction files, evidence limits | verified fact |
 | [02-policy-inventory.md](02-policy-inventory.md) | Proposed README §9 policy rows (staging; non-normative) | proposed |
 | [05-module-index.md](05-module-index.md) | README §6 modules → the spec that details each, first-release treatment, first slice, §7 reuse row; tree deltas | proposed |
+| [06-architecture-fit-and-effort.md](06-architecture-fit-and-effort.md) | Which hybrid architecture fits first; development, restructuring and upkeep effort; terms | proposed (guidance) |
 | [legacy-divergence.md](legacy-divergence.md) | Where legacy code disagrees with accepted decisions | proposed (evidence) |
 | [traceability.md](traceability.md) | Requirement key → decision → module → spec → task → proof (generated) | proposed |
 | [design/](design/) | 6 full-depth specs, 7 stubs, 1 cross-cutting invariants file | proposed |
