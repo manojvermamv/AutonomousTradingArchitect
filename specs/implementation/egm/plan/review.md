@@ -246,3 +246,26 @@ After step 1 was built (OA_NEW `2ed1c39`), [step 2](../../plan/slices/SLICE-04-i
 | D-N3, D-N4 | Nit | Structure lot rule; phase and cover text; PRF-ADM-09's structure clause | FIX: intent spec amended; the clause deferred |
 | D-N5, D-N6, D-N7 | Nit | `to_stop` for structures; negative PE deltas under a delta rule; unbound planner before dispatch | FIX: `to_stop` refused for structures; carried to PRF-ADM-07; checked first |
 | R-N2, R-N3, R-N4 | Nit | Two-expiry case; `KW_ONLY` and helpers; `dte` type | FIX |
+
+## SLICE-05 review (2026-10-27)
+
+The new [SLICE-05 slice file](../../plan/slices/SLICE-05-dispatch-conflicts-scheduling.md) (step 1 at decision depth; steps 2–3 scoped) was reviewed by fresh `egm:egm-design` and `egm:egm-implementation-readiness` reviewers (read-only) against the protection, dispatch, ledger and sessions specs, the built SLICE-04 code and the legacy export at `OA@445eb116`. Design: 1 Blocker, 8 Major, 5 Nit. Readiness: 0 Blocker, 6 Major, 8 Nit. The design reviewer corrected the TASK-S05-07 characterization; the correction was checked by hand at `src/runtime/execution_gateway/__init__.py:1180-1182` and `:1702-1730`. All findings are resolved by FIX.
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| D-B1 | Blocker | Read literally, row 2 or row 4 decided a close before rows 3 and 5 ran, so a market close passed with its stop resting | FIX: a row decides only when both its conditions hold; a break check added |
+| D-M1 | Major | Row 2's modify exception also excepted a raise; unknown `q` unhandled | FIX: requires `sale_delta == 0`; unknown `q` voids the `q`-based exceptions |
+| D-M2 | Major | Terminality from a live observation contradicts the never-inert visibility rule and could differ from B2's book | FIX: a named deviation; B3 uses B1's observation; SLICE-07 rebinds to durable ledger facts |
+| D-M3 | Major | The holdings port's binding moved without comment | FIX: orders and capacity's protective set bound in step 3; positions in SLICE-07 |
+| D-M4 | Major | "Legacy never checks fill state under kill" was false | FIX: the gateway's "resting and unfilled" rule; parity is open with remaining > 0 when known; `ActionFacts.remaining` |
+| D-M5 | Major | PRF-PRT-04 clause coverage, CUJ-PRT-3 mislabelled, SLICE-06 clauses undeclared | FIX: clauses listed and deferred; CUJ-PRT-3's admission part; rows 1 and 5 in the proof's file |
+| D-M6 | Major | A grant for one account could command the desk-wide kill | FIX: every bound account, as `recovery_advance` |
+| D-M7 | Major | PRF-DSP-04's inert half needs SLICE-06 | FIX: deferred |
+| D-N1…N5 | Nit | Table CHECKs block SLICE-06; row 4 "elsewhere"; setting naming and task IDs; break checks for blanket and per-target rules and the stalled-transport case; `auth=None` order and a citation | FIX |
+| R-M1 | Major | `FixtureHoldings` dicts would shadow the new port methods | FIX: renamed `order_rows`, `position_rows`; methods filter by account |
+| R-M2 | Major | Safety's commit path undefined | FIX: guards in the fold (`LED-R09`), as `PAUSE_CLEARED`; the return and raise rule stated |
+| R-M3 | Major | Matrix "allowed" close cells unreachable with the kernel's conflicts | FIX: the matrix cells use a fixture conflict port; row interplay tested separately |
+| R-M4 | Major | No way stated to create unresolved effects | FIX: the `unresolved(world, key, state)` helper |
+| R-M5 | Major | A second hold reason could not be engaged in step 1 | FIX: the test appends a `recovery` `HOLD_ENGAGED`; any engaged reason may be released |
+| R-M6 | Major | The "absent is not terminal" break check could not fail | FIX: a test with the stop missing from the observation |
+| R-N1…N8 | Nit | Override wiring; the `unresolved_commands` read; payload types and principal column; setting fields and test settings; break-check assertion; `WORKING` stays unresolved; `version` input and refusal fields; port docstring | FIX |

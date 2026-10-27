@@ -40,7 +40,7 @@ Status: **proposed**, non-normative. The canonical, fully commented target tree 
 | `kernel/reservations.py` | [ledger-and-atomic-transaction](design/ledger-and-atomic-transaction.md) | R | SLICE-01 (minimal), SLICE-07 | Gateway/JSONL registry (`:1146`) |
 | `kernel/lifecycle.py` | [sessions-authority-lifecycle](design/sessions-authority-lifecycle.md) (session transitions); [ledger-and-atomic-transaction](design/ledger-and-atomic-transaction.md) (command, order, position, obligation transitions) | R | SLICE-01 | Gateway/JSONL registry (`:1146`) |
 | `kernel/protection.py` | [protection-and-safety](design/protection-and-safety.md) | R | SLICE-06 | Stops/trails/structure FSM (`:1148`) |
-| `kernel/safety.py` | [protection-and-safety](design/protection-and-safety.md) | R | SLICE-05 (conflict relation), SLICE-06 (matrix) | — |
+| `kernel/safety.py` | [protection-and-safety](design/protection-and-safety.md) | R | SLICE-05 (conflict relation; the matrix's kill and hold rows), SLICE-06 (the rest of the matrix) | — |
 | `kernel/coordinator.py` | [dispatch-and-coordination](design/dispatch-and-coordination.md) | R | SLICE-01 (minimal), SLICE-05 | Coordinator/OpenAlgoAdapter/ports (`:1144`) |
 | `kernel/reconciliation.py` | [execution-domain-and-observations](design/execution-domain-and-observations.md) | R | SLICE-07 | Gateway/JSONL registry/reconcile (`:1146`) |
 | `kernel/recovery.py` | [sessions-authority-lifecycle](design/sessions-authority-lifecycle.md) | RP | SLICE-03 | Authority service/release/fence (`:1145`) |
@@ -91,7 +91,7 @@ These are files the slices need that README §6 does not list (T-01…T-23). T-0
 | T-12 | `tests/integration/test_bounded_io.py` | SLICE-05 | Slow I/O, timeouts, disconnects (PRF-DSP-05/06) |
 | T-13 | `tests/unit/test_scheduling.py` | SLICE-05 | Ordering rules (PRF-DSP-07) |
 | T-14 | `tests/unit/test_protection_states.py` | SLICE-06 | Protection state machine (PRF-PRT-01/02) |
-| T-15 | `tests/unit/test_safety_matrix.py` | SLICE-06 | Permission matrix and visibility (PRF-PRT-04/05) |
+| T-15 | `tests/unit/test_safety_matrix.py` | SLICE-05 (kill and hold rows), SLICE-06 | Permission matrix and visibility (PRF-PRT-04/05) |
 | T-16 | `tests/integration/test_protection_kernel.py` | SLICE-06 | Protection in the kernel process (PRF-PRT-06/07) |
 | T-17 | `tests/unit/test_domain_attribution.py` | SLICE-07 | Domain attribution table (PRF-DOM-01) |
 | T-18 | `tests/unit/test_reconciliation_rules.py` | SLICE-07 | Reconciliation rules (PRF-DOM-02/03) |
@@ -103,3 +103,4 @@ These are files the slices need that README §6 does not list (T-01…T-23). T-0
 | T-24 | `src/autonomous_trading/resources/migrations/002_sessions_authority.sql` | SLICE-03 | The grant, standing-binding, session and release-binding tables (the master tree shows only `001`; migrations are numbered files under `resources/migrations/`, ledger spec "Schema and migrations") |
 | T-25 | `src/autonomous_trading/resources/migrations/003_policy.sql` | SLICE-04 | The `review` and `pause` tables of `kernel.policy` (as T-24) |
 | T-26 | `tests/fixtures/planner_parity_445eb116.json` | SLICE-04 | Legacy planner inputs and outputs generated once from `OA@445eb116`: the step 3 golden parity cases (PRF-ADM-03) |
+| T-27 | `src/autonomous_trading/resources/migrations/004_safety.sql` | SLICE-05 | The `safety_state` table of `kernel.safety` (as T-24) |
