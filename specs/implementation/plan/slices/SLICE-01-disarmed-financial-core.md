@@ -80,7 +80,7 @@ All 37 paths are inside master README §6 or the tree deltas T-01…T-05, T-09 a
 | 14 | `src/autonomous_trading/resources/migrations/001_initial.sql` | §6 | Provisional schema v1 ([X-002](../../consistency/master-contradictions.md#x-002)) |
 | 15 | `src/autonomous_trading/settings/loader.py` | §6 | `resolve`, `SettingsError` |
 | 16 | `src/autonomous_trading/settings/schema.py` | §6 | `Settings` |
-| 17 | `src/autonomous_trading/kernel/ledger/runtime.py` | §6 | `runtime_identity`, `require_safe`, `connect`, `UnsafeRuntime` |
+| 17 | `src/autonomous_trading/kernel/ledger/runtime.py` | §6 | `runtime_identity`, `require_safe`, `connect`, `host_identity`, `UnsafeRuntime` |
 | 18 | `src/autonomous_trading/kernel/ledger/envelope.py` | §6 | `canonical`, `digest`, `is_money`, `GENESIS_HASH`, `envelope`, `validate_payload`, `EnvelopeError`, `PayloadInvalid` |
 | 19 | `src/autonomous_trading/kernel/ledger/schema.py` | §6 | `apply_migrations`, `check`, `MIGRATIONS`, `SCHEMA_REVISION = 1` |
 | 20 | `src/autonomous_trading/kernel/ledger/projections.py` | §6 | `fold`, `IndexRows`, `StoredEvent`, `TransitionNotAllowed`, `InvariantViolated` |
@@ -301,7 +301,7 @@ The field names are the [ledger catalogue's](../../design/ledger-and-atomic-tran
 |---|---|---|
 | `EPOCH_ACTIVATED` | `retired_epoch_id` | the previously active epoch, or `null` for the first |
 | | `restore` | `null` (no restore path yet) |
-| | `host_id` | `socket.gethostname()` (read by the SLICE-03 routine-restart check) |
+| | `host_id` | `runtime.host_identity(path)` (read by the SLICE-03 routine-restart check) |
 | `COMMAND_ADMITTED` | `target` | `null` (entries have none) |
 | | `strategy` | `application.strategy` |
 | | `request`, `plan_ref`, `application` | the wire forms |
@@ -360,7 +360,7 @@ CREATE TABLE reservation (reservation_id TEXT PRIMARY KEY,
   currency TEXT NOT NULL, state TEXT NOT NULL CHECK (state IN ('RESERVED','HELD','RELEASED')),
   updated_sequence INTEGER NOT NULL);
 CREATE TABLE broker_identity (kind TEXT NOT NULL CHECK (kind IN ('order_id','fill_id')), value TEXT NOT NULL,
-  domain TEXT NOT NULL, command_key TEXT NOT NULL REFERENCES command_identity(command_key),
+  domain TEXT NOT NULL, command_key TEXT NOT NULL REFERENCES command_identity(command_key), leg_role TEXT,
   first_sequence INTEGER NOT NULL, quantity INTEGER, price TEXT, PRIMARY KEY (kind, value));
 ```
 
@@ -391,6 +391,7 @@ SettingsError(ValueError)
 
 Adapted from the legacy runtime (`OA/src/tier1/runtime.py:1-112` @445eb116):
 
+* `host_identity(path) -> str` returns `f"{machine}:{st.st_dev}:{st.st_ino}"`, where `machine` is the stripped text of `/etc/machine-id` on Linux or the `MachineGuid` value under `HKLM\SOFTWARE\Microsoft\Cryptography` (read with `winreg`) on Windows, and `st = os.stat(path)`.
 * `runtime_identity() -> dict` returns `{"binding": "apsw", "binding_version": apsw.apsw_version(), "sqlite_version": apsw.sqlite_lib_version(), "safe": bool, "minimum": "3.51.3"}`.
 * "Safe" means the version tuple is ≥ (3, 51, 3), or is exactly (3, 44, 6) or (3, 50, 7).
 * `require_safe() -> dict` returns the identity, or raises `UnsafeRuntime` when `safe` is false.
@@ -460,7 +461,7 @@ fold(rows_before: IndexRows, events: list[StoredEvent]) -> IndexRows
 | `COMMAND_ADMITTED` | `command_identity` (`state` `ADMITTED`, `first_sequence`, `updated_sequence`); `reservation` (`RESERVED`, amounts copied from the payload) |
 | `ADMISSION_REFUSED` | none |
 | `DISPATCH_CLAIMED` | `command_attempt` (`CLAIMED`, `epoch_id`, `claimed_at` = `event_time`, `claimed_sequence`); command `IN_FLIGHT`; reservation `HELD` |
-| `OUTCOME_*` | attempt and command per the [ledger state table](../../design/ledger-and-atomic-transaction.md#command-and-attempt-state-machine); attempt `domain` = `execution_domain`, `legs`, `outcome_sequence`; reservation `RELEASED` for `_REJECTED`; one `broker_identity` row per acknowledged leg (`domain` = `execution_domain`) |
+| `OUTCOME_*` | attempt and command per the [ledger state table](../../design/ledger-and-atomic-transaction.md#command-and-attempt-state-machine); attempt `domain` = `execution_domain`, `legs`, `outcome_sequence`; reservation `RELEASED` for `_REJECTED`; one `broker_identity` row per acknowledged leg (`domain` = `execution_domain`, `leg_role` = the leg's role) |
 
 `kernel/lifecycle.py` holds the transition tables as data (`{(from_state, event_kind): to_state}`), restricted to the events above.
 

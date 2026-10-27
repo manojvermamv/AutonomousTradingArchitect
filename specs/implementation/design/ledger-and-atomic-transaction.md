@@ -113,9 +113,9 @@ The master's answer is one canonical admission and outcome commit: D02, D01/D03,
 ### Writer, runtime and readers
 
 * **Binding and safe library.** The ledger opens SQLite through APSW, reusing the legacy runtime rule (`OA/src/tier1/runtime.py:1-80`). A writer refuses a loaded SQLite below 3.51.3 unless it is an official backport (3.44.6, 3.50.7), because of the WAL-reset defect (`README.md:782`). A writer connection sets `journal_mode=WAL` and `synchronous=FULL` and reads both back; a reader connection only verifies `journal_mode=WAL`. A mismatch refuses the open.
-* **One writer.** A writer process takes an exclusive file lock on `<ledger path>.writer.lock` when it opens and holds it until it exits. If the lock is held, the open returns `LED-R07`. The lock is advisory: it excludes other processes of this system, not arbitrary SQLite clients (see [Risks and limits](#risks-and-limits)).
+* **One writer.** A writer process takes an exclusive file lock on `<ledger path>.writer.lock` when it opens and holds it until it exits. From SLICE-03 it also takes, for each bound account, an exclusive lock on `<kernel.lock_dir>/<broker>.<account>.lock` (a host-wide directory, refusing setting), so two ledger files on one host cannot both write for one account. If any lock is held, the open returns `LED-R07`. Acquiring them is the same-host evidence that no earlier writer of this ledger or account is still running (A04-F2). The lock is advisory: it excludes other processes of this system, not arbitrary SQLite clients (see [Risks and limits](#risks-and-limits)).
 * **The writer thread.** Inside the process, one writer thread runs every `transact` call. Code already running on that thread (the coordinator loop, admission stage B, recovery) calls `transact` directly; other threads hand it a decision and wait for the result. This is the single writer thread of the [dispatch spec](dispatch-and-coordination.md#coordinator-loop-on-the-writer-thread-one-io-worker-per-account).
-* **Writer epoch.** The writer is opened with a new `EpochId`. Until that epoch is active, the only write it accepts is `activate_epoch()`, which `kernel.recovery` calls at the `INSPECTING → RECOVERY_WRITING` transition ([sessions spec](sessions-authority-lifecycle.md#recovery-stages-kernelrecoverypy)). `activate_epoch(restore=None)` appends `EPOCH_ACTIVATED` (`epoch_id`, `principal`, `restore`: the restore marker or none, `host_id`), retires the previously active epoch and activates this one, in one transaction. It then records `RUNTIME_OPENED` with the loaded library's identity.
+* **Writer epoch.** The writer is opened with a new `EpochId`. Until that epoch is active, the only write it accepts is `activate_epoch()`, which `kernel.recovery` calls at the `INSPECTING → RECOVERY_WRITING` transition ([sessions spec](sessions-authority-lifecycle.md#recovery-stages-kernelrecoverypy)). `activate_epoch(restore=None, host_id=None)` appends `EPOCH_ACTIVATED` (`epoch_id`, `principal`, `retired_epoch_id`, `restore`: the restore marker or none, `host_id`: given, or `runtime.host_identity(path)`), retires the previously active epoch and activates this one, in one transaction. It then records `RUNTIME_OPENED` with the loaded library's identity.
 * **Readers.** Readers open read-only connections. Each read runs in its own short read transaction that is closed before the call returns, so no reader holds a snapshot open between calls ("bounded readers", A03-F4).
 * **External change.** Before each `transact`, the writer reads `PRAGMA data_version`. A change since its last commit means another connection wrote the file. The kernel then exits and restarts through recovery, which runs the D04 comparison. A running kernel never re-enters recovery in place.
 
@@ -135,10 +135,10 @@ The master's answer is one canonical admission and outcome commit: D02, D01/D03,
 | `command_identity` | `command_key` (PK), `verb`, `target` (broker order ID or position ID; null for entries), `strategy`, `request_digest`, `plan_digest` (entries), `principal`, `account`, `first_sequence`, `state`, `updated_sequence` | `COMMAND_ADMITTED` and every command transition | SLICE-01 |
 | `command_attempt` | `attempt_id` (= `"<command_key>#<attempt_no>"`), `command_key`, `attempt_no`, `epoch_id`, `claimed_at`, `domain`, `contract_version`, `state`, `legs` (per-leg state), `unassigned_order_ids`, `retry_requested_sequence`, `claimed_sequence`, `outcome_sequence`; a partial unique index allows one unresolved attempt per command ([I-2](#invariants)) | `DISPATCH_CLAIMED`, `OUTCOME_*`, `RESOLVED_*`, `DISPATCH_RETRY_REQUESTED` | SLICE-01 |
 | `reservation` | `reservation_id`, `command_key` (unique; entries only), `account`, `amount`, `margin`, `worst_case_loss`, `currency`, `state`, `updated_sequence` | `COMMAND_ADMITTED`, `DISPATCH_CLAIMED`, and any event carrying `reservation_after` | SLICE-01 |
-| `broker_identity` | `kind` (`order_id`, `fill_id`), `value`, `domain`, `command_key`, `first_sequence`, and for fills `quantity`, `price`; PK (`kind`, `value`); `domain` is an attribute, and the same value seen in another domain is a conflict ([execution-domain spec](execution-domain-and-observations.md#reconciliation-kernelreconciliationpy)) | `OUTCOME_ACKNOWLEDGED`, `RESOLVED_REACHED` (order IDs); `FILL` (fill IDs) | SLICE-01 |
+| `broker_identity` | `kind` (`order_id`, `fill_id`), `value`, `domain`, `command_key`, `leg_role` (order IDs: the leg's role, `NULL` until assigned), `first_sequence`, and for fills `quantity`, `price`; PK (`kind`, `value`); `domain` is an attribute, and the same value seen in another domain is a conflict ([execution-domain spec](execution-domain-and-observations.md#reconciliation-kernelreconciliationpy)) | `OUTCOME_ACKNOWLEDGED`, `RESOLVED_REACHED`, `LEG_ASSIGNED` (order IDs and roles); `FILL` (fill IDs) | SLICE-01 |
 | `release_binding` | `binding_id`, `epoch_id`, `receipt`, `receipt_digest`, `bound_sequence`; keeps the legacy check (`README.md:780`; `OA/src/tier1/schema.py:96-101`, `OA/src/tier1/gateway_route.py:360`) | `RELEASE_BOUND` | SLICE-03 |
 | `session`, `grant`, `standing_binding` | [Sessions spec](sessions-authority-lifecycle.md) | session, binding and grant events | SLICE-03 |
-| `position` | `position_id` (= digest of the entry command key and the leg role; one per entry leg), `entry_command_key`, `leg_role`, `account`, `instrument`, `strategy`, `owned_quantity`, `state` (`open`/`closed`), `opened_sequence`, `closed_sequence`; created by the entry's first fill, changed by fills of its entry and of closes against it, `closed` at zero | `FILL` | SLICE-07 |
+| `position` | `position_id` (= digest of the entry command key and the entry leg's role; one per entry leg), `entry_command_key`, `leg_role`, `account`, `instrument`, `strategy`, `owned_quantity` (signed), `state` (`open` above zero, `closed` at zero, `overclosed` below zero), `opened_sequence`, `closed_sequence`; created by the first fill of any of its orders, raised by fills of its entry leg, lowered by fills of closes against it and of its basket's `stop` and `target` orders | `FILL` | SLICE-07 |
 | `pause`, `review` | Pause state per scope; the first recorded review and first-seen time per intent digest ([intent spec](intent-to-admission.md#review-application-kernelpolicypy)) | `PAUSE_*`, `REVIEW_RECORDED`, `INTENT_SEEN` | SLICE-04 |
 | `safety_state` | Kill, holds per strategy and reason, latch per strategy and session ([protection spec](protection-and-safety.md#kill-and-holds-kernelsafetypy)) | kill, hold and latch events | SLICE-05, SLICE-06 |
 | `protection_state` | Per position: the latest `PROTECTION_DESIRED` fields and the open `EXIT_STARTED` record ([protection spec](protection-and-safety.md#event-catalogue)) | `PROTECTION_DESIRED`, `EXIT_STARTED` | SLICE-06 |
@@ -172,7 +172,7 @@ The writer validates each payload against `resources/events.schema.json`, which 
 
 | Kind | Decided by | Payload fields | Index effect |
 |---|---|---|---|
-| `EPOCH_ACTIVATED` | `kernel.recovery` | `epoch_id`, `principal`, `retired_epoch_id`, `restore` (the restore marker or none), `host_id` (the host's name; the routine-restart check compares it) | `authority_epoch` |
+| `EPOCH_ACTIVATED` | `kernel.recovery` | `epoch_id`, `principal`, `retired_epoch_id`, `restore` (the restore marker or none), `host_id` (`runtime.host_identity`: the machine identity plus the ledger file's device and inode; the routine-restart check compares it) | `authority_epoch` |
 | `RUNTIME_OPENED` | `kernel.recovery` | binding, binding version, SQLite version | none |
 | `MIGRATION_APPLIED` | `kernel.recovery` | `migration_number`, `name`, `file_digest` | `ledger_meta` |
 | `RELEASE_BOUND` | `kernel.authority` | `binding_id`, `receipt`, `receipt_digest` | `release_binding` |
@@ -185,8 +185,9 @@ The writer validates each payload against `resources/events.schema.json`, which 
 | `DISPATCH_CLAIMED` | `kernel.coordinator` | `attempt_no`, `epoch_id` | attempt `CLAIMED`; command `IN_FLIGHT`; reservation `HELD` |
 | `OUTCOME_NOT_SENT` / `_REJECTED` / `_ACKNOWLEDGED` / `_AMBIGUOUS` | `kernel.coordinator`; `kernel.recovery` for outcomes rebuilt from published evidence and for `_AMBIGUOUS` | `attempt_no`, `epoch_id`, `legs`, `unassigned_order_ids`, `reason` (for `_AMBIGUOUS`: `timeout`, `adapter_error`, `interrupted`, `outcome_refused`, `evidence_unusable`, `evidence_unpublished`), `raw_digest`, `reservation_after` when legs were rejected | per the state table; `broker_identity` order IDs |
 | `RESOLVED_REACHED`, `RESOLVED_NEVER_REACHED` | `kernel.lifecycle` from reconciliation | `attempt_no`, `legs` (per-leg resolution), `observation_digest`, `broker_order_ids`, `reservation_after` | per the state table |
-| `FILL` | `kernel.lifecycle` from reconciliation | `fill_id`, `broker_order_id`, `quantity`, `price`, `observation_digest`, `reservation_after` | `broker_identity` (`fill_id`); reservation reduced |
-| `RESIDUAL_RECORDED` | `kernel.lifecycle` | `legs` that reached the broker while others did not | none (read by reconciliation and protection) |
+| `FILL` | `kernel.lifecycle` from reconciliation | `fill_id`, `broker_order_id`, `leg_role`, `quantity`, `price`, `observation_digest`, `reservation_after` (`null` for a `stop` or `target` order) | `broker_identity` (`fill_id`); `position`; reservation reduced for entry-leg fills only |
+| `LEG_ASSIGNED` | `kernel.lifecycle` from reconciliation | `attempt_no`, `broker_order_id`, `leg_role`, `observation_digest` | `broker_identity.leg_role`; the attempt's `legs` |
+| `RESIDUAL_RECORDED` | `kernel.lifecycle` | `legs` that reached the broker while others did not (entry legs only; a basket's protective legs never count) | none (read by reconciliation and protection) |
 | `COMPLETED` | `kernel.lifecycle` from reconciliation | `observation_digest`, `filled_quantity`, `confirmed_level` (modify and resting close) | command `COMPLETED`; reservation per the state table |
 | `CONFLICT_RECORDED`, `FOREIGN_RECORDED`, `RECONCILIATION_ESCALATED` | `kernel.lifecycle` from reconciliation; `kernel.protection` also escalates, with the reasons in the [protection catalogue](protection-and-safety.md#event-catalogue) | [execution-domain spec](execution-domain-and-observations.md#reconciliation-events) | `reconciliation_fact` |
 | `INDEX_REPAIRED` | `kernel.recovery` | `tables`, `before_digest`, `after_digest` | rebuilt rows |
@@ -268,6 +269,7 @@ Reservations exist for entries only. Their states are the legacy ones:
 A reduction lowers the amounts and keeps the state. Every change is decided here and carried in the event as `reservation_after`:
 
 * **On a fill** (legacy `reduce()`, `reservations.py:644`; event checks at `:130-133`): the fill's amount (quantity × price) is removed from `amount`. For a **single-leg** entry, `margin` and `worst_case_loss` scale by `ratio = (amount − r) / amount` (legacy `:205-216`), with `money.rounding` applied. The filled part becomes position exposure, which capacity counts through broker observations; removing it here avoids counting it twice (D16).
+* A basket entry (`basket_at_plan`) is a **single-leg** entry here: its protective legs carry no amount and none of these rules applies to them.
 * **On rejected or never-reached legs** of a multi-leg entry (carried by the outcome or the resolution that found them, never a separate event): `amount` drops by those legs' planned amounts; `margin` and `worst_case_loss` stay at the plan's values until the structure completes or closes, because a spread with a missing hedge can need more margin, not less (`README.md:776`). The reached legs are recorded with `RESIDUAL_RECORDED`.
 * **On completion or dispatch refusal:** `RELEASED` (the demonstrated unused part).
 
@@ -301,9 +303,11 @@ Attempt states: `CLAIMED`, `NOT_SENT`, `REJECTED`, `ACKNOWLEDGED`, `AMBIGUOUS`. 
 | `IN_FLIGHT` | `OUTCOME_AMBIGUOUS` | `UNCERTAIN` | `AMBIGUOUS` | `HELD` |
 | `UNCERTAIN` | `RESOLVED_REACHED` (some or all legs) | `WORKING` | `ACKNOWLEDGED` | `HELD`, reduced by never-reached legs |
 | `UNCERTAIN` | `RESOLVED_NEVER_REACHED` (every leg) | `ADMITTED` | `NOT_SENT` | `HELD` |
-| `WORKING` | `FILL` | `WORKING` | — | reduced |
+| `WORKING` | `FILL` of an entry leg | `WORKING` | — | reduced |
+| `WORKING` | `RESOLVED_REACHED` or `RESOLVED_NEVER_REACHED` for legs still unresolved after a partial resolution | `WORKING` | per leg | `HELD`, reduced by never-reached entry legs |
+| any | `FILL` of a basket's `stop` or `target` order | unchanged | — | unchanged; `position` lowered |
 | `WORKING` | `COMPLETED` | `COMPLETED` | — | `RELEASED` |
-| `COMPLETED` | late fill or correction | `COMPLETED` | — | unchanged; `RECONCILIATION_ESCALATED` instead |
+| `COMPLETED` | late fill or correction of an entry leg | `COMPLETED` | — | unchanged; `RECONCILIATION_ESCALATED` instead |
 
 * Reductions ride on `OUTCOME_*`, `RESOLVED_*` and `FILL` as `reservation_after`; there is no separate reduction event, so nothing is reduced twice.
 * A fill seen for an `UNCERTAIN` command proves the order reached the broker: lifecycle commits `RESOLVED_REACHED` and `FILL` in one decision.
@@ -315,7 +319,7 @@ Attempt states: `CLAIMED`, `NOT_SENT`, `REJECTED`, `ACKNOWLEDGED`, `AMBIGUOUS`. 
 
 | Verb | Completes when | Never completes on |
 |---|---|---|
-| entry | The broker order of each `entry`-role leg is observed terminal (filled, cancelled, rejected or expired), with fills accounted. Protective legs sent in the same basket (`basket_at_plan`) do not hold the entry open; they belong to `kernel.protection` ([protection spec](protection-and-safety.md#basket-placement-basket_at_plan-kernelprotectionpy)) | Transport ACK alone |
+| entry | Each leg of `PlanRef.legs` is observed terminal (filled, cancelled, rejected or expired) with fills accounted, or was never reached or transport-rejected. A basket's `PlanRef.protective_legs` never hold the entry open; they belong to `kernel.protection` ([protection spec](protection-and-safety.md#basket-placement-basket_at_plan-kernelprotectionpy)) | Transport ACK alone |
 | cancel | The target order is observed terminal (by the cancel, or for another reason: `target_terminal`) | Cancel ACK (`README.md:750`) |
 | modify | The observed order shows the requested parameters, or the broker's level for a proven timed-out modify (POL-014), or the target is observed terminal for another reason (`target_terminal`) | Modify ACK (`README.md:750`) |
 | close (market or limit, not resting) | The close's own order is observed filled, its fills recorded by fill ID; position quantities only corroborate | Close ACK; cancel completion; a netted position change alone |
@@ -338,11 +342,11 @@ CancelRequest(command_key, principal, account, broker_order_id)
 ModifyRequest(command_key, principal, account, broker_order_id, changes: ModifyChanges)
 CloseRequest(command_key, principal, account, position_id, quantity,
              order: market | limit(price) | stop(trigger, limit | None))
-ModifyChanges(trigger_price | None, limit_price | None, quantity | None)
+ModifyChanges(trigger_price | None, limit_price | None, quantity | None)   # quantity: the new total order quantity
 PlanRef(plan_digest, account, legs: list[PlanLeg], amount, margin, worst_case_loss, currency,
         protective_legs: list[ProtectiveLeg] = [])        # basket_at_plan only
 ProtectiveLeg(leg_role: stop | target, instrument, product, side: SELL, quantity,
-              order: stop(trigger, limit | None) | limit(price))
+              order: stop(trigger, limit | None) | limit(price))   # instrument, product: the entry leg's
 CommandStatus(command_key, state, verb, attempt_no | None, effect | None,
               broker_order_ids, refusal: Refusal | None)                 # read by command_status
 TransportResult(cls: not_sent | rejected | acknowledged | ambiguous, legs: list[LegResult],

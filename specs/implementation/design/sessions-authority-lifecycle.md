@@ -141,7 +141,7 @@ The **bound accounts** are the accounts in the scopes of unrevoked standing bind
 |---|---|---|---|
 | `human` | The owner and delegated operators | `interfaces.authorization` | Recorded grants |
 | `service` | Strategy workers and other processes outside the kernel | `interfaces.authorization` over the local authenticated channel (`adapters/unix_channel.py`) | Recorded grants, issued by a human with `grant_admin`; a strategy worker typically holds `entry` for its bound accounts |
-| `kernel` | `kernel:protection`, `kernel:recovery`, `kernel:lifecycle` | In process, by construction | Built-in, defined in code, covering every bound account, never expiring or revocable; only the safety matrix limits them. `kernel:protection`: `cancel`, `modify`, `close`. `kernel:recovery`: `hold_engage`; `hold_release` only if TASK-S06-03 shows the legacy recovery path releases holds itself; and revocation with reason `restore_unverified` only (below), exempt from `grant_admin`. `kernel:lifecycle`: none (its session events are not action requests) |
+| `kernel` | `kernel:protection`, `kernel:recovery`, `kernel:lifecycle` | In process, by construction | Built-in, defined in code, covering every bound account, never expiring or revocable; only the safety matrix limits them. `kernel:protection`: `cancel`, `modify`, `close`. `kernel:recovery`: `hold_engage`; the routine advance under `recovery.routine_advance: standing` (a built-in capability, not a grant action); `hold_release` only if TASK-S06-03 shows the legacy recovery path releases holds itself; and revocation with reason `restore_unverified` only (below), exempt from `grant_admin`. `kernel:lifecycle`: none (its session events are not action requests) |
 
 ### Grants and the authority check (`kernel/authority.py`)
 
@@ -213,8 +213,8 @@ Times are exchange-domain timestamps in the calendar's timezone (IST for NSE), c
 | `SESSION_OPENED` | `kernel.lifecycle` | `session_id`, `scope`, `trading_date`, `calendar_version`, `open_time`, `close_time`, `opened_at`, `binding_id`, `policy_binding_id`, `candidate_ids` | `session` |
 | `SESSION_CLOSED` | `kernel.lifecycle` | `session_id`, `reason`, `closed_at` | `session` |
 | `SESSION_OPEN_FAILED` | `kernel.lifecycle` | `scope`, `trading_date`, `reason` (`calendar_unavailable`, `holiday`, `SES-R08`, `continuity`) | none |
-| `RECOVERY_STAGE` | `kernel.recovery` | `from`, `to` (`OPERATING` only: `INSPECTING → RECOVERY_WRITING` is recorded by `EPOCH_ACTIVATED`), `principal`, `basis` (`human` or `routine_standing`), `policy_binding_digest` (for `routine_standing`), `unverified` (items for the human who advances) | none |
-| `RECOVERY_GAP` | `kernel.recovery`, from the restore path | `last_restored_sequence`, `lost_from`, `lost_to`, `reason` (`restore`, `host_change`) (legacy `OA/src/tier1/events.py:86`) | none |
+| `RECOVERY_STAGE` | `kernel.recovery` | `from`, `to` (`OPERATING`, or `null` for a declined routine advance; `INSPECTING → RECOVERY_WRITING` is recorded by `EPOCH_ACTIVATED`), `principal`, `basis` (`human` or `routine_standing`), `release_binding_digest` (for `routine_standing`: the `RELEASE_BOUND` receipt that carries the setting), `declined` (the failed routine checks, for `to` `null`), `unverified` (items for the human who advances) | none |
+| `RECOVERY_GAP` | `kernel.recovery`: from the restore path (reason `restore`), or at activation when `host_id` differs from the previous epoch's (reason `host_change`) | `last_restored_sequence`, `lost_from`, `lost_to` (each `null` for `host_change`), `reason` (legacy `OA/src/tier1/events.py:86`) | none |
 | `OLD_HOST_FENCED` | `kernel.recovery`, on the command of a human principal holding `recovery_advance`, in `RECOVERY_WRITING` | old host `state` (stopped or isolated), `host`, `method`, `checked_at`; credential `rotated_at`, `attested_by`; a fresh book observation digest; `accounted` items (legacy `recovery.py:808-851`) | none |
 | `CLOCK_QUALITY` | `kernel.recovery` (clock adapter) | `kind` (`backward_jump`, `forward_jump`), `wall_delta_ms`, `monotonic_delta_ms`, `detected_at` | none |
 
@@ -275,7 +275,7 @@ Every process start begins at `INSPECTING`. The stage is held in memory; enterin
 | Stage | Purpose | Leaves by |
 |---|---|---|
 | `INSPECTING` | Read storage, chain, index tables, release compatibility, evidence and the anchored head | Epoch activation |
-| `RECOVERY_WRITING` | Make the ledger consistent and record what happened while down; no dispatch | `RECOVERY_ADVANCED` by a human |
+| `RECOVERY_WRITING` | Make the ledger consistent and record what happened while down; no dispatch | `RECOVERY_ADVANCED`, by a human, or by `kernel:recovery` for a routine restart |
 | `OPERATING` | Normal admission and dispatch; the coordinator runs only here | Process exit |
 
 * **`INSPECTING` → `RECOVERY_WRITING`.** `kernel.recovery` calls `LedgerWriter.activate_epoch()`: one transaction that retires the previous epoch and activates this one (legacy `epoch.activate`). The writer lock was taken at open. An anchored head, if supplied, is checked then (`LED-R11`). The restore path (`operations/restore.py`) activates with a restore marker on `EPOCH_ACTIVATED` (`restore: {source_backup, old_host} | None`) and records `RECOVERY_GAP` for any interval the restore lost (REQ-MIG-009).
@@ -289,15 +289,21 @@ Every process start begins at `INSPECTING`. The stage is held in memory; enterin
 * **`RECOVERY_WRITING` → `OPERATING`** (`RECOVERY_ADVANCED`). `kernel.recovery` records it only when all hold:
   * **who advances:** a human principal holding `recovery_advance` (`authority.check("recovery_advance", ...)`), or, for a **routine restart** only, `kernel:recovery` under the standing authorization (below);
   * D04 is clean;
-  * the legacy fence rule (`OA/src/tier1/recovery.py:117-133`): if this epoch carries a restore marker, `OLD_HOST_FENCED` is recorded in this epoch; and if any `RECOVERY_GAP` exists, an `OLD_HOST_FENCED` follows the latest one. An ordinary same-host restart needs no fence. Without old-owner exclusion a replacement has no send authority (A04-F2); proving it is kept separate from resolving effects already started (REQ-SES-009).
+  * the fence rule, extending legacy (`OA/src/tier1/recovery.py:117-133`): if this epoch carries a restore marker, `OLD_HOST_FENCED` is recorded in this epoch; every `RECOVERY_GAP` (including the `host_change` gap recorded at this activation) is followed by an `OLD_HOST_FENCED`; and a restore-marked earlier epoch with no `OLD_HOST_FENCED` after it still needs one, so the obligation carries across later restarts (legacy checked only the current epoch). An ordinary same-host restart needs no fence. Without old-owner exclusion a replacement has no send authority (A04-F2); proving it is kept separate from resolving effects already started (REQ-SES-009).
   * A04-F2 forbids **blanket** automatic activation. The owner chose a narrow standing authorization for routine restarts ([Q-009 answer](../decisions/owner-answers-2026-10-27.md)), bound by the refusing setting `recovery.routine_advance` (`standing` or `human`; first release `standing`).
-* **Routine restart.** A restart is routine, and `kernel:recovery` records `RECOVERY_ADVANCED` itself (`principal` `kernel:recovery`, `basis` `routine_standing`, and the policy binding digest that carries the setting), only when every check is clean:
-  * `recovery.routine_advance` is `standing`;
-  * this epoch carries no restore marker, and its `EPOCH_ACTIVATED.host_id` equals the previous epoch's (same host);
-  * no `RECOVERY_GAP` exists after the latest `OLD_HOST_FENCED` (or none at all);
-  * recovery steps 1–5 completed without a refusal, and D04 is clean;
-  * step 6 listed no `unverified` item.
-  Anything else (a restore, a host change, a `RECOVERY_GAP`, an unverified item, or `recovery.routine_advance: human`) waits for a human `RECOVERY_ADVANCED`, and the fence rule above still applies.
+* **Routine restart** ([Q-009 answer](../decisions/owner-answers-2026-10-27.md)). `kernel:recovery` records `RECOVERY_ADVANCED` itself (`principal` `kernel:recovery`, `basis` `routine_standing`, `release_binding_digest`) only when **every** check below holds. It reads the ledger by sequence: this epoch's `EPOCH_ACTIVATED`, the `EPOCH_ACTIVATED` named by its `retired_epoch_id`, and every `RECOVERY_GAP`, `OLD_HOST_FENCED`, `RECOVERY_STAGE`, `INDEX_REPAIRED`, `MIGRATION_APPLIED` and `RELEASE_BOUND`.
+  1. `recovery.routine_advance` is `standing` in the deployment configuration recorded with the current release binding (`RELEASE_BOUND` receipt); session policy bindings do not carry it.
+  2. The previous epoch exists and reached `OPERATING` (a `RECOVERY_ADVANCED` recorded in it).
+  3. This epoch carries no restore marker, and its `host_id` equals the previous epoch's (exact string). `host_id` is `runtime.host_identity(ledger path)`: the machine identity (`/etc/machine-id` on Linux, the `MachineGuid` registry value on Windows) joined with the ledger file's device and inode, so another host, a copied file or a restored file never matches.
+  4. The fence rule above needs no fence (no unfenced `RECOVERY_GAP`, no unfenced restore-marked epoch).
+  5. Recovery steps 1–5 completed without a refusal; this epoch recorded no `INDEX_REPAIRED` and no `MIGRATION_APPLIED`; the release binding is the previous epoch's.
+  6. No exit-cause marker from the previous process says it exited on a detected external write or a `CommitFailed` (the kernel writes `<state dir>/exit_cause` before such an exit and removes it at the next `RECOVERY_ADVANCED`).
+  7. An anchored head was supplied and verified (`LED-R11` clean), and the anchor was advanced to the head at the previous `RECOVERY_ADVANCED` (REQ-LED-002, from SLICE-02), so a rolled-back or forked file is behind it.
+  8. Step 6 listed no missing evidence object and no unconfirmed restored grant. Unresolved attempts do **not** disqualify: dispatch never resends them, conflict row 1 holds their underlying, and reconciliation resolves them.
+  9. Fewer than `recovery.routine_advance_limit` routine advances were recorded in the current trading date (a measured refusing setting, TASK-S11-07), so a crash loop falls back to a human.
+
+  **When it runs.** After step 6, and again after every later commit in `RECOVERY_WRITING`, until an advance is recorded. Each time the set of failed checks changes, `kernel:recovery` records `RECOVERY_STAGE` with `to` `null` and `declined` listing them, which the supervisor alerts on. A failed commit of either record exits the process; the restart begins at `INSPECTING`. When any check fails, only a human `RECOVERY_ADVANCED` leaves `RECOVERY_WRITING`, and the fence rule applies to it in full.
+  * **Advancing moves the anchor.** Every `RECOVERY_ADVANCED` (human or routine) advances the anchored head to the ledger head (compare-and-swap against the previous anchor).
 * **Authorization continuity** (REQ-SES-010). After a restore, each restored grant must be confirmed by `interfaces.authorization`'s authoritative store. For each unconfirmed grant, `kernel.recovery` records `GRANT_REVOKED` (reason `restore_unverified`), which also invalidates grants delegated from it. The owner root path re-establishes grants, so `recovery_advance` never depends on a restored grant.
 * While no stage dispatches, broker-held stops are the only protection (A03-F5); the supervisor reports this ([runtime spec](runtime-isolation-observability-deployment.md)).
 * Process liveness, repair access and send permission are three separate facts (`README.md:792`). Unrelated market warm-up is not a recovery gate.
@@ -310,7 +316,7 @@ Every process start begins at `INSPECTING`. The stage is held in memory; enterin
 | `kill_engage`, `hold_engage`, `grant_admin` (revoke only) | refused (no writes before activation) | allowed | allowed |
 | `kill_release`, `hold_release`, `latch_unlock`, `pause_clear`, `binding_authorize`, `grant_admin` (issue) | refused | refused (`SES-R09`) | allowed |
 | `recovery_advance` (including recording `OLD_HOST_FENCED`) | refused | allowed | not applicable |
-| Routine advance by `kernel:recovery` under `recovery.routine_advance: standing` | refused | allowed only when every routine check is clean | not applicable |
+| Routine advance by `kernel:recovery` under `recovery.routine_advance: standing` (not an `authority.check` action) | refused | allowed only when every routine check holds | not applicable |
 | `attempt_resolve` | refused | refused (`SES-R09`) | allowed |
 | Reconciliation records (`RESOLVED_*`, `FILL`, `COMPLETED`, `CONFLICT_RECORDED`, `FOREIGN_RECORDED`, `RECONCILIATION_ESCALATED`), by `kernel.lifecycle` | refused (no writes) | allowed after recovery steps 1–3 (A04-F1) | allowed |
 
@@ -353,11 +359,12 @@ Restrictions can be added while recovering; permissions are widened only in `OPE
 | Risk or limit | Mitigation |
 |---|---|
 | Cross-host exclusion cannot be proved by a local lock or epoch | Fence evidence (`OLD_HOST_FENCED`) is required before advance after a restore or a recorded gap; the mechanism itself is operational (PRF-SES-07) |
-| A routine restart advances without a human, so a wrong "clean" verdict would let the kernel send | The routine checks are narrow and all must pass (same host, no restore, no unfenced gap, D04 clean, no unverified item); the advance is recorded with its basis; any doubt waits for a human ([Q-009 answer](../decisions/owner-answers-2026-10-27.md)) |
+| A routine restart advances without a human, so a wrong "routine" verdict would let the kernel send | Nine checks must all pass (previous epoch operated, same machine and same ledger file, no unfenced restore or gap, no repair, migration or release change, no abnormal exit cause, anchored head current, no missing evidence, within the daily limit); the advance is recorded with its basis; a decline is recorded and alerted ([Q-009 answer](../decisions/owner-answers-2026-10-27.md)) |
+| `host_id` relies on the machine identity file, which a cloned disk copies | A cloned disk also carries a new ledger inode only if copied as a file; a block-level clone keeps the inode, so the anchored-head check (7) and the account locks catch a second writer; host provisioning regenerates the machine identity (operations procedure, SLICE-11) |
 | A restore, host change or gap still waits for a human advance, during which only broker-held stops protect positions | The supervisor alerts at once |
 | Grant expiry uses a wall-clock ratchet | Errors only expire early, which refuses; revocation does not depend on wall time |
 | A forward clock jump can open or close a session early | A close only refuses entries; an early open matches legacy behaviour; both are visible as `CLOCK_QUALITY` |
-| Unverified items do not block the advance on their own (A04-F1: an independent ambiguity is not a universal recovery gate) | The dependent checks (D04, reconciliation, admission) still apply; the items are visible to the human who advances |
+| On the human path, unverified items do not block the advance on their own (A04-F1: an independent ambiguity is not a universal recovery gate); on the routine path, missing evidence and unconfirmed restored grants do | The dependent checks (D04, reconciliation, admission) still apply; the items are visible to the human who advances |
 
 ## Policy inputs
 
@@ -367,7 +374,9 @@ Restrictions can be added while recovering; permissions are widened only in `OPE
 | Standing binding | Recorded by an authorized actor | None |
 | `binding.revocation_effect` | [Q-010 answer](../decisions/owner-answers-2026-10-27.md) | None: refusing; first release binds `stop_entries` |
 | `clock.jump_record_ms` | Measured | None: jump recording off until bound |
-| `recovery.routine_advance` (`standing` or `human`) | [Q-009 answer](../decisions/owner-answers-2026-10-27.md) | None: refusing; first release binds `standing` |
+| `recovery.routine_advance` (`standing` or `human`) | [Q-009 answer](../decisions/owner-answers-2026-10-27.md); deployment configuration recorded with the release binding | None: refusing; first release binds `standing` |
+| `recovery.routine_advance_limit` | Measured (TASK-S11-07) | None: refusing |
+| `kernel.lock_dir` | Deployment configuration | None: refusing |
 
 ## Reuse evidence
 
@@ -404,12 +413,12 @@ Class **T** is an automated test; **M** is a measurement. "Must fail if" names t
 | PRF-SES-02 | T | `tests/unit/test_authority_grants.py` | A principal named in the payload but not authenticated gives `SES-R01`; kernel principals have only their built-in actions | the payload principal is trusted |
 | PRF-SES-03 | T | `tests/recovery/test_session_transitions.py` | CUJ-SES-1, -2 and -4, CP-S1/S2, F-S8/F-S9 give exactly the tabled events; close before open; a late start opens late; the close reason is right | a session check applies to non-entry actions |
 | PRF-SES-04 | T | `tests/unit/test_clock_contract.py` | Recorded and live clocks give identical deadline outcomes; backward and forward jumps leave in-process deadlines unchanged; after a restart no deadline is extended; a backward jump never keeps a session open past its close | a wall-clock ratchet is used in process |
-| PRF-SES-05 | T | `tests/recovery/test_restore_fencing.py` | Second writer refused (`LED-R07`); activation atomic; `INSPECTING` writes nothing; the actions-per-stage table, cell by cell; no `OPERATING` without a human `RECOVERY_ADVANCED` | the lock or stage check is removed |
+| PRF-SES-05 | T | `tests/recovery/test_restore_fencing.py` | Second writer refused (`LED-R07`), including a second ledger file for the same account (account lock); activation atomic; `INSPECTING` writes nothing; the actions-per-stage table, cell by cell; under `recovery.routine_advance: human`, no `OPERATING` without a human `RECOVERY_ADVANCED` | the lock or stage check is removed |
 | PRF-SES-06 | T | `tests/recovery/test_restore_fencing.py` | A restored pre-revocation grant and its children are invalidated without continuity evidence; CP-S4 resumes; the owner root path still works | the snapshot grant is accepted |
 | PRF-SES-07 | M | deployment record | Cross-host fencing: the old host cannot send after cutover | — (operational; SLICE-14) |
 | PRF-SES-08 | T | `tests/recovery/test_session_transitions.py` | Latch and pause records carry the session ID; the next session never reads them (I-S2) | state is keyed by IST date |
 | PRF-SES-09 | T | `tests/recovery/test_session_transitions.py` | A binding recorded mid-session applies only at the next open; an unbound candidate is refused at admission; the calendar alone never opens a session without a binding (I-S3); I-S1 refuses a second open; F-S10 | a binding takes effect inside the session it was recorded in |
-| PRF-SES-10 | T | `tests/recovery/test_restore_fencing.py` | CUJ-SES-5 and F-S11: advance refused until `OLD_HOST_FENCED` is in the restore-marked epoch and after the latest `RECOVERY_GAP`; a same-host restart with an `UNCERTAIN` command advances without a fence; only a `recovery_advance` holder records the fence; a routine restart with every check clean advances under `standing` with basis `routine_standing`, and each failing check (restore, other `host_id`, unfenced gap, D04 mismatch, an unverified item, `human`) makes it wait | a replacement advances without fence evidence, or an ordinary restart demands one |
+| PRF-SES-10 | T | `tests/recovery/test_restore_fencing.py` | CUJ-SES-5 and F-S11: advance refused until `OLD_HOST_FENCED` is in the restore-marked epoch and after the latest `RECOVERY_GAP`; a same-host restart with an `UNCERTAIN` command advances without a fence; only a `recovery_advance` holder records the fence; a routine restart with every check holding advances under `standing` with basis `routine_standing`; each failing check makes it record a decline and wait, one case per check (previous epoch never operated, restore marker, other `host_id`, copied ledger file, unfenced gap, `INDEX_REPAIRED`, `MIGRATION_APPLIED`, new release binding, abnormal exit cause, stale anchor, missing evidence, daily limit reached, `human`); a host change records a `host_change` gap and needs the fence; a restore whose epoch crashed before its fence still needs the fence at the next start; an `UNCERTAIN` command does not block the routine path | a replacement advances without fence evidence, or an ordinary restart demands one |
 
 ## Delivery
 

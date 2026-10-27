@@ -44,7 +44,7 @@ The master accepted: bounded protection in the kernel with recoverable desired, 
    * gap peaks recorded, never applied;
    * tick rounding;
    * the broker's level after a timed-out modify.
-4. At most one resting protective order per position, so protection can never sell more than the position.
+4. Protection never leaves more resting sell quantity than the position can absorb: under `stop_on_fill`, one resting protective order per position; under `basket_at_plan`, the quantity invariant P-1 once the entry has ended, with the one-cancels-other race detected and held ([Basket placement](#basket-placement-basket_at_plan-kernelprotectionpy)).
 5. Conflicts are an explicit, versioned relation, not an accident of locking (ATA-04).
 
 ## Non-goals
@@ -112,14 +112,14 @@ evaluate(trigger, view: StableView, session: SessionRow, position: PositionView,
 
 | Type | Fields |
 |---|---|
-| Triggers | `BarConfirmed(view_id, bar)`; `Tick(instrument, price, delta, at)`; `SquareOffTime(session_id)`, raised by the protection loop from its clock; `ObservationChanged(observation_digest)` |
+| Triggers | `BarConfirmed(view_id, bar)`; `Tick(instrument, price, delta, at)`; `SquareOffTime(session_id)`, raised by the protection loop from its clock; `ObservationChanged(observation_digest)`; `LedgerChanged(command_key)`, raised after a commit of `OUTCOME_*`, `RESOLVED_*`, `LEG_ASSIGNED`, `FILL` or `COMPLETED` for a protected entry or one of its protective legs |
 | `SessionRow` | The `session` index row ([sessions spec](sessions-authority-lifecycle.md#event-catalogue)) |
-| `PositionView` | The ledger `position` row (owned quantity, strategy, instrument), its resting stop if any, the leg's commands (found by the key prefix `prot:<leg_id>:` in `command_identity`), and its `EXIT_STARTED` record if any |
+| `PositionView` | The **protected subject**: the ledger `position` row (owned quantity, strategy, instrument), or, before the entry's first fill, the same `position_id` with owned quantity 0; its resting protective orders (by leg role, from `broker_identity.leg_role`); each leg's commands (found by the key prefix `prot:<position_id>:<role>:` in `command_identity`); and its `EXIT_STARTED` record if any |
 | `ProtectionPolicy` | `ladder_version`, ladder parameters (defaults below), `session_close`, `square_off_time`, `stop_order_type` |
 | `ProtectionLeg` | The persisted `PROTECTION_DESIRED` fields |
 
-* **Who calls it.** The kernel's protection loop calls `evaluate` on the writer thread, once per trigger per position, commits `records` through `transact`, then submits `requests` to admission synchronously. At the first evaluation after `OPERATING`, every position is evaluated (CP-P1).
-* **When a `DESIRED` leg submits.** Only on `BarConfirmed`, `ObservationChanged`, `SquareOffTime` or that first evaluation, never on `Tick`; a tick can only start an exit. Each escalation reason is recorded once per subject until its condition clears (the `reconciliation_fact` key, [execution-domain spec](execution-domain-and-observations.md#reconciliation-events)). So a degraded system does not fill the ledger with repeated refusals or escalations.
+* **Who calls it.** The kernel's protection loop calls `evaluate` on the writer thread, once per trigger per protected subject, commits `records` through `transact`, then submits `requests` to admission synchronously. The **protected subjects** are every open or overclosed `position` row, and every entry command whose `PlanRef.protective_legs` is not empty and whose protective orders are not all observed terminal (so a basket whose entry never filled is still evaluated). At the first evaluation after `OPERATING`, every subject is evaluated (CP-P1).
+* **When a `DESIRED` leg submits.** Only on `BarConfirmed`, `ObservationChanged`, `LedgerChanged`, `SquareOffTime` or that first evaluation, never on `Tick`; a tick can only start an exit. Each escalation reason is recorded once per subject until its condition clears (the `reconciliation_fact` key, [execution-domain spec](execution-domain-and-observations.md#reconciliation-events)). So a degraded system does not fill the ledger with repeated refusals or escalations.
 * **Ticks are bounded.** Only the latest tick per position is kept between evaluations (A03-F2 allows replaceable updates to be coalesced). The tick exit test (`premium_exit`, below) is a few comparisons and runs on the writer thread; PRF-PRT-10 measures whether that ever needs to change.
 * **Ladder.** The legacy `PremiumTrail` (`OA/src/core/framework/protection/trail.py`, standard library only), behind `ladder_version`. Its parameters default to the approved shipped values in `TrailSettings` (`trail.py:113-149`; trailing on and live, POL-012: `config/defaults.yaml:73`, `:1832-1833`). A policy may override them; it never has to state them. This package binds only the premium ladder (the shipped `tracking_mode: premium`): a policy selecting `tracking_mode: spot` or `sl_method: key_level` (legacy `ladder()`, `trail.py:964-976`; `SpotTrail` keeps a stop on the underlying that cannot rest at the broker) refuses to load until a later slice specifies its exits. `ladder_state` is the complete serialized `TrailPosition` (`trail.py:153-205`), every field normalized (decimal strings for prices), so a restarted kernel ratchets exactly as an uninterrupted one. The ladder's behaviour is proved by retained-scope parity (PRF-PRT-08).
 * **Gaps.** When a feed gap ends, protection records one `GAP_PEAK_RECORDED` for that gap. If the recovered peak exceeds the live peak, the record carries the would-be stop, computed as legacy does by replaying the gap's bars (`scripts/run_framework_live.py:5371-5403`, POL-013); otherwise it carries none. `ladder_state` is unchanged.
@@ -139,11 +139,11 @@ The retained exit function, `premium_exit`, tests three reasons on each tick in 
 * **Desire.** `PROTECTION_DESIRED` records `position_id`, `desired_level`, `desired_quantity` (the owned quantity), `ladder_state`, `ladder_version`, `policy_version` and `view_id`, only when one of them changes.
 * **Confirmed quantity** is the quantity of the leg's latest `COMPLETED` command (place or modify) minus the fills recorded against the stop order (ledger `FILL`), so a partly filled stop is not re-sent.
 * **When a modify completes at a different broker level** (POL-014), the confirmed level is the broker's; the desire becomes the tighter of the newer desired level and the broker level, so a ratchet computed meanwhile is not lost.
-* **Identity.** One leg per position: `leg_id` is the `position_id`. Command keys are `"prot:<leg_id>:<n>"`, where `n` is the number of the leg's admitted commands plus one; the leg's latest command has the highest `n`. Nothing stores the link: the leg's commands are read by key prefix.
+* **Identity.** A protective leg is (`position_id`, role), with role `stop` or `target` (`stop_on_fill` has only `stop`). Its command keys are `"prot:<position_id>:<role>:<n>"`, where `n` is the number of that leg's admitted commands plus one; the leg's latest command has the highest `n`. An exit's market close uses `"prot:<position_id>:close:<n>"`. Each leg's derived state and confirmed quantity read only its own role's commands. Nothing stores the link: the commands are read by key prefix. The role names `stop`, `target` and `close` are reserved: a plan leg may not use them.
 * **Retries.** On a `NOT_SENT` attempt or `RESOLVED_NEVER_REACHED`, protection resubmits the identical request with the same key at its next evaluation, and admission records `DISPATCH_RETRY_REQUESTED` ([dispatch spec](dispatch-and-coordination.md#eligibility-and-scheduling)). A transport-rejected modify is not resent at the same level; the next ratchet to a new level submits again.
 * **Nothing automatic is re-placed.** Protection escalates, and does not retry, a stop the broker rejects or expires (reason `stop_rejected` or `stop_expired`) and a desired level already through the market (reason `level_through_market`). No approved rule covers automatic re-placement; legacy behaviour is characterized in TASK-S06-01.
-* **Human principals win.** When a human principal cancels the stop, the leg ends with that cancel's command key as its reason; its `COMMAND_ADMITTED` is the record that a human took over the exit. An ended leg is never re-placed.
-* **Orphans.** When a position's owned quantity reaches zero by any route (broker square-off, a human principal's close, a foreign trade), protection cancels its remaining stop; under kill it escalates instead (reason `orphan_under_kill`).
+* **Human principals win.** When a human principal cancels a protective leg, that leg ends with that cancel's command key as its reason; its `COMMAND_ADMITTED` is the record that a human took over the exit. An ended leg is never re-placed. A human's replacement resting stop is refused by conflict row 5 while another protective leg of the position (under `basket_at_plan`, the target) still rests; the human cancels it first.
+* **Orphans.** When a protected subject's owned quantity is zero or below and its entry has ended (by any route: broker square-off, a human principal's close, a foreign trade, or an entry that never filled), protection cancels every remaining resting protective leg; under kill it escalates instead (reason `orphan_under_kill`).
 * **No requests under a refusing condition.** While kill, a refusing hold or a latch would refuse the request, protection records the desire and submits nothing. A position that is unprotected or under-protected because of this (for example, fills arriving under kill) is escalated once (reason `unprotected_under_kill`).
 
 **Derived leg state**, evaluated in this order; the first that holds wins:
@@ -151,7 +151,7 @@ The retained exit function, `premium_exit`, tests three reasons on each tick in 
 | Order | State | Applies when |
 |---|---|---|
 | 1 | `ENDED` | The stop is observed terminal. The reason is derived on read: a human principal's cancel, protection's own exit cancel (the exit continues while `EXIT_STARTED` is open), a fill, or a broker reject or expiry |
-| 2 | `ORPHANED` | The owned quantity is zero and the stop still rests: protection cancels it (escalates under kill) |
+| 2 | `ORPHANED` | The entry has ended, the owned quantity is zero or below, and the leg still rests: protection cancels it (escalates under kill) |
 | 3 | `PENDING` | The leg's latest command is `ADMITTED`, `IN_FLIGHT`, `UNCERTAIN`, or `WORKING` |
 | 4 | `CONFIRMED` | The latest command `COMPLETED`, and the confirmed level and quantity equal the desired ones |
 | 5 | `DESIRED` | Anything else: no command yet, the latest ended `REFUSED` or `REJECTED`, or the confirmed level or quantity differs from the desire |
@@ -168,52 +168,77 @@ The `protection_state` index table holds the persisted `PROTECTION_DESIRED` fiel
 
 ### Basket placement (`basket_at_plan`, `kernel/protection.py`)
 
-This section is the authority for the first-release placement ([Q-013 answer](../decisions/owner-answers-2026-10-27.md)). It applies to **one-leg entries** (`structure_id` `single_long_option`); structure legs keep `stop_on_fill`, as legacy. It keeps every per-leg rule of the section above unless a row here replaces it.
+This section is the authority for the first-release placement ([Q-013 answer](../decisions/owner-answers-2026-10-27.md)). It applies to **one-leg MARKET entries** (`structure_id` `single_long_option`, `PlanLeg.limit_price` `None`), which is every entry the legacy one-leg planner builds (`OA/src/core/framework/runtime/orchestrator.py:775-778` calls `orders.build`, whose default is MARKET, `OA/src/core/framework/execution/orders.py:98`). A one-leg plan with a limit price under `basket_at_plan` is a planner defect: admission refuses it (`ADM-R13`, stage `placement`), because a resting LIMIT buy with resting sells could sell before it buys. Structure legs keep `stop_on_fill`, as legacy. Every per-leg rule of the section above applies unless a rule here replaces it.
 
-**What is sent.** At admission of a one-leg entry, `kernel.protection.basket_legs(plan, policy)` adds up to two protective legs to the entry's `PlanRef.protective_legs` (ledger [execution contract](ledger-and-atomic-transaction.md#execution-contract-types-contractsexecutionpy)), as legacy `build_basket` does (`orders.py:155-214`):
+**Terms.** The **entry window** runs from the entry's claim until the entry command has ended (its entry leg observed terminal, never reached, or transport-rejected). **Owned quantity `q`** is the subject's `position.owned_quantity` (0 before any fill); it falls with every protective fill and may go below zero (**overclosed**). A protective leg's **order quantity** is `ProtectiveLeg.quantity` until a `prot:` modify of that leg completes, then the modify's quantity; its **unfilled quantity** is the order quantity minus the `FILL`s recorded against that leg's order.
+
+**What is sent.** At admission, `kernel.protection.basket_legs(plan, policy)` adds up to two protective legs to `PlanRef.protective_legs` (ledger [execution contract](ledger-and-atomic-transaction.md#execution-contract-types-contractsexecutionpy)), as legacy `build_basket` (`orders.py:155-214`):
 
 | Leg role | Order | Price | Quantity | Sent when |
 |---|---|---|---|---|
 | `stop` | SELL, `protection.stop_order_type` (`trigger_only` is SL-M, first-release value) | trigger = `Plan.protective_levels.stop`, tick-rounded by the planner (POL-015) | the entry leg's planned quantity | `protective_levels.stop` > 0 |
 | `target` | SELL LIMIT | price = `Plan.protective_levels.target`, tick-rounded | the entry leg's planned quantity | `protective_levels.target` is set and > 0 |
 
-* The adapter sends the entry leg and its protective legs in **one** basket call; `COMMAND_ADMITTED` records them, so a restart rebuilds the same request. Each protective leg is its own broker order, linked to the entry command in `broker_identity` with its leg role (`stop`, `target`).
-* The protective legs carry no capital: they close what the entry opens, so check B5 counts only the entry leg. Admission check B2 does not apply to them; the quantity rules below replace it.
-* The entry command's completion depends on its `entry` leg only ([ledger verb rules](ledger-and-atomic-transaction.md#command-and-attempt-state-machine)). Once its outcome commits, the protective legs belong to `kernel.protection`; their later fills, modifies and cancels are protection's.
+* `instrument` and `product` are the entry `PlanLeg`'s. A plan with no stop sends the entry and target only, as legacy; protection escalates once at the first fill (reason `no_stop_planned`).
+* The adapter sends the entry leg and the protective legs in **one** basket call and returns one `LegResult` per `PlanRef.legs` entry and then per `PlanRef.protective_legs` entry, in that order ([execution-domain spec](execution-domain-and-observations.md#openalgo-adapter-adaptersopenalgopy)). Each acknowledged leg's order ID is recorded in `broker_identity` with its `leg_role`, under the entry's command key.
+* The protective legs carry no capital (they close what the entry opens): check B5 counts only the entry leg, and for reservations the basket is a single-leg entry. Check B2 does not apply to them.
+* The entry command completes on its entry leg alone; a fill on a `stop` or `target` order is a close against the subject's position and never touches the entry's reservation or state ([ledger](ledger-and-atomic-transaction.md#command-and-attempt-state-machine)).
+* Two endpoint-contract items are characterized in TASK-S07-05 before live use: the order in which OpenAlgo places a basket's legs, and how the broker margins SELL legs that rest before the BUY fills.
 
-**The quantity rule** (Goal 4 and POL-008). Under this placement two resting sells exist per position, which `stop_on_fill` avoids. The kernel keeps them within the owned position as follows; each step is an ordinary typed request through admission:
+**Derived state of each protective leg** (replaces the table above for basket legs; first match wins):
 
-| Event | Protection submits | Legacy |
+| Order | State | Applies when |
 |---|---|---|
-| The entry's outcome commits with the entry leg acknowledged | nothing: both protective legs rest at the planned quantity | `orders.py:155-214` |
-| The entry leg is rejected, or the entry command ends with zero fills, while protective legs rest | cancel each resting protective leg (the orphan rule) | `run_framework_live.py:4588-4660` (broker square-off case) |
-| The entry command ends (`COMPLETED`) with owned quantity `q` below the planned quantity | modify each resting protective leg's quantity down to `q` | new: keeps each leg within `q` |
-| A fill of either protective leg leaves owned quantity `q` > 0 | modify the other leg's quantity down to `q`, and the filled leg's remaining quantity is already `q` or less | new: the master's "within the owned position" rule |
-| A fill of either protective leg brings owned quantity to 0 (the **one-cancels-other** step) | cancel the other leg | `run_framework_live.py:4588-4660` (`_cancel_resting_siblings`) |
+| 1 | `ENDED` | The leg's order is observed terminal; or the leg was never reached or transport-rejected (escalate `unprotected` once if the subject's `q` > 0) |
+| 2 | `ORPHANED` | As in the table above |
+| 3 | `PENDING` | The entry command is `ADMITTED`, `IN_FLIGHT` or `UNCERTAIN`; or the leg's role is not yet assigned (`LEG_ASSIGNED`, below); or the entry is `WORKING` and no observation has yet shown the leg's order; or the leg's latest `prot:` command is `ADMITTED`, `IN_FLIGHT`, `UNCERTAIN` or `WORKING` |
+| 4 | `CONFIRMED` | An observation shows the order resting at the desired level and the desired order quantity |
+| 5 | `DESIRED` | Anything else |
 
-* "The first fill of either" is the trigger: protection reacts to the first `FILL` it records on either leg, and to every later one, at its next `ObservationChanged` evaluation.
-* **Combined-quantity invariant (P-1).** After each of those steps completes, each resting protective leg's unfilled quantity is at most the owned quantity. Between a fill and the completion of the sibling's modify or cancel, the sibling may briefly exceed it; that window is the **race** below.
-* **The race.** If the sibling fills before its cancel or modify lands, the broker has sold more than the position held. Reconciliation records the fill (`FILL`); protection detects owned quantity below zero, records `RECONCILIATION_ESCALATED` (reason `overclose`), and `kernel.safety` engages a hold (reason `recovery`, principal `kernel:recovery`) on the strategy, as legacy `_report_overclose` (`run_framework_live.py:5631-5660`). Nothing is sent to buy the excess back: no approved rule covers it. Automatic protection continues under the hold (`safety.hold_automatic_actions: allowed`, [Q-001 answer](../decisions/owner-answers-2026-10-27.md)).
-* **A sibling cancel that is refused or fails** (admission refusal, `REJECTED`, or `UNCERTAIN` past `reconciliation.working_escalation_secs`) is escalated (reason `sibling_cancel_failed`) and `kernel.safety` engages the same hold, as legacy after the 15 October 2026 incident (`run_framework_live.py:4612-4620`).
-* **Under kill** the sibling cancel and modify are automatic writes, so they are refused (POL-002). Protection escalates (reason `sibling_under_kill`); the owner or a delegated principal may cancel the sibling ([permission matrix](#permission-matrix-kernelsafetypy)). If the sibling then fills, the race rule above applies. This is legacy's accepted cost (`OA/src/core/framework/execution/killswitch.py:24-27`).
+* **Desired level:** for `stop`, the ladder's `PROTECTION_DESIRED.desired_level`; for `target`, the plan's target price, never trailed.
+* **Desired order quantity:** during the entry window, the leg's current order quantity (no quantity request is made). After the entry window, the leg's filled quantity plus `max(q, 0)` (see the quantity rule).
+* A basket leg in `DESIRED` only ever submits a `ModifyRequest` or a `CancelRequest` on its own order, never a placement.
+* **First desire.** At the first evaluation after the entry's outcome or resolution commits with the stop leg acknowledged or reached, protection records `PROTECTION_DESIRED` with `desired_level` = the plan's stop, `desired_quantity` = the stop's order quantity, `view_id` = the plan's `view_id`, and `ladder_state` seeded as legacy seeds `TrailPosition` at entry (`entry_premium` = the plan premium the basket was priced from; the exact seed is characterized in TASK-S06-01).
 
-**The trail.** The basket's `stop` leg is the position's protective stop for every rule in the section above: the ladder moves it by `ModifyRequest` (command key `prot:<position_id>:<n>`, `broker_order_id` = the stop leg's order ID, `changes.trigger_price` = the desired level); `PROTECTION_DESIRED.desired_quantity` is the owned quantity once the entry command has ended, and the planned quantity before; confirmed level and quantity follow POL-014 and the confirmed-quantity rule. The `target` leg is never modified by the trail; only the quantity rule changes it.
+**The quantity rule.** It is level-triggered: at every evaluation after the entry window (on `LedgerChanged`, `ObservationChanged` or the first evaluation), for each resting protective leg:
 
-**Derived state for the two legs.** The stop leg uses the derived-state table above, except that its placement command is the entry command: before any `prot:` command exists, the leg reads `PENDING` while the entry command is `IN_FLIGHT` or `UNCERTAIN`, `ENDED` if the stop leg was rejected, and `CONFIRMED` once an observation shows the stop resting at its desired trigger and quantity. The target leg is read from observations only: `RESTING`, `FILLED` (part or whole), or `ENDED`.
+| Condition | Protection submits | Legacy |
+|---|---|---|
+| `q` ≤ 0 | cancel the leg (this is the **one-cancels-other** step when the other leg's fill closed the position, and the orphan rule when the entry never filled) | `run_framework_live.py:4588-4660` (`_cancel_resting_siblings`) |
+| unfilled quantity > `q` > 0 | modify the leg to a new total order quantity = its filled quantity + `q` | new: keeps each leg within `q` |
+| otherwise | nothing | |
 
-**Exits.** The target exit is the resting LIMIT order; protection does not run a target tick exit. The deep-OTM delta exit and the session-close square-off run the exit sequence, which cancels **both** resting legs and waits until both are observed terminal before the market close. `EXIT_STARTED` makes each step resume after a restart.
+* `ModifyChanges.quantity` is the new **total** order quantity, the OpenAlgo modify semantics; TASK-S07-05 confirms it at the source.
+* During the entry window the rule makes no request: both legs keep their order quantity, as legacy sizes them at the entry quantity. A protective fill inside the window is recorded and acted on when the window ends.
+* **Invariant P-1.** After the entry window, once the requests above have completed, each resting leg's unfilled quantity is at most `max(q, 0)`. The combined resting sell quantity can still be up to `2q` (stop and target both rest at `q`); a filled sell beyond `q` is the race below.
+* **Known exposure.** During the entry window both legs rest at the planned quantity while `q` is lower; and after it, two sells of `q` rest together. Both are legacy's accepted cost of the basket ([Q-013 answer](../decisions/owner-answers-2026-10-27.md)).
 
-**Classification** (A03-F5): both resting legs are broker-held when observed within 60 s; the deep-OTM delta exit stays runtime-dependent.
+**When a sibling request fails.**
+
+* A sibling cancel or modify refused for a transient reason (`ADM-R05`, `ADM-R12`, `PRT-R10`), or `NOT_SENT`, is retried at the next evaluation (the level-triggered rule resubmits it). This is new: legacy never retried (`run_framework_live.py:4615-4616`).
+* A sibling cancel or modify that ends `REJECTED`, is refused for any other reason, or stays `UNCERTAIN` beyond `reconciliation.working_escalation_secs` measured from its `OUTCOME_AMBIGUOUS` event time (the persisted-deadline rule of the [clock contract](sessions-authority-lifecycle.md#clock-contract-contractsclockpy-adaptersclockspy)) is escalated (reason `sibling_cancel_failed` or `sibling_modify_failed`) and the strategy is held, as legacy after the 15 October 2026 incident (`run_framework_live.py:4612-4620`).
+* **Under kill** the sibling request is an automatic write, so it is refused (`PRT-R01`, POL-002): protection escalates (reason `sibling_under_kill`) and does not hold; the owner or a delegated principal may cancel the sibling ([permission matrix](#permission-matrix-kernelsafetypy)). This is legacy's accepted cost (`OA/src/core/framework/execution/killswitch.py:24-27`).
+
+**The race (overclose).** If the sibling fills before its cancel or modify lands, `q` goes below zero. Protection then records, in **one decision**, `RECONCILIATION_ESCALATED` (reason `overclose`, the excess in the payload) and `HOLD_ENGAGED` (reason `recovery`, principal `kernel:recovery`) on the strategy, as legacy `_report_overclose` (`run_framework_live.py:5631-5660`). Nothing is sent to buy the excess back: no approved rule covers it. Automatic protection continues under the hold (`safety.hold_automatic_actions: allowed`, [Q-001 answer](../decisions/owner-answers-2026-10-27.md)). A human principal holding `hold_release` releases it ([Kill and holds](#kill-and-holds-kernelsafetypy)). Every hold-bearing escalation in this section is committed with its `HOLD_ENGAGED` in one decision, so no crash separates them.
+
+**Roles not yet assigned.** If the send's validated join could not assign every returned order ID to a role (the IDs sit in `unassigned_order_ids`), reconciliation assigns them later by the same join on a fresh complete orderbook and commits `LEG_ASSIGNED` ([execution-domain spec](execution-domain-and-observations.md#reconciliation-kernelreconciliationpy)). Until both protective roles are assigned, protection submits nothing for the subject and escalates once (reason `protective_roles_unassigned`).
+
+**The trail.** The ladder moves only the `stop` leg, by `ModifyRequest` (key `prot:<position_id>:stop:<n>`, `broker_order_id` = the stop's order, `changes.trigger_price` = the desired level, and `changes.quantity` only when the quantity rule also needs it). The `target` leg is changed only by the quantity rule.
+
+**Exits.** The target exit is the resting LIMIT order; protection runs no target tick exit. The deep-OTM delta exit and the session-close square-off run the exit sequence: cancel **both** resting legs (each by its own `prot:` key), wait until both are observed terminal, then submit the market close (`prot:<position_id>:close:<n>`). `EXIT_STARTED` makes each step resume after a restart.
+
+**Classification** (A03-F5): each resting leg is broker-held when observed within 60 s at its desired level; the deep-OTM delta exit stays runtime-dependent.
 
 **Crash points:**
 
 | ID | Crash or failure | Durable state | Required behaviour |
 |---|---|---|---|
-| CP-B1 | After the entry outcome commits (basket acknowledged), before protection evaluates | Outcome with three leg results; protective order IDs in `broker_identity` | On restart protection derives both legs from the outcome and observations; nothing is resent |
-| CP-B2 | Basket call timed out (`ambiguous`) | Entry command `UNCERTAIN`; every leg unresolved | Reconciliation resolves per leg (the validated join, [execution-domain spec](execution-domain-and-observations.md#openalgo-adapter-adaptersopenalgopy)); a reached entry leg with an unreached stop leg is escalated (`unprotected`); nothing is re-placed |
-| CP-B3 | After a protective fill is recorded, before the sibling's modify or cancel is admitted | `FILL` committed; sibling resting at the old quantity | On restart the sibling reads `DESIRED` against the owned quantity; one request is submitted |
-| CP-B4 | With the sibling's cancel `UNCERTAIN` | Cancel unresolved | No resend; reconciliation resolves it; a later sibling fill is the race |
+| CP-B1 | After the entry outcome commits (basket acknowledged), before protection evaluates | Outcome with three leg results; order IDs with roles in `broker_identity` | On restart the subject is evaluated from the outcome and observations; nothing is resent |
+| CP-B2 | The basket call timed out (`ambiguous`) | Entry command `UNCERTAIN`; every leg unresolved | With no verified tag (the default), each leg stays unresolved and escalated (`untagged_timeout`) until a human principal resolves it per leg with `attempt_resolve` ([execution-domain spec](execution-domain-and-observations.md#reconciliation-kernelreconciliationpy)); conflict row 1 holds the underlying meanwhile; then the rules above apply (an entry leg never reached with protective legs reached is the orphan case) |
+| CP-B3 | After a protective fill is recorded, before the sibling's request is admitted | `FILL` committed | On restart the level-triggered rule submits the sibling request once |
+| CP-B4 | With the sibling's request `UNCERTAIN` | Request unresolved | No resend; reconciliation resolves it; a later sibling fill is the race |
 | CP-B5 | During the exit sequence with one leg cancelled and the other not | `EXIT_STARTED` open | The sequence resumes: cancels the remaining leg, waits for both, then closes |
+| CP-B6 | Between detecting an overclose or a failed sibling request and recording it | `FILL` or the request's outcome committed | The escalation and the hold are one decision; on restart the condition is re-derived from the ledger and recorded once |
 
 ### Structures (`kernel/protection.py`)
 
@@ -234,7 +259,7 @@ A multi-leg structure entry creates one position per leg (ledger `position` row)
 | Event | Recorded by | Payload | Guard |
 |---|---|---|---|
 | `KILL_ENGAGED` / `KILL_RELEASED` | A human principal with `kill_engage` / `kill_release` | `principal`, `reason` | Engage only when released; release only when engaged |
-| `HOLD_ENGAGED` / `HOLD_RELEASED` | A human principal with `hold_engage` / `hold_release` (reason `operator`), or `kernel:recovery` (reason `recovery`, characterized in TASK-S06-03) | `strategy`, `reason`, `principal` | One engagement per strategy and reason |
+| `HOLD_ENGAGED` / `HOLD_RELEASED` | A human principal with `hold_engage` (reason `operator`) or `hold_release` (any reason, named in the command); or `kernel:recovery` engaging (reason `recovery`: the legacy recovery-hold trigger characterized in TASK-S06-03, and the basket's overclose and failed-sibling holds) | `strategy`, `reason`, `principal` | One engagement per strategy and reason |
 
 * Kill applies to the whole desk and does not expire at session close (POL-002). A strategy is **held** while at least one reason is engaged.
 * Each takes effect at its event's ledger sequence ([dispatch spec](dispatch-and-coordination.md#holds-kills-and-latches-against-in-flight-requests)).
@@ -280,7 +305,7 @@ A multi-leg structure entry creates one position per leg (ledger `position` row)
 | 2 | An action on group G that could add sale quantity or remove G's stop | Any unresolved effect on any member of G | yes | ATA-04 shared exposure (`README.md:454`) |
 | 3 | A non-resting close of position P | Any of P's resting protective orders not observed terminal | yes; cancel them first | POL-010 sequence; POL-008 |
 | 4 | Protective action on owned exposure | Unresolved entry elsewhere on the same account | per `protective_independence`: `same_group_only` (no conflict; first-release value, [Q-004 answer](../decisions/owner-answers-2026-10-27.md)) or `account_wide` (conflict) | ATA-04; [Q-004 answer](../decisions/owner-answers-2026-10-27.md) |
-| 5 | A new resting close of position P, from any principal, other than the protective legs of P's own entry basket | P already has a resting close not observed terminal | yes (Goal 4) | POL-008 |
+| 5 | A new resting close of position P, from any principal | P already has a resting protective order not observed terminal | yes (Goal 4) | POL-008 |
 
 * Capacity effects of unresolved commands are handled by reservations and capacity (D16), not by this relation.
 * **Version.** The relation's version is computed in code as the digest of this rule set plus the bound `protective_independence` value. Admission records it; it is evidence only, and a change after admission is not a refusal.
@@ -339,7 +364,7 @@ Every event below is committed through `transact` and folded by the ledger's `fo
 | `LOSS_LATCH_UNLOCKED` | `kernel.safety`, on a human principal's command | `strategy`, `session_id`, `principal`, `reason` | `safety_state` |
 | `SAFETY_CHECK_STATE` | `kernel.safety` | `check`, `scope`, `state`, `reason` | `safety_state` |
 
-Protection also records the ledger's `RECONCILIATION_ESCALATED` ([ledger catalogue](ledger-and-atomic-transaction.md#event-catalogue)) with the reasons named above: `stop_rejected`, `stop_expired`, `level_through_market`, `orphan_under_kill`, `exit_under_kill`, `square_off_under_kill`, `unprotected_under_kill`. The subject is the `position_id`; each is recorded once per subject and reason.
+Protection also records the ledger's `RECONCILIATION_ESCALATED` ([ledger catalogue](ledger-and-atomic-transaction.md#event-catalogue)) with the reasons named above: `stop_rejected`, `stop_expired`, `level_through_market`, `orphan_under_kill`, `exit_under_kill`, `square_off_under_kill`, `unprotected_under_kill`, and for basket placement `unprotected`, `no_stop_planned`, `overclose`, `sibling_cancel_failed`, `sibling_modify_failed`, `sibling_under_kill`, `protective_roles_unassigned`. The escalations `overclose`, `sibling_cancel_failed` and `sibling_modify_failed` are committed with their `HOLD_ENGAGED` in one decision. The subject is the `position_id`; each is recorded once per subject and reason.
 
 ## Failure modes and crash points
 
@@ -359,14 +384,16 @@ Protection also records the ledger's `RECONCILIATION_ESCALATED` ([ledger catalog
 | F-P12 | The position goes to zero under kill with its stop still resting | Escalated (`orphan_under_kill`); not cancelled | PRF-PRT-04 |
 | F-P13 | Kill engaged partway through the exit sequence or square-off | Nothing further is sent; escalated | PRF-PRT-07 |
 | F-P14 | Entry fills arrive under kill | The stop is not placed or raised; escalated once (`unprotected_under_kill`) | PRF-PRT-04 |
-| CP-B1…CP-B5 | Basket placement crash points ([Basket placement](#basket-placement-basket_at_plan-kernelprotectionpy)) | As tabled there | PRF-PRT-03, PRF-PRT-07 |
-| F-P15 | Basket: the entry leg is rejected or ends unfilled while protective legs rest | Both protective legs cancelled | PRF-PRT-01 |
-| F-P16 | Basket: a protective leg partly fills, or the entry ends partly filled | The other leg (or both) is modified down to the owned quantity | PRF-PRT-01 |
+| CP-B1…CP-B6 | Basket placement crash points ([Basket placement](#basket-placement-basket_at_plan-kernelprotectionpy)) | As tabled there | PRF-PRT-03, PRF-PRT-07 |
+| F-P15 | Basket: the entry leg is rejected, never reached, or ends unfilled while protective legs rest | Both protective legs cancelled (escalated under kill) | PRF-PRT-01 |
+| F-P16 | Basket: a protective leg partly fills, or the entry ends partly filled | After the entry window, each leg is modified to its filled quantity + `q` | PRF-PRT-01 |
 | F-P17 | Basket: one protective leg fills the whole position | The other leg is cancelled (one-cancels-other) | PRF-PRT-01 |
 | F-P18 | Basket: both protective legs fill (race) | `overclose` escalated; hold (reason `recovery`); nothing sent to buy back | PRF-PRT-01 |
-| F-P19 | Basket: the sibling cancel is refused or fails | `sibling_cancel_failed` escalated; hold (reason `recovery`) | PRF-PRT-01 |
+| F-P19 | Basket: the sibling cancel or modify fails non-transiently | `sibling_cancel_failed` or `sibling_modify_failed` escalated with a hold in one decision; a transient refusal is retried | PRF-PRT-01 |
 | F-P20 | Basket: the sibling cancel is due under kill | Not sent; `sibling_under_kill` escalated | PRF-PRT-04 |
 | F-P21 | Basket: the broker rejects the stop leg while the entry is acknowledged | `stop_rejected` escalated; nothing re-placed; the target still rests | PRF-PRT-01 |
+| F-P22 | Basket: order IDs returned without roles | `LEG_ASSIGNED` on a later fresh orderbook; until then nothing submitted and `protective_roles_unassigned` escalated once | PRF-PRT-01 |
+| F-P23 | Basket: a one-leg plan with a limit price | Admission refuses (`ADM-R13`, stage `placement`) | PRF-PRT-01 |
 
 ## Risks and limits
 
@@ -378,7 +405,8 @@ Protection also records the ledger's `RECONCILIATION_ESCALATED` ([ledger catalog
 | A missing P&L field leaves the latch inert and refuses all entries | Characterized before production; the refusal is visible as `SAFETY_CHECK_STATE` |
 | Tick load on the writer thread | Latest-tick coalescing; ticks never submit a `DESIRED` leg; PRF-PRT-10 measures queue delay |
 | No automatic re-placement after a broker reject | Escalated at once; any re-placement rule is an owner decision |
-| Under `basket_at_plan`, two resting full-quantity sells exist per position, and both can fill before the sibling's cancel lands | The quantity rule shrinks or cancels the sibling on every protective fill; the race is detected (`overclose`), escalated and held, as legacy; no automatic buy-back |
+| Under `basket_at_plan`, two resting sells exist per position, at the planned quantity during the entry window and at `q` after it, and both can fill before the sibling's request lands | The level-triggered quantity rule shrinks or cancels the sibling; the race is detected (`overclose`), escalated and held in one decision, as legacy; no automatic buy-back |
+| Under `basket_at_plan`, SELL legs rest before the BUY fills | MARKET entries only; leg ordering and the broker's margin treatment of early SELL legs are endpoint-contract items in TASK-S07-05 |
 | Under `basket_at_plan`, protective legs are priced from the plan, not the fill, so a MARKET entry that fills away from the plan price is protected at plan levels | The owner's chosen trade for one round trip (legacy `orders.py:177-186`); `fill_priced` remains the alternative setting |
 | Security: kill release, latch unlock, pause clear and the cancel or close allowed under kill are escape hatches for the owner and delegated human principals ([Q-014 answer](../decisions/owner-answers-2026-10-27.md)) | Each needs its named grant action ([sessions spec](sessions-authority-lifecycle.md)), a reason, and fresh revalidation; kernel principals hold none of `kill_release` or `latch_unlock` |
 
@@ -425,10 +453,10 @@ Class **T** is an automated test; **M** is a measurement; **P** is a parity comp
 
 | Proof | Class | Test file | Expected outcome | Must fail if |
 |---|---|---|---|---|
-| PRF-PRT-01 | T | `tests/unit/test_protection_states.py` | Under `basket_at_plan`: the basket carries the entry, an SL-M stop and a LIMIT target at plan prices and planned quantity; a stop or target of 0 is omitted; the trail modifies only the stop; F-P15…F-P19 and F-P21, each with the requests the quantity rule tables; after every completed step each resting leg's unfilled quantity is at most the owned quantity (P-1); a structure leg uses `stop_on_fill`. Under `stop_on_fill`: each derived-state row in order; placement on the first fill while the entry is still `WORKING`, and quantity raised on later fills; one resting stop per position. Both: a partly filled stop is not re-sent; a human principal's cancel ends the leg; orphans cancelled; F-P10 and F-P11; the structure-action map | ACK is treated as confirmation, a resting leg exceeds the owned quantity after a completed step, the sibling survives a full fill of the other leg, or anything is re-placed or bought back automatically |
+| PRF-PRT-01 | T | `tests/unit/test_protection_states.py` | Under `basket_at_plan`: the basket carries the entry, an SL-M stop and a LIMIT target at plan prices and planned quantity; a stop or target of 0 is omitted (`no_stop_planned`); F-P23; each basket derived-state row; interleaved stop and target commands keep separate states (`prot:<position_id>:<role>:`); the trail modifies only the stop; no quantity request during the entry window; F-P15…F-P19, F-P21 and F-P22, each with the requests the quantity rule tables; after the entry window and its requests, each resting leg's unfilled quantity is at most `max(q, 0)` (P-1); a protective fill lowers `q` and never the entry's reservation; a structure leg uses `stop_on_fill`. Under `stop_on_fill`: each derived-state row in order; placement on the first fill while the entry is still `WORKING`, and quantity raised on later fills; one resting stop per position. Both: a partly filled stop is not re-sent; a human principal's cancel ends the leg; orphans cancelled; F-P10 and F-P11; the structure-action map | ACK is treated as confirmation, P-1 fails after the entry window, the sibling survives a full fill of the other leg, a quantity request is made inside the entry window, or anything is re-placed or bought back automatically |
 | PRF-PRT-02 | T | `tests/unit/test_protection_states.py` | Ladder cases from POL-012/013/015 with default parameters (84.805 rounds to 84.85); one gap-peak record per gap; `premium_exit` precedence; a restart mid-ratchet resumes from the full `ladder_state`; a spot or key-level policy refuses to load | a gap moves the stop |
-| PRF-PRT-03 | T | `tests/recovery/test_crash_boundaries.py` | CP-P1, CP-P2, CP-P4, CP-B1…CP-B4 | a restart resends |
-| PRF-PRT-04 | T | `tests/unit/test_safety_matrix.py` | Every matrix cell and the code order, for the owner and for a delegated human principal with and without the grant; CUJ-PRT-3; F-P12; F-P14; F-P20; conflict row 5 refuses a second resting close from a human principal and exempts the entry's own basket legs; the `safety.hold_automatic_actions` cells run both values | a cell is skipped |
+| PRF-PRT-03 | T | `tests/recovery/test_crash_boundaries.py` | CP-P1, CP-P2, CP-P4, CP-B1…CP-B4, CP-B6 (a crash between detection and record re-derives the escalation and hold once) | a restart resends, or an overclose is recorded without its hold |
+| PRF-PRT-04 | T | `tests/unit/test_safety_matrix.py` | Every matrix cell and the code order, for the owner and for a delegated human principal with and without the grant; CUJ-PRT-3; F-P12; F-P14; F-P20; conflict row 5 refuses a human principal's resting close while any protective leg rests; the `safety.hold_automatic_actions` cells run both values | a cell is skipped |
 | PRF-PRT-05 | T | `tests/unit/test_safety_matrix.py` | An inert latch refuses entries; the latch trips once, keeps its first trip and re-trips after unlock while P&L stays below; unlock needs a human principal holding `latch_unlock` and a reason | a check passes silently |
 | PRF-PRT-06 | T | `tests/integration/test_protection_kernel.py` | CUJ-PRT-1 with the worker stopped; F-P5 with the kernel frozen | protection depends on the worker |
 | PRF-PRT-07 | T | `tests/integration/test_protection_kernel.py` | CUJ-PRT-4, CP-P3, CP-B5 and F-P13; the exit sequence cancels every resting protective leg before the close; a `stop_on_fill` target tick exit runs to the close even when the price moves back; an omitted switch gives `square_off`; a misspelt value refuses to load (X-004 decision) | the close is sent before the stop is terminal |

@@ -132,3 +132,24 @@ Before stage 5, the AI PAUSE row and `PRT-R05` were removed: `kernel.policy` own
 | 8-9 | Major | Goal 4 only enforced for protection | FIX: conflict row 5 refuses a second resting close from any principal |
 | 8-10 | Major | SLICE-06 market inputs undefined before SLICE-08 | FIX: SLICE-06 adds fixture fields to `contracts/market.py`; producer named |
 | 8-N1…N11 | Nit | `leg_id` constant parts; off-thread exit test; two check-state writers; PRF-DSP-04 wording; escalation subject; `close_time` name clash; `ENDED`/orphan; latch staleness; latch trip at A4; intent B2 restating row 3; plan drift | FIX (N10 in the intent resolution; N3, N4 already fixed by dispatch 8-4) |
+
+## Post-answer review — `basket_at_plan` (2026-10-27)
+
+After the owner's answers, the new basket section was reviewed by fresh `egm:egm-design` and `egm:egm-implementation-readiness` reviewers (direct dispatch, read-only). Merged findings: 7 Blocker, 14 Major, 6 Nit. All resolved by FIX.
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| B-1 | Blocker | Protective-leg fills had no ledger rule: they would reduce the entry's reservation, raise owned quantity, or escalate as late fills | FIX (ledger): `FILL` carries `leg_role`; a `stop`/`target` fill lowers `owned_quantity` and never touches the entry's reservation or state; `owned_quantity` is signed with state `overclosed`; the late-fill row is entry-leg only; basket is single-leg for reservations; protective legs excluded from `RESIDUAL_RECORDED` |
+| B-2 | Blocker | No recorded leg role for protective order IDs | FIX: `broker_identity.leg_role` (SLICE-01 DDL), folded from outcome, resolution and `LEG_ASSIGNED` |
+| B-3 | Blocker | Stop and target shared one command-key prefix | FIX: leg = (`position_id`, role); keys `prot:<position_id>:<role>:<n>`; close key `prot:<position_id>:close:<n>`; roles reserved |
+| B-4 | Blocker | Target leg had no desire or full state set; orphan rule covered only the stop | FIX: one basket derived-state table for both legs; desired level and quantity defined; orphan rule covers every resting protective leg |
+| B-5 | Blocker | Nothing evaluated a basket whose entry never filled (naked resting sells) | FIX: protected subjects include entries with live protective legs before any fill; first `PROTECTION_DESIRED` defined |
+| B-6 | Major | P-1 false during the entry window; proof contradicted the rule | FIX: entry window defined; no quantity request inside it; P-1 holds after it; known exposure stated; Goal 4 restated |
+| B-7 | Major | A LIMIT entry in a basket could sell before it buys | FIX: basket for MARKET entries only, as the legacy planner always builds (`orchestrator.py:775-778`, `orders.py:98`); a limit-price plan is refused (`ADM-R13`, stage `placement`); leg ordering and early-SELL margining are TASK-S07-05 items |
+| B-8 | Major | "First fill of either" had no defined input | FIX: level-triggered rule over unfilled quantity versus `q` |
+| B-9 | Major | Modify quantity meaning and failed sibling modify undefined | FIX: `ModifyChanges.quantity` is the new total; `sibling_modify_failed` path |
+| B-10 | Major | Escalation and hold not atomic; reasons missing; `recovery` hold unreleasable | FIX: one decision (CP-B6); reasons added; a human with `hold_release` releases any reason |
+| B-11 | Major | Timed-out basket could not be resolved per leg | FIX: per-leg `attempt_resolve`; per-leg `RESOLVED_*` from `WORKING`; CP-B2 rewritten |
+| B-12 | Major | IDs left unassigned by the join had no later role assignment | FIX: `LEG_ASSIGNED` by reconciliation; protection waits and escalates `protective_roles_unassigned` |
+| B-13 | Major | Missing stop, `LegResult` count, entry completion with protective legs, transient-refusal retry, sibling-timeout clock | FIX: `no_stop_planned`; results per `legs` then `protective_legs`; completion on `PlanRef.legs` only (never-reached counts terminal); transient refusals retried; clock from `OUTCOME_AMBIGUOUS` event time |
+| B-N | Nit | Row 5 exemption dead; leg field sources; human replacement stop; join price normalization | FIX |

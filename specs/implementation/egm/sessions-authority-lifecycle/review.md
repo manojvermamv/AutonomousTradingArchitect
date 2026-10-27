@@ -104,3 +104,19 @@ Recovery's ordered steps (migrate, compare, repair, rebuild outcomes, owed close
 | 8-13 | Nit | First `RECOVERY_STAGE` duplicates `EPOCH_ACTIVATED` | FIX: `EPOCH_ACTIVATED` records that transition |
 | 8-14 | Nit | `at` parameter; "bound accounts" undefined | FIX: `at` dropped; bound accounts defined |
 | 8-15 | Nit | Neighbour references | FIX: ledger catalogue row lists the recovery and clock events and `standing_binding`; dispatch policy row already removed; the policy-version name is aligned in the intent resolution |
+
+## Post-answer review — routine restart (2026-10-27)
+
+Reviewed by fresh `egm:egm-design` and `egm:egm-implementation-readiness` reviewers. Merged findings: 4 Blocker, 7 Major, 4 Nit. All resolved by FIX.
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| R-1 | Blocker | A host change without a restore needed no fence | FIX: a `host_change` `RECOVERY_GAP` is recorded at activation when `host_id` differs, so the fence rule applies |
+| R-2 | Blocker | An intervening restart laundered the restore's fence obligation | FIX: an unfenced restore-marked epoch keeps its obligation across later epochs; routine needs the previous epoch to have reached `OPERATING` |
+| R-3 | Blocker | CUJ-SES-1 contradicted the rule (unresolved attempt) | FIX: unresolved attempts do not disqualify the routine path (dispatch never resends; conflict row 1 holds the underlying); missing evidence and unconfirmed grants do |
+| R-4 | Major | `host_id` from the hostname is configuration, not identity; forks and rollbacks undetected | FIX: machine identity plus the ledger file's device and inode; routine needs a verified anchored head advanced at each advance; account-scoped writer locks (`kernel.lock_dir`) |
+| R-5 | Major | "Clean" ignored repairs, migrations, release changes, abnormal exits and crash loops | FIX: checks 5, 6 and 9 (`recovery.routine_advance_limit`, measured) |
+| R-6 | Major | Timing, inputs, decline record, commit failure unspecified | FIX: evaluated after step 6 and after each commit; events read by sequence; `RECOVERY_STAGE` with `to` `null` and `declined`; a failed commit exits |
+| R-7 | Major | Source of the standing authorization undefined | FIX: deployment configuration recorded with the release binding; `release_binding_digest` on the record; `kernel:recovery` built-in capability |
+| R-8 | Major | Stage table and PRF-SES-05 still required a human | FIX: both updated; PRF-SES-05 runs under `human`; PRF-SES-10 has one case per check |
+| R-N | Nit | Gap wording; field-list alignment; `activate_epoch` seam | FIX |
