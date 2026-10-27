@@ -166,7 +166,7 @@ The rewritten basket section was reviewed again by fresh `egm:egm-design` and `e
 | C-4 | Blocker | A cloned host passed the routine checks | FIX in the sessions spec (send lease, round 3 there) |
 | C-5 | Major | Failure classes incomplete (`ADM-R07` on a terminal target, `PRT-R01`, `PRT-R04`, long `WORKING`) | FIX: one classification table for every outcome |
 | C-6 | Major | A position closed by square-off, a human or a foreign trade dropped out of protection with a SELL still resting | FIX: protected subjects include any position with a protective order not observed terminal; F-P25 |
-| C-7 | Major | Entries may be admitted while that residual SELL rests | Q-017 raised (an entry gate is the owner's); row 1 unchanged meanwhile |
+| C-7 | Major | Entries may be admitted while that residual SELL rests | Q-017 raised (an entry gate is the owner's); answered the same day, option A: row 1 also blocks an entry while a position on the same account and underlying has a protective order not observed terminal |
 | C-8 | Major | Exit sequence fought the quantity rule and could close a zero or negative `q` | FIX: quantity rule suspended while `EXIT_STARTED` is open; close only if `q` > 0; `EXIT_STARTED` closes when `q` ≤ 0 and every leg is `ENDED` |
 | C-9 | Major | B2 and dispatch row 6 judged a modify by remaining quantity while `ModifyChanges.quantity` is a total | FIX: both restated in total terms (total ≥ filled; total − filled within the owned position) |
 | C-10 | Major | A protective leg unresolved at entry completion could never be resolved | FIX: per-leg `RESOLVED_*` from `COMPLETED` (ledger state table) |
