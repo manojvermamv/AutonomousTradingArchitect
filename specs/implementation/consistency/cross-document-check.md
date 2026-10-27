@@ -2,7 +2,7 @@
 
 * **Status:** proposed, non-normative. A record of what the read-only checker found, not a claim that the design is correct.
 * **Precedence:** master README, then ROADMAP, then the package. This file edits nothing.
-* **Run:** 2026-10-26, against the package at branch commit `916326a` (the commit that adds this file also carries the last review edits and the README results), master pin `b9bb32c`, legacy pin `OA@445eb116`.
+* **Run:** 2026-10-27, against the package at branch commit `aa20d80` (the commit that adds this file also carries the last review edits and the README results), master pin `b9bb32c`, legacy pin `OA@445eb116`.
 
 ## Results against the hard targets
 
@@ -14,15 +14,15 @@
 | J3 | 0 module references outside README §6 plus listed tree deltas; 0 modules specified twice | pass | Checker output below |
 | J4 | 0 broken relative links; 0 duplicate IDs | pass | Checker output below |
 | J5 | Every master citation falls inside the section holding the cited ID | pass | Checker output below |
-| J7 | Only `specs/implementation/` changes in ATA | pass: 37 files changed since the branch base `b9bb32c`, 0 outside `specs/implementation/`; working tree has 0 changes outside it | `git diff --name-only b9bb32c..HEAD` and `git status --porcelain` below |
+| J7 | Only `specs/implementation/` changes in ATA (plus the master `README.md`, edited on the owner's authorization of 2026-10-27 for X-001, X-003, X-006, X-007; master citations stay pinned to `b9bb32c`) | pass: 38 files changed since the branch base `b9bb32c`, 0 outside `specs/implementation/`; working tree has 0 changes outside it | `git diff --name-only b9bb32c..HEAD` and `git status --porcelain` below |
 
 Passing J2–J5 shows only that the documents agree with each other and with the master. Correctness evidence comes from the zero-context EGM reviews (J1, J6), the owner's answers to the open questions, and, later, the executed proofs. No proof in this package is *executable* or *passing* yet: every one is *specified*.
 
 ## Checker output
 
 ```text
-files=38 tree_paths=176 deltas=23 full_keys=87 stub_keys=56
-J7 changed=7 outside_specs=0 []
+files=39 tree_paths=176 deltas=23 full_keys=87 stub_keys=56
+J7 changed=4 outside_specs=1 [' M README.md']
 
 no problems
 ```
@@ -63,9 +63,11 @@ from collections import defaultdict
 
 ata = pathlib.Path(sys.argv[1]); at = pathlib.Path(sys.argv[2])
 pkg = ata / "specs" / "implementation"
-README = (ata / "README.md").read_text(encoding="utf-8").splitlines()
-ROADMAP = (ata / "ROADMAP.md").read_text(encoding="utf-8").splitlines()
-AGENTS = (ata / "AGENTS.md").read_text(encoding="utf-8").splitlines()
+PIN = "b9bb32c"   # master citations are pinned to this commit (00-provenance)
+def at_pin(name):
+    return subprocess.run(["git", "-C", str(ata), "show", f"{PIN}:{name}"], capture_output=True,
+                          text=True, encoding="utf-8").stdout.splitlines()
+README = at_pin("README.md"); ROADMAP = at_pin("ROADMAP.md"); AGENTS = at_pin("AGENTS.md")
 files = sorted(pkg.rglob("*.md"))
 problems = defaultdict(list)
 

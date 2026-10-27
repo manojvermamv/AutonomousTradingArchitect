@@ -4,13 +4,13 @@ Status: **proposed** findings for the master documents' owner. The master README
 
 | ID | Kind | Blocks | State |
 |---|---|---|---|
-| [X-001](#x-001) | Stale summary after the scoped policy baseline | none | open |
-| [X-002](#x-002) | Ledger schema needed before the upgrade-versus-import evaluation | none (SLICE-01 uses a provisional, disarmed schema) | open |
-| [X-003](#x-003) | Test files the slices need that README §6 does not list | none | open |
-| [X-004](#x-004) | POL-010 misspelt switch value vs A02-F2 unknown-value refusal | TASK-S06-05 (misspelt-value behaviour only) | open |
-| [X-005](#x-005) | ATA-05 "policy contracts" as a session-scope dimension | TASK-S03-02 (session key and its unique index) | open |
-| [X-006](#x-006) | The policy inventory's classifications are staged, not accepted | none now; any spec citing an unaccepted row before acceptance | open |
-| [X-007](#x-007) | README §6 names no module for the durable evidence store | TASK-S02-03 (module placement only) | open |
+| [X-001](#x-001) | Stale summary after the scoped policy baseline | none | accepted 2026-10-27 ([answers](../decisions/owner-answers-2026-10-27.md)) |
+| [X-002](#x-002) | Ledger schema needed before the upgrade-versus-import evaluation | none (SLICE-01 uses a provisional, disarmed schema) | accepted 2026-10-27 ([answers](../decisions/owner-answers-2026-10-27.md)) |
+| [X-003](#x-003) | Test files the slices need that README §6 does not list | none | accepted 2026-10-27 ([answers](../decisions/owner-answers-2026-10-27.md)) |
+| [X-004](#x-004) | POL-010 misspelt switch value vs A02-F2 unknown-value refusal | TASK-S06-05 (misspelt-value behaviour only) | accepted 2026-10-27 ([answers](../decisions/owner-answers-2026-10-27.md)) |
+| [X-005](#x-005) | ATA-05 "policy contracts" as a session-scope dimension | TASK-S03-02 (session key and its unique index) | accepted 2026-10-27 ([answers](../decisions/owner-answers-2026-10-27.md)) |
+| [X-006](#x-006) | The policy inventory's classifications are staged, not accepted | none now; any spec citing an unaccepted row before acceptance | accepted 2026-10-27 ([answers](../decisions/owner-answers-2026-10-27.md)) |
+| [X-007](#x-007) | README §6 names no module for the durable evidence store | TASK-S02-03 (module placement only) | accepted 2026-10-27 ([answers](../decisions/owner-answers-2026-10-27.md)) |
 
 ---
 

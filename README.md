@@ -1038,6 +1038,7 @@ AutonomousTrading/                         # Recompose existing behavior into on
 │       │       ├── store.py               # Commit session protection lifecycle and accounting transitions
 │       │       ├── schema.py              # Validate schema capability and owned migrations
 │       │       ├── projections.py         # Rebuild and compare authoritative read models
+│       │       ├── evidence_store.py      # Publish evidence durably before any reference commits
 │       │       └── export.py              # Publish committed causal evidence asynchronously
 │       ├── adapters/                      # Concrete boundary implementations
 │       │   ├── openalgo.py                # Expose domain coverage and transport without hidden retries
@@ -1099,25 +1100,47 @@ AutonomousTrading/                         # Recompose existing behavior into on
 │   ├── verify_recovery.py                 # Exercise isolated crash and restore acceptance
 │   └── check_release.py                   # Observe artifact and process convergence
 ├── tests/                                 # Fresh requirement proofs with selectively reused evidence
+│   ├── conftest.py                        # Provide temporary stores injected clocks and fault layers
 │   ├── unit/                              # Pure deterministic domain checks
+│   │   ├── test_event_envelope.py          # Prove canonical bytes digests and the hash chain
+│   │   ├── test_command_identity.py        # Prove command keys content digests and guards
+│   │   ├── test_ledger_invariants.py       # Run the ledger state machine against its invariants
+│   │   ├── test_clock_contract.py          # Prove clock domains deadlines and recorded time
+│   │   ├── test_policy_parameters.py       # Refuse unbound policy and label synthetic values
+│   │   ├── test_authority_grants.py        # Prove grant checks at admission and dispatch
+│   │   ├── test_admission_checks.py        # Prove every admission refusal and record
 │   │   ├── test_planner_rules.py           # Prove approved selection sizing stops and refusals
-│   │   ├── test_canvas_causality.py        # Reject future bars repainting and false availability
-│   │   └── test_review_semantics.py        # Verify approved review and non-dispatch evidence
+│   │   ├── test_review_semantics.py        # Verify approved review and non-dispatch evidence
+│   │   ├── test_scheduling.py              # Prove dispatch ordering without head-of-line blocking
+│   │   ├── test_conflict_relation.py       # Prove the versioned conflict relation
+│   │   ├── test_protection_states.py       # Prove protection legs exits and classification
+│   │   ├── test_safety_matrix.py           # Prove kill hold and latch permissions
+│   │   ├── test_domain_attribution.py      # Prove execution-domain attribution and combination
+│   │   ├── test_reconciliation_rules.py    # Prove identity coverage and absence rules
+│   │   └── test_canvas_causality.py        # Reject future bars repainting and false availability
 │   ├── contracts/                         # Compatibility and authority checks
 │   │   ├── test_legacy_schemas.py          # Verify explicitly supported historical contracts
 │   │   ├── test_installed_artifact.py      # Verify wheel outside checkout
 │   │   └── test_capabilities.py            # Deny unauthorized tools credentials and writes
 │   ├── integration/                       # Isolated component exercises
+│   │   ├── test_entry_outcomes.py          # Prove entry outcomes through the simulated broker
+│   │   ├── test_dispatch_revalidation.py   # Prove revalidation waits and refusals before a claim
+│   │   ├── test_bounded_io.py              # Prove slow brokers timeouts and disconnects stay bounded
+│   │   ├── test_verb_completion.py         # Prove cancel modify and close completion rules
+│   │   ├── test_protection_kernel.py       # Prove protection inside the kernel process
 │   │   ├── test_shared_engine.py           # Compare live-style paper and replay transitions
 │   │   ├── test_openalgo_contract.py       # Use permitted recorded interface observations
 │   │   └── test_custody_promotion.py       # Preserve one-use evidence and activation identity
 │   ├── recovery/                          # Durable fault campaigns
 │   │   ├── test_crash_boundaries.py        # Prove atomic outcomes and recoverable uncertainty
+│   │   ├── test_session_transitions.py     # Prove session opens closes and restarts
+│   │   ├── test_release_continuity.py      # Keep protected legs across release changes
 │   │   ├── test_restore_fencing.py         # Exclude old writers and preserve unknown obligations
 │   │   └── test_projection_integrity.py    # Detect altered indexes and stale views
 │   ├── isolation/                         # Host and evidence independence checks
 │   │   └── test_resource_storage_scope.py  # Deny native descendants production and OOS mutation
 │   └── fixtures/                          # Small synthetic and permitted versioned inputs
+│       ├── slice01_entry.json             # Fix the first slice's synthetic entry
 │       └── manifests.json                 # Identify provenance licenses and hashes
 └── docs/                                  # Concise durable decisions and operations knowledge
     ├── architecture.md                    # Maintain boundaries contracts and diagrams
@@ -1336,17 +1359,19 @@ The table below defines the remaining target questions. **A01–A10 are audit ag
 
 ### Owner choices retained
 
+**Policy inventory accepted 2026-10-27.** The owner accepted the 54 rows and their A/H/S/C/O statuses in `specs/implementation/02-policy-inventory.md` as the scoped policy baseline (X-006). Dependent specs cite those rows by POL ID.
+
 The table below identifies policy areas and evidence needs; it is not a declaration that every detail is undecided. The [accepted scoped policy baseline](#accepted-scoped-policy-baseline) requires a policy-by-policy applicability map here before dependent specifications treat the baseline as complete. Historical approvals remain evidence with their original scope; unresolved details are not silently decided by this update.
 
 | Decision | Existing fact | Required choice/evidence |
 |---|---|---|
-| Daily-loss/kill/recovery permissions | Latch/sender controls exist; narrow human exception | Allowed actions/actors for cancel/close/protect/unlock, especially risk reduction. No new default. |
+| Daily-loss/kill/recovery permissions | Latch/sender controls exist; narrow human exception | **Decided 2026-10-27** (package `decisions/owner-answers-2026-10-27.md`): owner and delegated principals with the named grant (Q-014); protection continues during a recovery hold (Q-001); daily-loss ₹3,600 configurable (Q-002); POL-002, POL-004. |
 | Cost-inclusive admission | Structure economics currently gross | Approved cost/slippage placement/model/data/policy version or explicit retention of gross semantics. |
-| Planned vs fill-based protection | Basket created from plan values | Measured drift/partial-fill exposure; whether staging/repricing/OCO-related behavior should change. |
+| Planned vs fill-based protection | Basket created from plan values | **Decided 2026-10-27:** keep the basket at plan prices (Q-013); measured drift may reopen it. |
 | AI unavailable/optional role consequence | Existing unavailable continues; advisor abstains | Preserve in migration; changes require comparative evidence and explicit approval. |
-| Authority/account scope and external origins | One configured authority plus strategy ownership | Exact account universe, manual/OpenAlgo origins, foreign exposure response. Sole adapter is not sole origin proof. |
-| Promotion | Freeze/custody/session concepts implemented | Approvers, revocation, evidence claim and economic acceptance rule. No universal trade-count threshold invented. |
-| RPO/RTO/failover | Backup/recovery/fence mechanisms | Tolerated data loss/outage and activation authority; measured need before replication/distribution. |
+| Authority/account scope and external origins | One configured authority plus strategy ownership | **Decided 2026-10-27:** BuyerEdge on the current account first (Q-005); foreign activity recorded and alerted (Q-016). |
+| Promotion | Freeze/custody/session concepts implemented | Decided parts: POL-041 (bar and per-family approval). Open: approvers, revocation, economic acceptance rule. No universal trade-count threshold invented. |
+| RPO/RTO/failover | Backup/recovery/fence mechanisms | Decided parts: POL-047 (nightly backup, rebuild rule); routine restarts resume automatically (Q-009). Open: tolerated loss/outage and failover authority. |
 | Project license | External grants recorded, Ultron grant unresolved | Owner selects owned-code license; review redistribution/transitive obligations before copying/adopting. |
 
 ### Evidence not available or not authorized here
