@@ -141,7 +141,8 @@ ReviewApplication(intent_digest, strategy, candidate_id, session_id, mode,
        review_outcome | None, alert: bool, policy_binding_id, deadline: Deadline)
 Plan(plan_digest, planner_version, structure_id, account, intent_digest, candidate_id, view_id,
      policy_digest, legs: list[PlanLeg], amount, margin, worst_case_loss, currency,
-     residual_exposure, protection_policy_ref, protective_levels: {stop, target | None})
+     residual_exposure, protection_policy_ref, protective_levels: {stop, target | None},
+     entry_facts: EntryFacts | None)   # the priced premium and selection values protection seeds from
 PlanLeg(leg_role, instrument, product, side, quantity, unit="contracts", lot_size,
         limit_price | None, amount, tick_size)
 SessionStats(trade_count, desk_trade_count, desk_open_structures, setup_fresh: bool,
@@ -203,7 +204,7 @@ This is the master's existing entry policy (`README.md:113-118`), applied by the
 ### Planning port (`kernel/planner.py`, `kernel/selection.py`)
 
 ```text
-plan(intent, view: StableView, chain: ChainSnapshot, reference_facts: ReferenceFacts,
+plan(intent, account, view: StableView, chain: ChainSnapshot, reference_facts: ReferenceFacts,
      policy: BoundPolicy, stats: SessionStats, now: Timestamp) -> Plan | PlanRefusal(stage, reason)
 ```
 
@@ -215,7 +216,8 @@ plan(intent, view: StableView, chain: ChainSnapshot, reference_facts: ReferenceF
 | `intent.scores` | The strategy | The intent |
 | `now` | The injected clock | Stage A evaluation time |
 
-* Called only after stage A passes. Pure: every input is passed in; nothing is read from or written to stores, clocks or sockets.
+* Called only after stage A passes. Pure: every input is passed in; nothing is read from or written to stores, clocks or sockets. `account` is an input because the planner seals the plan and `Plan.account` is the request's ([SLICE-04 step 3](../plan/slices/SLICE-04-intent-to-admission.md#inputs)).
+* **Money figures** ([Q-019 answer](../decisions/owner-answers-2026-10-27.md)): a long-only plan carries `amount = margin = worst_case_loss` = the full premium debit at the LTP (bound policy `planner.debit_price: ltp`, `planner.worst_case_loss: full_debit`); the debit at the ask and the loss to the stop stay selectable by configuration for later adoption.
 * **Implementations**, chosen by the intent's `structure_id` (`kernel.selection`), as legacy (`structures/planner.py:114`):
   * `single_long_option` → `one_leg_v1`: the legacy one-leg `plan()` (`src/core/framework/runtime/orchestrator.py:385`), keeping its planning stages `session_gates`, `strike`, `quantity`, `exposure`, `stop`, `loss_budget` and `request` (`:90`);
   * any other known structure → `structure_v1`: the legacy `plan_structure()` (`src/core/framework/structures/planner.py:104`), which first runs the one-leg pipeline, including `session_gates`, as a preflight (`:132-167`), then keeps `resolve`, `exposure`, `economics`, `stop` and `loss_budget`, and its phase and cover rules (`:33-76`): long legs that cover a short precede it, so the worst intermediate state is the one before the covering longs fill, and `worst_case_loss` is the maximum over the phase sequence;

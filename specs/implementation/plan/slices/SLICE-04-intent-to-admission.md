@@ -1,6 +1,6 @@
 # SLICE-04 — Intent to admission
 
-* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-04-review-2026-10-27)). **Step 1 built** on 2026-10-27 in a local repository (commit `2ed1c39`, branch `slice-04`): 235 tests passed, including every SLICE-01…03 test, and every break check failed as required ([as built](#step-1-as-built)). That is a build record, not production acceptance. **Step 2 built** the same day (commit `575c897`): 252 tests passed and every break check failed as required ([as built](#step-2-as-built)). Step 3 is deepened before it is built.
+* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-04-review-2026-10-27)). **Step 1 built** on 2026-10-27 in a local repository (commit `2ed1c39`, branch `slice-04`): 235 tests passed, including every SLICE-01…03 test, and every break check failed as required ([as built](#step-1-as-built)). That is a build record, not production acceptance. **Step 2 built** the same day (commit `575c897`): 252 tests passed and every break check failed as required ([as built](#step-2-as-built)). Step 3 (`one_leg_v1`) is decision-complete below after its EGM review and not yet built; `structure_v1` is step 4, deepened before it is built.
 * **Precedence:** the master README, then the ROADMAP, then this package. The authority is the [intent spec](../../design/intent-to-admission.md); every deviation is marked **Deviation**. No score, threshold or money value is set: every refusing setting is bound only to labelled synthetic values in tests.
 * **Phase:** master Phase 1, finishing in Phase 3 with real views (SLICE-08). Class S.
 * **Builds on:** [SLICE-03](SLICE-03-sessions-authority-recovery.md) as built; branch `slice-04` cut from `slice-03`.
@@ -388,13 +388,189 @@ Commit `575c897` on `slice-04`, after `2ed1c39`. It changes exactly the 16 paths
 | Admit a modify that raises an entry order's limit | `test_entry_limit_raise_refused_q018` |
 | Build `ActionAdmission` in `operations/verification.py` | the capability test |
 
-## Step 3 — the planning port (deepened before build)
+## Step 3 — the planning port (`one_leg_v1`)
 
-`one_leg_v1` and `structure_v1` extracted pure from `orchestrator.py:385` and `structures/planner.py:104` @445eb116, with `kernel.selection` choosing by `structure_id`; `SessionStats` derived field by field (TASK-S04-06); PRF-ADM-03. The legacy one-leg planner is about 1,000 lines with registry, kill-switch-file and desk-configuration couplings; its line-by-line extraction map is written into this section before step 3 starts, and step 3 is not built until then.
+Deepened after step 2 landed, from two line-by-line reads of the legacy planners at `OA@445eb116`, then reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-04-step-3-review-2026-10-27)); this text includes their fixes. Abbreviations: **O** `src/core/framework/runtime/orchestrator.py`, **G** `sizing/gates.py`, **Q** `sizing/quantity.py`, **S** `selection/strikes.py`, **P** `protection/stops.py`, **R** `execution/orders.py`, **SP** `structures/planner.py`, all under `src/core/framework/`; **L** `scripts/run_framework_live.py`; **SS** `src/runtime/session_state.py`; **RF** `src/data/reference/store.py`. The owner's [Q-019 answer](../../decisions/owner-answers-2026-10-27.md) fixes the plan's money figures.
 
-## Completion conditions (steps 1–2)
+### What legacy does, and what that decides
 
-1. Every SLICE-01…03 test and every step 1–2 test passes in a clean environment with no broker variables.
+* **The shipped strategy plans one way only.** BuyerEdge emits only `structure_id = "single_long_option"` (`src/strategies/buyer_edge.py:2313-2322`); live calls `plan_structure` only for other ids (L:4123). Every first-release entry goes through the one-leg `plan()` (O:385-845). Step 3 builds that path, `one_leg_v1`, and the dispatch.
+* **`structure_v1` moves to step 4**, deepened before it is built. Legacy's structure definitions are untyped mappings (`src/core/framework/policy/types.py:14-44`) whose resolution runs evidence checks inline, the only shipped structures with more than one leg are test fixtures with SELL legs (which the package does not admit), and the [protection spec](../../design/protection-and-safety.md#structures-kernelprotectionpy) gives each structure leg its own stop, so the structure path needs its own decisions. Until step 4, `implementation_for` refuses every id other than `single_long_option` with `PlanRefusal("select", "structure_planner_not_built")`. No shipped strategy emits such an id; the build is disarmed, and nothing live changes.
+* **Legacy computes no plan money figures for a one-leg entry** and reserved none: its capacity reservation existed only for structure plans (`structure_reservation_snapshot`, L:437-553), with `margin` from OpenAlgo's margin preview (L:480-509). The figures are the owner's [Q-019](../../decisions/owner-questions.md#q-019) answer (below).
+* **Legacy is impure in ways the port removes** (D07): events, the kill-switch file, wall clocks, the loss-latch file read and **write** mid-plan (O:538-563), the greeks store and reference-facts file through callables, and the order registry (table below).
+
+### Files
+
+| File | Change |
+|---|---|
+| `src/autonomous_trading/contracts/market.py` | `StableView` gains `spot`; new `ChainSnapshot`, `ChainRow`, `OptionQuote`, `ReferenceFacts`, `ReferenceMissing` |
+| `src/autonomous_trading/contracts/decisions.py` | `PlannerPolicy`, `StrikePolicy`, `SizingPolicy`, `StopPolicy`, `SessionLimits`; `EntryFacts`; `Plan.entry_facts` (keyword, last, default `None`); `BoundPolicy.planner` (keyword, last, default `None`); `SessionStats.seconds_since_last_entry` becomes `float \| None` (legacy G:171) |
+| `src/autonomous_trading/contracts/execution.py` | `wire` for finite floats and the new dataclasses |
+| `src/autonomous_trading/kernel/selection.py` | The extracted pure functions: `select` (S:131-287), `quantity_for` (Q:31-102), `entry_stop` (P:124-163), `to_tick` (R:218-270), `legacy_rows`, `implementation_for(structure_id)` |
+| `src/autonomous_trading/kernel/planner.py` | `Planner` (the object composed into `AdmissionPorts.planner`) with `.plan(intent, *, account, view, chain, reference_facts, policy, stats, now)`; `one_leg_v1`, `session_gates` (G:180-256 with O:575-589), `money_figures`; `FixturePlanner` takes the same signature |
+| `src/autonomous_trading/kernel/ports.py` | `MarketPort.chain(view_id)`, `MarketPort.reference_facts(underlying, decision_at)`; `SessionStatsPort.stats(intent, now)`; `AdmissionPorts.stats` (last field) |
+| `src/autonomous_trading/kernel/admission.py` | Reads view, chain, reference facts, stats after the view check; the chain must match the view; passes `account` |
+| `src/autonomous_trading/bootstrap.py` | Unchanged signature; the ports carry the planner |
+| `tests/conftest.py` | `make_intent` defaults `structure_id = "single_long_option"`; `planner_policy(**changes)`, `make_chain`, `make_stats(**changes)` (G:164-176 defaults), `FixtureStats`; `FixtureMarket` serves chains and reference facts |
+| `tests/unit/test_planner_rules.py` | PRF-ADM-03, the golden cases, Q-019 |
+| `tests/unit/test_admission_checks.py`, `tests/unit/test_policy_parameters.py` | The planning inputs at the door; `AdmissionPorts` built with `stats` |
+| `tests/fixtures/planner_parity_445eb116.json` | New: the golden cases (tree delta **T-26**) |
+
+### Inputs
+
+```text
+Planner.plan(intent, *, account, view: StableView, chain: ChainSnapshot,
+             reference_facts: ReferenceFacts | ReferenceMissing, policy: BoundPolicy, stats: SessionStats,
+             now: Timestamp) -> Plan | PlanRefusal
+StableView(view_id, underlying, calendar_id, bar_open, bar_close, spot_as_of, chain_as_of, spot: str)
+ChainSnapshot(underlying, expiry, as_of: Timestamp, rows: tuple[ChainRow, ...])    # one expiry; provider's row order
+ChainRow(strike: str, lotsize: int | None, tick_size: str | None, ce: OptionQuote | None, pe: OptionQuote | None)
+OptionQuote(symbol, ltp, bid, ask, oi, volume, delta, gamma, tick_size)   # each a finite decimal string or None, symbol a str
+ReferenceFacts(underlying, trading_date, lot_size: int | None)            # the fact in force and known at decision_at
+ReferenceMissing(reason: no_fact | not_yet_available | not_in_force)      # RF:190-206's reasons
+```
+
+* **`account`** joins the spec's signature (a named deviation in the intent spec): the planner seals the plan, and `Plan.account` is the request's.
+* **Number forms.** Prices and tick sizes are money strings with exactly two decimals (the ledger's form); `strike`, `oi`, `volume`, `delta`, `gamma` and `spot` are finite decimal strings. The provider writes every number as Python's `repr` of the float it read, so `float(s)` inside the extracted code returns the very float legacy computed with, and selection arithmetic stays legacy's (floats) bit for bit. A record that violates a form cannot be constructed.
+* **`legacy_rows(chain)`** builds legacy's flat-chain row dicts, in chain order, always emitting every key (`None` when absent): `strike` (`float`), `lotsize` (`int` or `None`), `tick_size`, and for `ce` and `pe`: `{p}_symbol` (`str` or `None`), `{p}_ltp`, `{p}_bid`, `{p}_ask`, `{p}_oi`, `{p}_volume`, `{p}_delta`, `{p}_gamma`, `{p}_tick_size` (each `float` or `None`). The keys are those legacy reads (S:177-210, O:626, O:853-869); per-symbol `delta` and `gamma` replace the `delta_of`/`gamma_of` callables (O:596-599, O:693).
+* **One expiry.** A snapshot holds one expiry, as the market spec states; the one-leg selector normalizes OI and volume over the whole snapshot (S:245-246), so which expiry the host supplies is part of the input, as live (inference: live passed the nearest expiry's chain).
+* **Values legacy live never passed** keep legacy-live values: `iv_rank = None` (S:164, S:233), no `gex_levels` (S:263, neutral 0.5), `consecutive_wins = 0` (O:393), `held = None` (L:4199-4224, so the exposure stage is INERT). Using the intent's `iv_rank` would change which entries pass `iv_rank_max`, so it is the owner's, and not done.
+* **From the intent:** `direction` (`long_call` → `"CE"`, `long_put` → `"PE"`), `scores.signal_score` (`float`, `None` → 0.0, O:390), `scores.conviction` (to sizing, which ignores it, Q:59-64), `as_of` (rendered as its `utc_iso` in reason texts; legacy printed its own ISO string, a named text deviation), `candidate_id`, `view_id`.
+
+**At the door** (`EntryAdmission`, after the view check, in this order): `chain = market.chain(intent.view_id)`; `None`, or `chain.underlying != view.underlying`, or `chain.as_of != view.chain_as_of` → `ADM-R05` (`B1`, reason `chain_missing` or `chain_mismatch`), so the planner never prices from a chain B1 did not age; then `reference_facts = market.reference_facts(intent.underlying, intent.as_of)`; then `stats = stats_port.stats(intent, now)`.
+
+**Reference facts at the decision instant.** The market port applies legacy's rule (RF:190-206): the fact in force on the exchange date of `decision_at` and already known at it, the latest by availability and revision; otherwise `ReferenceMissing(reason)`. The time-zone conversion happens in the port, not in the pure planner.
+
+### `PlannerPolicy` (the bound policy's planner part)
+
+Every value is a policy value from the bound bundle (SLICE-11); none is set by this slice; tests bind labelled synthetic values through `planner_policy(**changes)`. Types are legacy's.
+
+| Contract | Fields and types |
+|---|---|
+| `StrikePolicy` (S:44-63, defaults S:31-40) | `min_oi`, `min_volume`, `max_spread_pct`, `asym_threshold`, `iv_rank_max`: `float`; `min_score`: `int`; `delta_base`, `delta_pivot`, `delta_max`, `score_pivot`, `delta_band`, `max_delta_gap`, `delta_weight_base`, `delta_weight_range`, `range_pct`: `float`. `activate_at_max_pts` (S:52) is the trail's, not selection's, and goes to SLICE-06 |
+| `SizingPolicy` (Q:21-29) | `base_lots`, `adaptive_win_streak_trigger`, `adaptive_win_streak_step`, `adaptive_max_lot_mult`: `int`; `adaptive_enabled`: `bool`; `max_notional`: `float`. `lot_size` is dropped: the plan always requires a proven lot (O:658) |
+| `StopPolicy` (O:119-155; P:30-48, 66, 83) | `moneyness_bands`: `tuple[tuple[float, str, float, float, float], ...]` (|delta| floor, label, stop width %, target multiple, activation multiple; empty → `MONEYNESS`, P:34-41); `min_sl_pts`, `fallback_sl_pct`, `max_sl_pts`: `float \| None` (`None` → 10, 30, 40); `target_pts`: `float` |
+| `SessionLimits` (G:28-42) | `max_trades_per_session`, `max_entries_per_desk`, `max_open_structures`, `max_consecutive_losses`, `drawdown_rate_window_mins`: `int`; `require_fresh_setup`, `drawdown_rate_enabled`: `bool`; `entry_cooldown_secs`, `max_daily_loss_pct`, `max_daily_loss_amount`, `max_daily_profit_amount`, `drawdown_rate_max_loss`: `float`; `no_new_trade_after`: `str` (`"HH:MM"` IST or `""`) |
+| `PlannerPolicy` | `stance`: `"buyer"` only (the seller stance is documented unbuilt, R:52-94); `max_held`: `float` (O:136); `strikes`, `sizing`, `stops`, `limits`; `debit_price`: `ltp` \| `ask`; `worst_case_loss`: `full_debit` \| `to_stop`. Construction refuses `ask` with `to_stop`, a pairing the owner did not sanction |
+
+* `BoundPolicy.planner` defaults to `None`, so step 1–2 fixtures are unchanged; `one_leg_v1` with `planner is None` refuses `PlanRefusal("select", "planner_policy_unbound")`.
+* `Plan.policy_digest = digest(wire(policy.planner))`. Legacy's digest (O:378-382) also hashed non-planner desk fields; **Deviation**, recorded for PRF-ADM-07. `wire` writes a finite float as itself (the ledger's canonical JSON writes it with `repr`).
+* The leg product is `BoundPolicy.product` (POL-017); legacy's `desk.product` (O:155) maps to it. `fallback_sl_pts` (O:119) is not carried: its only path (P:163) is unreachable from `plan()` (O:611, O:696).
+
+### The plan's money figures (Q-019 answer: option B)
+
+`money_figures(leg, policy.planner, stop)`, in `Decimal` on the strings, results written with exactly two decimals:
+
+| Setting | Value | Figure |
+|---|---|---|
+| `debit_price` | `ltp` (**first release**) | `amount = Decimal(ltp) × quantity`, legacy's entry premium (`_premium_of`, O:845-858) |
+| | `ask` (documented alternative A) | `amount = Decimal(ask) × quantity`; no ask → `PlanRefusal("request", "no ask price for <symbol>")` |
+| `worst_case_loss` | `full_debit` (**first release**) | `worst_case_loss = amount` |
+| | `to_stop` (documented alternative C, only with `ltp`) | `(Decimal(ltp) − Decimal(format(stop, ".2f"))) × quantity`, legacy's `proposed_risk` (O:757) |
+
+`margin = amount` for every value: a long option's margin is its premium. The owner chose B and asked that A and C stay documented and selectable by configuration; both are implemented and tested, and only the bound values are in force.
+
+### `one_leg_v1` (O:385-845)
+
+| Legacy stage (lines) | Target | Refusal (`PlanRefusal(stage, reason)`) |
+|---|---|---|
+| setup (O:407-424) | Nothing; legacy's identity and context fields are not carried (below) | — |
+| `intent` (O:426-429) | Unreachable: A1 refuses an abstaining intent | — |
+| `kill_switch`, `freshness`, `view_freshness`, `view_lag`, `loss_latch` (O:431-565) | **Moved out** (LD-03): `kernel.safety` (A4) and admission B1 | — |
+| `session_gates` (O:575-589 → G:180-256) | `session_gates(limits, stats, view.underlying)` in G's order, first refusal wins; with no cap configured a refusal's text gains `" (0 caps configured — INERT)"` (O:577-579) | `session_gates`, G:184-254's texts, verbatim |
+| `strike` (O:595-617 → S:131-287) | `select(rows, spot, direction, signal_score, strikes, iv_rank=None)`; premium = the leg's `ltp` (O:607) | `strike`: `"no contract in the chain passed the selection policy"`, plus `": " + why_not[-1]` when `why_not` is not empty (O:601-603); the non-positive premium text (O:611-615) |
+| lot size (O:625-653) | The chosen row's `lotsize`; else `reference_facts.lot_size` | **`lot_size`** (the spec's stage, F-A4, POL-022; legacy wrote stage `quantity`, a named deviation): `ReferenceMissing` → O:634-637's text with `exc` = its `reason` (legacy printed its exception, a named text deviation); a lot that is not a positive integer → O:640-644's text. O:648-652's text is unreachable (the port always answers) |
+| `quantity` (O:654-663 → Q:42-102) | `quantity_for(..., require_lot_size=True)` | `quantity`: `sized["reason"]` or `"sizing refused"` (O:661) |
+| `exposure` (O:676-689) | Kept, `held = None`, so INERT | `exposure` (O:679-683) |
+| `stop` (O:693-744 → P:124-163, R:52-94, R:234-270) | `entry_stop` with the chosen row's delta; `stop = premium − stop_pts`, `target = premium + target_pts`; tick from the row (`{p}_tick_size`, then `tick_size`), else 0.05 (O:861-876, R:218), as legacy, with no reference tick; stop rounded up, target down (R:268-270) | `stop`: O:723-742's three texts |
+| `loss_budget` (O:749-771) | Kept exactly | `loss_budget` (O:761-766) |
+| `request` (O:775-785) | Build the leg and the plan | `request`: `"no ask price for <symbol>"` (`ask` only) |
+
+* **Reason texts** are legacy's, produced by the same f-strings on the same floats, except the two named deviations above.
+* **Exceptions legacy let escape** (an unknown stance, R:86; an empty symbol, R:107-108; a string strike, S:183) cannot reach the planner: the contracts refuse them at construction. Any other exception is `ADM-R13`, stage `internal` (built).
+* **Strike ties:** the first row in chain order wins (S:225, S:276); the market port keeps the provider's order.
+* **Verify at the source** (unchanged here): legacy compares the raw delta with a positive band (S:199-205); if the greeks store gives PE deltas as negative, no PE row passes. Parity keeps it; SLICE-08's PRF-ADM-07 checks it against the greeks source.
+
+### The `Plan` it returns
+
+| Field | Value |
+|---|---|
+| `planner_version` | `"one_leg_v1+OA@445eb116"` |
+| `structure_id`, `candidate_id`, `view_id` | the intent's |
+| `account`, `intent_digest`, `policy_digest` | the input; `kernel.policy.intent_digest(intent)`; above |
+| `legs` | one `PlanLeg("entry", symbol, BoundPolicy.product, "BUY", quantity, None, unit="contracts", lot_size=lot, amount=<the leg's debit>, tick_size=format(tick, ".2f"))`; MARKET (R:98, R:124-126) |
+| `amount`, `margin`, `worst_case_loss`, `currency` | Q-019 above; `"INR"` |
+| `residual_exposure` | `str(quantity)` (the exposure stage's `after` with `held` unknown) |
+| `protection_policy_ref` | legacy's `stop_source` (O:705) |
+| `protective_levels` | `(("stop", format(stop, ".2f")), ("target", format(target, ".2f")))`; both lie on the tick grid (R:247-253) |
+| `entry_facts` (new) | `EntryFacts(entry_premium, entry_delta, target_delta, asym_score, trail_conviction, sl_pts)`: the LTP premium the stop and target were priced from, and the selection values protection's trail seeds from ([protection spec, first desire](../../design/protection-and-safety.md#protective-stop-and-tick-exits-kernelprotectionpy); O:607, O:617, O:826-841); premium as a two-decimal string, the rest as `repr` strings or `None` |
+| `plan_digest` | `seal(plan)` (built) |
+
+`Plan`'s field list in the intent spec and PRF-ADM-08 gain `entry_facts`. **Not carried**, and why: `plan_id`, `decision_id`, `attempt`, `our_order_id`, the proposal receipt and binding digest (identity is the command key); `stage_results`, `inert_at`, `not_evaluated`, `refused_at` (a refusal is the `PlanRefusal`, recorded by admission); `operating_limits`, `context` (the policy digest and `SessionStats` stand in); the ENTRY event's `spot`, `lot_source` and `signal_score` (the view and intent carry them).
+
+### `SessionStats` (TASK-S04-06)
+
+The planner takes `SessionStats` as a value. Step 3 adds `SessionStatsPort` with `FixtureStats(stats)`; deriving it from the ledger needs fills, positions and session P&L, which arrive in SLICE-07 and SLICE-06, so the real port is bound there. Until then a fixture states each value. The derivation each field must keep:
+
+| Field | Read at | Legacy derivation |
+|---|---|---|
+| `trade_count` | O:421, G:204 | SS:63-68, 105 |
+| `desk_trade_count`, `desk_open_structures` | G:189, G:194 | SS:69-80 |
+| `setup_fresh` | G:199 | L:6790-6798, L:6891-6893 (default `True`) |
+| `open_stop_risk` | O:759 | SS:114-147 |
+| `consecutive_losses` | O:420, G:209 | SS:88-103 |
+| `entry_in_flight` | G:185 | SS:86 |
+| `seconds_since_last_entry` | G:214-216 | SS:81-85, 235-238 |
+| `daily_pnl` | O:758, G:221-238 | SS:212 |
+| `capital` | O:752-753, G:220 | SS:185-188 |
+| `window_pnl_change`, `pnl_history_len` | G:231-233 | SS:227-234 (a process global; the target keeps the history in the ledger, so a restart no longer resets it: a correction for PRF-ADM-07) |
+| `now_hm` | G:244-254 | the exchange-local `HH:MM` of `now`, computed by the stats port (live used the wall clock, L:7969) |
+| `unavailable` | G:182-184 | SS:203-225, 250-251 |
+
+### Moved couplings
+
+| Legacy (lines) | Target |
+|---|---|
+| `emit` (O:291-296, O:826-841) | none: admission records the result |
+| kill switch (O:433); freshness, view age and lag, wall clocks (O:446-517, O:81) | `kernel.safety` (A4); admission B1; the `now` input |
+| loss latch read and **write** (O:538-563) | `kernel.safety` (A4 reads; only safety trips) |
+| greeks store, reference-facts file (L:6774-6787, L:222-227) | `ChainSnapshot`; the market port's `reference_facts` |
+| `Session` from the registry, governance evidence, broker positions, a process global and the wall clock (SS) | the `SessionStats` input |
+| registry `open_order` write (O:789-813) | none (live passed `write_registry=False`, L:4217) |
+| `Limits.from_env` (G:64-106) | `PlannerPolicy.limits` |
+
+### Golden parity cases (the outside judge)
+
+`tests/fixtures/planner_parity_445eb116.json`:
+
+```text
+{"legacy_commit": "445eb116",
+ "generator": {"sha256": <of source>, "source": <the generator's full Python text>},
+ "cases": [{"id", "inputs": {"intent", "view", "chain", "reference_facts", "planner_policy", "stats", "now"},   # target wire forms
+            "legacy_rows": [<the row dicts legacy's plan() received>],
+            "legacy": {"stage", "reason", "symbol", "quantity", "stop", "target"}}]}       # stop, target: format(x, ".2f")
+```
+
+* **Generation**, once, in an isolated checkout of `OA@445eb116` with no broker variables: the generator reads each case's target-form inputs, converts them to legacy's forms with its own code (it never imports OA_NEW), stores the row dicts it built as `legacy_rows`, runs legacy's `plan()` with `write_registry=False`, no kill-switch file, no latch directory and a fixed clock, and records the first refusal's stage and reason or the result. The source is embedded, so the fixture can be audited and regenerated.
+* **The test**, one parametrized case each: `legacy_rows(chain) == case.legacy_rows` (the adapter is judged against the generator's independent conversion), then `Planner.plan(...)` gives the same stage (with legacy's `quantity` mapped to `lot_size` for the lot texts), reason, symbol, quantity and two-decimal stop and target.
+* **Cases:** each strike refusal (six `why_not` texts, the non-positive premium) and a pass with a tie; each session gate, with and without configured caps; each lot path; each stop path (delta band, premium fallback, floor, cap, tick up and down, the three refusals); the loss budget pass and refusal; an intent with `iv_rank` `"99"` against an `iv_rank_max` of 50 that legacy still admits (legacy-live parity); a chain whose ltp and ask differ.
+
+### Step 3 tests (`tests/unit/test_planner_rules.py`)
+
+* **PRF-ADM-03 purity:** every module is imported first; during `plan` the sandbox makes `builtins.open`, `io.open`, `os.open`, `socket.socket`, `time.time`, `time.monotonic`, `time.perf_counter` raise, replaces `os.environ` with a mapping that raises on read, and swaps the `datetime` name in `kernel.planner` and `kernel.selection` for a raising stub (the C type cannot be patched).
+* Every session gate, `unavailable` with and without configured caps; dispatch (`single_long_option`, any other id refused `structure_planner_not_built`, `planner_policy_unbound`); POL-015 (stop up, target down); POL-022 and F-A4 (row lot, then reference facts, each refusal); F-A3; `ask` with `to_stop` refused at construction.
+* The golden cases.
+* **Q-019:** for `ltp`/`full_debit`, `ask`/`full_debit` and `ltp`/`to_stop`, `amount`, `margin` and `worst_case_loss` against hand calculations on a chain whose ltp and ask differ; `ask` with no ask refused.
+* **Through the door:** `chain_missing`, `chain_mismatch` (another underlying, another `as_of`); a `one_leg_v1` plan from fixture market data admitted, its `plan` and `entry_facts` recorded.
+* **Break checks** (named in the docstring): read the wall clock in the planner (the sandbox fails); pass the intent's `iv_rank` (the `"99"` case fails); round the stop down (the tick-up case fails); use `reference_facts.lot_size` ahead of the row's (the lot case with both fails); price `amount` at the ask under `ltp` (the differing ltp/ask case fails); drop the chain-to-view check (`chain_mismatch` fails).
+
+## Step 4 — `structure_v1` (deepened before build)
+
+The legacy structure planner (SP:104-276, with `structures/resolve.py`, `structures/payoff.py` and the structure templates of `policy/types.py:14-44` and `policy/defaults.py`) is extracted after step 3, with its own deepening and EGM review. That deepening must settle: typed structure templates (the `strike_rule`, `expiry_rule`, `risk` and `evidence` mappings); which of resolution's evidence checks (RS:65-144: completeness, source, digest binding, field state, delta presence) move to B1 or the market port and which stay; the strategy-level `policy.risk["max_loss"]` (SP:231) and `strategy_family` (SP:213, 227) as policy fields; per-leg protective levels to match the protection spec's per-leg stops; and how Q-019's figures price a multi-leg plan against legacy's maximum loss at the ask (RS:325), which may need the owner.
+
+## Completion conditions
+
+1. Every SLICE-01…03 test and every step 1–3 test passes in a clean environment with no broker variables.
 2. The break checks named in each new test file's docstring were tried and reverted.
 3. The steps' file lists match the commits.
 

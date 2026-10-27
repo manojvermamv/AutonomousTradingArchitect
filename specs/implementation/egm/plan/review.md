@@ -194,3 +194,30 @@ After step 1 was built (OA_NEW `2ed1c39`), [step 2](../../plan/slices/SLICE-04-i
 | R-M6 | Major | The test grant covers `entry` only | FIX: a second grant `g-act` in the action fixture |
 | R-M7 | Major | Capability rule unnamed | FIX: two `_BUILDERS` needles |
 | R-N1…N6 | Nit | `holdings` field order; shape check placement; money format; duplicate rows; reason names and builders; principal equality | FIX: in the slice text |
+
+## SLICE-04 step 3 review (2026-10-27)
+
+[Step 3](../../plan/slices/SLICE-04-intent-to-admission.md#step-3--the-planning-port-one_leg_v1) was deepened from two line-by-line reads of the legacy planners at `OA@445eb116` (the reads' citations were spot-checked by hand at that commit, and four line numbers corrected), then reviewed by fresh `egm:egm-design` and `egm:egm-implementation-readiness` reviewers (read-only). Design: 1 Blocker, 10 Major, 4 Nit. Readiness: 2 Blocker, 8 Major, 6 Nit. Both reviewers read the legacy working tree, whose head only adds an empty test file on top of `445eb116`; the five design claims that decide the resolution were re-checked at the commit and hold. The owner answered Q-019 (option B, with A and C kept selectable) during the deepening. All findings are resolved by FIX; the structure-planner findings are resolved by moving `structure_v1` to its own step 4, with each finding listed there as a decision that step must make.
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| D-B1 | Blocker | The plan dropped `entry_premium` and the selection values protection's trail seeds from | FIX: `Plan.entry_facts`; intent spec contract, PRF-ADM-08 and the protection spec's first desire updated |
+| R-B1 | Blocker | Golden fixture unspecified | FIX: schema pinned; generator source and digest embedded; target-form inputs plus the generator's own legacy rows; adapter judged against them |
+| R-B2, D-M4, D-M5, D-M7, D-M8(b, c) | Blocker / Major | Structure templates untyped; `max_loss` and `strategy_family` misplaced; evidence checks wrongly called age checks; structure protection contradicts the per-leg spec; structure money figures | Step 4: `structure_v1` deepened before build, each finding named there; until then other structure ids refuse `structure_planner_not_built` |
+| D-M1 | Major | Lot refusals' stage `quantity` vs the spec's `lot_size` | FIX: stage `lot_size` (spec, F-A4), named deviation from legacy |
+| D-M2, R-M3 | Major | Reference facts without `known_at`; impure date conversion; text mapping | FIX: the market port applies legacy's in-force and known-at rule at the decision instant; `ReferenceMissing(reason)`; text mapping stated |
+| D-M3 | Major | A reference tick legacy never read | FIX: removed; legacy's row-then-0.05 rule |
+| D-M6, R-M2 | Major | Adapter keys and types | FIX: every key always emitted, types stated, delta and gamma included |
+| D-M8(a) | Major | `ask` with `to_stop` never sanctioned | FIX: refused at construction |
+| D-M9 | Major | Chain not tied to the aged view | FIX: `chain_mismatch` at the door |
+| D-M10 | Major | Fixture could not judge the adapter | FIX: as R-B1 |
+| R-M1 | Major | Policy types; `wire` of floats | FIX: legacy types listed; `wire` extended, `execution.py` in the files |
+| R-M4 | Major | `BoundPolicy.planner` default | FIX: keyword `None`; `planner_policy_unbound` |
+| R-M5 | Major | The planner object, read order, `AdmissionPorts.stats` | FIX: `kernel.planner.Planner`; the order stated; `test_policy_parameters.py` in the files |
+| R-M6 | Major | Sandbox mechanics | FIX: imports first; the patched calls listed; a raising `datetime` stub |
+| R-M7 | Major | Break checks that could not fail | FIX: each names the case that fails |
+| R-M8, D-N2 | Major / Nit | Money and level string forms | FIX: `Decimal` on strings; `format(x, ".2f")` |
+| D-N1, R-N3 | Nit | Exact strike text; INERT suffix | FIX: quoted exactly; suffix kept |
+| D-N3, R-N5 | Nit | Snapshot shape and number forms | FIX: one expiry, as the market spec; flat-chain rows named there; forms stated |
+| D-N4 | Nit | Score strings and `as_of` rendering | FIX: `repr` strings; `utc_iso`, a named text deviation |
+| R-N1, R-N2, R-N4, R-N6 | Nit | `make_intent` default; `activate_at_max_pts`; `seconds_since_last_entry` type and the stats fixture; completion conditions | FIX |

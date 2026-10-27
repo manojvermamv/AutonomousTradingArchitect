@@ -22,6 +22,7 @@ Status: **open owner decision** unless a row says answered. Each question is a g
 | [Q-016](#q-016) | Response to foreign (manual or outside) broker activity: record only, escalate, or hold entries for the affected account or underlying? | `README.md:1347` (foreign exposure response); POL-009; [execution-domain spec](../design/execution-domain-and-observations.md#reconciliation-kernelreconciliationpy) | TASK-S07-02 | answered 2026-10-27 ([answers](owner-answers-2026-10-27.md)) |
 | [Q-017](#q-017) | May a new entry be admitted while a closed position's protective order still rests on the same underlying? | POL-007; [protection spec](../design/protection-and-safety.md#conflict-relation-kernelsafetypy) | TASK-S05-03, TASK-S06-01 | answered 2026-10-27 ([answers](owner-answers-2026-10-27.md)) |
 | [Q-018](#q-018) | A modify that raises an entry order's limit: how much more capital does it commit? | [SLICE-04 step 2](../plan/slices/SLICE-04-intent-to-admission.md#a-limit-raise-on-an-entry-order-q-018); [intent spec B2](../design/intent-to-admission.md#b2-effect) | TASK-S04-02 (B2 for a modify) | answered 2026-10-27 ([answers](owner-answers-2026-10-27.md)) |
+| [Q-019](#q-019) | What amount, margin and worst-case loss does a long-only plan carry for capacity (B5)? | [SLICE-04 step 3](../plan/slices/SLICE-04-intent-to-admission.md#the-plans-money-figures-q-019-answer-option-b) | TASK-S04-02 | answered 2026-10-27 ([answers](owner-answers-2026-10-27.md)) |
 
 ---
 
@@ -344,3 +345,23 @@ Proof: TASK-S04-02 tests the chosen arithmetic against hand calculations; until 
 - **A — Recommended:** Refuse it in the first release (legacy parity): a modify may not raise an entry order's limit (`ADM-R07`, `wrong_field`). Revisit when a strategy places limit entries.
 - **B:** Admit it on the increase, with Δamount = (new limit − current limit) × remaining quantity, and margin and worst-case loss raised by the same Δ (the most a long option can add), the entry's reservation raised by Δ in the same commit through a `reservation_after` on the modify's `COMMAND_ADMITTED`, and ledger invariant I-6 extended so a raise counts toward the admitted amount.
 - **C:** A free-text answer.
+
+## Q-019
+
+**The plan's money figures for capacity.**
+
+**Answered 2026-10-27: option B** ([answers](owner-answers-2026-10-27.md)), with A and C kept documented and selectable by configuration for later adoption.
+
+```text
+Requirement: every plan carries amount, margin and worst_case_loss, which B5 checks against funds, margin and account.max_worst_case_loss (intent spec, B5).
+Owner: kernel.planner (money_figures).
+Proof: tests/unit/test_planner_rules.py checks each option against hand calculations.
+```
+
+**Why it matters.** Legacy reserved money only for structure plans (`structure_reservation_snapshot`, `scripts/run_framework_live.py:437-553` @445eb116), with `amount = worst_case_loss =` the structure's maximum loss and `margin` from OpenAlgo's margin preview (`:480-509`), which a pure planner cannot call. A one-leg entry, every entry BuyerEdge makes, carried no figures and reserved nothing; its only money gates were the planner's loss budget (`orchestrator.py:749-771`) and sizing. The target checks capacity on every entry, so the figures are a new money rule.
+
+**Options.**
+
+- **A:** `amount = margin = worst_case_loss = Σ ask × quantity`: the full premium of a MARKET buy at its likely fill price. A plan with no ask is refused. Selectable: `debit_price: ask`, `worst_case_loss: full_debit`.
+- **B — chosen:** the same full debit at the LTP, legacy's entry premium (`orchestrator.py:607`). Bound: `debit_price: ltp`, `worst_case_loss: full_debit`.
+- **C:** `amount = margin =` premium × quantity at the LTP; `worst_case_loss = (premium − stop) × quantity`, legacy's `proposed_risk` (`orchestrator.py:757`). Selectable: `debit_price: ltp`, `worst_case_loss: to_stop`.
