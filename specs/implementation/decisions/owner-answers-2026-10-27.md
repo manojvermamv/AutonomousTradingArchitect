@@ -1,6 +1,6 @@
 # Owner answers, 2026-10-27
 
-* **Status:** owner decisions, recorded by the package. They answer [Q-001…Q-017](owner-questions.md) (Q-017 raised by the third basket review and answered the same day) and the master corrections [X-001…X-007](../consistency/master-contradictions.md).
+* **Status:** owner decisions, recorded by the package. They answer [Q-001…Q-018](owner-questions.md) (Q-017 raised by the third basket review and Q-018 by the SLICE-04 step 2 build, each answered the same day) and the master corrections [X-001…X-007](../consistency/master-contradictions.md).
 * **Rule for every value below (Q-015):** every limit and switch stays a **configurable** setting. An answer gives the value bound in config for the first release; nothing is hard-coded, and the loader still refuses a live composition that leaves a setting unbound.
 
 ## Owner questions
@@ -24,6 +24,7 @@
 | Q-015 | Every loss limit is configurable per account; none is hard-coded. The value of `account.max_worst_case_loss` is set in the account's config at deployment | `account.max_worst_case_loss`: per-account config |
 | Q-016 | Foreign broker activity is recorded and raises an operator alert; nothing else changes | `reconciliation.foreign_response: escalate` |
 | Q-017 | Option A: conflict row 1 also blocks an entry while any position on the same account and underlying has a protective order not observed terminal | rule in the protection spec (conflict row 1) |
+| Q-018 | Option A: in the first release a modify may not raise an entry order's limit (legacy parity: legacy never modifies an entry order); revisit when a strategy places limit entries | rule in the intent spec (B2, `ADM-R07` `wrong_field`); no setting |
 
 ## Master corrections
 

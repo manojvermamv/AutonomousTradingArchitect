@@ -200,7 +200,7 @@ Commit `2ed1c39` on `slice-04` (checkpoint `bac5777` before it). The commit pair
 
 ## Step 2 — cancel, modify and close admission
 
-Deepened after step 1 landed (OA_NEW `2ed1c39`), then reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-04-step-2-review-2026-10-27)); this text includes their fixes. It closes the five gaps the first readiness review named: the owned-position and owned-order fields, how a protective order is identified, the `COMMAND_ADMITTED` payload for non-entry verbs, the not-sent `Outcome`, and the modify capital increase. Dispatch of these verbs is SLICE-05, so step 2 admits and does not send.
+Deepened after step 1 landed (OA_NEW `2ed1c39`), then reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-04-step-2-review-2026-10-27)); this text includes their fixes. It closes the five gaps the first readiness review named: the owned-position and owned-order fields, how a protective order is identified, the `COMMAND_ADMITTED` payload for non-entry verbs, the not-sent `Outcome`, and the modify capital increase (answered by the owner: [Q-018](#a-limit-raise-on-an-entry-order-q-018)). Dispatch of these verbs is SLICE-05, so step 2 admits and does not send.
 
 ### Files
 
@@ -275,15 +275,14 @@ One front door for the three verbs; `admit_entry` stays the entry door. Each che
 | A1a | Identity pre-check (SLICE-01) | `LED-R02` / existing outcome |
 | A2 | `authority.check(verb, auth, account)` | `SES-R01…R05`, `SES-R09` |
 | A4 | `safety.check(facts, auth)`, `facts = action_facts(...)` built from the latest observation read outside the transaction (a target that is not owned gives `strategy = None`; B2 then refuses it) | its refusal |
-| B | Inside the `COMMAND_ADMITTED` transaction (`Decision.precheck`, as step 1), in this order: B:A2, B1, B2, B:A4, B3, B5 | as above, `B:A2`, `B:A4` |
+| B | Inside the `COMMAND_ADMITTED` transaction (`Decision.precheck`, as step 1), in this order: B:A2, B1, B2, B:A4, B3 | as above, `B:A2`, `B:A4` |
 | B1 | The account observation exists; orders, positions and funds each complete or `unknown`, age 0 … `reconciliation.max_observation_age_secs`. No view and no spot or chain limit | `ADM-R05` |
 | B2 | `effect_check` (below) on the fresh observation | `ADM-R07`, reason in `inputs.reason` |
 | B:A4 | `safety.check(facts, auth)` with the facts B2 computed from the fresh observation; the kill exceptions (an owned unfilled order; a non-resting close) are judged here | its refusal |
 | B3 | `conflicts.check(facts)` | its refusal |
-| B5 | Only a modify that raises committed capital (below) | `ADM-R09` |
 
 * **No busy check for actions.** The first release binds `coordinator.busy_applies_to: entries_only` (Q-004), the only value the loader accepts, so actions never wait on the busy bound. If the owner ever binds `all`, the loader, `_busy` (given the verb) and a test arrive together (readiness review R-M1).
-* **No A3, A5, planning or B6.** An action needs no open session, so a close after the session's `CLOSED` is admitted (CUJ-ADM-4; the protection spec's session-close exits depend on it).
+* **No A3, A5, planning, B5 or B6.** An action needs no open session, so a close after the session's `CLOSED` is admitted (CUJ-ADM-4; the protection spec's session-close exits depend on it).
 * **Deviation (order of stage B):** the intent spec repeats A4 before B1. For actions B:A4 runs after B2, because the kill exceptions need the facts only the fresh observation gives (design review D-B2). Only which refusal code wins changes when two checks fail together.
 
 ### B2 effect (`effect_check`)
@@ -303,6 +302,7 @@ Notation: `o` is the target's row in the fresh orders observation (by `broker_or
 | cancel | `o.status` is `open` | `not_open` |
 | modify | `o.status` is `open`; when `changes.quantity` is set, `filled` is not `None` | `not_open`, `filled_unknown` |
 | | `trigger_price` is set only on a `stop` order, `limit_price` only on a `limit` order, or a `stop` order with a limit (legacy refuses a target moved as a stop, `src/runtime/execution_gateway/__init__.py:1356-1360` @445eb116) | `wrong_field` |
+| | a non-protective BUY order's limit is not raised above `o.price` ([Q-018](#a-limit-raise-on-an-entry-order-q-018)) | `wrong_field` |
 | | `quantity` (new total) ≥ `filled` | `below_filled` |
 | | new remaining (`quantity − filled`) ≤ `remaining`; **except** a resting protective order, whose new remaining may reach `owned(p)` of its `position_id` and no more | `above_remaining`, `above_owned`, `broker_net_unknown` |
 | close | the position is owned; `owned(p)` is known and above 0 | `not_owned`, `broker_net_unknown`, `not_open` |
@@ -313,9 +313,9 @@ Notation: `o` is the target's row in the fresh orders observation (by `broker_or
 * **Resulting exposure** (REQ-ADM-009): `{instrument: owned(p) − quantity}` for a close; `{instrument: owned(p)}` of the order's position for a cancel or modify, with `null` in place of the number when `owned(p)` is unknown.
 * **`ActionFacts`** from B2: `order_kind` (close: the request's order kind; cancel, modify: the target's); `resting` (a close with a `LimitOrder` or `StopOrder`; a modify of a resting order); `target_protective` (`is_protective`); `target_unfilled` (`filled == 0`, `None` when `filled` is `None`); `owned_quantity` = `owned(p)`; `filled`; `new_total` (modify); `sale_delta` (close: `quantity`; a modify of a SELL: `max(0, new remaining − remaining)`; otherwise 0); `removes_stop` (a cancel of a protective `stop`).
 
-### B5 for a modify (Q-018 open)
+### A limit raise on an entry order (Q-018)
 
-A modify raises committed capital only when its target is a non-protective **BUY** order (an entry leg) and `limit_price` rises above `o.price`; only an entry order can, since B2 forbids raising its quantity. The intent spec says such a modify is checked on the increase and the entry's reservation raised in the same commit, but legacy never modifies an entry order (its `modify` moves resting protective legs only, `src/runtime/execution_gateway/__init__.py:1292-1300` @445eb116), so there is no retained arithmetic for the increase. That is a money rule, so it is the owner's: [Q-018](../../decisions/owner-questions.md#q-018). Until it is answered, B5 refuses such a modify with `ADM-R09`, reason `modify_increase_unbound`, like any refusing setting. No first-release **one-leg** entry can hit this, since each is a MARKET order ([protection spec, basket placement](../../design/protection-and-safety.md#basket-placement-basket_at_plan-kernelprotectionpy)); structure legs may carry limits, so a structure entry could, and is refused.
+A modify could raise committed capital only by raising a non-protective **BUY** order's (an entry leg's) `limit_price` above `o.price`, since B2 forbids raising its quantity. Legacy never modifies an entry order (its `modify` moves resting protective legs only, `src/runtime/execution_gateway/__init__.py:1292-1300` @445eb116), so there was no retained arithmetic for the increase. The owner answered [Q-018](../../decisions/owner-questions.md#q-018) with option A (legacy parity): in the first release such a modify is refused at B2 with `ADM-R07`, reason `wrong_field`. Lowering a limit, or keeping it, is admitted. So no action reaches B5 and no reservation is raised. No first-release **one-leg** entry can reach the rule, since each is a MARKET order ([protection spec, basket placement](../../design/protection-and-safety.md#basket-placement-basket_at_plan-kernelprotectionpy)); a structure entry's legs may carry limits, and their raise is refused.
 
 ### `COMMAND_ADMITTED` for an action
 
@@ -348,13 +348,13 @@ A modify raises committed capital only when its target is a non-protective **BUY
 
 * `LED-R01`; the `prot:` rule: a human's `prot:` key, a protection key naming another position, and a role that does not fit the order each `ADM-R01` (A1, recorded), and an entry with a `prot:` key `ADM-R01`; A1a same request → existing outcome, other request → `LED-R02`; A2 → `SES-R01`; A4, B:A4 and B3 fixture refusals recorded with their checks, and the facts each received; B1 with only the orders book incomplete or old (`dataclasses.replace(observation, orders=...)`) → `ADM-R05`; a busy account still admits an action.
 * `effect_check` directly, one test per row against a hand-worked observation: another account's order (`not_owned`); a filled order (`not_open`); an observed side that differs (`identity_mismatch`); modify below filled (`below_filled`); a quantity change with `filled` unknown (`filled_unknown`) while a trigger-only change with `filled` unknown is admitted; a non-protective remaining increase (`above_remaining`); a resting stop raised to `owned(p)` admitted and one more refused (`above_owned`); a trigger change on a target (`wrong_field`); CUJ-ADM-2 (`above_owned`); a close capped by a smaller broker net (`above_owned`); an overclosed position (`not_open`); coverage `unknown` with no position row, and two rows for one instrument (`broker_net_unknown`).
-* Through the door: a limit raise on an entry order → `ADM-R09` `modify_increase_unbound`; CUJ-ADM-4 (the clock past 10:00 UTC, `recovery.tick()`, `world.fresh()`; a market close of the owned quantity admitted).
+* Through the door: a limit raise on an entry order → `ADM-R07` `wrong_field` at B2, lowering it admitted; CUJ-ADM-4 (the clock past 10:00 UTC, `recovery.tick()`, `world.fresh()`; a market close of the owned quantity admitted).
 * The `COMMAND_ADMITTED` fields above, the shape check refusing an action with a `reservation_id` and an entry with an `effect`, no reservation row, the `Outcome` above, the same request again `unchanged`, and a reopen leaves the command `ADMITTED`.
 * Break checks (added to the file's docstring): cap a protective raise at `remaining` instead of `owned(p)`; accept a trigger change on a target; accept a `prot:` key from a human; apply the busy bound to an action under `entries_only`; build `ActionAdmission` in `operations/verification.py` (the capability test).
 
 ### Step 2 as built
 
-Commit `575c897` on `slice-04`, after `2ed1c39`. It changes exactly the 16 paths of the step 2 files table.
+Commit `575c897` on `slice-04`, after `2ed1c39`. It changes exactly the 16 paths of the step 2 files table. The owner's Q-018 answer was applied in `0affceb` (`kernel/admission.py` and `tests/unit/test_admission_checks.py`: the refusal moved from `ADM-R09` at B5 to `ADM-R07` `wrong_field` at B2; 252 tests passed; its break check failed as required).
 
 **Choices made while building** (none sets a money value):
 
@@ -371,7 +371,7 @@ Commit `575c897` on `slice-04`, after `2ed1c39`. It changes exactly the 16 paths
 
 | File | Cases |
 |---|---|
-| `test_admission_checks.py`, action section | `effect_check` directly: ownership, not open, missing row, identity mismatch; modify below filled, `filled_unknown` only with a quantity, a target's trigger and an SL-M stop's limit (`wrong_field`); a protective raise to 50 admitted and 51 refused, an entry order's increase `above_remaining`; CUJ-ADM-2, a smaller broker net, overclosed, unknown and ambiguous nets, another account's position. Through the door: the admitted payload, no reservation, the admitted-awaiting-dispatch `Outcome`, same request `unchanged`, `LED-R02`; the command stays `ADMITTED` across a reopen; A2, A4, B3 and B2 records with verb and reason; the facts the safety and conflict ports receive; B1 on the orders book alone; a busy account still admits an action; the `prot:` rule on both doors (a human's key, another position, a role that does not fit, protection's valid modify, an entry); a limit raise on an entry order `ADM-R09` `modify_increase_unbound` and a lowering admitted; CUJ-ADM-4 after the session `CLOSED`; the shape check refusing an action with a reservation and an entry-shaped field set |
+| `test_admission_checks.py`, action section | `effect_check` directly: ownership, not open, missing row, identity mismatch; modify below filled, `filled_unknown` only with a quantity, a target's trigger and an SL-M stop's limit (`wrong_field`); a protective raise to 50 admitted and 51 refused, an entry order's increase `above_remaining`; CUJ-ADM-2, a smaller broker net, overclosed, unknown and ambiguous nets, another account's position. Through the door: the admitted payload, no reservation, the admitted-awaiting-dispatch `Outcome`, same request `unchanged`, `LED-R02`; the command stays `ADMITTED` across a reopen; A2, A4, B3 and B2 records with verb and reason; the facts the safety and conflict ports receive; B1 on the orders book alone; a busy account still admits an action; the `prot:` rule on both doors (a human's key, another position, a role that does not fit, protection's valid modify, an entry); a limit raise on an entry order `ADM-R07` `wrong_field` (B2) and a lowering admitted; CUJ-ADM-4 after the session `CLOSED`; the shape check refusing an action with a reservation and an entry-shaped field set |
 | `test_policy_parameters.py` | The three deadlines resolve and refuse unbound |
 | `test_capabilities.py` | `ActionAdmission(` only in `bootstrap.py`; `.action_admission.admit` only in the coordinator |
 
@@ -385,7 +385,7 @@ Commit `575c897` on `slice-04`, after `2ed1c39`. It changes exactly the 16 paths
 | Apply the busy bound to an action | `test_busy_never_holds_an_action` |
 | Accept an ambiguous broker net | `test_b2_close_rows` |
 | Remove the shape check | `test_shape_check_refuses_mixed_admissions` |
-| Admit a modify that raises capital | `test_modify_raising_capital_refuses_until_q018` |
+| Admit a modify that raises an entry order's limit | `test_entry_limit_raise_refused_q018` |
 | Build `ActionAdmission` in `operations/verification.py` | the capability test |
 
 ## Step 3 — the planning port (deepened before build)

@@ -21,7 +21,7 @@ Status: **open owner decision** unless a row says answered. Each question is a g
 | [Q-015](#q-015) | Value of `account.max_worst_case_loss` for the first account | `README.md:776`; [intent spec](../design/intent-to-admission.md#b5-capacity) | TASK-S04-03 (binding a production value) | answered 2026-10-27 ([answers](owner-answers-2026-10-27.md)) |
 | [Q-016](#q-016) | Response to foreign (manual or outside) broker activity: record only, escalate, or hold entries for the affected account or underlying? | `README.md:1347` (foreign exposure response); POL-009; [execution-domain spec](../design/execution-domain-and-observations.md#reconciliation-kernelreconciliationpy) | TASK-S07-02 | answered 2026-10-27 ([answers](owner-answers-2026-10-27.md)) |
 | [Q-017](#q-017) | May a new entry be admitted while a closed position's protective order still rests on the same underlying? | POL-007; [protection spec](../design/protection-and-safety.md#conflict-relation-kernelsafetypy) | TASK-S05-03, TASK-S06-01 | answered 2026-10-27 ([answers](owner-answers-2026-10-27.md)) |
-| [Q-018](#q-018) | A modify that raises an entry order's limit: how much more capital does it commit? | [SLICE-04 step 2](../plan/slices/SLICE-04-intent-to-admission.md#b5-for-a-modify-q-018-open); [intent spec B5](../design/intent-to-admission.md#b5-capacity) | TASK-S04-02 (B5 for a modify) | open |
+| [Q-018](#q-018) | A modify that raises an entry order's limit: how much more capital does it commit? | [SLICE-04 step 2](../plan/slices/SLICE-04-intent-to-admission.md#a-limit-raise-on-an-entry-order-q-018); [intent spec B2](../design/intent-to-admission.md#b2-effect) | TASK-S04-02 (B2 for a modify) | answered 2026-10-27 ([answers](owner-answers-2026-10-27.md)) |
 
 ---
 
@@ -328,6 +328,8 @@ Proof: PRF-PRT-04 runs the chosen row against a closed position whose stop still
 ## Q-018
 
 **Capital committed by a modify that raises an entry order's limit.**
+
+**Answered 2026-10-27: option A** ([answers](owner-answers-2026-10-27.md)). Such a modify is refused at B2 (`ADM-R07`, `wrong_field`); no modify reaches B5.
 
 ```text
 Requirement: B5 checks a modify that raises committed capital on the increase, and kernel.reservations raises the entry's reservation in the same commit (intent spec, B5).
