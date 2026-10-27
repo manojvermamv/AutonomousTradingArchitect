@@ -1,6 +1,6 @@
 # SLICE-04 — Intent to admission
 
-* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-04-review-2026-10-27)). Step 1 is decision-complete with the review's decisions below and is being built (checkpoint commit `bac5777` on branch `slice-04`: the capacity rule, the in-transaction stage-B check, the policy events and tables, the contracts; 161 tests). Steps 2 and 3 are deepened after step 1 lands (delivery-plan depth rule) and stay proposed until then.
+* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-04-review-2026-10-27)). **Step 1 built** on 2026-10-27 in a local repository (commit `2ed1c39`, branch `slice-04`): 235 tests passed, including every SLICE-01…03 test, and every break check failed as required ([as built](#step-1-as-built)). That is a build record, not production acceptance. Step 2 is deepened to decision depth below and is under EGM review; step 3 is deepened before it is built.
 * **Precedence:** the master README, then the ROADMAP, then this package. The authority is the [intent spec](../../design/intent-to-admission.md); every deviation is marked **Deviation**. No score, threshold or money value is set: every refusing setting is bound only to labelled synthetic values in tests.
 * **Phase:** master Phase 1, finishing in Phase 3 with real views (SLICE-08). Class S.
 * **Builds on:** [SLICE-03](SLICE-03-sessions-authority-recovery.md) as built; branch `slice-04` cut from `slice-03`.
@@ -99,7 +99,7 @@ Policy(writer, clock, *, policies: PolicyStore, sessions)
 | B5 | `capacity_check` (below) | `ADM-R09` |
 | B6 | The intent spec's B6 list | `ADM-R10` |
 
-Then `COMMAND_ADMITTED` with the plan (`plan_ref` and the full plan), application, `grant_id`, `dependencies {dispatch_deadline: {origin, budget_ms}, release_binding_id: null, grant_id, session_id}`, `state_heads {reservation_head, funds_observation: digest, position_observation: digest}`, `measured_ages {view_ms, spot_ms, chain_ms, observation_ms}`; then the SLICE-01 claim and send.
+Then `COMMAND_ADMITTED` with the plan (`plan_ref` and the full plan), application, `grant_id`, `dependencies {dispatch_deadline: {origin, budget_ms}, release_binding_id: null, grant_id, session_id}`, `state_heads` (as the decisions table below states), `measured_ages {view_ms, spot_ms, chain_ms, observation_ms}`; then the SLICE-01 claim and send.
 
 The numeric limits (`market.max_view_age_secs` 90, POL-018; `market.poll_interval_secs`; `reconciliation.max_observation_age_secs` 60, POL-021) are **approved policy values carried as refusing settings**; this slice binds them only in tests, with the approved values labelled as such.
 
@@ -159,11 +159,167 @@ The [review](../../egm/plan/review.md#slice-04-review-2026-10-27) found step 1 n
 
 `capacity.synthetic_amount` stays for the `_submit_admitted` seam only.
 
-## Step 2 — cancel, modify and close admission (deepened after step 1)
+### Step 1 as built
 
-The readiness review found step 2 underspecified (the owned-position and owned-order fields, how a resting protective close is identified, the `COMMAND_ADMITTED` payload for non-entry verbs, the not-sent `Outcome`, and the modify capital increase). Step 2 is rewritten to decision depth after step 1 lands, as step 3 is. The text below is its scope, not its specification.
+Commit `2ed1c39` on `slice-04` (checkpoint `bac5777` before it). The commit pair changes 33 paths: the files table above, less `tests/fixtures/slice01_entry.json` (unchanged), plus ten SLICE-01…03 test files that now call the private seam `_submit_admitted` or read the migration count (`tests/contracts/test_capabilities.py`, `tests/integration/test_entry_outcomes.py`, `tests/recovery/test_crash_boundaries.py`, `test_projection_integrity.py`, `test_restore_fencing.py`, `tests/unit/test_authority_grants.py`, `test_command_identity.py`, `test_event_envelope.py`, `test_ledger_invariants.py`, `test_policy_parameters.py`).
 
-`CancelRequest`, `ModifyRequest(ModifyChanges)`, `CloseRequest` (ledger spec types) and `Coordinator.admit_action(request, *, auth=None) -> Outcome`, running A0–A2, A4, then stage B with B1 (observation only), B2 against the fixture position and order ports exactly as the intent spec states (cancel: owned and open; modify: total ≥ filled and remaining ≤ current remaining, except a resting protective close up to the owned position; close: quantity ≤ min(owned, broker net), side SELL), B3, B4, and B5 only for a modify raising committed capital. Admission records `COMMAND_ADMITTED` (`verb`, `target`); dispatch of these verbs is SLICE-05, so step 2 admits without sending. Tests: CUJ-ADM-2 (sell 100 against 50 → `ADM-R07`), CUJ-ADM-4 (close with the session `CLOSED` admitted), each B2 rule.
+**Choices made while building** (none sets a money value; each is named so a reader can check it):
+
+| Topic | As built |
+|---|---|
+| Front door | `kernel.admission.EntryAdmission(coordinator, policy, ports, settings).admit(request, auth)`, reached only through `Coordinator.admit_entry`; the composition sets it when `compose_simulation(..., admission=AdmissionPorts(...))` is given, and refuses any unbound step-1 setting then (`RefusingParameterUnbound`, naming `section.key`) |
+| Observation digests | `Observation` gains `digest` (each book's own), so `state_heads` can name `orders_observation`, `positions_observation` and `funds_observation` as the decisions table requires |
+| Seam application | `kernel.policy.not_required_application(intent_digest, strategy, policy_binding_id)` builds the `proceed` / `review_not_required` application the measurement in `operations/verification.py` passes to `_submit_admitted`, so only `kernel.policy` builds applications (the capability test found the old direct construction) |
+| Two-calendar check | A3 compares the session's calendar with the view's. B6's leg-calendar condition needs each instrument's calendar from reference facts, which arrive with the step 3 planner; B6 adds it then. **Deviation until step 3** |
+| Setting key | `dispatch.deadline_ms_entry` (flat key under `dispatch`) for the spec's `dispatch.deadline_ms.entry`; the loader table names it |
+| Fixture refusal codes | `FIX-R03` (conflict) and `FIX-R04` (safety) are labelled test stand-ins for the SLICE-05 and SLICE-06 codes |
+
+**Tests** (235 passed with `scripts/safe_tests.py`, no broker variables):
+
+| File | Cases |
+|---|---|
+| `test_admission_checks.py` | The 15 capacity cases; the front door: admitted payload (full plan, exposure, the four state heads, integer ages, grant, dispatch deadline), A0 busy unrecorded, A1 (unpublished, abstaining, other-session intent), missing key unrecorded, A1a identity, A2 recorded after `INTENT_SEEN`, A3 candidate and calendar, A4, A5 pending unrecorded and BLOCK recorded, planning refusal and exception, F-A6 kill and pause during planning (`B:A4`, `B:A5`), CUJ-ADM-3 (90.1 s refused, 90.0 s admitted), F-A5 and the other B1 inputs, B3, B4 unrecorded, F-A7, the per-account loss limit and its absence, three B6 mismatches |
+| `test_review_semantics.py` | Review not required; every finding row; arrival after the deadline; the ten mode × outcome cells; CUJ-ADM-5; first review wins; a BLOCK outlives `valid_until`; CUJ-ADM-1 at 10:00, 10:02, 10:03, 10:06; exclusive expiry; a pause starts without the intent returning (60-minute cap, session close); two PAUSEs, one pause; a PAUSE at the session end; clearing; two fresh ledgers, the same applications |
+| `test_planner_rules.py` | The `Intent`, `Plan`, `PlanLeg` and `ReviewApplication` field sets; no order identity; an intent published with an order ID does not resolve; product and protective levels in the plan digest |
+| `test_capabilities.py` | Only `kernel/policy.py` builds `ReviewApplication(`, only `kernel/planner.py` builds `Plan(`, only the coordinator and the measurement reach `_submit_admitted` |
+| `test_policy_parameters.py` | The eight step-1 settings resolve, are null by default and refuse malformed values; the composition refuses each one unbound |
+
+**Break checks** (each applied to the build, run, and reverted byte for byte; every one failed its tests):
+
+| Change | Tests that failed |
+|---|---|
+| Ignore the stage-B precheck's refusal | both F-A6 tests |
+| Record `ADM-R12` at B4 | `test_b4_busy_during_planning_is_not_recorded` |
+| Accept an incomplete observation | `test_b1_inputs_f_a5` |
+| Let a later review replace the first | `test_first_review_wins` |
+| Start a second pause on a second PAUSE | `test_two_pauses_start_one_pause`, `test_cuj_adm_1` |
+| Skip the arrival-deadline judgement | `test_arrival_after_the_deadline_is_timeout` |
+| Build a `ReviewApplication` in `kernel/admission.py` | the capability test |
+| Give `Intent` an order identity | three `test_planner_rules.py` tests |
+| Give `market.view_age_stamp` a default | `test_admission_settings_resolved_and_null_by_default` |
+
+## Step 2 — cancel, modify and close admission
+
+Deepened after step 1 landed (OA_NEW `2ed1c39`). It closes the five gaps the readiness review named: the owned-position and owned-order fields, how a resting protective close is identified, the `COMMAND_ADMITTED` payload for non-entry verbs, the not-sent `Outcome`, and the modify capital increase. Dispatch of these verbs is SLICE-05, so step 2 admits and does not send.
+
+### Files
+
+| File | Change |
+|---|---|
+| `src/autonomous_trading/contracts/execution.py` | `CancelRequest`, `ModifyRequest`, `ModifyChanges`, `CloseRequest`, `MarketOrder`, `LimitOrder`, `StopOrder`; their wire forms; `OwnedOrder`, `OwnedPosition` (ledger-derived ownership, beside the ledger's execution types) |
+| `src/autonomous_trading/contracts/evidence.py` | `ObservedOrder` gains the spec's `price` and `trigger_price` (keyword, default `None`) |
+| `src/autonomous_trading/kernel/ports.py` | `HoldingsPort`; `AdmissionPorts.holdings` |
+| `src/autonomous_trading/kernel/admission.py` | `ActionAdmission`; `action_admitted_decision`; B2 as `effect_check` |
+| `src/autonomous_trading/kernel/coordinator.py` | `Coordinator.admit_action(request, *, auth=None) -> Outcome` |
+| `src/autonomous_trading/kernel/ledger/store.py`, `projections.py` | The entry-only fields of `COMMAND_ADMITTED` are null for other verbs; no reservation row without a `reservation_id` |
+| `src/autonomous_trading/resources/events.schema.json` | `COMMAND_ADMITTED`: entry-only fields nullable; adds `effect` |
+| `src/autonomous_trading/settings/schema.py`, `loader.py`, `resources/defaults.yaml` | `dispatch.deadline_ms_cancel`, `_modify`, `_close` (refusing) |
+| `tests/conftest.py` | `FixtureHoldings`; owned-order and owned-position builders |
+| `tests/unit/test_admission_checks.py` | The action rows of PRF-ADM-04, CUJ-ADM-2, CUJ-ADM-4 (a section after the entry rows) |
+| `tests/contracts/test_capabilities.py` | The step 1 capability test also covers `admit_action` |
+
+### Contracts
+
+```text
+CancelRequest(command_key, principal, account, broker_order_id)
+ModifyRequest(command_key, principal, account, broker_order_id, changes: ModifyChanges)
+ModifyChanges(trigger_price | None, limit_price | None, quantity | None)
+CloseRequest(command_key, principal, account, position_id, quantity: int, order: MarketOrder | LimitOrder | StopOrder)
+MarketOrder()    LimitOrder(price)    StopOrder(trigger, limit | None)
+OwnedOrder(broker_order_id, command_key, verb, leg_role, account, strategy, underlying, instrument,
+           side: BUY | SELL, position_id | None, protective: bool)
+OwnedPosition(position_id, entry_command_key, leg_role, account, strategy, underlying, instrument,
+              owned_quantity: int)                     # signed; the ledger `position` row's columns
+HoldingsPort.order(account, broker_order_id) -> OwnedOrder | None
+HoldingsPort.position(account, position_id) -> OwnedPosition | None
+```
+
+* **Construction rules.** `ModifyChanges` needs at least one field; prices are canonical decimal strings above zero; `quantity` is an int above zero and is the new **total** order quantity (filled + remaining). `CloseRequest.quantity` is an int above zero. A violation raises `ValueError` at construction and never reaches admission.
+* **Wire forms** (the request digest's input): `{"verb": "cancel", "command_key", "principal", "account", "broker_order_id"}`; modify adds `"changes": {"trigger_price", "limit_price", "quantity"}`; close is `{"verb": "close", …, "position_id", "quantity", "order": {"kind": "market"} | {"kind": "limit", "price"} | {"kind": "stop", "trigger", "limit"}}`.
+* **There is no side field.** The package admits long positions only, so every close and every protective order is a SELL; a request cannot name a side, so it cannot name the wrong one.
+
+### Ownership in step 2
+
+* `HoldingsPort` is a **fixture** (`FixtureHoldings`) in step 2: no close or protective order can reach the ledger before SLICE-05 dispatches it, and the `position` table arrives with `FILL` in SLICE-07. `OwnedPosition` carries exactly the ledger `position` row's columns that admission reads, so binding the real port in SLICE-05 (orders: `broker_identity` kind `order_id` joined to `command_identity` of the same account) and SLICE-07 (positions: the `position` row) changes no admission code.
+* **Owned** means the port returns a row for that account. A row of another account is not owned.
+* **Protective** (`OwnedOrder.protective`) is derived from the ledger, never from a broker flag: the order's command key has the prefix `prot:<position_id>:stop:` or `prot:<position_id>:target:` ([protection spec, Identity](../../design/protection-and-safety.md#protective-stop-and-tick-exits-kernelprotectionpy)), or the order is a basket's `stop` or `target` leg (`broker_identity.leg_role`) of an entry command. A **resting protective close** is a protective order whose fresh observation shows status `open`.
+* **The `prot:` prefix is reserved.** A request whose command key starts with `prot:` from any principal other than `kernel:protection` is `ADM-R01` (A1, recorded). Without this, a caller could make its own close look protective.
+
+### `Coordinator.admit_action(request, *, auth=None) -> Outcome`
+
+One front door for the three verbs; `admit_entry` stays the entry door. Each check stops at its first failure; every refusal is recorded `ADMISSION_REFUSED` with `inputs.check` except `LED-R01`, `LED-R02` and `ADM-R12`.
+
+| # | Check | Refusal |
+|---|---|---|
+| A0 | Busy, only when `coordinator.busy_applies_to` is `all` (the first release binds `entries_only`, so actions never wait: Q-004) | `ADM-R12` (not recorded) |
+| A1 | Key present; the `prot:` rule | `LED-R01`; `ADM-R01` |
+| A1a | Identity pre-check (SLICE-01) | `LED-R02` / existing outcome |
+| A2 | `authority.check(verb, auth, account)` | `SES-R01…R05`, `SES-R09` |
+| A4 | `safety.check(verb, auth, strategy)`, `strategy` = the target's owned strategy, or `None` when the target is not owned (B2 then refuses it) | its refusal |
+| B | Inside the `COMMAND_ADMITTED` transaction (`Decision.precheck`, as step 1): repeat A2 and A4 (records `B:A2`, `B:A4`), then B1–B5 | as above |
+| B1 | The account observation exists; orders, positions and funds each complete or `unknown`, age 0 … `reconciliation.max_observation_age_secs`. No view and no spot or chain limit | `ADM-R05` |
+| B2 | `effect_check` (below) | `ADM-R07` with a reason |
+| B3 | `conflicts.check(verb, account, underlying)`, `underlying` from the owned target | its refusal |
+| B4 | As A0 | `ADM-R12` (not recorded) |
+| B5 | Only a modify that raises committed capital (below) | `ADM-R09` |
+
+There is no A3: an action needs no open session, so a close after the session's `CLOSED` is admitted (CUJ-ADM-4; the protection spec's session-close exits depend on it). There is no A5, planning or B6.
+
+### B2 effect (`effect_check`)
+
+Notation: `o` is the target's row in the fresh orders observation (by `broker_order_id`); `filled = o.filled_quantity`; `remaining = o.quantity − filled`. `owned(p)` is `min(p.owned_quantity, net)`, where `net` is the `net_quantity` of the position observation row for `p.instrument`. With no such row, `net` is 0 when the positions observation's coverage is `yes`, and unknown otherwise.
+
+| Verb | Admitted only when | Reason on refusal |
+|---|---|---|
+| cancel | the order is owned; `o` exists with status `open` | `not_owned`, `not_open` |
+| modify | the order is owned; `o` exists with status `open`; `filled` is not `None` | `not_owned`, `not_open`, `filled_unknown` |
+| | `trigger_price` is set only on an order with `o.trigger_price` not `None` (legacy refuses a target moved as a stop, `execution_gateway/__init__.py:1356-1360` @445eb116); `limit_price` only on an order with `o.price` not `None` | `wrong_field` |
+| | `quantity` (new total) ≥ `filled` | `below_filled` |
+| | new remaining (`quantity − filled`) ≤ `remaining`; **except** a resting protective close, whose new remaining may reach `owned(p)` of its `position_id` and no more | `above_remaining`, `above_owned`, `broker_net_unknown` |
+| close | the position is owned; `owned(p)` is known and above 0 | `not_owned`, `broker_net_unknown`, `not_open` |
+| | `quantity` ≤ `owned(p)` (market, limit or stop alike) | `above_owned` |
+
+* `ADM-R07`'s message is `effect_mismatch`; the reason goes in `inputs.reason`. CUJ-ADM-2 (sell 100 against an owned 50) is `above_owned`.
+* Two closes against one position are each judged alone here; whether the second may run while the first is unresolved is conflict row 2, at B3 (SLICE-05).
+* **Resulting exposure** (REQ-ADM-009): `{instrument: owned(p) − quantity}` for a close; for a cancel or modify, `{instrument: owned(p)}` of the order's position, or `{}` when the order has no `position_id` (an entry order).
+
+### B5 for a modify (Q-018 open)
+
+A modify raises committed capital only when its target is a non-protective **BUY** order (an entry leg) and `limit_price` rises above `o.price`; only an entry order can, since B2 forbids raising its quantity. The intent spec says such a modify is checked on the increase and the entry's reservation raised in the same commit, but legacy never modifies an entry order (its `modify` moves resting protective legs only, `execution_gateway/__init__.py:1292-1300` @445eb116), so there is no retained arithmetic for the increase in amount, margin and worst-case loss. That is a money rule, so it is the owner's: [Q-018](../../decisions/owner-questions.md#q-018). Until it is answered, B5 refuses such a modify with `ADM-R09`, reason `modify_increase_unbound`, like any refusing setting. No first-release entry can hit this: every one-leg entry is a MARKET order with no limit to raise ([protection spec, basket placement](../../design/protection-and-safety.md#basket-placement-basket_at_plan-kernelprotectionpy)).
+
+### `COMMAND_ADMITTED` for an action
+
+| Field | Value |
+|---|---|
+| `verb`, `target` | the verb; the `broker_order_id` (cancel, modify) or `position_id` (close) |
+| `strategy` | the owned target's strategy |
+| `request`, `request_digest`, `account` | as for an entry |
+| `plan_ref`, `plan_digest`, `plan`, `application`, `reservation_id`, `amount`, `margin`, `worst_case_loss`, `currency` | `null` (the schema allows `null` for these; the writer refuses `LED-R06` when `verb` is `entry` and any is `null`, or `verb` is not `entry` and any is set) |
+| `dependencies` | `{dispatch_deadline: {origin, budget_ms: dispatch.deadline_ms_<verb>}, release_binding_id: null, grant_id, session_id: null}` |
+| `state_heads` | `{reservation_head, orders_observation, positions_observation, funds_observation}` (each observation's own digest), as step 1 |
+| `measured_ages` | `{observation_ms}` (the oldest of the three) |
+| `resulting_exposure` | as B2 |
+| `effect` (new, `null` for entries) | cancel `{remaining}`; modify `{before: {quantity, filled, price, trigger_price}, after: {quantity, price, trigger_price}, protective}`; close `{quantity, order (wire), owned_quantity, broker_net}` |
+
+The fold writes `command_identity` (`verb`, `target`, `plan_digest` null, state `ADMITTED`) and no reservation row.
+
+### The not-sent `Outcome`
+
+`admit_action` returns `Outcome(command_key, attempt_no=None, effect="not_sent", canonical="committed", compat_projection="none", broker_order_ids={}, domain=None, sent=False, refusal=None)`. `not_sent` with no attempt means "admitted, no attempt yet", the same reading `_existing_outcome` already gives an admitted command with no attempt, so the same request again returns that outcome with `canonical="unchanged"`. `Coordinator.recover` reads `CLAIMED` attempts only, so an admitted action stays `ADMITTED` across a restart until SLICE-05 dispatches it.
+
+### Settings added
+
+| Setting | Type | Env (`test` profile) | Notes |
+|---|---|---|---|
+| `dispatch.deadline_ms_cancel`, `_modify`, `_close` | int > 0 | `AT_DEADLINE_MS_CANCEL`, `_MODIFY`, `_CLOSE` | Q-011: measured (TASK-S11-07); refusing, in `Settings.ADMISSION_REQUIRED` |
+
+### Step 2 tests (`tests/unit/test_admission_checks.py`, action section)
+
+* Each row: `LED-R01`; the `prot:` prefix from a human → `ADM-R01` (A1); A1a same request → existing outcome, other request → `LED-R02`; A2 → `SES-R01`; A4 and B3 fixture refusals recorded with their checks; B1 incomplete or old orders observation → `ADM-R05`; under `entries_only` a busy account still admits an action.
+* B2, one test per row of the table, each against a hand-worked observation: cancel of another account's order; modify below filled; a non-protective remaining increase; a resting stop raised to `owned(p)` admitted and one more refused; a trigger change on a target leg (`wrong_field`); a limit raise on an entry order → `ADM-R09` `modify_increase_unbound`; CUJ-ADM-2; a close capped by a smaller broker net; a close of an overclosed position; coverage `unknown` with no position row → `broker_net_unknown`.
+* CUJ-ADM-4: the session `CLOSED`, a market close of the owned quantity is admitted.
+* The `COMMAND_ADMITTED` fields above, no reservation row, the `Outcome` above, the same request again `unchanged`, and a reopen leaves the command `ADMITTED`.
+* Break checks (added to the file's docstring): cap a protective raise at `remaining` instead of `owned(p)`; accept a trigger change on a target; record `ADM-R12`; accept the `prot:` prefix from a human.
 
 ## Step 3 — the planning port (deepened before build)
 

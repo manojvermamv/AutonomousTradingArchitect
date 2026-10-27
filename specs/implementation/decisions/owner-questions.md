@@ -21,6 +21,7 @@ Status: **open owner decision** unless a row says answered. Each question is a g
 | [Q-015](#q-015) | Value of `account.max_worst_case_loss` for the first account | `README.md:776`; [intent spec](../design/intent-to-admission.md#b5-capacity) | TASK-S04-03 (binding a production value) | answered 2026-10-27 ([answers](owner-answers-2026-10-27.md)) |
 | [Q-016](#q-016) | Response to foreign (manual or outside) broker activity: record only, escalate, or hold entries for the affected account or underlying? | `README.md:1347` (foreign exposure response); POL-009; [execution-domain spec](../design/execution-domain-and-observations.md#reconciliation-kernelreconciliationpy) | TASK-S07-02 | answered 2026-10-27 ([answers](owner-answers-2026-10-27.md)) |
 | [Q-017](#q-017) | May a new entry be admitted while a closed position's protective order still rests on the same underlying? | POL-007; [protection spec](../design/protection-and-safety.md#conflict-relation-kernelsafetypy) | TASK-S05-03, TASK-S06-01 | answered 2026-10-27 ([answers](owner-answers-2026-10-27.md)) |
+| [Q-018](#q-018) | A modify that raises an entry order's limit: how much more capital does it commit? | [SLICE-04 step 2](../plan/slices/SLICE-04-intent-to-admission.md#b5-for-a-modify-q-018-open); [intent spec B5](../design/intent-to-admission.md#b5-capacity) | TASK-S04-02 (B5 for a modify) | open |
 
 ---
 
@@ -322,4 +323,22 @@ Proof: PRF-PRT-04 runs the chosen row against a closed position whose stop still
 
 - **A — Recommended:** Row 1 also blocks an entry while any position on the same account and underlying has a protective order not observed terminal.
 - **B:** Row 1 unchanged (POL-007 as written); the residual SELL is cancelled by protection without blocking entries.
+- **C:** A free-text answer.
+
+## Q-018
+
+**Capital committed by a modify that raises an entry order's limit.**
+
+```text
+Requirement: B5 checks a modify that raises committed capital on the increase, and kernel.reservations raises the entry's reservation in the same commit (intent spec, B5).
+Owner: kernel.admission (B5 for a modify), kernel.reservations.
+Proof: TASK-S04-02 tests the chosen arithmetic against hand calculations; until then B5 refuses (ADM-R09, modify_increase_unbound).
+```
+
+**Why it matters.** The spec requires the check but no source gives its arithmetic: legacy never modifies an entry order (its `modify` moves resting protective legs only, `src/runtime/execution_gateway/__init__.py:1292-1300` @445eb116), and the retained capacity rule has no modify path (`reservations.py` @445eb116). The increase in amount, margin and worst-case loss is a money rule. No first-release entry reaches it, because every one-leg entry is a MARKET order with no limit, so the step 2 build refuses such a modify until this is answered.
+
+**Options.**
+
+- **A — Recommended:** Refuse it in the first release (legacy parity): a modify may not raise an entry order's limit (`ADM-R07`, `wrong_field`). Revisit when a strategy places limit entries.
+- **B:** Admit it on the increase, with Δamount = (new limit − current limit) × remaining quantity, and margin and worst-case loss raised by the same Δ (the most a long option can add), the entry's reservation raised by Δ in the same commit.
 - **C:** A free-text answer.
