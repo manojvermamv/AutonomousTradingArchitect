@@ -221,3 +221,28 @@ After step 1 was built (OA_NEW `2ed1c39`), [step 2](../../plan/slices/SLICE-04-i
 | D-N3, R-N5 | Nit | Snapshot shape and number forms | FIX: one expiry, as the market spec; flat-chain rows named there; forms stated |
 | D-N4 | Nit | Score strings and `as_of` rendering | FIX: `repr` strings; `utc_iso`, a named text deviation |
 | R-N1, R-N2, R-N4, R-N6 | Nit | `make_intent` default; `activate_at_max_pts`; `seconds_since_last_entry` type and the stats fixture; completion conditions | FIX |
+
+## SLICE-04 step 4 review (2026-10-27)
+
+[Step 4](../../plan/slices/SLICE-04-intent-to-admission.md#step-4--structure_v1) was deepened from the legacy structure path at `OA@445eb116` (an isolated export), after the owner answered Q-020 (option C, with A and B recorded), then reviewed by fresh `egm:egm-design` and `egm:egm-implementation-readiness` reviewers (read-only). Both read the export and confirmed the citations, apart from the anchor attribution fixed below. Design: 1 Blocker, 7 Major, 7 Nit. Readiness: 1 Blocker, 10 Major, 4 Nit. Neither found a way for a structure to be admitted. All findings are resolved by FIX.
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| D-B1 | Blocker | `max_loss` defaulted to `0.0`, turning a money gate off when unbound | FIX: `float \| None = None`; unbound refuses `planner_policy_unbound`; a bound `0.0` keeps legacy's "no limit"; break check added |
+| R-B1, D-M6 | Blocker / Major | The golden harness had nothing to compare for passing structures | FIX: `resolve_structure` and `structure_loss` named, with `ResolvedLeg`; the fixture records legacy's legs and executable loss |
+| D-M1, R-N1 | Major / Nit | BUY-only legs on two expiries classify `undefined` | FIX: claim corrected; a golden case added |
+| D-M2 | Major | Declared evidence age and source were given to B1, which does not enforce them | FIX: the loader refuses them until SLICE-08; adopting Q-020 A or B needs SLICE-08's evidence |
+| D-M3 | Major | Dropped fields left the loader and Q-020's options unbindable | FIX: the loader skips the `single_long_option` template; protection points kept as inert typed fields; `ResolvedLeg` carries LTP, delta and tick |
+| D-M4 | Major | Unknown ids refused before the session gates, unlike legacy | FIX: legacy's order and text kept |
+| D-M5, R-M5 | Major | Multi-expiry input and the read order | FIX: `dte` defined; empty → `chain_missing`; duplicate or mismatched → `chain_mismatch`; a structure skips `chain`; read order stated; market spec amended |
+| D-M7, R-M9 | Major | Break checks that could not fail | FIX: tie, ATM-tie and LTP ≠ ask cases; the mismatch on the farther expiry |
+| R-M1 | Major | `legacy_rows` without `expiry` and `dte` | FIX: always emitted; the 43 one-leg cases regenerated with them |
+| R-M2, R-M3 | Major | Refusal types; untestable SELL and unsupported-key tests | FIX: `ValueError`; `opening_position` field; `CandidateRule.from_mapping` |
+| R-M4, D-N1 | Major / Nit | Anchor check misattributed and moved | FIX: kept at resolution, lower-cased, as legacy |
+| R-M6, R-M7 | Major | Fixture attribute shadowing; `wire` and the digest change | FIX: `expiry_chains`; `execution.py` in the files; digest change recorded |
+| R-M8 | Major | The generator's legacy envelope and call | FIX: every field, the digest and the call stated |
+| R-M10 | Major | The `None`-bias text cannot come from legacy | FIX: a named deviation with a unit test |
+| D-N2 | Nit | Load-time refusal of a bad candidate key stopped the whole policy | FIX: unsupported keys refuse at resolution, as legacy; structural invalidity fails the whole policy, as legacy validation |
+| D-N3, D-N4 | Nit | Structure lot rule; phase and cover text; PRF-ADM-09's structure clause | FIX: intent spec amended; the clause deferred |
+| D-N5, D-N6, D-N7 | Nit | `to_stop` for structures; negative PE deltas under a delta rule; unbound planner before dispatch | FIX: `to_stop` refused for structures; carried to PRF-ADM-07; checked first |
+| R-N2, R-N3, R-N4 | Nit | Two-expiry case; `KW_ONLY` and helpers; `dte` type | FIX |

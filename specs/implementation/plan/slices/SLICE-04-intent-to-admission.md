@@ -1,6 +1,6 @@
 # SLICE-04 — Intent to admission
 
-* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-04-review-2026-10-27)). **Step 1 built** on 2026-10-27 in a local repository (commit `2ed1c39`, branch `slice-04`): 235 tests passed, including every SLICE-01…03 test, and every break check failed as required ([as built](#step-1-as-built)). That is a build record, not production acceptance. **Step 2 built** the same day (commit `575c897`): 252 tests passed and every break check failed as required ([as built](#step-2-as-built)). **Step 3 built** (`one_leg_v1`, commit `1aa02b8`): 308 tests passed, including 43 golden cases generated from legacy `plan()` at `OA@445eb116`, and every break check failed as required ([as built](#step-3-as-built)). `structure_v1` is step 4, deepened before it is built.
+* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-04-review-2026-10-27)). **Step 1 built** on 2026-10-27 in a local repository (commit `2ed1c39`, branch `slice-04`): 235 tests passed, including every SLICE-01…03 test, and every break check failed as required ([as built](#step-1-as-built)). That is a build record, not production acceptance. **Step 2 built** the same day (commit `575c897`): 252 tests passed and every break check failed as required ([as built](#step-2-as-built)). **Step 3 built** (`one_leg_v1`, commit `1aa02b8`): 308 tests passed, including 43 golden cases generated from legacy `plan()` at `OA@445eb116`, and every break check failed as required ([as built](#step-3-as-built)). Step 4 (`structure_v1`) is decision-complete below after its EGM review and not yet built; by the owner's Q-020 answer it refuses every structure until a per-leg protection rule is adopted.
 * **Precedence:** the master README, then the ROADMAP, then this package. The authority is the [intent spec](../../design/intent-to-admission.md); every deviation is marked **Deviation**. No score, threshold or money value is set: every refusing setting is bound only to labelled synthetic values in tests.
 * **Phase:** master Phase 1, finishing in Phase 3 with real views (SLICE-08). Class S.
 * **Builds on:** [SLICE-03](SLICE-03-sessions-authority-recovery.md) as built; branch `slice-04` cut from `slice-03`.
@@ -600,13 +600,132 @@ Commit `1aa02b8` on `slice-04`, after `0affceb`. It changes 12 paths: the step 3
 | Price `amount` at the ask under `ltp` | `test_q019_money_figures` (two of three) |
 | Drop the chain-to-view check | `test_chain_must_match_the_aged_view` (two of three) |
 
-## Step 4 — `structure_v1` (deepened before build)
+## Step 4 — `structure_v1`
 
-The legacy structure planner (SP:104-276, with `structures/resolve.py`, `structures/payoff.py` and the structure templates of `policy/types.py:14-44` and `policy/defaults.py`) is extracted after step 3, with its own deepening and EGM review. That deepening must settle: typed structure templates (the `strike_rule`, `expiry_rule`, `risk` and `evidence` mappings); which of resolution's evidence checks (RS:65-144: completeness, source, digest binding, field state, delta presence) move to B1 or the market port and which stay; the strategy-level `policy.risk["max_loss"]` (SP:231) and `strategy_family` (SP:213, 227) as policy fields; per-leg protective levels to match the protection spec's per-leg stops; and how Q-019's figures price a multi-leg plan against legacy's maximum loss at the ask (RS:325), which may need the owner.
+Deepened after step 3 landed, from the legacy structure path at `OA@445eb116` (the same isolated export), then reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-04-step-4-review-2026-10-27)); this text includes their fixes. Abbreviations: **SP** `src/core/framework/structures/planner.py`, **RS** `structures/resolve.py`, **Y** `structures/payoff.py`, **ST** `structures/types.py`, **PT** `policy/types.py`, **PS** `policy/schema.py`, **PV** `policy/validation.py`, **PD** `policy/defaults.py`, **EV** `src/data/marketdata/evidence.py`. The owner's [Q-020 answer](../../decisions/owner-answers-2026-10-27.md) (option C) decides how it ends.
+
+### What legacy does, and what that decides
+
+* **No shipped strategy uses it.** BuyerEdge emits only `single_long_option` (step 3); the only structures with more than one leg are test fixtures with SELL legs (`tests/test_structure_planner.py:31-41`). Step 4 extracts the path for parity and for later strategies.
+* **Legacy sets no per-leg stop.** SP:222-226 says a multi-leg structure "owns aggregate protection", applied by a supervisor's named actions after entry. The [protection spec](../../design/protection-and-safety.md#structures-kernelprotectionpy) gives each leg its own stop. Each leg's level is a money and protection rule, so it went to the owner as [Q-020](../../decisions/owner-questions.md#q-020). Answer **C**: `structure_v1` plans and gates exactly as legacy, then refuses every structure with `PlanRefusal("stop", "structure_protection_unbound")`. Options A (the one-leg stop rule per leg) and B (the template's declared points) are recorded for later. Adopting either also needs SLICE-08's field-level market evidence (below). **No structure entry is possible until then.**
+* **BUY legs only.** `PlanLeg` admits buy legs, so a template leg's `opening_position` must be `BUY` and its role `long_premium` or `hedge`. With no SELL leg there is nothing to cover: one phase (SP:33-38), an empty cover allocation (SP:50-74). Legs on different expiries still classify as `undefined` (Y:66-71), so the `economics` refusal stays reachable.
+* **Money figures.** Q-019 covers any long-only plan: `amount = margin = worst_case_loss` = Σ each leg's LTP × quantity, under `debit_price: ltp` and `worst_case_loss: full_debit`. `ask` sums each leg's ask. `to_stop` needs a stop, which a structure lacks until Q-020 is adopted, so it is refused for a structure (`PlanRefusal("request", "to_stop needs a structure stop")`). All of this is reached only after adoption.
+
+### Files
+
+| File | Change |
+|---|---|
+| `src/autonomous_trading/contracts/decisions.py` | `CandidateRule`, `StructureLegDef`, `StructureProtection`, `StructureDef`; `PlannerPolicy` gains, after `_: KW_ONLY`, `structures: tuple[StructureDef, ...] = ()` and `max_loss: float \| None = None` |
+| `src/autonomous_trading/contracts/market.py` | `ChainSnapshot.dte: int \| None` (keyword, default `None`; `int ≥ 0` or `None`, else `ValueError`) |
+| `src/autonomous_trading/contracts/execution.py` | `wire` for the four new dataclasses (every one-leg `policy_digest` changes, because `wire(planner)` now holds `structures` and `max_loss`) |
+| `src/autonomous_trading/kernel/selection.py` | `legacy_rows` always adds `expiry` and `dte`; `implementation_for(structure_id)`; `ResolvedLeg`; `resolve_structure`; `structure_loss` |
+| `src/autonomous_trading/kernel/planner.py` | `structure_v1`; `Planner.plan(intent, *, account, view, chain, chains, reference_facts, policy, stats, now)`; `PlannerPort` likewise |
+| `src/autonomous_trading/kernel/ports.py` | `MarketPort.chains(view_id)` |
+| `src/autonomous_trading/kernel/admission.py` | The structure read order (below) |
+| `tests/conftest.py` | `FixtureMarket.expiry_chains` and `chains()`; `make_chains(view, dtes=(2, 9))` with LTP ≠ ask; `strangle(**leg_changes)`; `structure_policy(**changes)` |
+| `tests/unit/test_planner_rules.py`, `tests/unit/test_admission_checks.py` | The step 4 cases |
+| `tests/fixtures/planner_parity_445eb116.json` | Regenerated: the 43 one-leg cases with `expiry` and `dte` in their rows (outcomes unchanged; legacy's one-leg code never reads them), plus the structure cases (same path, T-26) |
+| `specs/…/design/intent-to-admission.md`, `market-data-and-canvas.md` | The spec amendments named below |
+
+### Typed templates
+
+Legacy's templates hold untyped mappings (PT:14-44). Step 4 types the fields the planner reads, keeps the protection fields Q-020 option B would read as inert typed fields, and drops the rest.
+
+```text
+CandidateRule(delta_min, delta_max, premium_min, premium_max, min_oi, min_volume, max_spread_pct: float | None,
+              moneyness: str | None, unsupported: tuple[str, ...] = ())
+    CandidateRule.from_mapping(m)    # the ten RS:187-189 keys, less anchor and offset; any other key is kept,
+                                     # sorted, in `unsupported`, never an error here
+StructureLegDef(leg_id: str, role: "long_premium" | "hedge", opening_position: "BUY", option_type: "CE" | "PE",
+                anchor: str = "atm", offset: int = 0, expiry_rank: int = 0, min_dte: int | None = None,
+                max_dte: int | None = None, quantity_ratio: int = 1,
+                candidate_rules: tuple[CandidateRule, ...] = (),
+                stop_points: float | None = None, target_points: float | None = None)   # inert (Q-020 B)
+StructureProtection(hard_stop_points: float | None, target_points: float | None)       # inert (Q-020 B)
+StructureDef(id: str, market_biases: tuple[str, ...], legs: tuple[StructureLegDef, ...],
+             protection: StructureProtection | None = None)
+```
+
+* **Construction refuses** with `ValueError`, as the other contracts do, exactly what legacy validation refused for the whole policy (PV:190-212; PS:60-68, 98-99): an empty `legs` or `market_biases`; a bias outside `bullish`, `bearish`, `neutral`; duplicate leg ids in a structure; a `quantity_ratio` below 1; a negative `expiry_rank`, `min_dte` or `max_dte`; a `role` or `option_type` outside its set. It also refuses what the package cannot hold: an `opening_position` other than `BUY`, a `short_premium` role, and `id == "single_long_option"`. `PlannerPolicy` refuses duplicate structure ids. As in legacy, a policy that fails validation fails whole, so `one_leg_v1` stops too.
+* **Kept at resolution**, as legacy, so they refuse only that structure's intent: an unsupported candidate key (RS:190-192, the first sorted name in the text), an anchor that names no earlier leg (RS:286-293; the anchor is lower-cased first, so `ATM` is the ATM anchor and a capitalised leg id never matches), and a missing or unusable row value.
+* **`candidate_rules`** is the list legacy's resolution evaluates, in its order (RS:224-238): the leg's `strike_rule` keys other than `anchor` and `offset` first, then any evidence-derived rule sets from the policy, the structure and the leg. The bundle loader (SLICE-11) builds it with `CandidateRule.from_mapping`; step 4's tests build it directly.
+* **The shipped default policy** puts the whole one-leg strike policy under the policy's `evidence.strike` (PD:88). Most of its keys (`asym_threshold`, `iv_rank_max`, `delta_base`, …) are not among the ten, so under that policy legacy refuses every structure at resolution ("candidate rule … cannot be evaluated"). The target refuses identically: those keys sit in `unsupported`.
+* **Fixed, not fields:** family `options_buyer` and risk class `defined`, the only pair a buyer may declare (PV:195-196). **Dropped:** `actions` (SLICE-06 lifecycle), the leg's other `risk` keys (legacy's planner never read them), `confirm_before` (always empty with BUY legs). The loader (SLICE-11) skips the shipped `single_long_option` template (PD:53-75), because `one_leg_v1` owns that id.
+* **`max_loss`** is the strategy-level `policy.risk["max_loss"]` (SP:231). It is a refusing setting with no default: `None` means the bundle did not bind it, and `structure_v1` then refuses `PlanRefusal("select", "planner_policy_unbound")`. A bound `0.0` means legacy's "no declared limit" (SP:232). The value is the bundle's; legacy's shipped `0.0` (PD:76) is reported as evidence.
+
+### Market evidence (RS:62-144)
+
+| Legacy check (lines) | In the target |
+|---|---|
+| Envelope complete (RS:65-66, 81-82) | The market port returns a snapshot only for a complete chain |
+| oi and volume non-negative, delta positive under a delta rule (RS:141-144) | **Kept** in `resolve_structure`, with legacy's texts |
+| Declared `max_age_secs` and `source` (RS:83-94, 241-250) | **Refused at load**: the bundle loader (SLICE-11) refuses a policy that declares either, or `required: false`, until SLICE-08 gives the port field-level evidence. B1's global view and chain ages are not a substitute |
+| Digest binding and per-field state, origin and freshness (RS:95-140) | SLICE-08's market port. Until then no structure is admitted anyway (Q-020); adopting Q-020 A or B requires these checks to be in place |
+
+* With a delta rule, RS:144 refuses a non-positive delta. If the greeks source gives PE deltas as negative, every PE leg under a delta rule is refused. Parity keeps it, and SLICE-08's PRF-ADM-07 checks it at the source, as step 3.
+
+### Inputs and the read order at the door
+
+* **`implementation_for(structure_id)`**: `single_long_option` → `one_leg_v1`; any other id → `structure_v1`. Legacy order is kept: an unknown id runs the session gates, then refuses at `resolve` with `structure 'x' is not permitted` (PT:89, SP:168-172). Step 3's interim `structure_planner_not_built` is retired.
+* **Admission**, after the view check: for `one_leg_v1`, step 3's single `chain` read and check. For `structure_v1`, `chains = market.chains(intent.view_id)`. An empty tuple is `ADM-R05` (`B1`, `chain_missing`). A snapshot whose underlying or `as_of` differs from the view's, or two snapshots with the same expiry, is `chain_mismatch`. The single `chain` is not read for a structure. Then reference facts, then stats. The planner receives `chain=None, chains=…` for a structure, and `chain=…, chains=()` for one leg.
+* **`dte`** is calendar days from the exchange date of the decision to the expiry, as legacy's providers supply it (`dte` or `dte_calendar_days`, EV:233). The market port supplies it. A snapshot with `dte = None` reaches resolution, which refuses as legacy (`DTE is missing`, RS:52-54).
+* **`legacy_rows(chain)`** always emits `expiry = chain.expiry` and `dte = chain.dte` beside step 3's keys. `structure_v1` concatenates `legacy_rows` over `chains` in the port's order, nearest expiry first.
+* **`Planner.plan`** checks `policy.planner is None` first, for every structure id, and refuses `planner_policy_unbound`.
+* **Market bias.** `intent.market_bias` must be in the structure's `market_biases` (RS:263-264). The target intent may carry `None`, which legacy's `Intent` cannot (`ENTER requires market_bias`, `runtime/types.py:63-64`). The target refuses it at `resolve` with `market bias None is not permitted`, a named deviation tested by a unit test, not a golden case.
+* **Lot size** comes from the chosen row only (RS:322), with no reference-fact fallback. This is a structure-only exception to POL-022's kept rule, named in the intent spec.
+
+### `resolve_structure` and `ResolvedLeg`
+
+```text
+selection.resolve_structure(structure: StructureDef, market_bias, rows: list[dict], spot: float)
+    -> tuple[ResolvedLeg, ...] | PlanRefusal
+ResolvedLeg(leg_id, role, symbol, option_type, strike: float, expiry: str, dte: int, ratio: int, quantity: int,
+            reference_price: float, ltp: float | None, delta: float | None, tick_size: float)    # frozen
+selection.structure_loss(legs) -> tuple[str | None, float | None]   # (economics refusal text, executable loss)
+```
+
+`resolve_structure` is RS:253-334 without the evidence functions (RS:62-140): RS:20-59's number checks, RS:147-166's expiry choice, RS:169-221's candidates and eligibility, RS:224-238's rule order, the sort by `(distance, symbol)` (RS:315), and `reference_price` = the ask (RS:325). A `StructureRefused` becomes `PlanRefusal("resolve", text)`. The leg also carries the row's LTP, delta and tick, which Q-019's figures and Q-020 options A and B need. `structure_loss` is Y:32-109: `classify(legs, costs=0.0)`, then `maximum_loss × gcd(quantities)`.
+
+### `structure_v1` (SP:104-276)
+
+| Legacy stage (lines) | Target | Refusal (legacy's texts) |
+|---|---|---|
+| preflight (SP:119-167) | `session_gates` (step 3's), the only preflight stage that survives | `session_gates` |
+| `resolve` (SP:168-176) | `planner.max_loss is None` → `select`/`planner_policy_unbound`; then the structure by id (PT:86-90), then `resolve_structure` | `resolve`: `structure 'x' is not permitted`, then RS's texts |
+| `strike`, `quantity` notes (SP:183-194) | Nothing: audit only | — |
+| `exposure` (SP:196-206) | Kept; `held = None`, so INERT | `exposure` |
+| `economics` (SP:211-221) | `structure_loss`; legs on two expiries classify `undefined` | `economics`: `"buyer structure is not net debit defined risk"` |
+| `stop` (SP:227-244) | `executable_loss` against `max_loss` when it is above 0 | `stop`: SP:229's and SP:233-236's texts |
+| `loss_budget` (SP:245-271) | Kept: refuses when `worst_pnl <= -budget` (SP:261) | `loss_budget`: SP:257-260's text |
+| **protection (Q-020 C)** | Every structure that passed every stage above | `stop`: `"structure_protection_unbound"` |
+
+* Legacy's `StructurePlan` (SP:275-276) is never built. Once the owner adopts A or B and SLICE-08's evidence lands, the plan is built as step 3's: one `PlanLeg` per leg (`leg_role` = the leg's `role`), Q-019's figures summed over legs, per-leg protective levels on `PlanLeg` (a contract change made then), and `entry_facts` per leg.
+* Floats, ordering and texts are legacy's, as in step 3.
+
+### Golden parity cases
+
+The step 3 generator gains structure cases, and every case's schema grows:
+
+```text
+inputs:  + "chains": [<wire chain with "dte">, ...]          # structure cases, instead of "chain"
+         + planner_policy.structures, planner_policy.max_loss
+legacy:  + "legs": [{leg_id, symbol, expiry, dte, strike, quantity, reference_price}] | null
+         + "executable_loss": <float> | null
+```
+
+* **Generation.** It builds legacy's `StrategyPolicy` and `StructureTemplate` directly (PT:14-60) with `strategy_family = "options_buyer"`, `risk = {"max_loss": <case>}` and no `max_age_secs` or `source`. It maps `candidate_rules[0]` (with `anchor` and `offset`) to the leg's `strike_rule` and the rest, in order, to the leg's `evidence.strike`. Its intent carries the case's `market_bias`. For the market it builds the envelope legacy requires: `complete: true`, an `observation_at`, `contracts[symbol] = {symbol, option_type, fields}`, and every field RS:116-124 reads (`strike`, `expiry`, `dte`, `lotsize`, `{p}.bid`, `{p}.ask`, `{p}.oi`, `{p}.volume`, and `{p}.delta` under a delta rule) as `{state: "observed", origin: "direct", freshness: "fresh", observed_at, value}`. The digest is `"sha256:" + src._canonical.json_sha256(envelope)`, set on the market and on each row. It then calls `plan_structure(intent, desk=…, policy=…, market={chain_rows, spot, now, exchange: "NFO", market_evidence, market_evidence_digest}, session=…, decision_id=…)` (SP:104) and records the stage, reason, `legs` and `executable_loss` (from the stop stage's detail, or `maximum_loss_amount`). `legacy_rows` is stored without `market_evidence_digest`.
+* **The test.** For a structure case it asserts that the concatenated `legacy_rows` equal the stored rows. It asserts that `resolve_structure` gives legacy's legs (leg id, symbol, expiry, dte, strike, quantity, reference price) wherever legacy got past `resolve`, and that `structure_loss` gives legacy's executable loss. It asserts the planner returns legacy's stage and text, except that a legacy pass is `stop`/`structure_protection_unbound`.
+* **Cases**, on a labelled synthetic chain with an uneven strike grid and LTP ≠ ask: a strangle that passes (`long_call` CE ATM +1, `long_put` PE ATM −1, `market_biases = ("neutral",)`); spot exactly between two strikes (the ATM tie, RS:288-289); two candidates equidistant from the target with chain order unlike symbol order (the sort, RS:315); both legs at `expiry_rank = 1` on a two-expiry chain; one leg at rank 0 and one at rank 1 (`economics`); an unknown structure id; bias not permitted; expiry rank unavailable; DTE below minimum; no eligible candidate (`premium_max` below every ask); a crossed spread; an unsupported candidate key; `max_loss` below the executable loss; the loss budget refused.
+
+### Step 4 tests
+
+* `test_planner_rules.py`: the golden cases; each construction refusal (`ValueError`); `CandidateRule.from_mapping` keeping unsupported keys; `planner_policy_unbound` for `planner is None` and for `max_loss is None`; the `None` market-bias text; `to_stop` refused for a structure.
+* `test_admission_checks.py`: a structure intent reads `chains`, not `chain`; an empty `chains` is `chain_missing`; a mismatched **farther** expiry and a duplicate expiry are each `chain_mismatch`.
+* **Break checks** (named in the docstring): admit a structure that passes every stage (Q-020 bypassed); break ties on chain order instead of `(distance, symbol)`; price the reference at LTP instead of the ask; check only the nearest expiry against the view; give `max_loss` a `0.0` default.
 
 ## Completion conditions
 
-1. Every SLICE-01…03 test and every step 1–3 test passes in a clean environment with no broker variables.
+1. Every SLICE-01…03 test and every step 1–4 test passes in a clean environment with no broker variables.
 2. The break checks named in each new test file's docstring were tried and reverted.
 3. The steps' file lists match the commits.
 

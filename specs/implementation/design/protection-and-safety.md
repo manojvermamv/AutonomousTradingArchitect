@@ -253,7 +253,7 @@ This retries transient refusals, which legacy never did (`run_framework_live.py:
 
 ### Structures (`kernel/protection.py`)
 
-A multi-leg structure entry creates one position per leg (ledger `position` row). Each leg gets its own stop leg under `stop_on_fill` rules, whatever `protection.placement` says (legacy sends each structure leg alone), and exits by the rules above; nothing is evaluated structure-wide beyond them. The legacy structure actions (`OA/src/core/framework/protection/structures.py`) map as follows:
+A multi-leg structure entry creates one position per leg (ledger `position` row). Until the owner adopts a per-leg level rule, no structure entry is admitted ([Q-020 answer](../decisions/owner-answers-2026-10-27.md): the planner refuses `structure_protection_unbound`). Each leg gets its own stop leg under `stop_on_fill` rules, whatever `protection.placement` says (legacy sends each structure leg alone), and exits by the rules above; nothing is evaluated structure-wide beyond them. The legacy structure actions (`OA/src/core/framework/protection/structures.py`) map as follows:
 
 | Legacy action | Target system |
 |---|---|
