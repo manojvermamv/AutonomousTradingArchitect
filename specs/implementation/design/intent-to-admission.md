@@ -306,7 +306,7 @@ B6 catches wiring faults that pair the wrong objects or name the wrong session.
 
 Stage B commits `COMMAND_ADMITTED` with the normalized request, the plan, the application, the reservation, the resulting exposure, the measured input ages (POL-020), the state heads, and the dependency set that dispatch rechecks ([dispatch](dispatch-and-coordination.md#revalidation-at-dispatch)). A pause started after admission does not stop an admitted entry: legacy checks the pause only when the review is applied, and that is kept.
 
-**Slot scope.** POL-007's "one open position at a time" is conflict row 1, with scope (account, underlying), matching legacy `max_positions_per_underlying = 1` (`OA/src/strategies/buyer_edge.py:687`).
+**Slot scope.** POL-007's "one open position at a time" is conflict row 1, with scope (account, underlying), matching legacy `max_positions_per_underlying = 1` (`OA/src/strategies/buyer_edge.py:687`). The slot is also held while a position on that scope has a protective order not observed terminal ([Q-017 answer](../decisions/owner-answers-2026-10-27.md)).
 
 ### Refusal codes
 

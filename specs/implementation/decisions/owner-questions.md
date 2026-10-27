@@ -20,7 +20,7 @@ Status: **open owner decision** unless a row says answered. Each question is a g
 | [Q-014](#q-014) | May delegated human principals, not only the authenticated owner, use the kill exceptions (cancel, close), `kill_release`, `latch_unlock` and `pause_clear`? | POL-002, POL-004, POL-027; `README.md:1343` | TASK-S03-01, TASK-S05-07, TASK-S06-04 | answered 2026-10-27 ([answers](owner-answers-2026-10-27.md)) |
 | [Q-015](#q-015) | Value of `account.max_worst_case_loss` for the first account | `README.md:776`; [intent spec](../design/intent-to-admission.md#b5-capacity) | TASK-S04-03 (binding a production value) | answered 2026-10-27 ([answers](owner-answers-2026-10-27.md)) |
 | [Q-016](#q-016) | Response to foreign (manual or outside) broker activity: record only, escalate, or hold entries for the affected account or underlying? | `README.md:1347` (foreign exposure response); POL-009; [execution-domain spec](../design/execution-domain-and-observations.md#reconciliation-kernelreconciliationpy) | TASK-S07-02 | answered 2026-10-27 ([answers](owner-answers-2026-10-27.md)) |
-| [Q-017](#q-017) | May a new entry be admitted while a closed position's protective order still rests on the same underlying? | POL-007; [protection spec](../design/protection-and-safety.md#conflict-relation-kernelsafetypy) | TASK-S05-03, TASK-S06-01 | open |
+| [Q-017](#q-017) | May a new entry be admitted while a closed position's protective order still rests on the same underlying? | POL-007; [protection spec](../design/protection-and-safety.md#conflict-relation-kernelsafetypy) | TASK-S05-03, TASK-S06-01 | answered 2026-10-27 ([answers](owner-answers-2026-10-27.md)) |
 
 ---
 
