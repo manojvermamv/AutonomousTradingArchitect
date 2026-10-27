@@ -1,6 +1,6 @@
 # SLICE-01 — Disarmed financial core
 
-* **Status:** proposed; revised after EGM stage 9 ([review](../../egm/plan/review.md)). Not implemented.
+* **Status:** proposed; revised after EGM stage 9 ([review](../../egm/plan/review.md)). Built once on 2026-10-27 in a local repository (commit `a917a64`, branch `slice-01`): 47 tests passed and every break check failed as required. The build's six findings are folded into this file (`reserve`'s key argument, `wire`, `NotJsonData`, the reader's schema refusal, the unparsable amount, the identity break check). This is a build record, not production acceptance.
 * **Precedence:** the master README (`AutonomousTradingArchitect/README.md`), then the master ROADMAP, then this package. This slice adds no decision.
 * **Phase:** master Phase 1 (D01, D13 and D14 "in isolated target slices", master `README.md:1181`), plus the minimal Phase 2 packaging it needs (`README.md:1182`). D02's atomic commit is also proved here, in a disarmed simulation ledger only; Phase 4 (`README.md:1184`) proves D02 ownership in the disarmed shadow (SLICE-13). It adds no gate to any phase.
 * **Environment class:** S (synthetic). The composition is **disarmed** (package glossary): no broker, no credentials, no legacy store, no network.
@@ -36,7 +36,7 @@ A crash at each crash point (CP-L1, CP-L2, CP-L3a, CP-L3b, CP-L5 below) and an i
 
 ## The target repository
 
-* Create it with `git init -b main AutonomousTrading` (the root name in master README §6, `README.md:951`), outside this repository and outside any legacy checkout.
+* Create it with `git init -b main AutonomousTrading` (the root name in master README §6, `README.md:951`), outside this repository and outside any legacy checkout. The first build (2026-10-27) used the directory name `OA_NEW`, at the owner's request; the package and every path below are unchanged.
 * Work on a branch `slice-01`. Commit the 37 files below and nothing else.
 * All paths below are relative to that repository's root.
 
@@ -72,7 +72,7 @@ All 37 paths are inside master README §6 or the tree deltas T-01…T-05, T-09 a
 | 6 | `src/autonomous_trading/contracts/clock.py` | §6 | `Timestamp`, `Elapsed`, `Deadline`, `Clock` |
 | 7 | `src/autonomous_trading/contracts/decisions.py` | §6 | `ReviewApplication`, `PlanLeg` (SLICE-01 subsets) |
 | 8 | `src/autonomous_trading/contracts/evidence.py` | §6 | `DomainEvidence`, `EvidenceRef` |
-| 9 | `src/autonomous_trading/contracts/execution.py` | §6 | `EntryRequest`, `PlanRef`, `LegResult`, `TransportResult`, `Outcome`, `Refusal` |
+| 9 | `src/autonomous_trading/contracts/execution.py` | §6 | `EntryRequest`, `PlanRef`, `LegResult`, `TransportResult`, `Outcome`, `Refusal`, `wire` (the wire-form function below) |
 | 10 | `src/autonomous_trading/adapters/clocks.py` | §6 | `RecordedClock`, `LiveClock`, `format_utc` |
 | 11 | `src/autonomous_trading/adapters/simulated_broker.py` | §6 | `SimulatedBroker`, `ScriptResponder` |
 | 12 | `src/autonomous_trading/resources/defaults.yaml` | §6 | Packaged defaults (below) |
@@ -81,12 +81,12 @@ All 37 paths are inside master README §6 or the tree deltas T-01…T-05, T-09 a
 | 15 | `src/autonomous_trading/settings/loader.py` | §6 | `resolve`, `SettingsError` |
 | 16 | `src/autonomous_trading/settings/schema.py` | §6 | `Settings` |
 | 17 | `src/autonomous_trading/kernel/ledger/runtime.py` | §6 | `runtime_identity`, `require_safe`, `connect`, `host_identity`, `UnsafeRuntime` |
-| 18 | `src/autonomous_trading/kernel/ledger/envelope.py` | §6 | `canonical`, `digest`, `is_money`, `GENESIS_HASH`, `envelope`, `validate_payload`, `EnvelopeError`, `PayloadInvalid` |
-| 19 | `src/autonomous_trading/kernel/ledger/schema.py` | §6 | `apply_migrations`, `check`, `MIGRATIONS`, `SCHEMA_REVISION = 1` |
+| 18 | `src/autonomous_trading/kernel/ledger/envelope.py` | §6 | `canonical`, `digest`, `is_money`, `GENESIS_HASH`, `envelope`, `validate_payload`, `EnvelopeError`, `PayloadInvalid`, `NotJsonData` |
+| 19 | `src/autonomous_trading/kernel/ledger/schema.py` | §6 | `apply_migrations`, `check`, `MIGRATIONS`, `SCHEMA_REVISION = 1`, `migration_text`, `file_digest` |
 | 20 | `src/autonomous_trading/kernel/ledger/projections.py` | §6 | `fold`, `IndexRows`, `StoredEvent`, `TransitionNotAllowed`, `InvariantViolated` |
 | 21 | `src/autonomous_trading/kernel/ledger/store.py` | §6 | `LedgerWriter`, `LedgerReader`, `Decision`, `EventDraft`, `StateGuard`, `Committed`, `Existing`, `CommitFailed`, `CommandRow`, `AttemptRow`, `ReservationRow` |
 | 22 | `src/autonomous_trading/kernel/lifecycle.py` | §6 | `COMMAND_TRANSITIONS`, `ATTEMPT_TRANSITIONS` (the SLICE-01 rows of the ledger state table) |
-| 23 | `src/autonomous_trading/kernel/reservations.py` | §6 | `reserve(plan) -> ReservationDraft`, `ReservationDraft` |
+| 23 | `src/autonomous_trading/kernel/reservations.py` | §6 | `reserve(plan, command_key) -> ReservationDraft`, `ReservationDraft` |
 | 24 | `src/autonomous_trading/kernel/admission.py` | §6 | `request_digest`, `plan_digest`, `request_wire`, `check`, `admitted_decision`, `refused_decision` (checks A5, B5, B6; A1 is in the coordinator) |
 | 25 | `src/autonomous_trading/kernel/ports.py` | §6 | `BrokerPort` |
 | 26 | `src/autonomous_trading/kernel/coordinator.py` | §6 | `Coordinator`, `FaultPlan`, `WriterLost` |
@@ -208,6 +208,8 @@ Outcome(command_key: str | None, attempt_no: int | None,
 | `PlanLeg`, `LegResult`, `ReviewApplication` | an object with exactly the dataclass field names; `None` as `null` | |
 | `EntryRequest` | the request object below, **with** `"verb": "entry"`; `COMMAND_ADMITTED.request` holds exactly this object, so `request_digest == digest(request)` | |
 | `PlanRef` | an object with every field; `account` and `legs` in their wire forms | |
+
+**`wire(value)`** (row 9) returns these forms for every type in the table, plus `SessionScope` as `[[broker, account], calendar_id]` and `DomainEvidence` as its `value`; lists and tuples map element-wise; any other type raises `TypeError`. Every payload, digest and evidence column is built through it, so a wire form is defined once.
 
 **TEXT columns** hold: `principal` → the principal's `value`; `account` → `canonical([broker, account])`; `command_key` → the key's `value`.
 
@@ -406,7 +408,7 @@ Adapted from the legacy runtime (`OA/src/tier1/runtime.py:1-112` @445eb116):
 
 The legacy rule (`OA/src/tier1/envelope.py:17`, `:27-50` @445eb116):
 
-* `canonical(value)` first checks recursively that every dict key is a string, every float is finite, and every value is `None`, `str`, `int`, `float`, `bool`, `list`, `tuple` or `dict` (else `PayloadInvalid`). It then returns `json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)`.
+* `canonical(value)` first checks recursively that every dict key is a string, every float is finite, and every value is `None`, `str`, `int`, `float`, `bool`, `list`, `tuple` or `dict` (else `NotJsonData`, a subclass of both `PayloadInvalid` and `EnvelopeError`, so the refusal convention's `EnvelopeError` and this row's `PayloadInvalid` name the same exception). It then returns `json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False)`.
 * `digest(value)` is `hashlib.sha256(canonical(value).encode("utf-8")).hexdigest()`.
 * `GENESIS_HASH = "0" * 64`.
 * `validate_payload(kind, payload, fields)` raises `PayloadInvalid` for an unknown kind, a missing or extra field, or a type mismatch (row 13). `bool` is not accepted as `integer`.
@@ -497,7 +499,7 @@ LedgerReader.open(path) -> LedgerReader
 LedgerReader.events(from_seq: int = 1) -> list[StoredEvent]
 LedgerReader.command(key) -> CommandRow | None
 LedgerReader.attempts(key) -> list[AttemptRow]
-LedgerReader.reservation(key) -> ReservationRow | None       # LedgerReader.open also runs schema.check
+LedgerReader.reservation(key) -> ReservationRow | None       # LedgerReader.open also runs schema.check; a refusal raises ValueError("<code> <message>")
 LedgerReader.close() -> None
 ```
 
@@ -528,7 +530,7 @@ Every exit from steps 4–7 other than a commit (a refusal, or `Existing` at ste
 
 ### Rows 22–24 — lifecycle, reservations, admission
 
-* `reservations.reserve(plan) -> ReservationDraft(reservation_id, amount, margin, worst_case_loss, currency)` copies the plan's three money fields unchanged. The real amount rule is TASK-S04-03.
+* `reservations.reserve(plan, command_key) -> ReservationDraft(reservation_id, amount, margin, worst_case_loss, currency)` copies the plan's three money fields unchanged; `reservation_id` is `"<command_key>#R"`, which is why the key is an argument. The real amount rule is TASK-S04-03.
 * `admission.check(request, application, plan, synthetic_capacity, open_reservations) -> Refusal | None` runs these checks in this order and returns the first refusal. The labels are the [intent spec's admission checks](../../design/intent-to-admission.md#admission-kerneladmissionpy):
 
   | Order | Check | Refusal |
@@ -538,7 +540,7 @@ Every exit from steps 4–7 other than a commit (a refusal, or `Existing` at ste
   | 3 | **B5** `Decimal(plan.amount) ≤ Decimal(synthetic_capacity) − Σ Decimal(r.amount)` over `open_reservations` | `ADM-R09` `amount` |
   | 4 | **B6** `application.intent_digest == request.intent_ref`, `plan.account == request.account`, and `plan_digest` recomputes to `plan.plan_digest` | `ADM-R10` `binding_mismatch` |
 
-  Only the B5 `amount` term is checked; the `margin` and `worst_case_loss` terms arrive with TASK-S04-03.
+  Only the B5 `amount` term is checked; the `margin` and `worst_case_loss` terms arrive with TASK-S04-03. A `plan.amount` that `Decimal` cannot parse fails row 3 (`ADM-R09` `amount`); an amount that parses but is not normalized (`"1.5e3"`, `"1500"`) passes admission and is refused by the writer (`LED-R06`), as `test_non_canonical_money_refused` expects.
 * `admission.admitted_decision(request, application, plan, draft, state_head: int) -> Decision` builds `Decision("COMMAND_ADMITTED", key, request_digest, [one draft], guard=None)` with the payload of row 13.
 * `admission.refused_decision(request, refusal) -> Decision` builds `Decision("ADMISSION_REFUSED", key, request_digest, [one draft], guard=None)`, with `inputs = {"check": {"ADM-R11": "A5", "ADM-R09": "B5", "ADM-R10": "B6"}[refusal.code]}`.
 
@@ -741,7 +743,7 @@ Each crash test runs `submit_entry` in a child process. `test_crash_boundaries.p
 | File | Change that must fail it |
 |---|---|
 | `test_event_envelope.py` | Drop the append-only triggers, or call `json.dumps` without `sort_keys` |
-| `test_command_identity.py` | Remove the digest comparison in the identity rule, or the guard in step 6 |
+| `test_command_identity.py` | Remove the digest comparison in the identity rule (the coordinator's step 2 checks first, so it is the comparison the test sees), or the guard in step 6 |
 | `test_entry_outcomes.py` | Call `broker.send` before the claim `transact` |
 | `test_crash_boundaries.py` | Make `recover()` resend a `CLAIMED` attempt |
 | `test_capabilities.py` | Import a stub `autonomous_trading.adapters.openalgo` from `bootstrap.py` |

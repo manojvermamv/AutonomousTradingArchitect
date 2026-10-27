@@ -84,3 +84,33 @@ All Majors were resolved by FIX in the same session:
 | R2-16 | Adapted test launcher dropped legacy protections | FIX: `--basetemp` last, on-disk temp with `TMPDIR`/`TMP`/`TEMP`, `parse_known_args`, Windows priority, legacy memory figure, non-colliding exit codes |
 
 Nits: all FIX (integer revision compare, whole-file migration execute, disarm before close, fixture teardown, I-3 unchanged state, upsert order, base classes, label mapping, build-order checkpoints, stale row references in the ledger and execution-domain specs, completion condition wording, D02 phase citation).
+
+## SLICE-02 review (2026-10-27)
+
+The new [SLICE-02 slice file](../../plan/slices/SLICE-02-ledger-integrity-evidence-reads.md) was reviewed by fresh `egm:egm-design` and `egm:egm-implementation-readiness` reviewers (direct dispatch, read-only), against the ledger, sessions, dispatch and execution-domain specs and the built SLICE-01 code. Design: 2 Blocker, 5 Major, 4 Nit. Readiness: 3 Blocker, 8 Major, 7 Nit. All resolved by FIX; the slice was then built (78 tests, every break check failing as required).
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| D-F1 | Blocker | Activation and pending migrations read index rows before D04 checks them; a tampered `migration_revision` or deleted active epoch row blocked repair forever | FIX: `retired_epoch_id` and `pending` come from the chain; fold refuses a second active epoch and skips a missing retired row; composition-path tamper tests |
+| D-F2 | Blocker | Recovery could adopt another command's evidence (case-folding file names, stale records, no identity check) | FIX: digest-named attempt records naming their attempt; content carries `request_digest`; `recover()` adopts only exact matches, else `evidence_unusable` |
+| D-F3 | Major | Windows rename durability and POSIX new-directory durability unbacked | FIX: `MoveFileExW` with write-through; parent `fsync` of each new directory; power-loss proof stated as not covered (SLICE-11) |
+| D-F4 | Major | A commit between the `data_version` check and the lock went undetected | FIX: re-read after `BEGIN IMMEDIATE` |
+| D-F5 | Major | `BEGIN` errors and unreadable evidence escaped without failing the writer | FIX: handled inside the transaction; `BusyError` → `external_change`, `OSError` → `evidence_unreadable`, both `LED-R10`; migrations share the error path |
+| D-F6 | Major | D04 folded without verifying the chain; repair could adopt an edited event | FIX: `verify_chain` first; `chain_broken` and `events_unfoldable` are unrepairable `LED-R05` |
+| D-F7 | Major | A torn object stayed forever; a torn record crashed recovery | FIX: rewrite on hash mismatch; unreadable record → `EvidenceMissing` → `evidence_unusable` |
+| D-F8 | Nit | Possible `data_version` false positives | FIX by measurement: readers and `PASSIVE` checkpoints do not change it; an outside `TRUNCATE` does and is treated as external (only the writer may truncate); two tests |
+| D-F9 | Nit | Migration text could end the writer's transaction | FIX: `refuse_transaction_control`; index-column changes ship with their fold change |
+| D-F10 | Nit | Anchor checked at open, not activation | FIX: named as a deliberate, stricter deviation |
+| D-F11 | Nit | `evidence_unpublished` order IDs outside `broker_identity`; `published_at` on republish | FIX: gap recorded until SLICE-07; republish rule stated |
+| R-B1 | Blocker | `test_reservation_cannot_go_back` breaks under the external-write check | FIX: reworked (close, side edit, hand-opened writer) |
+| R-B2 | Blocker | `test_external_write_detected` could never see `WriterLost` | FIX: a `t1` refusal `LED-R03`, `LED-R05` or `LED-R10` raises `WriterLost` |
+| R-B3 | Blocker | A failed composition left the writer lock held | FIX: the composition closes the writer on any failure |
+| R-M1 | Major | Build step 1 broke activation's tuple unpacking | FIX: activation change moved into step 1 |
+| R-M2 | Major | `pending` read the index; fold's `current` undefined | FIX: as D-F1; fold rule for a missing row |
+| R-M3 | Major | A break check named the wrong test file | FIX: moved to `test_command_identity.py` |
+| R-M4 | Major | The measurement function was underspecified | FIX: row 11 fixes keys, order IDs, values and closing |
+| R-M5 | Major | The export test was not buildable as written | FIX: the child driver takes an optional key; ref rebuild rule stated |
+| R-M6 | Major | Case-insensitive attempt names | FIX: as D-F2 |
+| R-M7 | Major | `published_at` on republish undefined | FIX: as D-F11 |
+| R-M8 | Major | Migration refusal behaviour unstated | FIX: returned, and the composition raises `WriterLost` |
+| R-N1…N7 | Nit | Test setup and closing; the probe decision; step 0 on a failed writer; Hypothesis capacity; reader wrapping only in `LedgerReader`; implicit expectations; file count | FIX |

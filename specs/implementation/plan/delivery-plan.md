@@ -3,7 +3,7 @@
 * **Status:** proposed; revised after EGM stage 9 ([review](../egm/plan/review.md)).
 * **Precedence:** the master phases (master `README.md:1176-1188`) and the ROADMAP delivery order (`ROADMAP.md:282`) win. This plan only orders work **inside** those phases and adds no gate. Production-sensitive steps stay in Phase 7 (D10, ATA-03).
 * **Source of truth for slice contents:** each spec's Delivery table. This plan's proof and question columns are copied from them; where they disagree, the spec wins and this plan is corrected.
-* **Depth rule:** only SLICE-01 has a full, zero-decision slice file. Every other slice lists its acceptance proofs here and gets its own file, with exact files, signatures and task IDs, when work on it starts. A slice with no task rows below is a stub slice: its spec deepens first (`README.md:1133`).
+* **Depth rule:** SLICE-01 and SLICE-02 have full, zero-decision slice files. Every other slice lists its acceptance proofs here and gets its own file, with exact files, signatures and task IDs, when work on it starts. A slice with no task rows below is a stub slice: its spec deepens first (`README.md:1133`).
 
 ## Environment classes
 
@@ -25,7 +25,7 @@ SLICE-01 → 02 → 03 → 04 → 05 → 07 → 06, then 08 and 09 (in that orde
 | Slice | Phase | Class | Decisions and rules proved | Prerequisites | Open items | Completion evidence |
 |---|---|---|---|---|---|---|
 | [SLICE-01](slices/SLICE-01-disarmed-financial-core.md) disarmed financial core | 1 (+2 minimal) | S | D01, D02, D13, D14, AUD-02, Combined-F1 (types), ATA-06 (`simulated`); the SQLite safe-version rule; REQ-XC-002, REQ-XC-003 | none | none | REQ-DOM-002 (`simulated`); PRF-LED-01, PRF-LED-02, PRF-LED-03 (SLICE-01 part), PRF-LED-04, PRF-LED-05 (SLICE-01 part), PRF-LED-07, PRF-LED-12 (SLICE-01 rows), PRF-LED-13, PRF-DSP-02, PRF-DSP-12 (script part), PRF-ADM-05 (SLICE-01 part), PRF-SES-04 (types), PRF-XC-02 (SLICE-01 part), PRF-XC-03 (SLICE-01 part) |
-| SLICE-02 ledger integrity, evidence store and independent reads | 1 | S | D04, A03-F4 reader side, Combined-F2 | SLICE-01 | X-007 | PRF-LED-08, PRF-LED-09, PRF-LED-10, PRF-LED-14, PRF-LED-15, PRF-DOM-05; PRF-LED-05 and PRF-LED-12 (evidence-store parts); reader-impact measurement recorded |
+| [SLICE-02](slices/SLICE-02-ledger-integrity-evidence-reads.md) ledger integrity, evidence store and independent reads | 1 | S | D04, A03-F4 reader side, Combined-F2 | SLICE-01 | X-007 | PRF-LED-08, PRF-LED-09, PRF-LED-10, PRF-LED-14, PRF-LED-15, PRF-DOM-05; PRF-LED-05 and PRF-LED-12 (evidence-store parts); reader-impact measurement recorded |
 | SLICE-03 sessions, authority, clocks, recovery stages | 1 | S | ATA-05, Combined-F1, A04-F1/F2 (local), A06-F1 kernel side, Combined-F4 kernel side | SLICE-01, SLICE-02 (TASK-S02-01) | Q-001 (holds at session close only), Q-009 (routine path built and proved with a fake lease store; usable in production from SLICE-11), Q-010, Q-014, X-005 | PRF-SES-01…06, PRF-SES-08…10 |
 | SLICE-04 intent to admission | 1/3 | S | D07, D12, AUD-01, AUD-03, POL-007, POL-015, POL-018, POL-020…POL-023, POL-027 | SLICE-01, SLICE-03; later inputs as the fixture ports in the [intent spec's Delivery](../design/intent-to-admission.md#delivery) | Q-003 (stamp field only), Q-008, Q-010, Q-011, Q-015 | PRF-ADM-01…06, PRF-ADM-08; PRF-LED-03 (stage B twin) |
 | SLICE-05 dispatch, conflicts and scheduling | 1 | S | D13 revalidation, A03-F1/F2/F3, ATA-04; kill and hold events (POL-002, POL-003) | SLICE-04 | Q-001, Q-004, Q-011, Q-014 | PRF-DSP-01, PRF-DSP-03…08, PRF-DSP-10, PRF-DSP-11, PRF-LED-16, PRF-PRT-04 (kill and hold rows), PRF-PRT-11 |
@@ -46,6 +46,7 @@ Task IDs are stable. SLICE-01 tasks are its file rows. Tasks of a stub slice are
 | Task | Slice | Work | Proof |
 |---|---|---|---|
 | TASK-S01-01 … TASK-S01-37 | 01 | Rows 1–37 of the SLICE-01 file | The SLICE-01 test tables |
+| TASK-S02-01 … TASK-S02-06 | 02 | Detailed in the SLICE-02 file (rows 1–17) | The SLICE-02 test tables |
 | TASK-S02-01 | 02 | Index-table rebuild (`fold`) and D04 comparison at startup, recovery and detected change; repair | PRF-LED-08 |
 | TASK-S02-02 | 02 | Bounded independent reader and reader-impact measurement (WAL growth, checkpoint progress) | PRF-LED-14; A03 runtime row (`README.md:1240`) |
 | TASK-S02-03 | 02 | Evidence store (T-23), publication before reference, attempt lookup, export with outcome class | PRF-DOM-05, REQ-LED-014 |
@@ -103,3 +104,5 @@ Task IDs are stable. SLICE-01 tasks are its file rows. Tasks of a stub slice are
 ## First slice prepared for execution
 
 [SLICE-01](slices/SLICE-01-disarmed-financial-core.md). It needs no answer from the owner. Its stage 9 result is in the [plan review](../egm/plan/review.md).
+
+SLICE-01 and [SLICE-02](slices/SLICE-02-ledger-integrity-evidence-reads.md) were each built once on 2026-10-27 in a local repository (branches `slice-01` and `slice-02`); each slice file records its build. SLICE-03 is next and is a stub: its slice file is written first.
