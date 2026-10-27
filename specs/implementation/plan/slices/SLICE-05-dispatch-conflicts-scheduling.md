@@ -1,6 +1,6 @@
 # SLICE-05 — Dispatch, conflicts and scheduling
 
-* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-05-review-2026-10-27)). Step 1 is decision-complete below and not yet built. Steps 2 and 3 are deepened after step 1 lands, as SLICE-04's later steps were (the delivery plan's depth rule).
+* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-05-review-2026-10-27)). Step 1 is built (OA_NEW `6f49827` on `slice-05`; [Step 1 as built](#step-1-as-built)). Steps 2 and 3 are deepened next, as SLICE-04's later steps were (the delivery plan's depth rule).
 * **Precedence:** the master README, then the ROADMAP, then this package. The authorities are the [dispatch spec](../../design/dispatch-and-coordination.md), the [protection spec](../../design/protection-and-safety.md) (kill and holds, the permission matrix, the conflict relation) and the [ledger spec](../../design/ledger-and-atomic-transaction.md) (the identity rule's retry branch, verb completion). Every deviation is marked **Deviation**. No score, threshold or money value is set: every refusing setting is bound only to labelled synthetic or owner-answered values in tests.
 * **Phase:** master Phase 1 (D13 revalidation, A03-F1/F2/F3, ATA-04; kill and hold events, POL-002 and POL-003). Class S. Disarmed: the simulated broker only.
 * **Builds on:** [SLICE-04](SLICE-04-intent-to-admission.md) as built; branch `slice-05` cut from `slice-04` (OA_NEW `36717dc`).
@@ -168,6 +168,49 @@ Conflicts(writer, holdings, *, protective_independence: "same_group_only" | "acc
   * make row 4 decide under `same_group_only`;
   * replace the relation with a blanket rule (any unresolved effect on the account);
   * replace it with a per-target-only rule.
+
+### Step 1 as built
+
+Commit `6f49827` on `slice-05`, cut from `slice-04` at `36717dc`. It changes 18 paths: the step 1 files table's code and test files, plus `tests/unit/test_admission_checks.py` (a fixture rename).
+
+**Choices made while building** (none sets a money value):
+
+| Topic | As built |
+|---|---|
+| Unresolved effects | `LedgerWriter.unresolved_commands(account)` joins `command_identity` to the command's own `COMMAND_ADMITTED` event (its `first_sequence`) and returns `command_key`, `state`, `verb`, `target` and `underlying` for `IN_FLIGHT`, `UNCERTAIN` and `WORKING` |
+| Kill cancel parity | `ActionFacts` gains `remaining` (observed quantity − filled, `None` when unknown); the kill row refuses a cancel only when it is known and ≤ 0 |
+| Commander order | `SES-R01` unauthenticated, then `SES-R02` non-human, then the grant on each bound account (`[None]` when none is bound); the first refusal wins |
+| Command refusals | the fold's guard comes back as `LED-R09`; an empty reason, strategy or justification is `ADM-R01`; any other writer refusal raises `WriterLost` |
+| Composition | `Composition` gains `safety` and `conflicts`; bootstrap builds both whenever admission is composed and fills only the ports passed as `None` |
+| Fixture names | `FixtureHoldings`'s dicts are renamed `order_rows` and `position_rows`, so they no longer shadow the port's new `orders()` and `positions()` methods |
+| Entry effects in tests | An entry is sent through the simulated broker: `timeout` gives `UNCERTAIN`, `ack` gives `WORKING`, and `IN_FLIGHT` is probed inside a stalled send (the broker's `send` wrapped). The entry worlds observe the stop with amount and margin `0.00`, so the entry passes B5 |
+| `unresolved()` helper | takes `auth` (protection's own commands) and asserts no refusal: a recorded refusal also commits |
+
+**Found while building — the row 2 modify exception cannot apply.** Row 2's action condition needs `sale_delta > 0` (a modify never sets `removes_stop`), and its modify exception needs `sale_delta == 0`, so no modify ever meets both. A resize that keeps the stop equal to the position (`new_total == filled + owned_quantity`) with `sale_delta > 0` is therefore refused while the group has an unresolved effect. `test_row_2_exceptions` pins today's behaviour. Changing it alters which protective actions pass, so it is proposed, not made: drop `sale_delta == 0` from the exception (the protection spec's resize case). It is carried into the step 2 review.
+
+**Tests** (384 passed with `scripts/safe_tests.py`, no broker variables):
+
+| File | Cases |
+|---|---|
+| `test_safety_matrix.py` (15) | The kill row (entry and modify refused; a human's cancel and market close admitted; a resting close and protection's cancel and close refused `PRT-R01` at `A4`); a partly filled cancel admitted and a remaining-0 cancel refused; the hold row under both `hold_automatic_actions` values; `SES-R02` at `A2` before the kill; kill before hold; a kill during planning at `B:A4`; an admitted command stays admitted; commanders (`auth=None`, protection, an ungranted human, a granted human, the same human after a second account is bound, the owner); the guards; `release_hold` leaving a `recovery` reason; CUJ-PRT-3's admission part; rows 5 and 1 at the front door |
+| `test_conflict_relation.py` (25) | The ATA-04 matrix: an unresolved cancel or modify in each state against protection's cancel and a raising modify (refused), a close of another position, an entry on another underlying and an action on another account (free); an unresolved entry in each state against an entry on the same underlying (refused), another underlying and another account (free); the group, not only the target; row 1 with the stop resting, absent, `unknown` and `cancelled`, and an open position; row 2's exceptions; rows 3 and 5 with nothing unresolved; F-P9 (a `filled` stop frees the group); row 4 under both `protective_independence` values and P's own entry; a command never conflicting with itself; `version` naming the rule set |
+| `test_policy_parameters.py` | The two settings resolve from `AT_HOLD_AUTOMATIC_ACTIONS` and `AT_PROTECTIVE_INDEPENDENCE` and refuse other values; null by default and the composition's unbound refusal come through `ADMISSION_REQUIRED` |
+
+**Break checks** (each applied to `kernel/safety.py`, run against both new files, and reverted byte for byte with an md5 check; every one failed its tests):
+
+| Change | Tests that failed |
+|---|---|
+| Let a non-human cancel under kill | `test_kill_row` |
+| Let a resting close pass under kill | `test_kill_row` |
+| Let a remaining-0 order be cancelled under kill | `test_kill_cancel_needs_remaining_quantity` (remaining 0) |
+| Accept a commander granted on one bound account | `test_commanders` |
+| Read hold reasons across strategies | `test_release_one_reason` |
+| Count an order the observation does not show as terminal | `test_row_1_closed_position_q017` (absent) |
+| Let a close with nothing unresolved skip row 3 | `test_cuj_prt_3_admission_part`, `test_rows_3_and_5_with_nothing_unresolved` |
+| Drop row 2's human-cancel exception | `test_row_2_exceptions` |
+| Make row 4 decide under `same_group_only` | `test_row_4_protective_independence` (`same_group_only`) |
+| A blanket rule (any unresolved effect on the account) | 12 cases, among them every `test_ata_04_unresolved_action` case |
+| A per-target-only rule | `test_the_group_not_only_the_target`, `test_row_2_exceptions` |
 
 ## Step 2 — the coordinator loop (deepened after step 1)
 
