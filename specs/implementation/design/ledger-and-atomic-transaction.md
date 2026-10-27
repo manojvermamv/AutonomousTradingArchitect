@@ -180,6 +180,7 @@ The writer validates each payload against `resources/events.schema.json`, which 
 | `ADMISSION_REFUSED` | `kernel.admission` | `verb`, `request_digest`, `code`, `message`, `inputs` | none |
 | `PAUSE_STARTED`, `PAUSE_CLEARED` | `kernel.policy`; committed in the `REVIEW_RECORDED` transaction (start) or on an owner command (clear) | [intent spec](intent-to-admission.md#review-application-kernelpolicypy) | `pause` |
 | `REVIEW_RECORDED`, `INTENT_SEEN` | `kernel.policy` | review fields, kernel arrival time and, for the first review of a digest, the frozen application; intent digest and first-seen time | `review` |
+| `REVIEW_DEADLINE_PASSED` | `kernel.policy`, when a required review is still missing at its deadline | `intent_digest`, the frozen `proceed_unavailable` application (cause `no_review`) | `review` (freezes the application; the first freeze wins) |
 | `DISPATCH_REFUSED` | `kernel.coordinator` | `code`, `dependency` | command `REFUSED`; reservation `RELEASED` |
 | `DISPATCH_RETRY_REQUESTED` | `kernel.admission`, on an identical resubmission by a principal holding the command's verb ([identity rule](#request-digest-and-the-identity-rule)) | `attempt_no` (the `NOT_SENT` one), `principal` | attempt `retry_requested_sequence` |
 | `DISPATCH_CLAIMED` | `kernel.coordinator` | `attempt_no`, `epoch_id` | attempt `CLAIMED`; command `IN_FLIGHT`; reservation `HELD` |

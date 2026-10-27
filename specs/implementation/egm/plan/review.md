@@ -144,3 +144,29 @@ The new [SLICE-03 slice file](../../plan/slices/SLICE-03-sessions-authority-reco
 | R-B5 | Blocker | `Asia/Kolkata` needs `tzdata` on Windows | FIX: fixed `+05:30` offset |
 | R-M2…M12 | Major | Command kinds, table keys, the `grant_admin` split, late wiring, decline lists, the second-ledger setup, restore test setup, older-test changes, the child driver, break checks that could not fail, mixed test details | FIX in the build and the rewritten slice file; the measurement count is now `7 + 3n` |
 | R-N1…N3 | Nit | Prime the clock watch; hex IDs; repeated receipts | FIX |
+
+## SLICE-04 review (2026-10-27)
+
+The new [SLICE-04 slice file](../../plan/slices/SLICE-04-intent-to-admission.md) was reviewed by fresh `egm:egm-design` and `egm:egm-implementation-readiness` reviewers (read-only) against the intent spec, the legacy capacity rule and the built SLICE-03 code. Design: 3 Blocker, 10 Major, 2 Nit. Readiness: 5 Blocker, 10 Major, 5 Nit. Step 1 is resolved by FIX (decisions written into the slice file and partly built, checkpoint `bac5777`); step 2's findings are resolved by deferring step 2 to its own deepening, as step 3.
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| D-B1 | Blocker | Stage B was not atomic with the commit, so a change after the checks could slip through | FIX: `Decision.precheck` runs stage B inside the transaction (built) |
+| D-B2, R-B3 | Blocker | The caller chose the session a review is judged under; a review with no seen intent could not be judged | FIX: the intent is resolved from evidence by the review's own digest; `INTENT_SEEN` in the same transaction |
+| D-B3, R-B1 | Blocker | `submit_entry(request, application, plan)` stayed public; its relation to `admit_entry` undefined | FIX: `_submit_admitted` private seam; `admit_entry` the only route; PRF-XC-02 capability test |
+| R-B2 | Blocker | The planner port needed step-3 inputs | FIX: `plan(intent, view, policy, now)` until step 3; `FixturePlanner(result, on_plan)` |
+| R-B4 | Blocker | Step 1's refusing settings were not listed | FIX: a nine-row settings table |
+| R-B5 | Blocker | Step 2 underspecified | Deferred: step 2 is deepened after step 1 |
+| D-M1…M4 | Major | Missing row margin counted zero; aggregate exposure dropped on unknown coverage; observation-contract drift and a broker `protective` flag; weak number validation | FIX (built): a missing field refuses; an empty book is flat only when complete; protective orders only from ledger protective commands; finite, non-negative numbers, positive amount |
+| D-M5 | Major | Pause minutes bounds | FIX: int ≥ 1 or `None` |
+| D-M6, R-M3, R-M5 | Major | A late review could overwrite a frozen application; the frozen deadline | FIX: first freeze wins; the deadline is added per admission |
+| D-M7, R-M6 | Major | `record_intent` call site | FIX: right after A1 |
+| D-M8, R-M8 | Major | `COMMAND_ADMITTED` incomplete; digests and ages | FIX: plan, resulting exposure, three observation digests, integer ages |
+| D-M9 | Major | Missing view; future stamps; three observations | FIX: `ADM-R05`; ages ≥ 0; each observation checked |
+| D-M10 | Major | Step 2 modify capital | Deferred with step 2 |
+| R-M1 | Major | Capacity identities, statuses, sources | FIX: stated (as built) |
+| R-M2 | Major | Which clock | FIX: stamps `clock.now()`; deadlines and pauses on `effective_now` (deviation named) |
+| R-M4 | Major | `pause_id` | FIX: `"pause-" + review_id` |
+| R-M7, R-M9, R-M10 | Major | Wire forms and test publishing; refusal records; evidence contract versions | FIX: the built contracts win; stage-B repeats recorded as `B:A2…B:A5` |
+| D-1 | Nit | `REVIEW_DEADLINE_PASSED` missing from the ledger catalogue | FIX: added to the ledger spec's event catalogue |
+| N | Nit | Proof list; T-25; naming; F-A7 wording; lineage equality | FIX: T-25 registered; lineage is exact equality; others in the slice text |

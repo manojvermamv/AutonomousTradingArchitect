@@ -101,3 +101,4 @@ These are files the slices need that README §6 does not list (T-01…T-23). T-0
 | T-22 | `tests/integration/test_verb_completion.py` | SLICE-05 | Verb-specific completion (PRF-LED-16) |
 | T-23 | `src/autonomous_trading/kernel/ledger/evidence_store.py` | SLICE-02 | Durable evidence store ([ledger spec](design/ledger-and-atomic-transaction.md#evidence-references-req-led-014); X-007) |
 | T-24 | `src/autonomous_trading/resources/migrations/002_sessions_authority.sql` | SLICE-03 | The grant, standing-binding, session and release-binding tables (the master tree shows only `001`; migrations are numbered files under `resources/migrations/`, ledger spec "Schema and migrations") |
+| T-25 | `src/autonomous_trading/resources/migrations/003_policy.sql` | SLICE-04 | The `review` and `pause` tables of `kernel.policy` (as T-24) |
