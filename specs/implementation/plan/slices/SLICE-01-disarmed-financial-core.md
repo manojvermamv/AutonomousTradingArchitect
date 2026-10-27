@@ -275,7 +275,7 @@ This file is a **field list**, not a JSON Schema document. `envelope.validate_pa
 {
   "format": "autonomous_trading.payload_fields/1",
   "kinds": {
-    "EPOCH_ACTIVATED": {"epoch_id": "string", "principal": "array", "retired_epoch_id": ["string", "null"], "restore": ["object", "null"]},
+    "EPOCH_ACTIVATED": {"epoch_id": "string", "principal": "array", "retired_epoch_id": ["string", "null"], "restore": ["object", "null"], "host_id": "string"},
     "MIGRATION_APPLIED": {"migration_number": "integer", "name": "string", "file_digest": "string"},
     "RUNTIME_OPENED": {"binding": "string", "binding_version": "string", "sqlite_version": "string"},
     "COMMAND_ADMITTED": {"verb": "string", "target": ["string", "null"], "strategy": "string",
@@ -301,6 +301,7 @@ The field names are the [ledger catalogue's](../../design/ledger-and-atomic-tran
 |---|---|---|
 | `EPOCH_ACTIVATED` | `retired_epoch_id` | the previously active epoch, or `null` for the first |
 | | `restore` | `null` (no restore path yet) |
+| | `host_id` | `socket.gethostname()` (read by the SLICE-03 routine-restart check) |
 | `COMMAND_ADMITTED` | `target` | `null` (entries have none) |
 | | `strategy` | `application.strategy` |
 | | `request`, `plan_ref`, `application` | the wire forms |

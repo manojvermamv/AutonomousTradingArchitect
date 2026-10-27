@@ -115,7 +115,7 @@ The master's answer is one canonical admission and outcome commit: D02, D01/D03,
 * **Binding and safe library.** The ledger opens SQLite through APSW, reusing the legacy runtime rule (`OA/src/tier1/runtime.py:1-80`). A writer refuses a loaded SQLite below 3.51.3 unless it is an official backport (3.44.6, 3.50.7), because of the WAL-reset defect (`README.md:782`). A writer connection sets `journal_mode=WAL` and `synchronous=FULL` and reads both back; a reader connection only verifies `journal_mode=WAL`. A mismatch refuses the open.
 * **One writer.** A writer process takes an exclusive file lock on `<ledger path>.writer.lock` when it opens and holds it until it exits. If the lock is held, the open returns `LED-R07`. The lock is advisory: it excludes other processes of this system, not arbitrary SQLite clients (see [Risks and limits](#risks-and-limits)).
 * **The writer thread.** Inside the process, one writer thread runs every `transact` call. Code already running on that thread (the coordinator loop, admission stage B, recovery) calls `transact` directly; other threads hand it a decision and wait for the result. This is the single writer thread of the [dispatch spec](dispatch-and-coordination.md#coordinator-loop-on-the-writer-thread-one-io-worker-per-account).
-* **Writer epoch.** The writer is opened with a new `EpochId`. Until that epoch is active, the only write it accepts is `activate_epoch()`, which `kernel.recovery` calls at the `INSPECTING → RECOVERY_WRITING` transition ([sessions spec](sessions-authority-lifecycle.md#recovery-stages-kernelrecoverypy)). `activate_epoch(restore=None)` appends `EPOCH_ACTIVATED` (`epoch_id`, `principal`, `restore`: the restore marker or none), retires the previously active epoch and activates this one, in one transaction. It then records `RUNTIME_OPENED` with the loaded library's identity.
+* **Writer epoch.** The writer is opened with a new `EpochId`. Until that epoch is active, the only write it accepts is `activate_epoch()`, which `kernel.recovery` calls at the `INSPECTING → RECOVERY_WRITING` transition ([sessions spec](sessions-authority-lifecycle.md#recovery-stages-kernelrecoverypy)). `activate_epoch(restore=None)` appends `EPOCH_ACTIVATED` (`epoch_id`, `principal`, `restore`: the restore marker or none, `host_id`), retires the previously active epoch and activates this one, in one transaction. It then records `RUNTIME_OPENED` with the loaded library's identity.
 * **Readers.** Readers open read-only connections. Each read runs in its own short read transaction that is closed before the call returns, so no reader holds a snapshot open between calls ("bounded readers", A03-F4).
 * **External change.** Before each `transact`, the writer reads `PRAGMA data_version`. A change since its last commit means another connection wrote the file. The kernel then exits and restarts through recovery, which runs the D04 comparison. A running kernel never re-enters recovery in place.
 
@@ -172,7 +172,7 @@ The writer validates each payload against `resources/events.schema.json`, which 
 
 | Kind | Decided by | Payload fields | Index effect |
 |---|---|---|---|
-| `EPOCH_ACTIVATED` | `kernel.recovery` | `epoch_id`, `principal`, `retired_epoch_id`, `restore` (the restore marker or none) | `authority_epoch` |
+| `EPOCH_ACTIVATED` | `kernel.recovery` | `epoch_id`, `principal`, `retired_epoch_id`, `restore` (the restore marker or none), `host_id` (the host's name; the routine-restart check compares it) | `authority_epoch` |
 | `RUNTIME_OPENED` | `kernel.recovery` | binding, binding version, SQLite version | none |
 | `MIGRATION_APPLIED` | `kernel.recovery` | `migration_number`, `name`, `file_digest` | `ledger_meta` |
 | `RELEASE_BOUND` | `kernel.authority` | `binding_id`, `receipt`, `receipt_digest` | `release_binding` |
@@ -315,7 +315,7 @@ Attempt states: `CLAIMED`, `NOT_SENT`, `REJECTED`, `ACKNOWLEDGED`, `AMBIGUOUS`. 
 
 | Verb | Completes when | Never completes on |
 |---|---|---|
-| entry | The broker order is observed terminal (filled, cancelled, rejected or expired), with fills accounted | Transport ACK alone |
+| entry | The broker order of each `entry`-role leg is observed terminal (filled, cancelled, rejected or expired), with fills accounted. Protective legs sent in the same basket (`basket_at_plan`) do not hold the entry open; they belong to `kernel.protection` ([protection spec](protection-and-safety.md#basket-placement-basket_at_plan-kernelprotectionpy)) | Transport ACK alone |
 | cancel | The target order is observed terminal (by the cancel, or for another reason: `target_terminal`) | Cancel ACK (`README.md:750`) |
 | modify | The observed order shows the requested parameters, or the broker's level for a proven timed-out modify (POL-014), or the target is observed terminal for another reason (`target_terminal`) | Modify ACK (`README.md:750`) |
 | close (market or limit, not resting) | The close's own order is observed filled, its fills recorded by fill ID; position quantities only corroborate | Close ACK; cancel completion; a netted position change alone |
@@ -339,7 +339,10 @@ ModifyRequest(command_key, principal, account, broker_order_id, changes: ModifyC
 CloseRequest(command_key, principal, account, position_id, quantity,
              order: market | limit(price) | stop(trigger, limit | None))
 ModifyChanges(trigger_price | None, limit_price | None, quantity | None)
-PlanRef(plan_digest, account, legs: list[PlanLeg], amount, margin, worst_case_loss, currency)
+PlanRef(plan_digest, account, legs: list[PlanLeg], amount, margin, worst_case_loss, currency,
+        protective_legs: list[ProtectiveLeg] = [])        # basket_at_plan only
+ProtectiveLeg(leg_role: stop | target, instrument, product, side: SELL, quantity,
+              order: stop(trigger, limit | None) | limit(price))
 CommandStatus(command_key, state, verb, attempt_no | None, effect | None,
               broker_order_ids, refusal: Refusal | None)                 # read by command_status
 TransportResult(cls: not_sent | rejected | acknowledged | ambiguous, legs: list[LegResult],

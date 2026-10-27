@@ -48,9 +48,9 @@ The master accepted scoped financial sessions owned by the kernel (ATA-05), expl
 
 ## Non-goals
 
-* First-release accounts or strategies ([Q-005](../decisions/owner-questions.md#q-005)).
+* First-release accounts or strategies (decided: BuyerEdge on the current account, [Q-005 answer](../decisions/owner-answers-2026-10-27.md); its composition is written with SLICE-11).
 * New emergency permissions or kill/latch matrix changes ([protection-and-safety](protection-and-safety.md)).
-* Whether a standing authorization may advance routine restarts ([Q-009](../decisions/owner-questions.md#q-009)), and what revoking a binding mid-session does ([Q-010](../decisions/owner-questions.md#q-010)); RTO values (`README.md:333`).
+* Changing the decided routine-restart rule or the revocation effect ([Q-009, Q-010 answers](../decisions/owner-answers-2026-10-27.md)); RTO values (`README.md:333`).
 * Cross-host fencing mechanisms themselves (operational; F9, `README.md:203`). This spec only requires their evidence.
 
 ## Requirement keys
@@ -81,7 +81,7 @@ All times are IST (`Asia/Kolkata`). The NSE F&O calendar in the examples opens a
   * one command is `UNCERTAIN`.
 * **When** the kernel restarts at 11:20 on the same date, on the same host.
 * **Then:**
-  * the process starts in `INSPECTING`, activates its epoch into `RECOVERY_WRITING`, and waits there for a human `RECOVERY_ADVANCED` (A04-F2; [Q-009](../decisions/owner-questions.md#q-009));
+  * the process starts in `INSPECTING` and activates its epoch into `RECOVERY_WRITING`. This is a routine same-host restart, so with clean checks it advances to `OPERATING` under the standing authorization (`recovery.routine_advance: standing`, [Q-009 answer](../decisions/owner-answers-2026-10-27.md)); otherwise it waits for a human `RECOVERY_ADVANCED` (A04-F2);
   * while it waits, nothing is sent; broker-held stops remain the protection (A03-F5);
   * after the advance, the kernel continues in `S`; the latch stays tripped; the command stays `UNCERTAIN`; no session event is written (PRF-SES-03).
 
@@ -128,8 +128,10 @@ All times are IST (`Asia/Kolkata`). The NSE F&O calendar in the examples opens a
 **Grant actions**, grouped:
 
 * trading: `entry`, `cancel`, `modify`, `close`;
-* safety controls: `kill_engage`, `kill_release`, `hold_engage`, `hold_release`, `latch_unlock`, `pause_clear`. `kill_release`, `latch_unlock`, `pause_clear`, and the cancel and close permitted under kill, are granted to the owner principal only, as the approved wording (POL-002, POL-004, POL-027) and legacy's `OwnerCommand`; [Q-014](../decisions/owner-questions.md#q-014) asks whether delegated operators may hold them;
-* administration: `binding_authorize`, `grant_admin`, `recovery_advance`.
+* safety controls: `kill_engage`, `kill_release`, `hold_engage`, `hold_release`, `latch_unlock`, `pause_clear`. `kill_release`, `latch_unlock`, `pause_clear`, and the cancel and close permitted under kill, may be held by the owner **and** by delegated human principals holding the named grant ([Q-014 answer](../decisions/owner-answers-2026-10-27.md); it supersedes the "authenticated owner" wording of POL-002 and POL-004). Kernel and service principals never hold them;
+* administration: `binding_authorize`, `grant_admin`, `recovery_advance`, `attempt_resolve`.
+
+`attempt_resolve` lets a human principal resolve a timed-out entry place that has no broker ID and no verified client tag, by a recorded action naming the broker order or attesting that none exists ([Q-007 answer](../decisions/owner-answers-2026-10-27.md); [execution-domain spec](execution-domain-and-observations.md#reconciliation-kernelreconciliationpy)). It is used only if TASK-S07-05 finds that no place field round-trips as a tag.
 
 The **bound accounts** are the accounts in the scopes of unrevoked standing bindings. For `recovery_advance`, which acts on the whole ledger, the grant's `accounts` must include every bound account; `authority.check` is called with each in turn.
 
@@ -177,7 +179,7 @@ An actor holding `binding_authorize` records `BINDING_AUTHORIZED`: scope, policy
 
 * A session's binding is fixed when `SESSION_OPENED` is recorded, so a standing binding recorded while a session is open applies from the next `SESSION_OPENED` (REQ-SES-011).
 * **The session's binding is the only source** that consumers use. Admission checks that the intent's candidate is in the session's `candidate_ids` and that the application's policy version is the session's `policy_binding_id` ([intent spec](intent-to-admission.md#admission-kerneladmissionpy)); dispatch compares against the same.
-* What `BINDING_REVOKED` does to an open session is an owner choice (A07-F4 leaves revocation consequences to the owner, `README.md:891`): the refusing parameter `binding.revocation_effect` ([Q-010](../decisions/owner-questions.md#q-010)).
+* What `BINDING_REVOKED` does to an open session is an owner choice (A07-F4 leaves revocation consequences to the owner, `README.md:891`): the refusing parameter `binding.revocation_effect`. The first release binds `stop_entries` ([Q-010 answer](../decisions/owner-answers-2026-10-27.md)): new entries in that session are refused from the revocation's ledger sequence (admission check A3 and dispatch row 4 read the revocation), and open positions keep their protection.
 * The release binding (which installed bundle runs) is separate; both are checked, and neither implies the other.
 
 #### Calendar port
@@ -211,7 +213,7 @@ Times are exchange-domain timestamps in the calendar's timezone (IST for NSE), c
 | `SESSION_OPENED` | `kernel.lifecycle` | `session_id`, `scope`, `trading_date`, `calendar_version`, `open_time`, `close_time`, `opened_at`, `binding_id`, `policy_binding_id`, `candidate_ids` | `session` |
 | `SESSION_CLOSED` | `kernel.lifecycle` | `session_id`, `reason`, `closed_at` | `session` |
 | `SESSION_OPEN_FAILED` | `kernel.lifecycle` | `scope`, `trading_date`, `reason` (`calendar_unavailable`, `holiday`, `SES-R08`, `continuity`) | none |
-| `RECOVERY_STAGE` | `kernel.recovery` | `from`, `to` (`OPERATING` only: `INSPECTING → RECOVERY_WRITING` is recorded by `EPOCH_ACTIVATED`), `principal`, `unverified` (items for the human who advances) | none |
+| `RECOVERY_STAGE` | `kernel.recovery` | `from`, `to` (`OPERATING` only: `INSPECTING → RECOVERY_WRITING` is recorded by `EPOCH_ACTIVATED`), `principal`, `basis` (`human` or `routine_standing`), `policy_binding_digest` (for `routine_standing`), `unverified` (items for the human who advances) | none |
 | `RECOVERY_GAP` | `kernel.recovery`, from the restore path | `last_restored_sequence`, `lost_from`, `lost_to`, `reason` (`restore`, `host_change`) (legacy `OA/src/tier1/events.py:86`) | none |
 | `OLD_HOST_FENCED` | `kernel.recovery`, on the command of a human principal holding `recovery_advance`, in `RECOVERY_WRITING` | old host `state` (stopped or isolated), `host`, `method`, `checked_at`; credential `rotated_at`, `attested_by`; a fresh book observation digest; `accounted` items (legacy `recovery.py:808-851`) | none |
 | `CLOCK_QUALITY` | `kernel.recovery` (clock adapter) | `kind` (`backward_jump`, `forward_jump`), `wall_delta_ms`, `monotonic_delta_ms`, `detected_at` | none |
@@ -227,7 +229,7 @@ Times are exchange-domain timestamps in the calendar's timezone (IST for NSE), c
 | State | At session close | Rule |
 |---|---|---|
 | Kill switch | Unchanged | POL-002 (no session expiry) |
-| Holds | Unchanged | POL-003; [Q-001](../decisions/owner-questions.md#q-001) |
+| Holds | Unchanged | POL-003; automatic protection continues under a recovery hold ([Q-001 answer](../decisions/owner-answers-2026-10-27.md)) |
 | Uncertain commands, open positions, protection | Carried unchanged | REQ-SES-004; Combined-F6 |
 | Admitted entries not yet claimed | Refused at dispatch (revalidation row 4 of the [dispatch spec](dispatch-and-coordination.md#revalidation-at-dispatch), `SES-R07`) when they next become eligible, or at their deadline; the coordinator releases their reservations then | REQ-DSP-001 |
 | A binding recorded during the session | Applies from the next `SESSION_OPENED` | REQ-SES-011 |
@@ -285,10 +287,17 @@ Every process start begins at `INSPECTING`. The stage is held in memory; enterin
   5. check authorization continuity after a restore (below);
   6. list what recovery could not verify (an unresolved attempt, a missing evidence object, a grant without continuity evidence) as `unverified` items for the human who advances. They are resolved by reconciliation, D13–D16 and the continuity check, not by host fencing.
 * **`RECOVERY_WRITING` → `OPERATING`** (`RECOVERY_ADVANCED`). `kernel.recovery` records it only when all hold:
-  * a human principal holds `recovery_advance` (`authority.check("recovery_advance", ...)`);
+  * **who advances:** a human principal holding `recovery_advance` (`authority.check("recovery_advance", ...)`), or, for a **routine restart** only, `kernel:recovery` under the standing authorization (below);
   * D04 is clean;
   * the legacy fence rule (`OA/src/tier1/recovery.py:117-133`): if this epoch carries a restore marker, `OLD_HOST_FENCED` is recorded in this epoch; and if any `RECOVERY_GAP` exists, an `OLD_HOST_FENCED` follows the latest one. An ordinary same-host restart needs no fence. Without old-owner exclusion a replacement has no send authority (A04-F2); proving it is kept separate from resolving effects already started (REQ-SES-009).
-  * A04-F2 also forbids blanket automatic activation; whether a narrower standing authorization may advance routine restarts is [Q-009](../decisions/owner-questions.md#q-009).
+  * A04-F2 forbids **blanket** automatic activation. The owner chose a narrow standing authorization for routine restarts ([Q-009 answer](../decisions/owner-answers-2026-10-27.md)), bound by the refusing setting `recovery.routine_advance` (`standing` or `human`; first release `standing`).
+* **Routine restart.** A restart is routine, and `kernel:recovery` records `RECOVERY_ADVANCED` itself (`principal` `kernel:recovery`, `basis` `routine_standing`, and the policy binding digest that carries the setting), only when every check is clean:
+  * `recovery.routine_advance` is `standing`;
+  * this epoch carries no restore marker, and its `EPOCH_ACTIVATED.host_id` equals the previous epoch's (same host);
+  * no `RECOVERY_GAP` exists after the latest `OLD_HOST_FENCED` (or none at all);
+  * recovery steps 1–5 completed without a refusal, and D04 is clean;
+  * step 6 listed no `unverified` item.
+  Anything else (a restore, a host change, a `RECOVERY_GAP`, an unverified item, or `recovery.routine_advance: human`) waits for a human `RECOVERY_ADVANCED`, and the fence rule above still applies.
 * **Authorization continuity** (REQ-SES-010). After a restore, each restored grant must be confirmed by `interfaces.authorization`'s authoritative store. For each unconfirmed grant, `kernel.recovery` records `GRANT_REVOKED` (reason `restore_unverified`), which also invalidates grants delegated from it. The owner root path re-establishes grants, so `recovery_advance` never depends on a restored grant.
 * While no stage dispatches, broker-held stops are the only protection (A03-F5); the supervisor reports this ([runtime spec](runtime-isolation-observability-deployment.md)).
 * Process liveness, repair access and send permission are three separate facts (`README.md:792`). Unrelated market warm-up is not a recovery gate.
@@ -301,6 +310,8 @@ Every process start begins at `INSPECTING`. The stage is held in memory; enterin
 | `kill_engage`, `hold_engage`, `grant_admin` (revoke only) | refused (no writes before activation) | allowed | allowed |
 | `kill_release`, `hold_release`, `latch_unlock`, `pause_clear`, `binding_authorize`, `grant_admin` (issue) | refused | refused (`SES-R09`) | allowed |
 | `recovery_advance` (including recording `OLD_HOST_FENCED`) | refused | allowed | not applicable |
+| Routine advance by `kernel:recovery` under `recovery.routine_advance: standing` | refused | allowed only when every routine check is clean | not applicable |
+| `attempt_resolve` | refused | refused (`SES-R09`) | allowed |
 | Reconciliation records (`RESOLVED_*`, `FILL`, `COMPLETED`, `CONFLICT_RECORDED`, `FOREIGN_RECORDED`, `RECONCILIATION_ESCALATED`), by `kernel.lifecycle` | refused (no writes) | allowed after recovery steps 1–3 (A04-F1) | allowed |
 
 Restrictions can be added while recovering; permissions are widened only in `OPERATING`.
@@ -342,7 +353,8 @@ Restrictions can be added while recovering; permissions are widened only in `OPE
 | Risk or limit | Mitigation |
 |---|---|
 | Cross-host exclusion cannot be proved by a local lock or epoch | Fence evidence (`OLD_HOST_FENCED`) is required before advance after a restore or a recorded gap; the mechanism itself is operational (PRF-SES-07) |
-| Every restart waits for a human advance, during which only broker-held stops protect positions | The supervisor alerts at once; [Q-009](../decisions/owner-questions.md#q-009) asks whether a narrower standing authorization is acceptable |
+| A routine restart advances without a human, so a wrong "clean" verdict would let the kernel send | The routine checks are narrow and all must pass (same host, no restore, no unfenced gap, D04 clean, no unverified item); the advance is recorded with its basis; any doubt waits for a human ([Q-009 answer](../decisions/owner-answers-2026-10-27.md)) |
+| A restore, host change or gap still waits for a human advance, during which only broker-held stops protect positions | The supervisor alerts at once |
 | Grant expiry uses a wall-clock ratchet | Errors only expire early, which refuses; revocation does not depend on wall time |
 | A forward clock jump can open or close a session early | A close only refuses entries; an early open matches legacy behaviour; both are visible as `CLOCK_QUALITY` |
 | Unverified items do not block the advance on their own (A04-F1: an independent ambiguity is not a universal recovery gate) | The dependent checks (D04, reconciliation, admission) still apply; the items are visible to the human who advances |
@@ -353,9 +365,9 @@ Restrictions can be added while recovering; permissions are widened only in `OPE
 |---|---|---|
 | Calendar data and version | Recorded exchange calendar (OpenAlgo calendar in legacy) | None: no session opens without it |
 | Standing binding | Recorded by an authorized actor | None |
-| `binding.revocation_effect` | [Q-010](../decisions/owner-questions.md#q-010) | None: refusing parameter |
+| `binding.revocation_effect` | [Q-010 answer](../decisions/owner-answers-2026-10-27.md) | None: refusing; first release binds `stop_entries` |
 | `clock.jump_record_ms` | Measured | None: jump recording off until bound |
-| Routine-restart advance | [Q-009](../decisions/owner-questions.md#q-009) | A human `RECOVERY_ADVANCED` on every restart |
+| `recovery.routine_advance` (`standing` or `human`) | [Q-009 answer](../decisions/owner-answers-2026-10-27.md) | None: refusing; first release binds `standing` |
 
 ## Reuse evidence
 
@@ -375,7 +387,7 @@ Restrictions can be added while recovering; permissions are widened only in `OPE
 | Session derived from the calendar only, never recorded | The calendar would become activation authority (ATA-05) |
 | An operator opens each session daily | Adds a daily manual workflow the legacy desk does not have; a standing binding keeps the legacy behaviour |
 | A separate "closing" session state | Square-off is per strategy policy (protection), so the extra state had no effect of its own |
-| Advance to `OPERATING` automatically when recovery finds no gaps | A blanket automatic activation, which A04-F2 forbids; raised as Q-009 |
+| Advance every restart to `OPERATING` automatically when recovery finds no gaps | A blanket automatic activation, which A04-F2 forbids. The chosen rule is narrower: same host, no restore, no unfenced gap, D04 clean, no unverified item ([Q-009 answer](../decisions/owner-answers-2026-10-27.md)) |
 | Persist the recovery stage | A restart must re-inspect anyway; persisting would let a process that crashed in `OPERATING` resume without inspection |
 | Deadlines judged by a wall-clock ratchet in process | A backward jump would stretch a deadline's real duration |
 | Revocation by `revoked_at` wall time | A backward jump would revive a revoked grant |
@@ -397,7 +409,7 @@ Class **T** is an automated test; **M** is a measurement. "Must fail if" names t
 | PRF-SES-07 | M | deployment record | Cross-host fencing: the old host cannot send after cutover | — (operational; SLICE-14) |
 | PRF-SES-08 | T | `tests/recovery/test_session_transitions.py` | Latch and pause records carry the session ID; the next session never reads them (I-S2) | state is keyed by IST date |
 | PRF-SES-09 | T | `tests/recovery/test_session_transitions.py` | A binding recorded mid-session applies only at the next open; an unbound candidate is refused at admission; the calendar alone never opens a session without a binding (I-S3); I-S1 refuses a second open; F-S10 | a binding takes effect inside the session it was recorded in |
-| PRF-SES-10 | T | `tests/recovery/test_restore_fencing.py` | CUJ-SES-5 and F-S11: advance refused until `OLD_HOST_FENCED` is in the restore-marked epoch and after the latest `RECOVERY_GAP`; a same-host restart with an `UNCERTAIN` command advances without a fence; only a `recovery_advance` holder records the fence | a replacement advances without fence evidence, or an ordinary restart demands one |
+| PRF-SES-10 | T | `tests/recovery/test_restore_fencing.py` | CUJ-SES-5 and F-S11: advance refused until `OLD_HOST_FENCED` is in the restore-marked epoch and after the latest `RECOVERY_GAP`; a same-host restart with an `UNCERTAIN` command advances without a fence; only a `recovery_advance` holder records the fence; a routine restart with every check clean advances under `standing` with basis `routine_standing`, and each failing check (restore, other `host_id`, unfenced gap, D04 mismatch, an unverified item, `human`) makes it wait | a replacement advances without fence evidence, or an ordinary restart demands one |
 
 ## Delivery
 

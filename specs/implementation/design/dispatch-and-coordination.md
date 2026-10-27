@@ -52,7 +52,7 @@ The master accepted these fixes: dispatch revalidation (D13), stable identity (D
 
 ## Non-goals
 
-* Choosing protective-vs-entry priority ([Q-004](../decisions/owner-questions.md#q-004)) or deadline values ([Q-011](../decisions/owner-questions.md#q-011)).
+* Changing the decided protective-vs-entry rule or choosing deadline values before they are measured ([Q-004, Q-011 answers](../decisions/owner-answers-2026-10-27.md)).
 * A separate I/O process or a second sender (`README.md:914`).
 * Remote exactly-once delivery (`README.md:760`). No endpoint deduplication is relied on until an endpoint contract proves one.
 * Many accounts (see [Risks and limits](#risks-and-limits)).
@@ -160,7 +160,7 @@ on worker return (command_key, attempt_no, result: TransportResult):
   * its account's worker is idle.
 * **Retries are caller-driven**, as in legacy (`OA/src/tier1/coordinator.py:94-103`). After `OUTCOME_NOT_SENT` or `RESOLVED_NEVER_REACHED`, a principal holding the command's verb resubmits the identical request with the same command key. Admission rechecks the principal's grant and records `DISPATCH_RETRY_REQUESTED` instead of returning `Existing` ([ledger identity rule](ledger-and-atomic-transaction.md#request-digest-and-the-identity-rule)); `kernel.protection` does this for its own commands at its next evaluation. A retry is possible only before the original dispatch deadline; after it the command is refused (`DSP-R01`) and the caller submits a new command key. This prevents a send loop during a broker outage. A `REJECTED` command is final; a new try is a new command key.
 * **Waiting instead of refusing.** A conflict, or an inert safety check that guards the command, keeps it waiting until it clears or the deadline passes (loop step 1). The coordinator reads the check's state, which `kernel.safety` alone records (`SAFETY_CHECK_STATE`), and never passes it silently. Admission check B3 refuses a conflict present at admission; after that, the relation's version changing is not a refusal.
-* **Ordering** is fixed until [Q-004](../decisions/owner-questions.md#q-004) adds a second rule (a parameter with one legal value would only add a way to fail): among the account's eligible commands, the one whose `COMMAND_ADMITTED` has the lowest ledger sequence. A blocked command does not hold up the ones behind it, and a command that returns to `ADMITTED` keeps its original sequence. Any priority between protective actions and entries waits for [Q-004](../decisions/owner-questions.md#q-004).
+* **Ordering** is fixed; the owner kept the admission-order rule ([Q-004 answer](../decisions/owner-answers-2026-10-27.md)), so it is not a parameter: among the account's eligible commands, the one whose `COMMAND_ADMITTED` has the lowest ledger sequence. A blocked command does not hold up the ones behind it, and a command that returns to `ADMITTED` keeps its original sequence. Any priority between protective actions and entries waits for [Q-004](../decisions/owner-questions.md#q-004).
 
 ### Revalidation at dispatch
 
@@ -202,7 +202,7 @@ Each is requested through its operator or kernel path and takes effect at the le
 
 * The **busy count** for an account is the number of its commands in `ADMITTED` or `IN_FLIGHT`. `UNCERTAIN`, `WORKING` and final states do not count.
 * `coordinator.max_pending_per_account` bounds it (a measured refusing parameter, A09-F4). Admission refuses with `ADM-R12` (`busy`) at or above the bound, **before** any commit.
-* Whether the bound also applies to protective actions on owned exposure is part of [Q-004](../decisions/owner-questions.md#q-004): the refusing parameter `coordinator.busy_applies_to` (`all` or `entries_only`). A busy refusal is never recorded, including for `kernel:protection`, which simply submits again at its next evaluation.
+* Whether the bound also applies to protective actions on owned exposure is the refusing parameter `coordinator.busy_applies_to` (`all` or `entries_only`); the first release binds `entries_only` ([Q-004 answer](../decisions/owner-answers-2026-10-27.md)), so protective actions never wait on the busy bound. A busy refusal is never recorded, including for `kernel:protection`, which simply submits again at its next evaluation.
 
 ### Command status (read-only)
 
@@ -254,8 +254,8 @@ All are refusing parameters (REQ-XC-003): a composition that leaves one unbound 
 |---|---|---|
 | `adapter.http_timeout_ms` (total deadline) | Measured (A09-F4) | None: refusing; synthetic in tests |
 | `coordinator.max_pending_per_account` | Measured (A09-F4) | None: refusing; synthetic in tests |
-| `coordinator.busy_applies_to` | [Q-004](../decisions/owner-questions.md#q-004) | None: refusing |
-| `dispatch.deadline_ms.<verb>` | [Q-011](../decisions/owner-questions.md#q-011) (`README.md:758` leaves deadline values to owner policy) | None: refusing; synthetic in tests |
+| `coordinator.busy_applies_to` | [Q-004 answer](../decisions/owner-answers-2026-10-27.md) | None: refusing; first release binds `entries_only` |
+| `dispatch.deadline_ms.<verb>` | [Q-011 answer](../decisions/owner-answers-2026-10-27.md): measured first (TASK-S11-07), then set per verb, longer for cancel and close (`README.md:758`) | None: refusing; synthetic labelled values in tests |
 
 ## Reuse evidence
 

@@ -134,7 +134,7 @@ This package labels its own content **proposed**. A master decision it cites is 
 | Refusing parameter | A policy field with no shipped default; the loader refuses a composition that needs it unbound (REQ-XC-003) |
 | Unresolved attempt | An attempt in `CLAIMED` or `AMBIGUOUS` ([ledger](design/ledger-and-atomic-transaction.md#command-and-attempt-state-machine)) |
 | Unresolved effect | A command in `IN_FLIGHT` or `UNCERTAIN`, or `WORKING` before its completion is observed ([protection spec](design/protection-and-safety.md#conflict-relation-kernelsafetypy)); used by conflicts, ATA-03 flatness and Q-004 |
-| Exposure group | A position together with its resting protective stop ([protection spec](design/protection-and-safety.md#conflict-relation-kernelsafetypy)) |
+| Exposure group | A position together with its resting protective orders: the stop, and under `basket_at_plan` also the target ([protection spec](design/protection-and-safety.md#conflict-relation-kernelsafetypy)) |
 | Hypothesis | The Python property-based testing library, used only for the ledger and lifecycle state-machine tests |
 
 ## Legacy-to-target name map (proposed; reuse is conditional on the specs)
@@ -175,4 +175,4 @@ Run on 2026-10-26; the numbers and the checker's full text are in [consistency/c
 
 Passing the checker shows only that the documents agree with each other and with the master. It does not show the design is correct. No proof is *executable* or *passing* yet.
 
-**Open for the owner:** [Q-001…Q-016](decisions/owner-questions.md) and [X-001…X-007](consistency/master-contradictions.md). SLICE-01 depends on none of them.
+**Owner decisions:** every question ([Q-001…Q-016](decisions/owner-questions.md)) and master correction ([X-001…X-007](consistency/master-contradictions.md)) was answered on 2026-10-27; the [answers](decisions/owner-answers-2026-10-27.md) give each config setting and its first-release value, and the specs carry them. Every limit and switch stays a configurable refusing setting. SLICE-01 depends on none of them.

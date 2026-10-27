@@ -37,7 +37,7 @@ Nothing beyond the rule REQ-MIG-003: SLICE-01…SLICE-12 never open or write a l
 
 * Backup destination (POL-O01).
 * RTO and failover authority (POL-047).
-* First-release scope for the real rehearsal and cutover ([Q-005](../decisions/owner-questions.md#q-005)).
+* First-release scope for the real rehearsal and cutover (decided: BuyerEdge on the current account, [Q-005 answer](../decisions/owner-answers-2026-10-27.md); its composition is written with SLICE-11).
 
 ## To specify at SLICE-11/13/14
 

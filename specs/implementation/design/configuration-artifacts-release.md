@@ -30,7 +30,7 @@
 ## Open items
 
 * Project license (`README.md:1131`, owner decision).
-* First-release composition ([Q-005](../decisions/owner-questions.md#q-005)).
+* First-release composition (decided: BuyerEdge on the current account, [Q-005 answer](../decisions/owner-answers-2026-10-27.md); its composition is written with SLICE-11).
 
 ## To specify at SLICE-11
 

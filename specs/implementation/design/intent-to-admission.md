@@ -62,7 +62,7 @@ Cancel, modify and close skip review and planning and go from stage A's identity
 
 * Changing scores, thresholds, the review requirement or AI modes (POL-024, POL-027).
 * Choosing cost-inclusive admission (POL-026 stays gross; `README.md:1342`).
-* Choosing conflict priorities ([Q-004](../decisions/owner-questions.md#q-004)) or kill and hold permissions ([Q-001](../decisions/owner-questions.md#q-001)).
+* Changing the decided conflict priorities or kill and hold permissions ([Q-001, Q-004 answers](../decisions/owner-answers-2026-10-27.md)).
 * A new rule refusing a cancel or modify that weakens protection (AUD-01 notes the risk; none is approved).
 
 ## Requirement keys
@@ -236,7 +236,7 @@ Each stage stops at its first failed check. Every refusal of every verb is recor
 | A1 | Well-formed; command key present; for an entry, the intent resolves, does not abstain, and its `session_id` equals the request's | all | `ADM-R01` (`malformed_request`), `LED-R01` |
 | A1a | Command identity: same key and digest returns the existing state; different digest refused; a key with no row continues | all | `LED-R02` |
 | A2 | Grant: `authority.check(verb, principal, account)` | all | `SES-R01` … `SES-R05`, `SES-R09` |
-| A3 | The request's session is the `OPEN` session for the account and the calendar of the intent's underlying, and the intent's candidate is in that session's `candidate_ids` ([Q-010](../decisions/owner-questions.md#q-010) decides what a revoked binding does to it) | entry | `SES-R07`; `ADM-R14` (`candidate_not_bound`) |
+| A3 | The request's session is the `OPEN` session for the account and the calendar of the intent's underlying, and the intent's candidate is in that session's `candidate_ids` (a revoked binding refuses new entries from its ledger sequence: `binding.revocation_effect: stop_entries`, [Q-010 answer](../decisions/owner-answers-2026-10-27.md)) | entry | `SES-R07`; `ADM-R14` (`candidate_not_bound`) |
 | A4 | Safety matrix for this verb and actor | all | `PRT-R06`, `PRT-R01`, `PRT-R04`, `PRT-R03` |
 | A5 | Review application is `proceed` or `proceed_unavailable` | entry | `ADM-R11` (`not_eligible`), `ADM-R15` (`review_pending`) |
 
@@ -262,7 +262,7 @@ Stage B first repeats A2, A3, A4 and the pause read, since a grant, session, saf
 
 | Input | Limit | Applies to |
 |---|---|---|
-| View age: wall-clock time minus the decision bar's stamp (the bar's open, [Q-003](../decisions/owner-questions.md#q-003)) | ≤ 90 s (POL-018) | Live entries only |
+| View age: wall-clock time minus the decision bar's stamp, which `market.view_age_stamp` selects; the first release binds `bar_close`, the bar's **close** ([Q-003 answer](../decisions/owner-answers-2026-10-27.md); one bar more lenient than legacy's open stamp) | ≤ 90 s (POL-018) | Live entries only |
 | Spot and chain age, in the wall domain | ≤ 2 × `market.poll_interval_secs` (POL-020) | Live entries |
 | Broker observation of the account's orders, positions and funds | `abs(now − as_of)` ≤ 60 s, `as_of` stamped before the read and not in the future (POL-021; legacy `not_fresh`, `reservations.py:366`) | All verbs |
 
@@ -287,7 +287,7 @@ Computed on the writer thread from the ledger's open reservations and the latest
 * `margin ≤ margin_available − (open reservation margins + external margin commitments)`;
 * `worst_case_loss ≤ account.max_worst_case_loss`.
 
-External commitments count broker-observed positions and working orders once, excluding protective orders and reserved legs (legacy `_external_commitments`, `:473-497`). Legacy sums per-row `amount` and `margin` and the aggregate `position_margin` and `working_margin`; the observation contract carries them as broker-reported optional fields ([execution-domain evidence contract](execution-domain-and-observations.md#evidence-contract-contractsevidencepy)), and which ones the deployed endpoints supply is characterized in TASK-S04-03 with TASK-S07-05. A missing field refuses (`ADM-R09`), never counts as zero. Legacy subtracts these from broker-reported `available`; whether the broker figure already deducts them is checked in TASK-S07-05, and until then the legacy rule (conservative if it double-counts) is kept. `account.max_worst_case_loss` is a refusing parameter: TASK-S04-03 characterizes the legacy rule's shape and reports the legacy value as evidence; the value is [Q-015](../decisions/owner-questions.md#q-015). Which domains count is `capacity.count_non_live_obligations` ([Q-008](../decisions/owner-questions.md#q-008)). A modify that raises a working entry's limit is checked on the increase, and `kernel.reservations` raises the entry's reservation in the same commit.
+External commitments count broker-observed positions and working orders once, excluding protective orders and reserved legs (legacy `_external_commitments`, `:473-497`). Legacy sums per-row `amount` and `margin` and the aggregate `position_margin` and `working_margin`; the observation contract carries them as broker-reported optional fields ([execution-domain evidence contract](execution-domain-and-observations.md#evidence-contract-contractsevidencepy)), and which ones the deployed endpoints supply is characterized in TASK-S04-03 with TASK-S07-05. A missing field refuses (`ADM-R09`), never counts as zero. Legacy subtracts these from broker-reported `available`; whether the broker figure already deducts them is checked in TASK-S07-05, and until then the legacy rule (conservative if it double-counts) is kept. `account.max_worst_case_loss` is a refusing parameter: TASK-S04-03 characterizes the legacy rule's shape and reports the legacy value as evidence; the value is set per account in the account's config at deployment ([Q-015 answer](../decisions/owner-answers-2026-10-27.md)). Which domains count is `capacity.count_non_live_obligations`; the first release binds `count` ([Q-008 answer](../decisions/owner-answers-2026-10-27.md)). A modify that raises a working entry's limit is checked on the increase, and `kernel.reservations` raises the entry's reservation in the same commit.
 
 The admission binds the state heads it used: the reservation head (ledger sequence) and the funds and position observation digests (`README.md:736`, `:746`).
 
@@ -356,9 +356,10 @@ The ledger crash points CP-L1 and CP-L5 apply ([ledger](ledger-and-atomic-transa
 | Pause duration | POL-027 | 5 min default, 60 min cap, session close |
 | Review deadline | The bound blueprint's `deadline_seconds` (`README.md:849`; legacy default 30 s, capped at 300 s) | From the blueprint |
 | Freshness limits | POL-018 (90 s), POL-020 (2× poll), POL-021 (60 s) | Approved values |
-| `dispatch.deadline_ms.<verb>`, `coordinator.busy_applies_to` | [Q-011](../decisions/owner-questions.md#q-011), [Q-004](../decisions/owner-questions.md#q-004) | None: refusing |
-| `account.max_worst_case_loss` | [Q-015](../decisions/owner-questions.md#q-015); the legacy value is evidence | None: refusing |
-| `capacity.count_non_live_obligations` | [Q-008](../decisions/owner-questions.md#q-008) | None: refusing |
+| `market.view_age_stamp` (`bar_open` or `bar_close`) | [Q-003 answer](../decisions/owner-answers-2026-10-27.md) | None: refusing; first release binds `bar_close` |
+| `dispatch.deadline_ms.<verb>`, `coordinator.busy_applies_to` | [Q-011, Q-004 answers](../decisions/owner-answers-2026-10-27.md) | None: refusing; first release: deadlines measured in TASK-S11-07, `busy_applies_to: entries_only` |
+| `account.max_worst_case_loss` | [Q-015 answer](../decisions/owner-answers-2026-10-27.md): set per account in the account's config at deployment; the legacy value is evidence | None: refusing |
+| `capacity.count_non_live_obligations` | [Q-008 answer](../decisions/owner-answers-2026-10-27.md) | None: refusing; first release binds `count` |
 | Reservation amounts and `money.rounding` | Plan computation under the legacy rule, characterized in TASK-S04-03 | None: refusing |
 
 ## Reuse evidence

@@ -14,7 +14,7 @@
 | **D** disarmed shadow | Phase 4: reads authorized production observations into a separate ledger, with no financial credential or broker socket |
 | **P** production-sensitive | Phase 7: needs the owner's authorization at that step |
 
-**Notation in the slice table.** "1/3" means the slice starts in master Phase 1 and finishes in Phase 3. "S → R" means early tasks run in class S and later tasks need class R. "PRF-SES-01…06" means every ID from PRF-SES-01 to PRF-SES-06. "Open items" lists owner questions (Q-nnn), master contradictions (X-nnn) and the master's open policy records (POL-Onn, the `O`-status rows of the [policy inventory](../02-policy-inventory.md)).
+**Notation in the slice table.** "1/3" means the slice starts in master Phase 1 and finishes in Phase 3. "S → R" means early tasks run in class S and later tasks need class R. "PRF-SES-01…06" means every ID from PRF-SES-01 to PRF-SES-06. "Open items" lists the owner questions (Q-nnn) and master corrections (X-nnn) a slice applies, and the master's open policy records (POL-Onn, the `O`-status rows of the [policy inventory](../02-policy-inventory.md)). Every Q and X item was answered on 2026-10-27 ([owner answers](../decisions/owner-answers-2026-10-27.md)); the slice binds the answered value in config.
 
 ## Build order
 
@@ -52,16 +52,16 @@ Task IDs are stable. SLICE-01 tasks are its file rows. Tasks of a stub slice are
 | TASK-S02-04 | 02 | Disk-full, I/O-error and read-only-remount variants of commit-failure truthfulness | PRF-LED-07 (extension) |
 | TASK-S02-05 | 02 | Ledger invariant state machine test | PRF-LED-09 |
 | TASK-S02-06 | 02 | Schema check and migrations beyond `001`; anchored heads | PRF-LED-10, PRF-LED-15 |
-| TASK-S03-01 | 03 | Grant model and checks at admission and dispatch; owner-only actions (Q-014) | PRF-SES-01, PRF-SES-02 |
+| TASK-S03-01 | 03 | Grant model and checks at admission and dispatch; the kill exceptions and unlocks for the owner and delegated grant holders (Q-014); the `attempt_resolve` action (Q-007) | PRF-SES-01, PRF-SES-02 |
 | TASK-S03-02 | 03 | Financial session transitions | PRF-SES-03 |
 | TASK-S03-03 | 03 | Clock contract, deadlines and clock-quality events | PRF-SES-04 |
-| TASK-S03-04 | 03 | Exclusive writer, epoch activation and recovery stages | PRF-SES-05, PRF-SES-10 |
+| TASK-S03-04 | 03 | Exclusive writer, epoch activation and recovery stages; the routine-restart advance (`recovery.routine_advance`, Q-009) | PRF-SES-05, PRF-SES-10 |
 | TASK-S03-05 | 03 | Restored-authorization continuity | PRF-SES-06 |
 | TASK-S03-06 | 03 | Standing bindings, the session's binding and candidate identity | PRF-SES-08, PRF-SES-09 |
 | TASK-S04-01 | 04 | Review application (`kernel.policy`) | PRF-ADM-01, PRF-ADM-02 |
 | TASK-S04-02 | 04 | Planning port with `one_leg_v1` and `structure_v1` extracted pure | PRF-ADM-03 |
 | TASK-S04-03 | 04 | Characterize the legacy capacity and account-validation rule (`OA/src/core/framework/execution/reservations.py:352-442`, `_external_commitments` `:473-497` @445eb116) and the reservation amounts; report the legacy `max_worst_case_loss` as evidence (Q-015) | PRF-ADM-04 |
-| TASK-S04-04 | 04 | Freshness checks (POL-018, POL-020, POL-021), stamp field per Q-003; minimal `contracts/market.py` field list from the legacy planner | PRF-ADM-04 |
+| TASK-S04-04 | 04 | Freshness checks (POL-018, POL-020, POL-021), the bar-close stamp (`market.view_age_stamp`, Q-003); minimal `contracts/market.py` field list from the legacy planner | PRF-ADM-04 |
 | TASK-S04-05 | 04 | Full admission table and non-dispatch recording | PRF-ADM-04, PRF-ADM-06 |
 | TASK-S04-06 | 04 | `SessionStats` derivation, field by field against legacy `OA/src/core/framework/runtime/orchestrator.py` @445eb116 | PRF-ADM-03 |
 | TASK-S05-01 | 05 | Dispatch revalidation | PRF-DSP-01 |
@@ -74,14 +74,14 @@ Task IDs are stable. SLICE-01 tasks are its file rows. Tasks of a stub slice are
 | TASK-S05-08 | 05 | Deadline sweep and timer | PRF-DSP-04 |
 | TASK-S05-09 | 05 | Caller-driven retries (the identity rule's retry branch), command status | PRF-DSP-03, PRF-DSP-11 |
 | TASK-S07-01 | 07 | OpenAlgo adapter with retries disabled and transport classes | PRF-DOM-04 |
-| TASK-S07-02 | 07 | Reconciliation `assess` and `findings`; foreign response (Q-016) | PRF-DOM-02, PRF-DOM-03 |
+| TASK-S07-02 | 07 | Reconciliation `assess` and `findings`; foreign response `escalate` (Q-016); effective domain of target-bound verbs (Q-012); `attempt_resolve` resolutions if TASK-S07-05 finds no tag (Q-007) | PRF-DOM-02, PRF-DOM-03 |
 | TASK-S07-03 | 07 | Fills, partial fills and obligation accounting (D16) | PRF-LED-11 |
 | TASK-S07-04 | 07 | Domain attribution and the settlement rule (Q-006 for production) | PRF-DOM-01, PRF-DOM-08 |
 | TASK-S07-05 | 07 | Capture and classify deployed analyze and live responses at the source (needs authorization) | PRF-DOM-07 |
 | TASK-S07-06 | 07 | Native read-only credential proof (on authorization); without it, the mediator is built in SLICE-11 | PRF-DOM-10 |
 | TASK-S07-07 | 07 | Target recheck at dispatch against real observations (revalidation row 6) | PRF-DSP-09 |
 | TASK-S07-08 | 07 | Capacity against real funds and position observations | PRF-ADM-09 |
-| TASK-S06-01 | 06 | Protection evaluation, legs, placement per Q-013, exits and structure legs; characterize re-placement and the marketable-stop alternative | PRF-PRT-01, PRF-PRT-02, PRF-PRT-09 |
+| TASK-S06-01 | 06 | Protection evaluation, legs, `basket_at_plan` placement with the quantity rule (Q-013), exits and structure legs; characterize re-placement and the marketable-stop alternative | PRF-PRT-01, PRF-PRT-02, PRF-PRT-09 |
 | TASK-S06-02 | 06 | Protection crash recovery | PRF-PRT-03 |
 | TASK-S06-03 | 06 | Hold rows per Q-001; characterize the legacy recovery-hold trigger | PRF-PRT-04 |
 | TASK-S06-04 | 06 | Daily-loss latch with the bound budget (Q-002); characterize the deployed P&L fields against the endpoint contract | PRF-PRT-05 |

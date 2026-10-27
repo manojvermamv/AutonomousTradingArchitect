@@ -44,26 +44,29 @@ loader:         if composition.requires("loss_latch") and field is None:
 tests:          @synthetic(value=Decimal("1000"))      # label shows in every report
 ```
 
-This table is the **single register** of refusing fields. PRF-XC-03 is built from it, and a spec that adds a refusing field adds it here. "Measured" values are produced by the named task and approved by the owner when the release binding that carries them is authorized (TASK-S11-07).
+This table is the **single register** of refusing fields. PRF-XC-03 is built from it, and a spec that adds a refusing field adds it here. Every field stays a configurable, refusing setting: the loader refuses a live composition that leaves it unbound, and nothing is hard-coded ([Q-015 answer](../decisions/owner-answers-2026-10-27.md)). The **first-release value** is what the first release binds in config; it is the owner's decision of 2026-10-27, not a default. "Measured" values are produced by the named task and approved by the owner when the release binding that carries them is authorized (TASK-S11-07).
 
-| Field | Answered by | Producing task | Spec |
-|---|---|---|---|
-| `risk.max_daily_loss_amount` | Q-002 | TASK-S06-04 | [protection-and-safety](protection-and-safety.md#daily-loss-latch-kernelsafetypy) |
-| `safety.hold_automatic_actions` | Q-001 | TASK-S06-03 | [protection-and-safety](protection-and-safety.md#permission-matrix-kernelsafetypy) |
-| `protective_independence`, `coordinator.busy_applies_to` | Q-004 | TASK-S05-03, TASK-S05-06 | [protection-and-safety](protection-and-safety.md#conflict-relation-kernelsafetypy), [dispatch](dispatch-and-coordination.md#policy-inputs) |
-| `protection.placement` | Q-013 | TASK-S06-01 | [protection-and-safety](protection-and-safety.md#policy-inputs) |
-| `protection.stop_order_type` | Q-013 (with placement) | TASK-S06-01 | [protection-and-safety](protection-and-safety.md#policy-inputs) |
-| `reconciliation.unknown_domain_settlement` | Q-006 | TASK-S07-04 | [execution-domain](execution-domain-and-observations.md#domain-attribution-and-combination) |
-| `capacity.count_non_live_obligations` | Q-008 | TASK-S07-04 | [execution-domain](execution-domain-and-observations.md#policy-inputs) |
-| `reconciliation.foreign_response` | Q-016 | TASK-S07-02 | [execution-domain](execution-domain-and-observations.md#policy-inputs) |
-| `binding.revocation_effect` | Q-010 | TASK-S03-02 | [sessions](sessions-authority-lifecycle.md#policy-inputs) |
-| `dispatch.deadline_ms.<verb>` | Q-011 | TASK-S05-08 | [dispatch](dispatch-and-coordination.md#policy-inputs) |
-| `account.max_worst_case_loss` | Q-015 | TASK-S04-03 (legacy value as evidence) | [intent-to-admission](intent-to-admission.md#policy-inputs) |
-| `money.rounding`, reservation amounts per entry | TASK-S04-03 characterization, then owner confirmation if it differs from legacy | TASK-S04-03 | [ledger](ledger-and-atomic-transaction.md#policy-inputs) |
-| `capacity.synthetic_amount` | Tests only; never bound in production | TASK-S01-12 | [SLICE-01](../plan/slices/SLICE-01-disarmed-financial-core.md) |
-| `adapter.http_timeout_ms`, `coordinator.max_pending_per_account` | Measured (A09-F4) | TASK-S11-07 | [dispatch](dispatch-and-coordination.md#policy-inputs) |
-| `observation.poll_interval_secs`, `observation.max_requests_per_minute`, `reconciliation.clock_skew_secs`, `reconciliation.working_escalation_secs` | Measured (A09-F4) | TASK-S11-07 | [execution-domain](execution-domain-and-observations.md#policy-inputs) |
-| `clock.jump_record_ms` | Measured; unbound turns recording off | TASK-S11-07 | [sessions](sessions-authority-lifecycle.md#policy-inputs) |
+| Field | Decided by | First-release value | Producing task | Spec |
+|---|---|---|---|---|
+| `risk.max_daily_loss_amount` | Q-002 | `"3600.00"` (BuyerEdge) | TASK-S06-04 | [protection-and-safety](protection-and-safety.md#daily-loss-latch-kernelsafetypy) |
+| `safety.hold_automatic_actions` | Q-001 | `allowed` | TASK-S06-03 | [protection-and-safety](protection-and-safety.md#permission-matrix-kernelsafetypy) |
+| `protective_independence` | Q-004 | `same_group_only` | TASK-S05-03 | [protection-and-safety](protection-and-safety.md#conflict-relation-kernelsafetypy) |
+| `coordinator.busy_applies_to` | Q-004 | `entries_only` | TASK-S05-06 | [dispatch](dispatch-and-coordination.md#policy-inputs) |
+| `protection.placement` | Q-013 | `basket_at_plan` | TASK-S06-01 | [protection-and-safety](protection-and-safety.md#policy-inputs) |
+| `protection.stop_order_type` | Q-013 | `trigger_only` (SL-M) | TASK-S06-01 | [protection-and-safety](protection-and-safety.md#policy-inputs) |
+| `reconciliation.unknown_domain_settlement` | Q-006 | `forbid` | TASK-S07-04 | [execution-domain](execution-domain-and-observations.md#domain-attribution-and-combination) |
+| `capacity.count_non_live_obligations` | Q-008 | `count` | TASK-S07-04 | [execution-domain](execution-domain-and-observations.md#policy-inputs) |
+| `reconciliation.foreign_response` | Q-016 | `escalate` | TASK-S07-02 | [execution-domain](execution-domain-and-observations.md#policy-inputs) |
+| `binding.revocation_effect` | Q-010 | `stop_entries` | TASK-S03-02 | [sessions](sessions-authority-lifecycle.md#policy-inputs) |
+| `recovery.routine_advance` | Q-009 | `standing` | TASK-S03-04 | [sessions](sessions-authority-lifecycle.md#policy-inputs) |
+| `market.view_age_stamp` | Q-003 | `bar_close` | TASK-S04-04 | [intent-to-admission](intent-to-admission.md#policy-inputs) |
+| `dispatch.deadline_ms.<verb>` | Q-011 | measured, then set per verb; cancel and close longer | TASK-S11-07, TASK-S05-08 | [dispatch](dispatch-and-coordination.md#policy-inputs) |
+| `account.max_worst_case_loss` | Q-015 | per account, set in the account's config at deployment | TASK-S04-03 (legacy value as evidence) | [intent-to-admission](intent-to-admission.md#policy-inputs) |
+| `money.rounding`, reservation amounts per entry | TASK-S04-03 characterization, then owner confirmation if it differs from legacy | after TASK-S04-03 | TASK-S04-03 | [ledger](ledger-and-atomic-transaction.md#policy-inputs) |
+| `capacity.synthetic_amount` | Tests only; never bound in production | none in production | TASK-S01-12 | [SLICE-01](../plan/slices/SLICE-01-disarmed-financial-core.md) |
+| `adapter.http_timeout_ms`, `coordinator.max_pending_per_account` | Measured (A09-F4) | measured | TASK-S11-07 | [dispatch](dispatch-and-coordination.md#policy-inputs) |
+| `observation.poll_interval_secs`, `observation.max_requests_per_minute`, `reconciliation.clock_skew_secs`, `reconciliation.working_escalation_secs` | Measured (A09-F4) | measured | TASK-S11-07 | [execution-domain](execution-domain-and-observations.md#policy-inputs) |
+| `clock.jump_record_ms` | Measured; unbound turns recording off | measured | TASK-S11-07 | [sessions](sessions-authority-lifecycle.md#policy-inputs) |
 
 ## Proofs
 

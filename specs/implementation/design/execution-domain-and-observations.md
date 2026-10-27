@@ -40,7 +40,7 @@ The master accepted D15 (coverage and identity-based reconciliation), ATA-06 (ex
 
 * Gating or refusing any send on analyzer mode (`README.md:458`, `:802`).
 * Claiming deployed endpoint behaviour from source reading. Endpoint contracts are verified at the source (REQ-DOM-014).
-* Choosing how a timed-out place with no broker ID is resolved ([Q-007](../decisions/owner-questions.md#q-007)), how a timed-out attempt of unknown domain is resolved ([Q-012](../decisions/owner-questions.md#q-012)), or how non-live obligations count against capacity ([Q-008](../decisions/owner-questions.md#q-008)).
+* Changing the decided rules for a timed-out place with no broker ID, a timed-out attempt of unknown domain, or non-live obligations against capacity ([Q-007, Q-012, Q-008 answers](../decisions/owner-answers-2026-10-27.md)).
 * Absence proven by corroborating evidence from other endpoints. D15 allows it (`README.md:762`); this package accepts only contract-backed coverage until TASK-S07-05 shows a need. That is stricter, never looser.
 
 ## Requirement keys
@@ -87,7 +87,7 @@ The master accepted D15 (coverage and identity-based reconciliation), ATA-06 (ex
 
 * **Given** an entry place that timed out (`ambiguous`, no broker ID), and no verified client tag.
 * **When** a fresh, complete orderbook shows one unattributed order of the same instrument, side and quantity inside the attempt window.
-* **Then** the order is **not** adopted (LD-20) and **not** recorded as foreign. Both stay unresolved and escalated, and the reservation is kept. The final resolution is [Q-007](../decisions/owner-questions.md#q-007) (PRF-DOM-02).
+* **Then** the order is **not** adopted (LD-20) and **not** recorded as foreign. Both stay unresolved and escalated (`untagged_timeout`), and the reservation is kept, until a human principal holding `attempt_resolve` resolves the attempt ([Q-007 answer](../decisions/owner-answers-2026-10-27.md); rule below) (PRF-DOM-02).
 
 ## Technical plan
 
@@ -133,7 +133,7 @@ EndpointContract(endpoint, deployment_version, mode_marker_field | None,
 **What the adapter puts in `TransportResult`.**
 
 * One `LegResult` per plan leg for an entry; one leg with role equal to the verb (`cancel`, `modify`, `close`) otherwise.
-* **Leg roles in a basket.** OpenAlgo returns basket results in completion order, not plan order (`README.md:496`). The adapter assigns a returned order ID to a leg only through the legacy validated join: a fresh orderbook row for that ID whose instrument, side and quantity match exactly one unassigned leg (`OA/src/tier1/openalgo_adapter.py:25-28`, `:85-90`). That row comes from an `ObservationPort.orderbook` call made inside the send's total deadline, published as evidence like any other observation; no other read happens inside `send`. This is not D15 similarity matching: the ID itself came from our own response. IDs the join cannot assign are kept as `unassigned_order_ids` on the attempt, so they are never lost.
+* **Leg roles in a basket.** OpenAlgo returns basket results in completion order, not plan order (`README.md:496`). The adapter assigns a returned order ID to a leg only through the legacy validated join: a fresh orderbook row for that ID whose instrument, side and quantity match exactly one unassigned leg (`OA/src/tier1/openalgo_adapter.py:25-28`, `:85-90`). A basket's two protective legs share instrument, side and quantity, so the join also matches the order type and price: SL-M with the stop's trigger for the `stop` leg, LIMIT with the target's price for the `target` leg ([protection spec](protection-and-safety.md#basket-placement-basket_at_plan-kernelprotectionpy)). That row comes from an `ObservationPort.orderbook` call made inside the send's total deadline, published as evidence like any other observation; no other read happens inside `send`. This is not D15 similarity matching: the ID itself came from our own response. IDs the join cannot assign are kept as `unassigned_order_ids` on the attempt, so they are never lost.
 * **Command class:** `acknowledged` if any leg is acknowledged and none is ambiguous; `rejected` if every leg is rejected; `not_sent` only when the adapter can prove no request left the process; `ambiguous` otherwise. A legacy `invalid` result maps to `ambiguous`.
 
 **Transport classes** (REQ-DOM-009):
@@ -215,9 +215,9 @@ ObservationPort.funds(account) -> Observation              # one ObservedFunds i
 * **Always recorded** for an identity-matched item, whatever the domain: reach (`RESOLVED_REACHED`), fills, completion. Each is labelled with the combined domain. So protection and accounting proceed for any order we can identify.
 * **Gated:** releasing an obligation (lowering or freeing a reservation) and any performance, promotion or economics claim.
   * `conflicting` never releases and is escalated.
-  * `unknown` releases only if `reconciliation.unknown_domain_settlement` is `accounting_only` ([Q-006](../decisions/owner-questions.md#q-006)); under `forbid` the obligation stays reserved.
+  * `unknown` releases only if `reconciliation.unknown_domain_settlement` is `accounting_only`; under `forbid`, the first-release value ([Q-006 answer](../decisions/owner-answers-2026-10-27.md)), the obligation stays reserved.
   * `analyzer`, `unknown` and `conflicting` never count as live performance.
-* Whether analyzer, unknown and conflicting obligations count against **live capacity** is the refusing parameter `capacity.count_non_live_obligations` ([Q-008](../decisions/owner-questions.md#q-008)). D16 keeps them reserved either way.
+* Whether analyzer, unknown and conflicting obligations count against **live capacity** is the refusing parameter `capacity.count_non_live_obligations`; the first release binds `count` ([Q-008 answer](../decisions/owner-answers-2026-10-27.md)). D16 keeps them reserved either way.
 
 **Escalation** means `kernel.lifecycle` records `RECONCILIATION_ESCALATED` ([payload below](#reconciliation-events)), once per subject and reason, and the operator alert route reads it ([runtime spec](runtime-isolation-observability-deployment.md)).
 
@@ -250,7 +250,7 @@ Assessment(matched: list[(command_key, attempt_no, leg_role | None, item)],
 * the endpoint contract makes coverage `complete` and `Coverage.interval` contains the window;
 * `as_of` is at or after the window's end (with no `visibility_secs` recorded, absence is never usable);
 * the window is not empty or inverted;
-* the attempt's own recorded domain is known and equal to the observation's domain. An attempt with no usable response has domain `unknown`, so this rarely holds for a timed-out attempt; such attempts are escalated and their resolution is [Q-012](../decisions/owner-questions.md#q-012). Until Q-012 is decided, the never-reached rows below apply only to attempts whose domain is known.
+* the attempt's **effective domain** is known and equal to the observation's domain. For a cancel, modify or close, the effective domain is the `broker_identity.domain` recorded for its target order: the verb acts on that order, so its own unmarked response does not hide where it went ([Q-012 answer](../decisions/owner-answers-2026-10-27.md), option A). For an entry, it is the attempt's own recorded domain; a timed-out entry with no marker stays `unknown`, and its resolution is the `attempt_resolve` rule below (Q-007).
 
 **An attempt or leg could account for an order** when it is unresolved, on the same account, and the order's `placed_at` falls inside its window (or is unknown), unless a verified identity already ties the order to another command.
 
@@ -260,7 +260,9 @@ Assessment(matched: list[(command_key, attempt_no, leg_role | None, item)],
 2. **Identity matches**, per command and per leg (an item may match more than one command, for example an entry and a cancel of it; each is judged on its own), then the **domain** of each match.
 3. **Per-verb evidence** (below), fills, and completion by the ledger's [verb rules](ledger-and-atomic-transaction.md#command-and-attempt-state-machine).
 4. **Absence** findings, where absence is usable.
-5. **Unattributed orders**: an order no unresolved attempt or leg could account for becomes `FOREIGN_RECORDED`, once per order ID, followed by the response `reconciliation.foreign_response` names ([Q-016](../decisions/owner-questions.md#q-016)): `record_only`, `escalate` (reason `foreign_activity`) or `hold_entries`. It is an audit fact; capacity counts external activity from broker observations, not from this record ([intent spec](intent-to-admission.md#admission-kerneladmissionpy)).
+5. **Unattributed orders**: an order no unresolved attempt or leg could account for becomes `FOREIGN_RECORDED`, once per order ID, followed by the response `reconciliation.foreign_response` names: `record_only`, `escalate` (reason `foreign_activity`; the first-release value, [Q-016 answer](../decisions/owner-answers-2026-10-27.md)) or `hold_entries`. It is an audit fact; capacity counts external activity from broker observations, not from this record ([intent spec](intent-to-admission.md#admission-kerneladmissionpy)).
+
+**Resolving an untagged timed-out entry (`attempt_resolve`, [Q-007 answer](../decisions/owner-answers-2026-10-27.md)).** TASK-S07-05 first tests at the source whether any place field round-trips into the orderbook as our tag; if one does, it becomes the verified identity and this rule is not used. If none does, a human principal holding the grant action `attempt_resolve` ([sessions spec](sessions-authority-lifecycle.md#identity-contract-contractsidentitypy)) resolves each escalated `untagged_timeout` attempt by a recorded command naming either the broker order ID it placed or that it placed none, citing the observation digest it relied on. `kernel.lifecycle` then commits `RESOLVED_REACHED` (recording that order ID in `broker_identity`) or `RESOLVED_NEVER_REACHED`, with `basis` `attempt_resolve` and the principal in the payload. The machine never adopts by shape (LD-20), and an order already tied by verified identity to another command cannot be named.
 
 **Per-verb evidence:**
 
@@ -282,8 +284,8 @@ Assessment(matched: list[(command_key, attempt_no, leg_role | None, item)],
 | Close shows terminal with no fill total (`filled_quantity` is `None`) | No completion; the close stays `WORKING` and is escalated after `reconciliation.working_escalation_secs` (POL-016) |
 | Uncertain attempt with verified identity; absence usable; never-reached evidence | `RESOLVED_NEVER_REACHED` (per leg for a basket) |
 | Uncertain attempt with no verified identity; absence usable; every order in the window tied by verified identity to another command | `RESOLVED_NEVER_REACHED` |
-| Uncertain attempt with no verified identity; an order it could account for | No change; escalated ([Q-007](../decisions/owner-questions.md#q-007)) |
-| Uncertain attempt of domain `unknown` with no reached evidence | No change; escalated (`unknown_domain_unresolved`, [Q-012](../decisions/owner-questions.md#q-012)) |
+| Uncertain entry with no verified identity; an order it could account for | No change; escalated (`untagged_timeout`) until `attempt_resolve` (below) |
+| Uncertain attempt whose effective domain is `unknown` (an entry with no marker, or a target order whose own domain is `unknown`) with no reached evidence | No change; escalated once (`unknown_domain_unresolved`) |
 | Absence not usable | No change; the reason stays in the assessment's gaps |
 | Identity-matched order whose combined domain is `conflicting` | `CONFLICT_RECORDED` and escalation |
 | Identity-matched order of a command recorded `REJECTED` or `RESOLVED_NEVER_REACHED` | `CONFLICT_RECORDED` and escalation; capacity counts the order through broker observations |
@@ -347,23 +349,23 @@ All three fold into the `reconciliation_fact` index table, keyed as shown, which
 
 | Risk or limit | Mitigation |
 |---|---|
-| Under Q-007, a timed-out untagged place holds its reservation and its POL-007 slot until the owner acts | Escalated at once; resolving it is Q-007 |
-| Under `forbid`, obligations of unmarked effects never release | Facts are still recorded and protection proceeds; Q-006 states the capacity cost |
+| A timed-out untagged place holds its reservation and its POL-007 slot until a human resolves it | Escalated at once; `attempt_resolve` (Q-007) is the route, used only if TASK-S07-05 finds no tag |
+| Under `forbid` (first release), obligations of unmarked effects never release | Facts are still recorded and protection proceeds; the capacity cost is the owner's accepted trade (Q-006) |
 | Evidence and event volume from polling | Edge-triggered findings; only referenced observations kept; request budget per account |
 | Clock skew between the broker and the host | Windows widened by `clock_skew_secs` on both ends |
 | The mediator is a single process for non-kernel observers | Built only without native read-only proof; supervised and restarted; the kernel does not depend on it |
-| Timed-out attempts of unknown domain stay unresolved (Q-012), including protective modifies | Escalated once at once; protection escalates a frozen stop; the broker stop still rests |
+| A cancel, modify or close whose target order's own domain is `unknown` still cannot be resolved by absence | Rare once entries resolve by identity; escalated once; the broker stop still rests |
 
 ## Policy inputs
 
 | Input | Source | Default |
 |---|---|---|
 | Observation freshness | POL-021 (60 s) | Approved value in the bound policy |
-| `reconciliation.unknown_domain_settlement` | [Q-006](../decisions/owner-questions.md#q-006) | None: refusing |
-| `capacity.count_non_live_obligations` | [Q-008](../decisions/owner-questions.md#q-008) | None: refusing |
+| `reconciliation.unknown_domain_settlement` | [Q-006 answer](../decisions/owner-answers-2026-10-27.md) | None: refusing; first release binds `forbid` |
+| `capacity.count_non_live_obligations` | [Q-008 answer](../decisions/owner-answers-2026-10-27.md) | None: refusing; first release binds `count` |
 | `reconciliation.clock_skew_secs` | Measured with the clock-quality evidence | None: refusing |
 | `reconciliation.working_escalation_secs` | Measured (A09-F4) | None: refusing |
-| `reconciliation.foreign_response` | [Q-016](../decisions/owner-questions.md#q-016) | None: refusing |
+| `reconciliation.foreign_response` | [Q-016 answer](../decisions/owner-answers-2026-10-27.md) | None: refusing; first release binds `escalate` |
 | `observation.poll_interval_secs`, `observation.max_requests_per_minute` | Measured (A09-F4) | None: refusing |
 | Endpoint contracts (mode marker, coverage rule, `covers`, `visibility_secs`, client tag, status mapping) | Verified at source (TASK-S07-05) | No record: the conservative values above |
 
