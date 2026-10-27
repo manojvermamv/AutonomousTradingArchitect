@@ -1,6 +1,6 @@
 # SLICE-04 — Intent to admission
 
-* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-04-review-2026-10-27)). **Step 1 built** on 2026-10-27 in a local repository (commit `2ed1c39`, branch `slice-04`): 235 tests passed, including every SLICE-01…03 test, and every break check failed as required ([as built](#step-1-as-built)). That is a build record, not production acceptance. **Step 2 built** the same day (commit `575c897`): 252 tests passed and every break check failed as required ([as built](#step-2-as-built)). Step 3 (`one_leg_v1`) is decision-complete below after its EGM review and not yet built; `structure_v1` is step 4, deepened before it is built.
+* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-04-review-2026-10-27)). **Step 1 built** on 2026-10-27 in a local repository (commit `2ed1c39`, branch `slice-04`): 235 tests passed, including every SLICE-01…03 test, and every break check failed as required ([as built](#step-1-as-built)). That is a build record, not production acceptance. **Step 2 built** the same day (commit `575c897`): 252 tests passed and every break check failed as required ([as built](#step-2-as-built)). **Step 3 built** (`one_leg_v1`, commit `1aa02b8`): 308 tests passed, including 43 golden cases generated from legacy `plan()` at `OA@445eb116`, and every break check failed as required ([as built](#step-3-as-built)). `structure_v1` is step 4, deepened before it is built.
 * **Precedence:** the master README, then the ROADMAP, then this package. The authority is the [intent spec](../../design/intent-to-admission.md); every deviation is marked **Deviation**. No score, threshold or money value is set: every refusing setting is bound only to labelled synthetic values in tests.
 * **Phase:** master Phase 1, finishing in Phase 3 with real views (SLICE-08). Class S.
 * **Builds on:** [SLICE-03](SLICE-03-sessions-authority-recovery.md) as built; branch `slice-04` cut from `slice-03`.
@@ -563,6 +563,42 @@ The planner takes `SessionStats` as a value. Step 3 adds `SessionStatsPort` with
 * **Q-019:** for `ltp`/`full_debit`, `ask`/`full_debit` and `ltp`/`to_stop`, `amount`, `margin` and `worst_case_loss` against hand calculations on a chain whose ltp and ask differ; `ask` with no ask refused.
 * **Through the door:** `chain_missing`, `chain_mismatch` (another underlying, another `as_of`); a `one_leg_v1` plan from fixture market data admitted, its `plan` and `entry_facts` recorded.
 * **Break checks** (named in the docstring): read the wall clock in the planner (the sandbox fails); pass the intent's `iv_rank` (the `"99"` case fails); round the stop down (the tick-up case fails); use `reference_facts.lot_size` ahead of the row's (the lot case with both fails); price `amount` at the ask under `ltp` (the differing ltp/ask case fails); drop the chain-to-view check (`chain_mismatch` fails).
+
+### Step 3 as built
+
+Commit `1aa02b8` on `slice-04`, after `0affceb`. It changes 12 paths: the step 3 files table less `bootstrap.py`, which needed no change (the ports carry the planner).
+
+**The golden fixture.** `tests/fixtures/planner_parity_445eb116.json` holds 43 cases, generated once by running legacy `plan()` from a `git archive` export of `OA@445eb116` in the session's scratch folder, isolated from both repositories. The generator's source and SHA-256 are embedded. It neutralises only stages that moved out of the planner: the kill switch reads as disengaged, there is no latch directory, the view-age and view-lag limits are off, and there is no freshness record or registry write. It also registers an import-only `fcntl` stub that raises if called, because Windows has no `fcntl` and the path it runs never locks. Every case reaches the stage it was written for.
+
+**Choices made while building** (none sets a money value):
+
+| Topic | As built |
+|---|---|
+| Sizing | `selection.quantity_for` keeps only legacy's proven-lot path (`require_lot_size=True`), the only path the planner calls; the max-notional cap to zero still yields `"sizing refused"` |
+| Golden refusals | A refused case compares stage and reason only. Legacy's `Plan` also carries the symbol and quantity it had reached; the target's `PlanRefusal` does not |
+| PE deltas | Legacy compares raw deltas with a positive band (S:199-205). The golden case `pe_negative_delta` shows that with negative PE deltas legacy still chooses a contract, through its gap fallback and then the unfiltered candidates. The target matches, and the source check stays with SLICE-08's PRF-ADM-07 |
+| `iv_rank` text | The `IV rank … at or above iv_rank_max` refusal is unreachable in the target and in legacy live, because neither passes an IV rank. The case `intent_iv_rank_99_ignored` pins that |
+| Score scale | Legacy's `signal_score` is on a 0–100 scale (S:158-169). An intent scored 0–1, like the step 1 fixtures' `0.8`, is refused at the selection floor (`|score| 0.8 is below the selection floor 1`). The strategy host must publish legacy's scale, and the step 3 tests do |
+| Stats fixture | `make_stats()` takes legacy `Session`'s defaults, with `now_hm` `14:45`, START's IST time |
+
+**Tests** (308 passed with `scripts/safe_tests.py`, no broker variables):
+
+| File | Cases |
+|---|---|
+| `test_planner_rules.py` | 43 golden cases: the adapter's rows equal the generator's own conversion, and stage, reason, symbol, quantity and two-decimal stop and target equal legacy's. Also: the fixture's embedded generator digest; purity under the sandbox; dispatch (`structure_planner_not_built`, `planner_policy_unbound`); `ask` with `to_stop` refused; Q-019's three sanctioned settings against hand calculations; `ask` with no ask refused; the plan's fields and `entry_facts` |
+| `test_admission_checks.py` | `chain_missing` and `chain_mismatch` (another underlying, another `as_of`), each recorded at B1; a `one_leg_v1` plan built from fixture market data admitted and acknowledged, its plan and entry facts recorded |
+| `test_policy_parameters.py` | `AdmissionPorts` built with `stats` |
+
+**Break checks** (each applied, run, and reverted byte for byte; every one failed its tests):
+
+| Change | Tests that failed |
+|---|---|
+| Read the wall clock in the planner | `test_planner_is_pure` |
+| Pass the intent's `iv_rank` to selection | golden `intent_iv_rank_99_ignored` |
+| Round the stop down | golden `stop_tick_up_target_down` |
+| Use the reference lot ahead of the row's | golden `lot_row_over_reference` |
+| Price `amount` at the ask under `ltp` | `test_q019_money_figures` (two of three) |
+| Drop the chain-to-view check | `test_chain_must_match_the_aged_view` (two of three) |
 
 ## Step 4 — `structure_v1` (deepened before build)
 
