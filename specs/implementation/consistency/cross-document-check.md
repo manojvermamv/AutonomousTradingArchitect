@@ -2,7 +2,7 @@
 
 * **Status:** proposed, non-normative. A record of what the read-only checker found, not a claim that the design is correct.
 * **Precedence:** master README, then ROADMAP, then the package. This file edits nothing.
-* **Run:** 2026-10-27, against the package at branch commit `0906342` (this file is rebuilt in the commit after it), master pin `b9bb32c`, legacy pin `OA@445eb116`.
+* **Run:** 2026-10-27, against the package at branch commit `5626641` (this file is rebuilt in the commit after it), master pin `b9bb32c`, legacy pin `OA@445eb116`.
 
 ## Results against the hard targets
 
@@ -14,14 +14,14 @@
 | J3 | 0 module references outside README §6 plus listed tree deltas; 0 modules specified twice | pass | Checker output below |
 | J4 | 0 broken relative links; 0 duplicate IDs | pass | Checker output below |
 | J5 | Every master citation falls inside the section holding the cited ID | pass | Checker output below |
-| J7 | Only `specs/implementation/` changes in ATA (plus the master `README.md`, edited on the owner's authorization of 2026-10-27 for X-001, X-003, X-006, X-007; master citations stay pinned to `b9bb32c`) | pass: 40 files changed since the branch base `b9bb32c`, 0 outside `specs/implementation/` other than the authorized master `README.md` (1); working tree has 0 changes outside it | `git diff --name-only b9bb32c..HEAD` and `git status --porcelain` below |
+| J7 | Only `specs/implementation/` changes in ATA (plus the master `README.md`, edited on the owner's authorization of 2026-10-27 for X-001, X-003, X-006, X-007; master citations stay pinned to `b9bb32c`) | pass: 42 files changed since the branch base `b9bb32c`, 0 outside `specs/implementation/` other than the authorized master `README.md` (2); working tree has 0 changes outside it | `git diff --name-only b9bb32c..HEAD` and `git status --porcelain` below |
 
 Passing J2–J5 shows only that the documents agree with each other and with the master. Correctness evidence comes from the zero-context EGM reviews (J1, J6), the owner's answers to the open questions, and, later, the executed proofs. No proof in this package is *executable* or *passing* yet: every one is *specified*.
 
 ## Checker output
 
 ```text
-files=39 tree_paths=176 deltas=23 full_keys=87 stub_keys=56
+files=40 tree_paths=176 deltas=23 full_keys=87 stub_keys=56
 J7 changed=0 outside_specs=0 []
 
 no problems
@@ -31,6 +31,7 @@ no problems
 
 ```text
 $ git diff --name-only b9bb32c..HEAD | grep -v '^specs/implementation/'
+AGENTS.md
 README.md
 $ git status --porcelain --untracked-files=all   (entries outside specs/implementation/)
 (none)
