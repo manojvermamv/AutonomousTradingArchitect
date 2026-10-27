@@ -84,7 +84,7 @@ The master rates effort as **low** (narrow adapter or move), **medium** (several
 | Research and RL | Low to medium | Reused, offline |
 | Tests | High, spread through every slice | Fresh requirement-based tests (A08), not a port of the legacy suite |
 
-Plan size: 8 phases, 14 slices. SLICE-01 and SLICE-02 have full slice files (both built once, 2026-10-27); the other slices are deepened when they start, which is itself work.
+Plan size: 8 phases, 14 slices. SLICE-01, SLICE-02 and SLICE-03 have full slice files (each built once, 2026-10-27); the other slices are deepened when they start, which is itself work.
 
 ### Restructuring (legacy OA, about 950 Python files)
 

@@ -114,3 +114,33 @@ The new [SLICE-02 slice file](../../plan/slices/SLICE-02-ledger-integrity-eviden
 | R-M7 | Major | `published_at` on republish undefined | FIX: as D-F11 |
 | R-M8 | Major | Migration refusal behaviour unstated | FIX: returned, and the composition raises `WriterLost` |
 | R-N1…N7 | Nit | Test setup and closing; the probe decision; step 0 on a failed writer; Hypothesis capacity; reader wrapping only in `LedgerReader`; implicit expectations; file count | FIX |
+
+## SLICE-03 review (2026-10-27)
+
+The new [SLICE-03 slice file](../../plan/slices/SLICE-03-sessions-authority-recovery.md) was reviewed by fresh `egm:egm-design` and `egm:egm-implementation-readiness` reviewers (read-only) against the sessions, intent, dispatch and ledger specs, the owner answers and the built SLICE-02 code. Design: 4 Blocker, 11 Major, 6 Nit. Readiness: 5 Blocker, 12 Major, 3 Nit. Resolved by FIX except one CONTEST; the slice was then built (146 tests, every break check failing as required).
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| D-B1 | Blocker | The ratchet used the newest event's time, so a write after a backward jump lowered it (grant revival, session kept open) | FIX: `latest_time` is the maximum `event_time` in the domain; the no-revival test writes after the jump |
+| D-B2 | Blocker | The default authenticator could yield the owner or an in-process path from the payload principal | FIX: it never does; owner authority only through `owner_auth`; PRF-SES-02 marked partial until SLICE-10 |
+| D-B3 | Blocker | A non-owner `grant_admin` holder could issue an unbounded root grant that survives its own revocation | FIX: only the owner root issues grants without a parent |
+| D-B4 | Blocker | An interrupted restore continuity check was skipped on the next start | FIX: it runs while a restore-marked activation has no later advance |
+| D-M1 | Major | Service principals could hold safety and administration actions; non-humans could advance or fence | FIX: `SERVICE_ACTIONS`; advance and fence need a human |
+| D-M2 | Major | Check 6 passed with no lease store; a revoked binding's account left the lease set | FIX: no store fails check 6; the lease set is every account ever bound (deviation named) |
+| D-M3 | Major | No-store behaviour of a human advance unstated | FIX: succeeds only with no lease accounts; otherwise `SES-R10` |
+| D-M4 | Major | `RELEASE_BOUND` written before D04 | FIX: after D04 and repair (deviation named) |
+| D-M5 | Major | A repeated receipt digest collided on the release binding key | FIX: `release-<epoch_id>` |
+| D-M6 | Major | Renewal on wall time; renew interval not below the lease | FIX: monotonic scheduling; `renew < lease` required to take a lease |
+| D-M7 | Major | `shutdown(clean)` trusted the caller | FIX: clean only when the writer has not failed |
+| D-M8 | Major | A claim was possible outside `OPERATING` | FIX: `DISPATCH_REFUSED` `SES-R09` (dependency `stage`) before the claim |
+| D-M9 | Major | Entries passed A3 between the close time and the next tick | FIX: `entry_session_check` refuses at or after the recorded close |
+| D-M10 | Major | Activation might record a migration it had not run | CONTEST: it records migrations only when the ledger has no `MIGRATION_APPLIED` event (the empty-file path); now stated explicitly |
+| D-M11, R-M1 | Major | `contracts/execution.py` missing from the file list; counts wrong | FIX: listed; 30 paths |
+| D-N1…N6 | Nit | Own lease not takeable; scopes of revoked bindings never recorded `SES-R08`; a fence for any host cleared every obligation; containment of open-ended children; private restore revocation; unverified grants; late-bound stage; `STOPPED` | FIX (issuer kind not stored: recorded limit) |
+| R-B1 | Blocker | The CUJ-SES-3 test's second grant sorted first | FIX: `g-zz-other` |
+| R-B2 | Blocker | No way to start the clock before the open | FIX: `simulation(clock=...)`; tests state UTC times |
+| R-B3 | Blocker | Lease store clock and sharing undefined | FIX: `FakeLeaseStore` keeps its own clock; one store per test |
+| R-B4 | Blocker | Migration recording on a non-empty ledger | as D-M10 |
+| R-B5 | Blocker | `Asia/Kolkata` needs `tzdata` on Windows | FIX: fixed `+05:30` offset |
+| R-M2…M12 | Major | Command kinds, table keys, the `grant_admin` split, late wiring, decline lists, the second-ledger setup, restore test setup, older-test changes, the child driver, break checks that could not fail, mixed test details | FIX in the build and the rewritten slice file; the measurement count is now `7 + 3n` |
+| R-N1…N3 | Nit | Prime the clock watch; hex IDs; repeated receipts | FIX |
