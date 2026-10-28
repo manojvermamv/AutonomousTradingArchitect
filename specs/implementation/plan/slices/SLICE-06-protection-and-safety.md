@@ -1,6 +1,6 @@
 # SLICE-06 — Protection and safety
 
-* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-06-review-2026-10-28)). Step 1 is built (OA_NEW `03bbbde` on `slice-06`; [Step 1 as built](#step-1-as-built)). Step 2 is built (OA_NEW `e27a436`; [Step 2 as built](#step-2-as-built); Q-024 and Q-025 option B, [Q-026](../../decisions/owner-questions.md#q-026) option A). Step 3 is decision-complete below ([Q-027](../../decisions/owner-questions.md#q-027) option A) and not yet built. Steps 4–5 are scoped; each is deepened once the step before it is built, as in SLICE-04, SLICE-05 and SLICE-07 (the delivery plan's depth rule).
+* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-06-review-2026-10-28)). Step 1 is built (OA_NEW `03bbbde` on `slice-06`; [Step 1 as built](#step-1-as-built)). Step 2 is built (OA_NEW `e27a436`; [Step 2 as built](#step-2-as-built); Q-024 and Q-025 option B, [Q-026](../../decisions/owner-questions.md#q-026) option A). Step 3 is built (OA_NEW `3e6d36a`; [Step 3 as built](#step-3-as-built); [Q-027](../../decisions/owner-questions.md#q-027) option A). Steps 4–5 are scoped; each is deepened once the step before it is built, as in SLICE-04, SLICE-05 and SLICE-07 (the delivery plan's depth rule).
 * **Precedence:** the master README, then the ROADMAP, then this package. The authority is the [protection spec](../../design/protection-and-safety.md), with the [ledger spec](../../design/ledger-and-atomic-transaction.md) for the events and index tables and the [execution-domain spec](../../design/execution-domain-and-observations.md) for the observations protection reads. Every deviation is marked **Deviation**. No score, threshold or money value is set here: the ladder's parameters are the approved shipped values (POL-012), and every refusing setting is bound only to labelled synthetic or owner-answered values in tests.
 * **Phase:** master Phase 1 (ATA-01, POL-004…POL-006, POL-010…POL-015, A03-F5 kernel side, Combined-F6 protection part). Class S: the simulated broker only.
 * **Builds on:** [SLICE-07](SLICE-07-observations-reconciliation-domain.md) as built (fills, positions, observations, the OpenAlgo adapter's single orders). The branch `slice-06` is cut from `slice-07` (OA_NEW `1b42505`). SLICE-06 follows SLICE-07 because protection needs fills and observations (delivery plan).
@@ -1046,6 +1046,53 @@ All values are labelled synthetic. **Built now:** everything not marked **[Q-027
   * close before both legs are `ENDED`;
   * place a stop for a basket leg;
   * let the entry's `COMPLETED` end a leg.
+
+### Step 3 as built
+
+Commit `3e6d36a` on `slice-06`, on top of step 2's `e27a436`. It changes 19 paths (1,732 lines added, 80 removed). The files match the step's table, except where the table below says otherwise. A delegated agent built the OpenAlgo `basketorder` send, its in-send read and its contract tests to this text. Its diff was reviewed and the full suite run before the commit. The only key in the tests is the existing synthetic one.
+
+**Choices made while building** (none sets a money value; every test value is labelled synthetic):
+
+| Topic | As built |
+|---|---|
+| Regression | `ADMISSION_SETTINGS` binds `stop_on_fill`, not `basket_at_plan` as the text planned, with the loop off unless a world asks (`protection_loop`). The fixture plan is a LIMIT entry, which a basket rightly refuses (F-P23). Under `stop_on_fill` with no loop, every earlier test runs exactly as before. Basket worlds bind `basket_at_plan` and the loop |
+| Shared helpers | Not moved to `tests/conftest.py`. `test_protection_basket.py` has its own small helpers, and step 2's file is unchanged |
+| Holds | `hold_draft` and `episode` are module functions in `kernel/safety.py`, since `lifecycle` has no `Safety` instance. The builder does not call `authority.check`; `kernel:protection`'s `hold_engage` is recorded in the capability table |
+| `LEG_ASSIGNED` | Joins the command kinds, so its command key is stored. Role-less identity rows are inserted under any `OUTCOME_*`: a basket with an unassigned role is `ambiguous`, not acknowledged |
+| `basket_join` | Lives in `kernel/reconciliation.py`; the adapter uses it with `lifecycle._leg_specs`, so the send and reconciliation join alike |
+| The OpenAlgo adapter's reasons | Each invalid response has its own reason: `duplicate_order_id`, `rejection_with_identity`, `basket_count_mismatch`, `basket_malformed` and `basket_status_conflict`. `role_unassigned` follows only a valid response. A role counts as rejected only when no IDs remain unassigned, since a failed row cannot be tied to a role without guessing from response order. A failing budget callable counts as exhausted. A transport failure keeps any returned IDs unassigned |
+| `CONFIRMED` within 0.05 | A leg resting within 0.05 of its desired level reads `CONFIRMED`, so no modify chases a tick. The observed level is not separately recorded as the confirmed one |
+
+**Gaps against the text** (open work, carried into step 4's deepening; none passes silently):
+
+* **The transient retry.** Step 2's refusal memory clears only `ADM-R05` and `DSP-R01` by time. Other transient codes (`ADM-R12`, `PRT-R06`) wait for a ledger change before a retry. The transient-to-hold timeout itself works from "due since".
+* **CP-B2 end to end.** Per-leg `resolve_attempt` takes its roles from `plan_ref` and is built. The tests prove only that the coordinator's own unknown results name every role, not a full timeout resolved per leg.
+* **F-P24 across two subjects.** A second subject's failure within an engaged episode is proved through `hold_draft` returning nothing while engaged, not with two positions.
+
+**Tests** (805 passed, twice, with `pytest` in the slice's virtual environment on the development machine; no broker variables; nothing reached a deployment):
+
+| File | Cases |
+|---|---|
+| `test_protection_basket.py` (20, new) | **Basket:** `basket_legs` against legacy, the wire round trip with an empty field omitted and the digest unchanged; F-P23; three orders booked with their roles, owned and protective. **States and quantities:** the first desire with both legs `CONFIRMED` and the entry's `COMPLETED` ending no leg; a partial target fill lowering `q`, never the reservation, and shrinking only the stop; a full stop fill cancelling the target; no quantity request in the window; an entry rejected while its legs rest, completing at 0 and cancelling both; a leg with its own fills cancelled, not shrunk. **Holds:** overclose and its hold in the fill's one decision; a failed sibling cancel holding, and a release not undone. **Exits:** the trail modifying only the stop; square-off cancelling both legs before the close; the exit waiting for both legs without the conflict relation. **Roles and resolution:** an unassigned role assigned on a fresh book with nothing sent meanwhile; the coordinator's unknown result naming every role; CP-B4; the join by price type; a protective fill in the entry fill's decision; `hold_draft` while engaged |
+| `test_crash_boundaries.py` (+3) | CP-B1, CP-B3, CP-B5 in a child process exiting 86, reopened with the book seeded as it stood |
+| `test_openalgo_contract.py` | The basket body equal to legacy's leg shapes; the join with the target listed first; an unplaceable ID; a role assigned at most once; a leg rejected in the response; a failed, budget-refused and out-of-time read; six invalid responses; all failed without IDs; the key never published; more than one entry leg still `basket_unsupported` |
+
+**Break checks** (each applied with every anchor checked first and reverted byte for byte with an md5 check; every one failed its test). Four survived the first run because a second guard caught the change: B2 refusing a trigger on a LIMIT, conflict row 3 refusing a close while a leg rests, the wait rule recovering an early protective fill, and two window guards. The checks were widened to remove the whole guard, and one test was added. Then all failed:
+
+| Change | Test that failed |
+|---|---|
+| Infer roles from response order | `test_the_join_assigns_by_price_type_never_by_order` |
+| Let a protective fill touch the reservation | `test_overclose_escalates_and_holds_in_its_fills_decision` |
+| Draft a protective fill before the entry fill | `test_a_protective_fill_in_the_entry_fills_decision_follows_it` |
+| Send a quantity request during the window | `test_no_quantity_request_during_the_entry_window` |
+| Shrink a leg with its own fills | `test_a_leg_with_its_own_fills_is_cancelled_not_shrunk` |
+| Engage a second hold for an engaged reason | `test_hold_draft_is_none_while_the_reason_is_engaged` |
+| Record an overclose outside its fill's decision | `test_overclose_escalates_and_holds_in_its_fills_decision` |
+| Modify the target's price | `test_the_first_desire_and_both_legs_confirmed` |
+| Close before both legs are `ENDED` | `test_the_exit_waits_for_both_legs_even_without_the_conflict_relation` |
+| Place a stop for a basket leg | `test_a_partial_target_fill_lowers_q_and_shrinks_the_stop` |
+| Let the entry's `COMPLETED` end a leg | `test_the_first_desire_and_both_legs_confirmed` |
+| (adapter) Roles from response order; read past a refused budget; a failed row with an ID accepted; two IDs for one role; duplicate IDs accepted | the matching `test_openalgo_contract.py` cases |
 
 ## Step 4 — the latch and safety visibility (scoped)
 
