@@ -1,6 +1,6 @@
 # SLICE-07 — Observations, reconciliation, domain and the OpenAlgo adapter
 
-* **Status:** proposed. Steps 1–3 are built (OA_NEW `9bc4529`, `ee2225a` and `c58f10e` on `slice-07`; [Step 1 as built](#step-1-as-built), [Step 2 as built](#step-2-as-built), [Step 3 as built](#step-3-as-built)). Step 4 is decision-complete below and not yet built, and each is deepened once the step before it is built, as SLICE-04's and SLICE-05's were (the delivery plan's depth rule).
+* **Status:** proposed. Steps 1–4 are built (OA_NEW `9bc4529`, `ee2225a`, `c58f10e` and `1b42505` on `slice-07`; [Step 1 as built](#step-1-as-built), [Step 2 as built](#step-2-as-built), [Step 3 as built](#step-3-as-built), [Step 4 as built](#step-4-as-built)). What remains needs the owner: TASK-S07-05 and TASK-S07-06, and Q-022 and Q-023 before the adapter is composed, and each is deepened once the step before it is built, as SLICE-04's and SLICE-05's were (the delivery plan's depth rule).
 * **Precedence:** the master README, then the ROADMAP, then this package. The authority is the [execution-domain spec](../../design/execution-domain-and-observations.md) (evidence contract, attribution and combination, reconciliation, the OpenAlgo adapter), with the [ledger spec](../../design/ledger-and-atomic-transaction.md) for the events findings become. Every deviation is marked **Deviation**. No score, threshold or money value is set: every refusing setting is bound only to labelled synthetic or owner-answered values in tests.
 * **Phase:** master Phase 1/3 (D15, D16, ATA-06, the A06-F2 decision). Class S → R: steps 1–3 are disarmed (the simulated broker only); step 4 builds the real adapter and proves it against recorded responses and a local fake server, never a deployment.
 * **Builds on:** [SLICE-05](SLICE-05-dispatch-conflicts-scheduling.md) as built; branch `slice-07` cut from `slice-05` (OA_NEW `a4c4516`).
@@ -1170,6 +1170,57 @@ The deadline is a labelled synthetic 500 ms. Transport tests use a `LiveClock`; 
   | Let `_finish` downgrade a `not_sent` | the end-to-end `not_sent` test |
   | Drop the per-target modify wait | the modify-waits test |
   | Skip `trade_without_id` | the `dropped` test |
+
+### Step 4 as built
+
+Commit `1b42505` on `slice-07`, on top of step 3's `c58f10e`. It changes 27 paths (2,500 lines added, 18 removed), including the twelve fixture copies and their README. The files match the step's table. The copies were checked byte for byte against their source, which is unchanged since 445eb116.
+
+**A correction to the step's text.** The step said the loop over the adapter "reconciles nothing". It does reconcile: none of the 23 captured orders is ours, so each is recorded `FOREIGN_RECORDED` and escalated `foreign_activity`, once per key. A second cycle commits nothing. That is the foreign-activity rule (Q-016) working as specified, and the test asserts it.
+
+**Choices made while building** (none sets a money value; the test values are labelled synthetic):
+
+| Topic | As built |
+|---|---|
+| When `DSP-R04` applies | Only when the composed broker declares `requires_ticket` (the adapter does; the simulated broker and the test wrappers do not). Earlier tests whose positions are fixtures, with no admitted entry to take a product from, keep sending as before |
+| `send_ticket`'s signature | `send_ticket(writer, request, plan, observation, holdings=None)`: a close or modify needs the composed holdings. The coordinator passes `dispatch.holdings` |
+| The per-target modify wait | Counts another modify of the same target in `IN_FLIGHT`, `UNCERTAIN` or `WORKING`, or `ADMITTED` with an earlier attempt. `dispatch_inline` returns an unchanged `not_sent` outcome on `WAIT` without claiming |
+| The key | Scrubbed twice: in the parsed response, then across the whole published document. So the break check removes both |
+| A failure after `written` | A server that closes cleanly after reading the request ends in EOF, which the reader classes `ambiguous` itself. An abortive close (RST) exercises the guarded clause, and the test runs both |
+| Publishing out of time | The test makes the evidence store's `publish` sleep past the deadline instead of patching `_remaining_ms`, which needs no timing seam |
+| A tradebook row with no order ID | Left out, and the tradebook is marked incomplete. It is not named in `dropped`, since there is nothing to name |
+| Broker timestamps | Only `YYYY-MM-DD HH:MM:SS` is read. Any other form gives `None`, since the field is optional |
+
+**Tests** (656 passed, twice, with `pytest` in the slice's virtual environment on the development machine; no broker variables; nothing reached a deployment):
+
+| File | Cases |
+|---|---|
+| `test_openalgo_contract.py` (45, new) | **Captures:** byte-identical to the README's SHA-256 table; each day's four books map as the table says (domain and coverage `unknown`, digest, the response kept, 23 orders and 12 trades on 4 August, `placed_at` 09:45 UTC, flat positions with no money, funds `"63671.85"`). **Live-shaped rows:** a missing fill total, an `SL` row with a 0 trigger, `trigger_pending`, `validation pending` and `477.2`; trades with no ID or three places dropped and named; −708 funds; eight unmappable reads; HTTP 500 and another account. **Sends:** the exact entry body; close and cancel bodies; seven classifications; four `not_sent` cases before any I/O. **Transport:** a refused port (one connection attempt); a failing and a stalling resolver; TLS; plain `http` to a remote host refused; seven failures after writing, each one connection; the drip; an oversize body; a chunked body. **Evidence:** the transport result under its attempt key, with recovery's lookup; the key nowhere; publishing out of time. **The loop** over the adapter |
+| `test_dispatch_revalidation.py` (+6) | The ticket reaching `send` through `run_pass` and through `dispatch_inline`; `DSP-R04` before the claim; a modify waiting on a `WORKING` modify; a `not_sent` with no evidence staying `not_sent`; an adapter's own error domain |
+| `test_reconciliation_rules.py` (+1), `test_admission_checks.py` (+1) | `trade_without_id` once, never for a foreign order; `send_ticket` for each verb |
+
+**Break checks** (each applied to the source with every anchor checked first, run against the named test, and reverted byte for byte with an md5 check; every one failed its test):
+
+| Change | Test that failed |
+|---|---|
+| Retry a failed call once | `test_failures_after_writing_are_ambiguous_without_retry` |
+| A timeout per `recv` instead of one total deadline | `test_a_drip_is_cut_off_at_the_total_deadline` |
+| Class a failure after `written` as `not_sent` | the same test's RST case |
+| Read an error body carrying an ID as rejected | `test_bodies_are_classified_as_legacy_did` |
+| Read `mode` as the domain | `test_recorded_books_map_exactly` |
+| Read a missing `filled_quantity` as 0 | `test_live_shaped_orders` |
+| Give a trade without a trade ID a derived fill ID | `test_live_shaped_trades` |
+| Accept funds whose `data` is empty | `test_a_read_that_cannot_be_mapped_exactly_fails` |
+| Leave the key in published evidence (both scrubs removed) | `test_the_key_never_leaves` |
+| Map an unknown status to `open` | `test_live_shaped_orders` |
+| Read a 0 trigger as a level | `test_live_shaped_orders` |
+| Round a three-place price | `test_live_shaped_trades` |
+| Send a plan with a protective leg | `test_not_sent_before_any_io` |
+| Pass `ticket=None` from the coordinator | `test_the_ticket_reaches_send` |
+| Let `_finish` downgrade a `not_sent` | `test_a_not_sent_without_evidence_stays_not_sent` |
+| Drop the per-target modify wait | `test_a_modify_waits_while_another_modify_of_its_target_is_working` |
+| Skip `trade_without_id` | `test_a_dropped_trade_of_ours_is_escalated_once` |
+
+Two checks survived their first run and the tests were strengthened. The `written` break needed the RST case. The key break needed both scrubs removed, because the key is scrubbed twice. Both then failed.
 
 ## Completion conditions
 
