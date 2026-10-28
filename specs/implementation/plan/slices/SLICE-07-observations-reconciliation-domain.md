@@ -1,6 +1,6 @@
 # SLICE-07 — Observations, reconciliation, domain and the OpenAlgo adapter
 
-* **Status:** proposed. Steps 1 and 2 are built (OA_NEW `9bc4529` and `ee2225a` on `slice-07`; [Step 1 as built](#step-1-as-built), [Step 2 as built](#step-2-as-built)). Steps 3 and 4 are scoped, and each is deepened once the step before it is built, as SLICE-04's and SLICE-05's were (the delivery plan's depth rule).
+* **Status:** proposed. Steps 1 and 2 are built (OA_NEW `9bc4529` and `ee2225a` on `slice-07`; [Step 1 as built](#step-1-as-built), [Step 2 as built](#step-2-as-built)). Step 3 is decision-complete below and not yet built. Step 4 is scoped, and each is deepened once the step before it is built, as SLICE-04's and SLICE-05's were (the delivery plan's depth rule).
 * **Precedence:** the master README, then the ROADMAP, then this package. The authority is the [execution-domain spec](../../design/execution-domain-and-observations.md) (evidence contract, attribution and combination, reconciliation, the OpenAlgo adapter), with the [ledger spec](../../design/ledger-and-atomic-transaction.md) for the events findings become. Every deviation is marked **Deviation**. No score, threshold or money value is set: every refusing setting is bound only to labelled synthetic or owner-answered values in tests.
 * **Phase:** master Phase 1/3 (D15, D16, ATA-06, the A06-F2 decision). Class S → R: steps 1–3 are disarmed (the simulated broker only); step 4 builds the real adapter and proves it against recorded responses and a local fake server, never a deployment.
 * **Builds on:** [SLICE-05](SLICE-05-dispatch-conflicts-scheduling.md) as built; branch `slice-07` cut from `slice-05` (OA_NEW `a4c4516`).
@@ -625,14 +625,211 @@ Commit `ee2225a` on `slice-07`, on top of step 1's `9bc4529`. It changes 25 path
 
 Against the machine alone, three breaks from the list above survive: a duplicate fill, a stale `reservation_before` and a withheld completion. In the machine another layer refuses the duplicate (the fold rejects a known fill ID), and the other two never arise: one process never reads a stale reservation, and every machine fill is `simulated`. The files named above catch all three.
 
-## Step 3 — the observation loop (scoped)
+## Step 3 — the observation loop
 
-`ObservationLoop` with one reader thread per bound account and the latest observation per kind, an older observation of an order ignored, and every arrival waking the coordinator. Also:
+TASK-S07-07 and TASK-S07-08, with PRF-DOM-08's shared engine. Proofs:
 
-* the simulated broker as `ObservationPort`, with `BookStep`s;
-* row 6 and capacity read those observations (PRF-DSP-09, PRF-ADM-09);
-* PRF-DOM-08's shared engine (CUJ-DOM-1, facts recorded under `forbid` while releases wait);
-* `observation.poll_interval_secs` and `max_requests_per_minute`.
+* PRF-DSP-09: row 6 against the loop's observations, and an arrival waking the coordinator;
+* PRF-ADM-09: B5 against the loop's funds and positions, with step 2's ledger positions;
+* PRF-DOM-08: CUJ-DOM-1, and facts recorded under `forbid` while releases wait;
+* PRF-DOM-02's older-observation and redelivery (F-O6) clauses, now at the loop.
+
+The authorities are the execution-domain spec's [polling](../../design/execution-domain-and-observations.md#polling), [ports](../../design/execution-domain-and-observations.md#ports-kernelportspy) and [simulated broker](../../design/execution-domain-and-observations.md#simulated-broker-adapterssimulated_brokerpy) sections, and the dispatch spec's [coordinator loop](../../design/dispatch-and-coordination.md#coordinator-loop-on-the-writer-thread-one-io-worker-per-account). The step builds on step 2 as built (OA_NEW `ee2225a`). Fresh EGM design and implementation-readiness reviewers reviewed it ([review](../../egm/plan/review.md#slice-07-step-3-review-2026-10-28)), and their findings are resolved in the text below.
+
+### What legacy does, and what that decides
+
+* **Legacy has no standing observation loop.** Each consumer reads the books when it needs them:
+  * recovery is handed the books by its caller (`src/tier1/recovery.py:390-416`, `:540` @445eb116);
+  * the basket path joins one fresh orderbook read (`src/tier1/openalgo_adapter.py:26`, `src/core/basket_observation.py:59`);
+  * the operator CLI reads its own (`src/interfaces/cli/orders.py:46`).
+
+  So two consumers can judge one order on different books. The target keeps one reader per account and the latest observation in memory, and every consumer reads that.
+* **Legacy limits only its MCP gateway's request rate** (`src/interfaces/mcp/gateway.py:371-388`, 10 per second by default), not its broker reads. The target gives each account a read budget, `observation.max_requests_per_minute`, a measured refusing parameter.
+* **Legacy recovery records the books it rebuilt from as events** (`REBUILT_OBSERVATION`, `src/tier1/recovery.py:22`, `:287`). The target publishes an observation to the evidence store only when a decision is about to cite it (publish-before-reference, Combined-F2), and the writer checks the citation.
+
+### Decisions
+
+* **A reader cycle is the unit.** A cycle reads, in order, `orderbook`, `tradebook`, `positions` and `funds` for one account, and is stored or dropped whole.
+  * If any read fails, the whole cycle fails. Failing means it raised, returned another account's or another endpoint's observation, held items of the wrong type, or was stamped beyond `now + clock_skew_secs`. Nothing of it is stored or reconciled, and `health(account).failures` rises.
+  * So the latest positions and funds are never older than the books whose fills or completions they sit beside. A fill can never lower a reservation while capacity still reads positions from before it, which would admit beyond capacity. Because positions and funds are read after the books, a fill in the tradebook is in that cycle's positions, as far as the broker's own books agree. Whether OpenAlgo's positionbook can lag its tradebook is characterized in TASK-S07-05.
+  * `latest(account)` returns the newest stored cycle as `AccountObservation(orders=…, positions=…, funds=…, digest=…)`, the existing type, with `orders=` unchanged. Its `digest` is the SHA-256 of the canonical list of the three digests. Before the first cycle it returns `None`: admission refuses `ADM-R05`, and row 6 waits. The tradebook of the cycle is kept beside it for reconciliation.
+  * Each account's latest is one immutable snapshot reference, swapped whole. A read from another thread (action admission's stage A, `admission.py:534`, which is advisory; stage B reads again) always sees one whole cycle.
+* **Ordering and redelivery.**
+  * Each reader numbers its cycles (`seq`, per account, from 1). `drain` drops a cycle whose `seq` is not above the stored one (an older cycle), or whose four digests equal the stored cycle's (a redelivery, F-O6). Either way the cycle is neither stored nor reconciled.
+  * Ordering never compares wall-clock `as_of`, so a forward clock jump cannot halt the loop.
+  * **Deviation:** the execution-domain spec keeps the latest `as_of` per broker order ID. Each book is a whole cumulative snapshot, so the newest cycle per account carries every order's newest state, and the spec is amended to say so.
+* **Pending cycles.** Readers do not queue. Each account has one pending slot, and a new cycle replaces an unprocessed one, since books are cumulative. After filling the slot, the reader calls `wake()` (the coordinator's). `drain` takes the slots in `AccountId` order. A writer stall therefore leaves at most one cycle per account waiting.
+* **The read budget.**
+  * Each account keeps a sliding window of read times over the last 60 seconds (`(now − 60 s, now]` on `clock.elapsed()`). A cycle starts only if four reads fit in the window; otherwise it is skipped whole, and `health(account).budget_skips` rises. A read that raises still counts.
+  * The settings loader refuses a budget below one full cycle per interval: `4 × ceil(60 / observation_poll_interval_secs) > observation_max_requests_per_minute` is a `SettingsError`. It applies after both are resolved and only when both are bound, and `compose_simulation` applies the same check before composing the loop. The check sets no value: it refuses an owner pair that would starve the reads.
+  * The budget counts the kernel's book reads. Step 4's in-send orderbook read (the basket's validated join) also counts against the same per-account budget. The supervisor's reads go through the mediator (SLICE-11).
+* **Every citing decision publishes first, and the writer checks it.**
+  * The loop's `publish(observation) -> EvidenceRef` publishes `observation.content`. It raises `EvidenceUnpublished` when `content` is `None`, when publishing raises anything, or when the returned digest differs from `observation.digest`. `class EvidenceUnpublished(Exception)` is not an `OSError`, so it never marks the writer failed. Nothing is remembered between calls: `EvidenceStore.publish` already skips an intact object.
+  * **Reconciliation:** `lifecycle.reconcile(..., publish=None)` calls `publish` exactly once, before its first `transact`, if and only if `findings` is non-empty. It then puts the returned ref in every draft's `evidence`, so the writer resolves it inside the transaction (`store.py:643-650`). `EvidenceUnpublished` propagates out of `reconcile`; `drain` catches it, counts `health(account).publish_failures`, keeps the cycle as the latest, and moves on. The next cycle is judged afresh (F-O11). With `publish=None` (step 2's callers), drafts carry no ref, as now.
+  * **Admission:** both front doors cite the three books' digests in `COMMAND_ADMITTED`'s `state_heads`. Inside stage B, after the last check passes, the door calls `observations.cite(observation) -> tuple[EvidenceRef, ...]` and puts the refs in `COMMAND_ADMITTED`'s `evidence`. The loop's `cite` publishes the three books. On `EvidenceUnpublished`, stage B returns `stop(Refusal("ADM-R05", "stale_input", key, "COMMAND_ADMITTED"), "B1", reason="evidence_unpublished")`. A fixture's `cite` returns `()`.
+  * **The operator's route (Q-007):** `publish_latest(account) -> EvidenceRef` publishes the latest cycle's orderbook on the writer thread. A human resolving an untagged timeout cites it in `attempt_resolve`. Without it, an order that appeared after the escalation sits in books that cite nothing, so they are never published, and `attempt_resolve` would refuse `DOM-R05` forever. SLICE-10's interface calls it; step 3 tests it.
+  * Dispatch revalidation cites no observation (`DISPATCH_REFUSED`'s payload is `{code, message, dependency}`, `coordinator.py:503-504`), so row 6 publishes nothing.
+* **Draining on the writer thread.**
+  * `Coordinator.observation_loop` is an attribute, `None` by default, set by bootstrap. `run_pass` calls `drain()` only when it is set, after it commits worker returns and before its stage check. So an acknowledgement is committed before a book that shows its order is judged.
+  * `drain` stores each accepted cycle. Then, only while `reconcile_allowed()` holds, it reconciles the cycle's orderbook and then its tradebook. Positions and funds are never reconciled, since they corroborate only (step 1).
+  * Bootstrap passes `reconcile_allowed = lambda: recovery.stage in ("RECOVERY_WRITING", "OPERATING")`. `RECOVERY_WRITING` is entered only after recovery's steps 1–3, which `Recovery.run()` completes during composition, before any drain ([sessions spec](../../design/sessions-authority-lifecycle.md#actions-per-stage)).
+  * In `INSPECTING` a cycle is stored as the latest and not reconciled. Findings are edge-triggered on ledger state, so the next cycle carries the same facts.
+  * A cycle whose orderbook is older than the freshness bound (`max_observation_age_secs`) is stored and not reconciled, so no `ledger_view` is built for it.
+  * `PassReport` gains `reconciled: tuple = ()`, the committed (kind, command key) pairs, on both of its returns.
+* **Two port names.**
+  * `kernel/ports.py`'s `ObservationPort` becomes the spec's four reads: `orderbook`, `tradebook`, `positions` and `funds`, each `(account) -> Observation`.
+  * The current one-method port is renamed `LatestObservations` (`latest`, `cite`). `AdmissionPorts.observations` and `DispatchPorts.observations` keep their names and take a `LatestObservations`.
+  * `AdmissionPorts.observations = None` means the kernel's `ObservationLoop`, composed by bootstrap, as `safety` and `conflicts` already are. A fixture stays allowed for tests.
+* **An observation carries its publishable content.**
+  * `Observation` gains a keyword field `content: Mapping | None = field(default=None, compare=False)`. The adapter sets `digest` to `content_digest(content)`, the evidence store's SHA-256 of canonical JSON, so publishing returns `digest`. The adapter never publishes.
+  * `contracts/evidence.py` gains `observation_content(observation_fields..., items) -> dict`. Its shape is `{"kind": "observation", "endpoint", "account", "as_of", "arrived_at", "domain", "coverage": {"complete", "interval"}, "items"}`, with each item as `{field: value}` over its dataclass fields, `Timestamp`s as their `utc_iso`, `account` as its wire, and `interval` `{"start", "end"}` or `null`. That is step 2's E-13 form plus `arrived_at` (each poll its own digest) and `coverage`. The simulated broker and `ScriptedObservationPort` both use it. Step 4's OpenAlgo `content` carries the same E-13 fields.
+* **Endpoint names.** The reads return `endpoint` `orderbook`, `tradebook`, `positionbook` and `funds` (the pure core's names, `reconciliation.py:20`). The cycle's keys are `orderbook`, `tradebook`, `positions` and `funds`.
+* **Which accounts have readers.** The writer gains `observed_accounts() -> list[AccountId]`, sorted, covering:
+  * every account named by a grant with `revoked_sequence IS NULL` (`valid_until` ignored);
+  * every account of a standing binding with `revoked_sequence IS NULL`;
+  * every account in `command_identity`, whatever the state.
+
+  The last clause keeps a reader for every account that has, or once had, a position or a resting order, after a restart or a revocation; it reads more than the minimum. `start()` (the host's; tests call it explicitly) spawns a daemon reader for each such account. Each `drain` spawns one for any new account while started. `stop()` sets every reader's stop event and joins each with a 5-second timeout. The `simulation` fixture's teardown calls `stop()`. `read_once(account) -> tuple[str, ...]` runs one cycle on the calling thread and returns the four kinds, or `()` when the cycle was skipped or failed.
+* **`ReadHealth`** has fields `last_as_of: Timestamp | None` (the newest stored cycle's orderbook `as_of`), `failures: int`, `budget_skips: int` and `publish_failures: int`. Readers update it under a lock, and `health(account)` returns a copy.
+* **Endpoint contracts in simulation only.** `compose_simulation(..., observation_port=None)` takes its observation port (by default the broker), and reads `endpoint_contracts()` from it into `ReconciliationPolicy.contracts` when it composes the loop. The production composition (step 4, SLICE-11) takes contracts only from release-bound TASK-S07-05 records, never from an adapter method. A fixture composition keeps `{}`, so step 2's tests are unchanged.
+* **The simulated broker keeps a book.** It implements `ObservationPort`. The book has its own lock, never held across a stall, so reads continue while a send is stalled (A03-F1).
+  * **Constructor:** `SimulatedBroker(responder, clock, coverage="yes", evidence=None, *, funds: ObservedFunds | None = None, book_start: Timestamp | None = None)`.
+    * `funds` serves every account, and `set_funds(funds)` replaces it under the book lock. A funds read without funds raises, which is a failed cycle.
+    * `book_start` is the start of the orderbook and tradebook coverage interval (default `clock.now()` at construction). The test builders pass the trading day's open, `2026-11-02T03:45:00.000000Z`, so a claim at the test clock's start lies inside the covered interval.
+  * **Sends change the book where it can place them.**
+    * An entry `ack` adds an open order from the plan's first leg (instrument, side, quantity, limit price), with `placed_at` `clock.now()`. A `timeout` that names an `order_id` (step 2's tagged timeout) adds it too. An untagged `timeout`, and a plan of `None`, add nothing.
+    * A close `ack` adds an open order for the request's quantity and order. It takes the step's `instrument` and `side` when named. Otherwise it takes the account's one open book position, with the opposite side.
+    * A cancel `ack` marks its target `cancelled`. A modify `ack` changes its target's level or quantity, and a named replacement `order_id` cancels the target and adds the replacement, open.
+    * **When the book cannot place the effect,** it is left unchanged and the send result is unaffected. That covers a close with no single open book position and no named `instrument` and `side`, and a cancel or modify whose target is not in the book. This keeps every earlier test, whose orders and positions are fixtures, working.
+  * **`BookStep`** is a frozen dataclass in `adapters/simulated_broker.py` with fields `at: str` (UTC ISO, recorded clock), `account: AccountId`, `kind: Literal["fill", "status", "foreign"]` and `order_id: str`. It also has `quantity`, `price`, `fill_id`, `status`, `instrument` and `side`, each `None` unless its kind uses it. `add_step(step)` appends one. At every read, each due step (`clock.now() ≥ at`) of any account is applied, in list order. The kinds:
+    * `fill`: the order must be in the book; a missing order is a test bug. Its filled quantity rises, a trade is recorded with `traded_at` `at`, and the order becomes `filled` when complete. A quantity above the remaining is a test bug.
+    * `status`: sets `cancelled`, `rejected` or `expired`.
+    * `foreign`: adds an open order this broker never sent, with `placed_at` `at`. This is CUJ-DOM-4's unattributed order and Q-016's foreign activity; later `fill` steps can fill it.
+  * **What the reads return.** `as_of` is stamped before the read and `arrived_at` after. The domain is always `simulated`. Each item:
+    * an order: one `ObservedOrder`, with `amount` and `margin` equal to quantity × limit price, or `None` without one, and `placed_at`;
+    * a trade: one `ObservedTrade`;
+    * a position: one `ObservedPosition` per traded instrument, with `identity` `pos-<instrument>`. `net_quantity` is BUY fills minus SELL fills, and a flat instrument stays as a row at 0. `amount` and `margin` are |net| × the instrument's last fill price, a simulation rule labelled synthetic in a code comment;
+    * funds: one `ObservedFunds`, the broker's `funds` with `as_of` the read's.
+
+    The coverage is the configured `coverage` for every book. The orderbook and tradebook interval runs from `book_start` to `as_of`; positions and funds have no interval.
+  * **Domain.** Step 2's per-step `domain` stays a seam for send results in tests only. The execution-domain spec is amended to say so, and that funds come from the constructor, not the responder.
+  * **`endpoint_contracts() -> dict[str, EndpointContract]`** returns contracts for `orderbook` and `tradebook`: deployment version `simulated-1`, coverage rule `complete_when_all_pages`, `covers` `trading_day_to_read`, `visibility_secs` 0, no mode marker, no client tag, no status mapping, and `verified_by` `EvidenceRef("simulated", "0" * 64, <construction time>)`. These are properties of the simulated adapter, not owner parameters.
+
+### Files
+
+| File | Change |
+|---|---|
+| `src/autonomous_trading/kernel/reconciliation.py` | `ObservationLoop`, `ReadHealth`, `EvidenceUnpublished` |
+| `src/autonomous_trading/kernel/lifecycle.py` | `reconcile(..., publish=None)`; refs into drafts' `evidence` |
+| `src/autonomous_trading/kernel/ports.py` | `ObservationPort` (four reads); `LatestObservations` (renamed, with `cite`) |
+| `src/autonomous_trading/contracts/evidence.py` | `Observation.content`; `observation_content(...)` |
+| `src/autonomous_trading/kernel/ledger/evidence_store.py` | `content_digest(content)`, the digest `publish` returns |
+| `src/autonomous_trading/kernel/ledger/store.py` | `observed_accounts()` |
+| `src/autonomous_trading/adapters/simulated_broker.py` | The book, `BookStep`, `add_step`, `set_funds`, the four reads, `endpoint_contracts()` |
+| `src/autonomous_trading/kernel/coordinator.py` | `wake()`; `observation_loop`; `drain` in `run_pass`; `PassReport.reconciled` |
+| `src/autonomous_trading/kernel/admission.py` | `cite` in both doors' stage B; refs in `COMMAND_ADMITTED`'s `evidence`; `evidence_unpublished` |
+| `src/autonomous_trading/bootstrap.py` | Compose the loop when `observations` is `None`; `compose_simulation(..., observation_port=None)`; contracts in simulation only; the budget check; `Composition.observation_loop` |
+| `src/autonomous_trading/settings/schema.py`, `loader.py`, `resources/defaults.yaml` | `observation_poll_interval_secs`, `observation_max_requests_per_minute`; the budget check |
+| `tests/conftest.py` | The two settings; `FixtureObservations.cite`; `admission_ports(..., loop=False)`; `fresh()` leaves a loop alone; `build(..., funds=None, book_start=None)`; `observe(...)`; `book_step(...)`; `loop_filled_entry(...)`; `ScriptedObservationPort` and `scripted(...)`; `stop()` at teardown |
+| `tests/unit/test_observation_loop.py` | New (tree delta **T-30**): the loop, publishing, the budget, the simulated book |
+| `tests/integration/test_bounded_io.py` | Reads continue during a stalled send; an arrival wakes the coordinator |
+| `tests/integration/test_dispatch_revalidation.py` | PRF-DSP-09 through the loop |
+| `tests/unit/test_admission_checks.py` | PRF-ADM-09 through the loop |
+| `tests/integration/test_shared_engine.py` | New: PRF-DOM-08 |
+| `tests/unit/test_policy_parameters.py` | The two settings and the budget check |
+| Spec amendments | The execution-domain spec: the simulated broker (the book, the domain sentence, funds from the constructor), ports (`LatestObservations`), polling (cycles, drain order, failures, the budget check) and the per-order-ID sentence (the Deviation). The dispatch spec's loop (drain after returns). The intent spec's `ADM-R05` row (a cited observation that could not be published) |
+
+### `ObservationLoop` (`kernel/reconciliation.py`)
+
+```text
+ObservationLoop(port: ObservationPort, writer, clock, evidence, policy: ReconciliationPolicy, *,
+                rounding: str, poll_interval_secs: int, max_requests_per_minute: int,
+                wake: Callable[[], None], reconcile_allowed: Callable[[], bool])
+  latest(account) -> AccountObservation | None        # LatestObservations; one whole cycle
+  cite(observation: AccountObservation) -> tuple[EvidenceRef, ...]   # raises EvidenceUnpublished
+  publish_latest(account) -> EvidenceRef              # the latest orderbook, for attempt_resolve
+  read_once(account) -> tuple[str, ...]               # one cycle on the calling thread
+  drain() -> tuple[tuple[str, str | None], ...]       # writer thread; the committed pairs
+  start() / stop()
+  health(account) -> ReadHealth
+```
+
+The pure `assess` and `findings` are unchanged; the loop only feeds them.
+
+### Settings added
+
+| Field (section, key, environment) | Kind | Test value (labelled synthetic) |
+|---|---|---|
+| `observation_poll_interval_secs` (`observation`, `poll_interval_secs`, `AT_OBSERVATION_POLL_INTERVAL_SECS`) | positive integer, refusing | 5 |
+| `observation_max_requests_per_minute` (`observation`, `max_requests_per_minute`, `AT_OBSERVATION_MAX_REQUESTS_PER_MINUTE`) | positive integer, refusing; at least `4 × ceil(60 / poll)` | 60 |
+
+Both join `_ADMISSION` (kind `int`), `ADMISSION_REQUIRED` and the conftest `ADMISSION_SETTINGS`, and both are null by default. The existing `poll_interval_secs` (`market`, POL-020, view age) is unrelated.
+
+### Step 3 tests
+
+* **Fixtures (conftest):**
+  * `admission_ports(..., loop=True)` sets `observations=None`. `AdmissionWorld.fresh()` then refreshes the views only.
+  * `build(..., funds=None, book_start=None)` forwards both to `SimulatedBroker`. Loop worlds pass `funds=ObservedFunds("10000.00", "8000.00", "0.00", "0.00")` and `book_start` the day's open.
+  * `observe(world, advance_ms=1_000, account=ACCT)` advances the clock, runs `read_once(account)` and one `run_pass()`, and returns the `PassReport`. Every test that reads twice reads through it.
+  * `book_step(world, after_ms=0, account=ACCT, **fields)` adds a `BookStep` at `now + after_ms`.
+  * `loop_filled_entry(world, key="k-entry", *, order_id="E1", quantity=75, fill=25, price="20.00", fill_id="F-E1")` admits and dispatches an entry acknowledged as `order_id`, adds a `fill` step, and observes. It returns the position ID.
+  * `ScriptedObservationPort(contracts)` has `queue(kind, observation)`; a read of an empty kind raises, which is a failed cycle. `scripted(kind, items, *, domain, as_of, account=ACCT)` builds an `Observation` through `observation_content`, with its `digest`. Scripted funds are `ObservedFunds("10000.00", "8000.00", "0.00", "0.00")`. The world composes it through `compose_simulation(..., observation_port=…)` with `rcontract()` contracts.
+* `test_observation_loop.py`:
+  * `latest` is `None` before the first cycle, then one whole cycle;
+  * a cycle with any failed read stores nothing and reconciles nothing (raising, another account, another endpoint, a stamp beyond `now + skew`). In particular, a tradebook showing a fill whose positions read fails never commits that `FILL`;
+  * an older cycle (lower `seq`: the first cycle put back in the pending slot after the second is drained) and a redelivered one (equal digests, read twice with no clock advance) are neither stored nor reconciled. A counting wrapper around `lifecycle.reconcile` (monkeypatched) sees only `orderbook` and `tradebook`;
+  * a cycle with findings publishes once, before its commit. Each committed event's `evidence` holds the ref, and the store resolves it to the observation's `content`. A cycle with no findings publishes nothing;
+  * F-O11: a publish failure, or a digest mismatch, commits nothing for that cycle, keeps it the latest, counts `publish_failures`, and the next cycle commits;
+  * `INSPECTING`: `latest()` is set and `PassReport.reconciled == ()`;
+  * the budget, on a loop built directly with `poll_interval_secs=60, max_requests_per_minute=4`: a second `read_once` at the same elapsed time returns `()` with `budget_skips == 1`, and after `advance(60_000)` the cycle runs;
+  * `cite` publishes the three books, and `COMMAND_ADMITTED`'s `evidence` holds their refs. A publish that raises `OSError` records `ADM-R05` with `reason: evidence_unpublished`, `writer.failed` stays False, and the next admission commits;
+  * `publish_latest`: an untagged timeout is escalated, a `foreign` step then shows `E7`, and `attempt_resolve` citing `publish_latest(ACCT)` resolves `RESOLVED_REACHED`;
+  * the simulated book:
+    * each send effect, including the unplaceable ones left alone;
+    * each `BookStep` kind at its time;
+    * positions with a flat row at 0;
+    * coverage and its interval from `book_start`;
+    * the domain always `simulated`;
+    * `digest == content_digest(content)`;
+    * `endpoint_contracts()`'s two contracts.
+* `test_bounded_io.py`: with the loop started and a send stalled on the account, a cycle is still drained and `wait_woken(5)` returns True on its arrival. `stop()` ends the readers.
+* `test_dispatch_revalidation.py` (PRF-DSP-09):
+  * **CUJ-DSP-4.** `loop_filled_entry(fill=75)` gives a position of 75. An entry stalled on a second underlying holds the account's worker. A market close of 75 is admitted. A `foreign` step adds `X1` SELL 75 at 20.00, with a `fill` of 75 (`F-X1`). The broker position is then 0, so the next `observe` makes row 6 refuse the close `ADM-R07`, and nothing is sent.
+  * **Stale.** A cycle at T0. Advance 55 000 ms, refresh the views, and admit a close of 50 on a `loop_filled_entry(fill=75)` position and an entry on `BANKNIFTY` on the same account. Advance 6 000 ms; with no new cycle, `run_pass` gives `waiting == ("k-close",)` and `claimed == ("k-bn",)`.
+  * **Returns before observations.** Claim an entry, wait for its return to be queued (`wait_woken`), add a `fill` step for its order, `read_once`, then `run_pass`. `("FILL", key)` is in that pass's `reconciled`.
+* `test_admission_checks.py` (PRF-ADM-09), with the loop's observations:
+  * `loop_filled_entry` leaves entry A's reservation at 1000.00 and its broker position at 500.00 (25 × 20.00);
+  * `set_funds(ObservedFunds("3000.00", "8000.00", "0.00", "0.00"))` and an observe; entry B, on underlying `BANKNIFTY` so row 1 cannot refuse it first, passes B5 (1500.00) at exactly the boundary;
+  * with available `"2999.99"` it refuses `amount`. Without step 2's reduction, the boundary would be 3500.00, which shows the count is not doubled;
+  * F-A7 through the loop, with the existing numbers.
+* `test_shared_engine.py` (PRF-DOM-08), through `ScriptedObservationPort`:
+  * **CUJ-DOM-1.** An entry is acknowledged as `analyzer` (send step `domain`) with `A1`. A complete `live` orderbook without `A1` gives no absence, no conflict and no release, and a later entry is sent.
+  * **The tagged variant.** An `analyzer` tagged timeout naming `A2`, then a complete `live` orderbook without `A2` past the window, gives no `RESOLVED_NEVER_REACHED` (`domain_differs`).
+  * **Cross-domain identity.** A `live` orderbook showing `A1` `filled`, with a `live` tradebook trade on it, gives `CONFLICT_RECORDED` (`cross_domain_id`) and its escalation, no `FILL`, no `COMPLETED`, an unchanged reservation, and no refused send.
+  * **Under `forbid`.** An entry acknowledged with send step `domain: unknown` and a scripted `unknown` tradebook: its fill is recorded, and the reservation is not reduced.
+  * Each of the two settings unbound refuses the composition.
+* `test_policy_parameters.py`: the two settings resolve, are null by default, and refuse non-positive values. The budget check refuses 5 s with 47 per minute and accepts 48.
+* **Break checks** (named in the docstrings; each fails the test named):
+
+  | Break | Test |
+  |---|---|
+  | Store a partial cycle | the failed-cycle test |
+  | Store an older cycle | the older-cycle test |
+  | Drop the digest clause (reconcile a redelivered cycle) | the redelivery test's reconcile counter |
+  | Reconcile positions | the reconcile counter |
+  | Commit before publishing | the publish-once test (resolution order) |
+  | Commit after a failed publish | F-O11 |
+  | Attach no ref to a reconciliation draft | the publish-once test |
+  | Reconcile in `INSPECTING` | the `INSPECTING` test |
+  | Ignore the budget | the budget test |
+  | Store another account's cycle | the failed-cycle test |
+  | Admit without citing | the `cite` test |
+  | Let `EvidenceUnpublished` escape stage B | the `cite` test (`writer.failed`) |
+  | Drain before worker returns | returns before observations |
+  | Hold the book lock across a stall | `test_bounded_io.py` |
+  | Let `cross_domain_id` record facts | the cross-domain test (no `FILL`) |
+  | Drop a fact under `forbid` | the `forbid` test |
+  | Skip row 6 for a close | CUJ-DSP-4 |
 
 ## Step 4 — the OpenAlgo adapter (scoped)
 

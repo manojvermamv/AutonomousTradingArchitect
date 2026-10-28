@@ -173,8 +173,8 @@ SimulatedBroker(responder: ScriptResponder | RuleResponder, clock: Clock,
 
   A `"stall": "until_released"` step blocks the call until the test releases it (CUJ-DSP-1). `BookStep`s (fills and status changes at a clock time) refer to acknowledged orders, so the book stays coherent with the sends.
 * **`RuleResponder`** (simulation runs). It accepts every request and fills it under a versioned fill and cost model injected by the run (A07-F3, `README.md:889`; owned by the [research spec](research-rl-custody-promotion.md)), so an open-ended run needs no script.
-* Every result and observation carries domain `simulated`; nothing can configure another domain. `coverage` lets tests exercise incomplete coverage; domain conflicts are tested on constructed values at the reconciliation unit level.
-* `funds` returns one `ObservedFunds` from the responder (a fixed amount for scripts, the run's capital for `RuleResponder`), so admission check B5 can run in simulation.
+* Every observation carries domain `simulated`, and so does every send result except in tests: a script step's `domain` is a test seam for send results only ([SLICE-07 step 2 as built](../plan/slices/SLICE-07-observations-reconciliation-domain.md#step-2-as-built)). The book behind the reads, the `BookStep` format and the simulated endpoint contracts are fixed in [SLICE-07 step 3](../plan/slices/SLICE-07-observations-reconciliation-domain.md#decisions-2). `coverage` lets tests exercise incomplete coverage; domain conflicts are tested on constructed values at the reconciliation unit level.
+* `funds` returns one `ObservedFunds`: for scripts, the broker's `funds` constructor argument, replaced by `set_funds` ([SLICE-07 step 3](../plan/slices/SLICE-07-observations-reconciliation-domain.md#decisions-2)); for `RuleResponder`, the run's capital. So admission check B5 can run in simulation.
 * It has no network or credential capability. Its composition binds only a simulation ledger, and every effect it reports is committed by the kernel through the normal outcome commit.
 
 ### Ports (`kernel/ports.py`)
@@ -189,6 +189,7 @@ ObservationPort.funds(account) -> Observation              # one ObservedFunds i
 
 * The [simulated broker](#simulated-broker-adapterssimulated_brokerpy) implements both ports with these signatures; its observations cover the run so far.
 * The production composition binds `adapters.openalgo`; each simulation binds `adapters.simulated_broker`. No composition binds both (`README.md:800`).
+* Inside the kernel, admission and dispatch read `LatestObservations.latest(account)`, the observation loop's in-memory latest, and publish what they cite through `LatestObservations.cite` ([SLICE-07 step 3](../plan/slices/SLICE-07-observations-reconciliation-domain.md#decisions-2)).
 
 ### Domain attribution and combination
 
@@ -240,7 +241,7 @@ Assessment(matched: list[(command_key, attempt_no, leg_role | None, item)],
 
 * **Pure.** `assess` reads only its arguments; `now` comes from the injected clock (Combined-F1). It never writes. The supervisor records its assessments only as non-authoritative evidence (A03-F4).
 * **`ledger_view`** is a read-only snapshot, for one account, of the command, attempt (with each attempt's `claimed_at`, domain, endpoint-contract version and `unassigned_order_ids`), reservation, broker-identity and `reconciliation_fact` index rows.
-* **No regression, no repeats.** The ledger's state guards already make findings idempotent: `RESOLVED_*` applies only from `UNCERTAIN`, `COMPLETED` only from `WORKING`, and a fill ID counts once (I-4). `kernel.lifecycle` drops a finding those guards would refuse, without recording a refusal. `CONFLICT_RECORDED`, `FOREIGN_RECORDED` and `RECONCILIATION_ESCALATED` are recorded once per key in the `reconciliation_fact` index table. The observation loop keeps, in memory, the latest `as_of` per broker order ID and ignores an older observation of that order, so a reordered poll never produces a finding.
+* **No regression, no repeats.** The ledger's state guards already make findings idempotent: `RESOLVED_*` applies only from `UNCERTAIN`, `COMPLETED` only from `WORKING`, and a fill ID counts once (I-4). `kernel.lifecycle` drops a finding those guards would refuse, without recording a refusal. `CONFLICT_RECORDED`, `FOREIGN_RECORDED` and `RECONCILIATION_ESCALATED` are recorded once per key in the `reconciliation_fact` index table. The observation loop keeps, in memory, the newest reader cycle per account (numbered per reader) and ignores an older or redelivered cycle, so a reordered poll never produces a finding. Each book is a whole cumulative snapshot, so the newest cycle carries every order's newest state (a Deviation from a per-order `as_of`, [SLICE-07 step 3](../plan/slices/SLICE-07-observations-reconciliation-domain.md#decisions-2)).
 * **`policy`** carries `unknown_domain_settlement`, the 60 s bound, `reconciliation.clock_skew_secs`, `reconciliation.working_escalation_secs` and the endpoint contracts.
 
 **Verified identity** is a broker order ID recorded on the attempt (assigned to a leg, or in `unassigned_order_ids`), or a client tag whose round trip the endpoint contract records. The client-tag item defaults to **not available** (`book.py:14-18`). Attempts claimed under a later contract with a verified tag use it; earlier attempts keep the contract version they were claimed under.
@@ -327,6 +328,7 @@ All three fold into the `reconciliation_fact` index table, keyed as shown, which
 * The kernel's observation loop polls each bound account's orderbook, tradebook, positions and funds every `observation.poll_interval_secs` (a measured refusing parameter). The supervisor polls through the mediator and never faster.
 * Both stay inside `observation.max_requests_per_minute` per account (a measured refusing parameter, A09-F4), so OpenAlgo's rate limits are respected (`README.md:922`).
 * **Dependent decisions** that need a fresh observation: admission refuses (`ADM-R05`, [intent spec](intent-to-admission.md#admission-kerneladmissionpy)), dispatch revalidation row 6 waits, and reconciliation ignores the stale observation. The observation loop keeps each account's latest observation of every kind in memory, with its `as_of`, for these reads, and each arrival wakes the coordinator.
+* **On the writer thread**, arrivals are drained after worker returns are committed, so an acknowledgement is recorded before a book showing its order is judged. A reader cycle (orderbook, tradebook, positions, funds) is stored or dropped whole: one failed read fails the cycle, so positions and funds are never older than the books whose fills they sit beside, and the latest then ages until consumers refuse or wait. Every citing decision publishes first and puts the reference in its events' `evidence`, which the writer resolves. The settings loader refuses a budget below one full cycle per interval ([SLICE-07 step 3](../plan/slices/SLICE-07-observations-reconciliation-domain.md#decisions-2)).
 
 ### Refusal codes
 

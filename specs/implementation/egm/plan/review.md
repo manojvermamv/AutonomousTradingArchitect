@@ -373,3 +373,25 @@ A second fresh `egm:egm-design` review of the revised [SLICE-07 step 2](../../pl
 | E-5 | Major | A fill after `never_reached` could leave the order resendable | FIX: `after_never_reached` blocks eligibility and retries (`DOM-R06`); escalated |
 | E-6…E-15 | Minor | Decision grouping; a lost close fill; zero fills; instrument before an identity row; nested money checks; I-6 and expected states; the 0.00 rule; evidence checks; an unbounded read; the ACK row's column | FIX |
 
+
+## SLICE-07 step 3 review (2026-10-28)
+
+Fresh `egm:egm-design` and `egm:egm-implementation-readiness` reviews of [SLICE-07 step 3](../../plan/slices/SLICE-07-observations-reconciliation-domain.md#step-3--the-observation-loop), the observation loop, before it was built. Design: 1 Critical, 4 Major, 10 Minor (F-1…F-15). Readiness: 1 Critical, 13 Major, 14 Minor (R-1…R-28). Several overlap (F-4 with R-3, F-6 with R-6, F-7 with R-11, F-8 with R-2). Both reviewers checked the PRF-ADM-09 hand calculation and found it correct. Every finding is resolved by FIX in the step's text, which was rewritten rather than amended, since nothing was built.
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| F-1 | Critical | Kinds stored separately let a tradebook commit a fill while capacity still read older positions, admitting beyond capacity | FIX: a reader cycle (all four reads) is stored or dropped whole; budget per cycle |
+| R-1 | Critical | Every send changing the book broke every earlier close, cancel and modify test, whose orders and positions are fixtures | FIX: an effect the book cannot place leaves it unchanged; the send result is unaffected |
+| F-2 | Major | No route published the orderbook an `attempt_resolve` must cite once its order appeared after the escalation (`DOM-R05` for ever) | FIX: `publish_latest(account)` for the operator's route; tested |
+| F-3 | Major | Publish-before-reference rested on call order alone; a `None` content or a stale memo committed an unresolvable digest | FIX: `publish` and `cite` return refs placed in events' `evidence`, which the writer resolves; no memo |
+| F-4, R-3 | Major | A failed `cite` inside stage B could fail the writer (`OSError`) or escape `admit` | FIX: `EvidenceUnpublished(Exception)`; stage B returns `ADM-R05` `evidence_unpublished`; tested with `writer.failed` |
+| F-5 | Major | `observed_accounts()` left an account with a position or resting order unread after a restart or revocation | FIX: every account in `command_identity` too |
+| R-4 | Major | Setting field names unnamed, and the obvious one collided with `market.poll_interval_secs` | FIX: `observation_poll_interval_secs`, `observation_max_requests_per_minute`; where the budget check runs |
+| R-5, R-7, R-8, R-9 | Major | Loop world plumbing, `funds`, `BookStep` and `ScriptedObservationPort` were not buildable as written | FIX: each specified (types, registration, times, injection through `compose_simulation(..., observation_port=…)`) |
+| R-6, F-6 | Major | Dropping by wall-clock `as_of` halted on a clock jump and silently dropped equal stamps under the recorded clock | FIX: per-reader cycle numbers plus digest equality; a stamp beyond `now + skew` fails the cycle; `observe` advances the clock; the Deviation marked |
+| R-10 | Major | The budget test could not hold at the stated values | FIX: a loop built with 60 s and 4 per minute |
+| R-11, F-7 | Major | The "drain before returns" break survived its test | FIX: the test asserts a `FILL` committed in the same pass |
+| R-12 | Major | The redelivery break was masked by the `as_of` clause | FIX: redelivery is equal digests at a later `seq`; a reconcile counter observes it |
+| R-13 | Major | "Release across domains" named no mutation; CUJ-DOM-1's test was vacuous for a working entry | FIX: a cross-domain filled book with a trade; the mutation "`cross_domain_id` records facts" |
+| R-14 | Major | The stale-close test collided with the 9 s close deadline | FIX: a timeline (55 s, then 6 s) |
+| F-8…F-15, R-15…R-28 | Minor | INSPECTING contradiction; recovery-step predicate; unbounded queue and stale reconcile; kind and endpoint validation; same-account blocking; tagged CUJ-DOM-1 variant; contracts only in simulation; the latest read off-thread; publish-failure counts and step 4's in-send read; wire forms; endpoint names; `AccountObservation` field names; publish semantics; `ReadHealth`; `observed_accounts` return; simulated data fields; the coverage interval's start (`book_start`); spec drift; `observation_loop` attribute; positions break via a spy; files row; CUJ-DSP-4 numbers; how to get `unknown` | FIX |

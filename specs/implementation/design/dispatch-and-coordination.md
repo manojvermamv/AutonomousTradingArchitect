@@ -112,6 +112,7 @@ Every ledger write in the kernel runs on the one writer thread ([ledger spec](le
 ```text
 on wake (ledger commit, worker return, observation arrival, or deadline timer);
 wakes arriving during a pass are merged into one next pass:
+  commit queued worker returns (below), then drain observation arrivals   # SLICE-07 step 3
   for each ADMITTED command whose dispatch deadline has passed (eligible or not):
       commit DISPATCH_REFUSED(cmd, DSP-R01)
   for each bound account, in AccountId order, whose worker is idle:

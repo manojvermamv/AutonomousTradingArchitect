@@ -314,7 +314,7 @@ Stage B commits `COMMAND_ADMITTED` with the normalized request, the plan, the ap
 | Code | Meaning |
 |---|---|
 | `ADM-R01` (`malformed_request`) | Missing or ill-typed field; unresolved or abstaining intent; session mismatch |
-| `ADM-R05` (`stale_input`) | A B1 limit failed, or an observation is incomplete |
+| `ADM-R05` (`stale_input`) | A B1 limit failed, an observation is incomplete, or an observation the decision cites could not be published (`evidence_unpublished`, [SLICE-07 step 3](../plan/slices/SLICE-07-observations-reconciliation-domain.md#decisions-2)) |
 | `ADM-R07` (`effect_mismatch`) | The effect does not match the target: not owned, not open, too large, wrong side or field |
 | `ADM-R09` (`capacity`) | No capacity; the reason names the failing term, or `capacity_rule_unbound` |
 | `ADM-R10` (`binding_mismatch`) | A B6 condition failed |
