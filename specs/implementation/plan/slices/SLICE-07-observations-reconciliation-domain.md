@@ -1,6 +1,6 @@
 # SLICE-07 — Observations, reconciliation, domain and the OpenAlgo adapter
 
-* **Status:** proposed. Steps 1 and 2 are built (OA_NEW `9bc4529` and `ee2225a` on `slice-07`; [Step 1 as built](#step-1-as-built), [Step 2 as built](#step-2-as-built)). Step 3 is decision-complete below and not yet built. Step 4 is scoped, and each is deepened once the step before it is built, as SLICE-04's and SLICE-05's were (the delivery plan's depth rule).
+* **Status:** proposed. Steps 1–3 are built (OA_NEW `9bc4529`, `ee2225a` and `c58f10e` on `slice-07`; [Step 1 as built](#step-1-as-built), [Step 2 as built](#step-2-as-built), [Step 3 as built](#step-3-as-built)). Step 4 is scoped, and each is deepened once the step before it is built, as SLICE-04's and SLICE-05's were (the delivery plan's depth rule).
 * **Precedence:** the master README, then the ROADMAP, then this package. The authority is the [execution-domain spec](../../design/execution-domain-and-observations.md) (evidence contract, attribution and combination, reconciliation, the OpenAlgo adapter), with the [ledger spec](../../design/ledger-and-atomic-transaction.md) for the events findings become. Every deviation is marked **Deviation**. No score, threshold or money value is set: every refusing setting is bound only to labelled synthetic or owner-answered values in tests.
 * **Phase:** master Phase 1/3 (D15, D16, ATA-06, the A06-F2 decision). Class S → R: steps 1–3 are disarmed (the simulated broker only); step 4 builds the real adapter and proves it against recorded responses and a local fake server, never a deployment.
 * **Builds on:** [SLICE-05](SLICE-05-dispatch-conflicts-scheduling.md) as built; branch `slice-07` cut from `slice-05` (OA_NEW `a4c4516`).
@@ -830,6 +830,60 @@ Both join `_ADMISSION` (kind `int`), `ADMISSION_REQUIRED` and the conftest `ADMI
   | Let `cross_domain_id` record facts | the cross-domain test (no `FILL`) |
   | Drop a fact under `forbid` | the `forbid` test |
   | Skip row 6 for a close | CUJ-DSP-4 |
+
+### Step 3 as built
+
+Commit `c58f10e` on `slice-07`, on top of step 2's `ee2225a`. It changes 20 paths (1,258 lines added, 37 removed). The files match the step's table.
+
+**A gap the tests found.** As first written, a send placed its effect on the book without first applying the book steps already due. So a close sent after a fill step's time saw no open position, and was left out of the book. A send now applies every due step first, under the same lock. `test_sends_change_the_book_where_it_can_place_them` proves it.
+
+**Choices made while building** (none sets a money value; the test values are labelled synthetic):
+
+| Topic | As built |
+|---|---|
+| The loop worlds' budget | `LOOP_SETTINGS` binds `observation_max_requests_per_minute` 6000, not the step's 60. A test reads many cycles within one recorded minute, and at 60 some would be skipped silently. The budget itself is proved on a loop built directly with 60 s and 4 per minute, as the step says. `ADMISSION_SETTINGS` keeps 60 |
+| The first cycle | `open_admission_world` reads one cycle for each account of a loop world and drains it. A failed first read only counts: the scripted port has nothing queued yet, so `test_shared_engine.py` queues its own first cycle. In a loop world `world.fresh()` refreshes the market views only |
+| `loop_filled_entry` | Has no `quantity` parameter, since the plan fixes 75. It asserts that its fill was committed in the same pass |
+| A close's tagged timeout | Places its order in the book, as an entry's does. The step named only the entry |
+| Escalations | `reconcile` puts the observation's ref in a `RECONCILIATION_ESCALATED` event's `evidence` too, not only in command drafts |
+| Q-007's test | With the simulated contracts, an empty book would judge an untagged timeout never reached. So the foreign `E7` is in the book before the first cycle after the timeout, and the test proves the route (`publish_latest` gives `attempt_resolve` a book to cite), not a late appearance |
+| The break check "commit before publishing" | Implemented as publishing after the commits, with no ref. A commit that cited an unpublished digest would be refused by the writer (`LED-R06`), which is the guard the step relies on |
+
+**Tests** (603 passed, twice, with `pytest` in the slice's virtual environment on the development machine; no broker variables):
+
+| File | Cases |
+|---|---|
+| `test_observation_loop.py` (20, new) | **Cycles:** `latest` before and after a drained cycle; a failed cycle (a raising read, another account, another endpoint, a future stamp) stores and reconciles nothing, including a fill whose positions read failed; an older and a redelivered cycle; only the books reconciled. **Publishing:** once, before the commit, with the ref in the event's `evidence` resolving to the tradebook's content; nothing published without findings; a raising publish and a digest mismatch (F-O11). **Gates:** `INSPECTING`; the budget at 4 per minute across the 60 s boundary. **Admission:** the three books cited; a failed citation records `ADM-R05` `evidence_unpublished`, leaves the writer working, and the next admission commits. **Q-007:** `publish_latest` for `attempt_resolve`. **The book:** every send effect, including the ones left alone; each `BookStep` kind at its time; a flat position row; coverage, domain, digest and contracts; funds required |
+| `test_shared_engine.py` (7, new) | CUJ-DOM-1; a tagged analyzer timeout never judged by a live book; a cross-domain identity match (a conflict, no facts, an unchanged reservation, no refused send); a fill recorded under `forbid` with no reduction; each observation setting unbound; a budget below one cycle |
+| `test_dispatch_revalidation.py` (+3) | CUJ-DSP-4 through the loop; a stale book makes a close wait while the same account's entry is claimed; returns committed before the books are judged |
+| `test_admission_checks.py` (+3) | PRF-ADM-09's boundary at 3000.00 and 2999.99; F-A7 through the loop |
+| `test_bounded_io.py` (+1), `test_policy_parameters.py` (+1) | Reads continue while a send is stalled; the two settings and the budget check |
+
+**Break checks** (each applied to the source, run against the named test, and reverted byte for byte with an md5 check; every one failed its test):
+
+| Change | Test that failed |
+|---|---|
+| Store a partial cycle | `test_a_failed_read_fails_the_whole_cycle` |
+| Store an older cycle | `test_an_older_cycle_is_neither_stored_nor_reconciled` |
+| Drop the digest clause | `test_a_redelivered_cycle_is_neither_stored_nor_reconciled` |
+| Reconcile positions | `test_only_the_books_are_reconciled` |
+| Commit before publishing | `test_a_cycle_with_findings_is_published_once_before_its_commit` |
+| Attach no ref to a reconciliation draft | the same test |
+| Commit after a failed publish | `test_a_failed_publish_commits_nothing_and_the_next_cycle_does` |
+| Reconcile in `INSPECTING` | `test_inspecting_stores_and_reconciles_nothing` |
+| Ignore the budget | `test_the_budget_skips_a_whole_cycle_until_the_window_moves` |
+| Store another account's cycle | `test_a_failed_read_fails_the_whole_cycle` |
+| Admit without citing | `test_admission_publishes_the_three_books_it_cites` |
+| Let an `OSError` escape the loop's publish in stage B | `test_a_failed_citation_refuses_without_failing_the_writer` |
+| Drain before worker returns | `test_returns_are_committed_before_the_books_are_judged` |
+| Hold the book lock across a stall | `test_reads_continue_while_a_send_is_stalled` |
+| Let `cross_domain_id` record facts | `test_an_identity_match_in_another_domain_is_a_conflict_and_records_no_facts` |
+| Drop a fact under `forbid` | `test_facts_are_recorded_under_forbid_while_releases_wait` |
+| Reduce an `unknown` fill under `forbid` | the same test |
+| Skip row 6 for a close | `test_cuj_dsp_4_a_position_flattened_before_the_claim` |
+| Skip the fill's reduction (capacity counts it twice) | `test_b5_through_the_loop_counts_a_filled_entry_once` |
+
+One run of the break script left a mutation in place. Its second anchor did not match after the first edit had been written, so `kernel/lifecycle.py` stayed changed. It was restored by hand and checked against the md5 recorded before the run. The script now checks every anchor before it writes anything. The suite runs above came after the restore.
 
 ## Step 4 — the OpenAlgo adapter (scoped)
 
