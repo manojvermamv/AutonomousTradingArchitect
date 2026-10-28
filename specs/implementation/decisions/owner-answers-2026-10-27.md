@@ -1,6 +1,6 @@
 # Owner answers, 2026-10-27
 
-* **Status:** owner decisions, recorded by the package. They answer [Q-001…Q-021](owner-questions.md) (Q-017 raised by the third basket review, Q-018 by the SLICE-04 step 2 build, Q-019 and Q-020 by the step 3 and step 4 deepenings, each answered the same day; Q-021 raised by the SLICE-05 step 1 build and answered 2026-10-28; Q-024 and Q-025 raised by SLICE-06 and answered 2026-10-28; Q-022, Q-023 and Q-026 stay open) and the master corrections [X-001…X-007](../consistency/master-contradictions.md).
+* **Status:** owner decisions, recorded by the package. They answer [Q-001…Q-021](owner-questions.md) (Q-017 raised by the third basket review, Q-018 by the SLICE-04 step 2 build, Q-019 and Q-020 by the step 3 and step 4 deepenings, each answered the same day; Q-021 raised by the SLICE-05 step 1 build and answered 2026-10-28; Q-024 and Q-025 raised by SLICE-06 and answered 2026-10-28; Q-026 raised by SLICE-06 step 2 and answered 2026-10-28; Q-022 and Q-023 stay open) and the master corrections [X-001…X-007](../consistency/master-contradictions.md).
 * **Rule for every value below (Q-015):** every limit and switch stays a **configurable** setting. An answer gives the value bound in config for the first release; nothing is hard-coded, and the loader still refuses a live composition that leaves a setting unbound.
 
 ## Owner questions
@@ -30,6 +30,7 @@
 | Q-021 | Option A (2026-10-28): while a position's group has an unresolved effect, a modify that raises its protective order's quantity is refused by conflict row 2; lowering, and the excepted cancels, still pass. Option B (except a raise to the owned quantity) is recorded | rule in the protection spec (conflict row 2); no setting |
 | Q-024 | Option B (2026-10-28, after a correction: legacy's live host passes no opposing score, `scripts/run_framework_live.py:5485`): the kernel cycles the ladder with no opposing score, as live. Option A (a worker-reported score) was first chosen on the wrong premise and is not built | no setting |
 | Q-025 | Option B (2026-10-28): after a refused or failed stop modify the ladder puts back only `sl` and keeps the move's other fields, as the live host (`scripts/run_framework_live.py:5221-5278`); option A, the library rule step 1 built, is replaced | no setting |
+| Q-026 | Option A (2026-10-28): the kernel runs the deep-OTM delta exit as the protection spec says (`premium_exit` with the tick's delta; reason `deep_otm_delta`), although legacy's live host at 445eb116 never ran it. Option B (not run, live parity) is recorded | rule in SLICE-06 step 2; threshold `delta_exit_threshold` (policy, default 0.10) |
 
 ## Master corrections
 

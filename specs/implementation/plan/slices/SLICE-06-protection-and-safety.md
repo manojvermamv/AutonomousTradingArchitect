@@ -1,6 +1,6 @@
 # SLICE-06 — Protection and safety
 
-* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-06-review-2026-10-28)). Step 1 is built (OA_NEW `03bbbde` on `slice-06`; [Step 1 as built](#step-1-as-built)). Step 2 is decision-complete below (Q-024 and Q-025 answered, option B for both) and not yet built; only its deep-OTM exit row waits on [Q-026](../../decisions/owner-questions.md#q-026). Steps 2–5 are scoped; each is deepened once the step before it is built, as in SLICE-04, SLICE-05 and SLICE-07 (the delivery plan's depth rule).
+* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-06-review-2026-10-28)). Step 1 is built (OA_NEW `03bbbde` on `slice-06`; [Step 1 as built](#step-1-as-built)). Step 2 is decision-complete below (Q-024 and Q-025 option B; [Q-026](../../decisions/owner-questions.md#q-026) option A) and not yet built. Steps 2–5 are scoped; each is deepened once the step before it is built, as in SLICE-04, SLICE-05 and SLICE-07 (the delivery plan's depth rule).
 * **Precedence:** the master README, then the ROADMAP, then this package. The authority is the [protection spec](../../design/protection-and-safety.md), with the [ledger spec](../../design/ledger-and-atomic-transaction.md) for the events and index tables and the [execution-domain spec](../../design/execution-domain-and-observations.md) for the observations protection reads. Every deviation is marked **Deviation**. No score, threshold or money value is set here: the ladder's parameters are the approved shipped values (POL-012), and every refusing setting is bound only to labelled synthetic or owner-answered values in tests.
 * **Phase:** master Phase 1 (ATA-01, POL-004…POL-006, POL-010…POL-015, A03-F5 kernel side, Combined-F6 protection part). Class S: the simulated broker only.
 * **Builds on:** [SLICE-07](SLICE-07-observations-reconciliation-domain.md) as built (fills, positions, observations, the OpenAlgo adapter's single orders). The branch `slice-06` is cut from `slice-07` (OA_NEW `1b42505`). SLICE-06 follows SLICE-07 because protection needs fills and observations (delivery plan).
@@ -340,7 +340,7 @@ All citations are at 445eb116. The live host is `scripts/run_framework_live.py`,
   * On failure it puts back only `sl` (`:5277`).
   * Before every cycle, a higher broker stop recorded by the gateway replaces `sl` (`:5468-5470`). After a successful move, that is the tick-rounded level.
 * **Restart.** The host rebuilds a cold ladder from the higher of the plan stop and the recorded `trail_stop`, and loses the peaks (`:5188-5196`, `:5457-5463`).
-* **No tick exits run live.** Nothing in the host calls `premium_exit`, `check_exit` or `on_tick`. The target rested at the broker (the basket), and the deep-OTM delta exit never ran ([Q-026](../../decisions/owner-questions.md#q-026)).
+* **No tick exits run live.** Nothing in the host calls `premium_exit`, `check_exit` or `on_tick`. The target rested at the broker (the basket), and the deep-OTM delta exit never ran. The owner keeps it anyway ([Q-026](../../decisions/owner-questions.md#q-026), option A).
 * **No re-placement.** No legacy code places a new stop after the broker rejects, expires or cancels one. A modify that returns a new order ID is a replacement of the same stop (`registry.py:1603`).
 * **Square-off** (`src/runtime/session_close.py:92-270`), on every pass after `square_off_time` in IST.
   * It skips a partly filled entry (`:146-152`).
@@ -523,7 +523,7 @@ Each evaluation acts on the leg, at most one request per leg per pass, in this o
 * **The test.** `premium_exit(settings, from_state(ladder_state), float(price), delta)`:
   * `premium_sl_hit` does nothing, because the broker's stop executes.
   * `premium_target_hit` records `EXIT_STARTED` (reason `target`, cause `{"price": price, "at": at.utc_iso}`) once per position. It is not recorded while kill or a refusing hold would withhold the sequence; it escalates `exit_under_kill` once instead.
-  * **Deep-OTM waits on [Q-026](../../decisions/owner-questions.md#q-026).** Until it is answered, `delta` is passed as `None`, so the delta test never fires, which is the live host's behaviour. Under option A the loop passes `Tick.delta` and records reason `deep_otm_delta`: a one-line change with its test.
+  * **Deep-OTM** ([Q-026](../../decisions/owner-questions.md#q-026), option A): the tick's `delta` (`float`, or `None` when the tick has none) is passed, and `DeepOTM_delta_…` records `EXIT_STARTED` (reason `deep_otm_delta`, the same cause shape) once per position, under the same kill and freshness rules. **Deviation (from the live host)**, by the owner's decision: the host never ran it.
 
 #### The exit sequence
 
@@ -623,7 +623,8 @@ Worlds are `admission_world(policy=OFF, plan=protected_plan, kernel_positions=Tr
   * a fresh target tick records one `EXIT_STARTED` and runs the sequence to the close, even after the price moves back;
   * a stale tick, or one from before the fill, does nothing;
   * a stop tick does nothing;
-  * a deep-OTM tick does nothing while Q-026 is open;
+  * a deep-OTM tick (delta 0.05) records `EXIT_STARTED` `deep_otm_delta` and runs the sequence, and beats a target tick at the same time;
+  * a tick with no delta never starts a deep-OTM exit;
   * a target tick under kill records no exit and escalates once.
 * **The exit sequence:**
   * the close is never submitted while the stop rests;
@@ -664,7 +665,7 @@ Worlds are `admission_world(policy=OFF, plan=protected_plan, kernel_positions=Tr
   * re-place a rejected stop;
   * close before the chain is accounted for;
   * drop the refusal memory;
-  * pass `Tick.delta` to `premium_exit` while Q-026 is open;
+  * pass no delta to `premium_exit`;
   * run protection before `OPERATING`.
 
 ## Step 3 — basket placement (scoped)

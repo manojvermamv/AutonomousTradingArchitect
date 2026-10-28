@@ -29,7 +29,7 @@ Status: **open owner decision** unless a row says answered. Each question is a g
 | [Q-023](#q-023) | How is a timed-out close, cancel or modify resolved when no book can prove its absence? | [SLICE-07 step 4](../plan/slices/SLICE-07-observations-reconciliation-domain.md#step-4--the-openalgo-adapter); Q-012 | The OpenAlgo adapter's production composition (SLICE-11); TASK-S07-05 | open |
 | [Q-024](#q-024) | The trail's opposing-signal tightening: what supplies the opposing score in the kernel? | `src/core/framework/protection/trail.py:476-481` @445eb116; [SLICE-06 step 1](../plan/slices/SLICE-06-protection-and-safety.md#step-1--the-ladder-protection-state-and-the-derived-leg) | TASK-S06-01 (SLICE-06 step 2's trail loop) | answered 2026-10-28: option B, after a correction ([answers](owner-answers-2026-10-27.md)) |
 | [Q-025](#q-025) | A refused or failed stop modify: does the ladder keep legacy's library rule (the move not taken) or the live host's (only the stop put back)? | `scripts/run_framework_live.py:5221-5278` @445eb116; [SLICE-06 step 1](../plan/slices/SLICE-06-protection-and-safety.md#step-1-as-built) | TASK-S06-01 (SLICE-06 step 2's trail loop) | answered 2026-10-28 ([answers](owner-answers-2026-10-27.md)) |
-| [Q-026](#q-026) | The deep-OTM delta exit: legacy's live host never ran it. Keep it in the kernel, or not? | `scripts/run_framework_live.py` @445eb116 (no `premium_exit` call); [SLICE-06 step 2](../plan/slices/SLICE-06-protection-and-safety.md#step-2--the-protection-loop) | TASK-S06-01 (step 2's tick exits), step 3's exits | open |
+| [Q-026](#q-026) | The deep-OTM delta exit: legacy's live host never ran it. Keep it in the kernel, or not? | `scripts/run_framework_live.py` @445eb116 (no `premium_exit` call); [SLICE-06 step 2](../plan/slices/SLICE-06-protection-and-safety.md#step-2--the-protection-loop) | TASK-S06-01 (step 2's tick exits), step 3's exits | answered 2026-10-28 ([answers](owner-answers-2026-10-27.md)) |
 
 ---
 
@@ -548,4 +548,6 @@ So a kernel deep-OTM exit is new live behaviour: it would sell positions that th
 - **B:** do not run it, as the live host did not. `premium_exit` is called with no delta, so its delta test never fires. The other rows are unchanged.
 
 Step 2 is built without the deep-OTM row until the answer; everything else in step 2 does not depend on it.
+
+**Answer (2026-10-28): option A.** The kernel keeps the deep-OTM delta exit as the spec says: `premium_exit` receives the tick's delta, and a delta below `delta_exit_threshold` starts the exit sequence (reason `deep_otm_delta`). This is new live behaviour relative to the 445eb116 host.
 
