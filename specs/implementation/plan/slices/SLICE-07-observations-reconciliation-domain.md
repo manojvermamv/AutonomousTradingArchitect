@@ -1,6 +1,6 @@
 # SLICE-07 — Observations, reconciliation, domain and the OpenAlgo adapter
 
-* **Status:** proposed. Step 1 is built (OA_NEW `9bc4529` on `slice-07`; [Step 1 as built](#step-1-as-built)). Step 2 is decision-complete below and not yet built. Steps 2–4 are scoped, and each is deepened once the step before it is built, as SLICE-04's and SLICE-05's were (the delivery plan's depth rule).
+* **Status:** proposed. Steps 1 and 2 are built (OA_NEW `9bc4529` and `ee2225a` on `slice-07`; [Step 1 as built](#step-1-as-built), [Step 2 as built](#step-2-as-built)). Steps 3 and 4 are scoped, and each is deepened once the step before it is built, as SLICE-04's and SLICE-05's were (the delivery plan's depth rule).
 * **Precedence:** the master README, then the ROADMAP, then this package. The authority is the [execution-domain spec](../../design/execution-domain-and-observations.md) (evidence contract, attribution and combination, reconciliation, the OpenAlgo adapter), with the [ledger spec](../../design/ledger-and-atomic-transaction.md) for the events findings become. Every deviation is marked **Deviation**. No score, threshold or money value is set: every refusing setting is bound only to labelled synthetic or owner-answered values in tests.
 * **Phase:** master Phase 1/3 (D15, D16, ATA-06, the A06-F2 decision). Class S → R: steps 1–3 are disarmed (the simulated broker only); step 4 builds the real adapter and proves it against recorded responses and a local fake server, never a deployment.
 * **Builds on:** [SLICE-05](SLICE-05-dispatch-conflicts-scheduling.md) as built; branch `slice-07` cut from `slice-05` (OA_NEW `a4c4516`).
@@ -412,6 +412,10 @@ A second fresh design review of the revised step ([review](../../egm/plan/review
 | `tests/integration/test_verb_completion.py` | Moves to `reconcile`; closes fill a ledger position; the positions-age test is removed |
 | `tests/integration/test_entry_outcomes.py` | PRF-LED-16's entry row (the ledger spec's file for it) |
 | `tests/unit/test_policy_parameters.py` | The settings |
+| `tests/integration/test_reconciliation_commits.py` | New ([as built](#step-2-as-built)): the commit side of PRF-DOM-02, Q-006 and Q-007 against a composed ledger |
+| `tests/unit/test_conflict_relation.py` | E-3: an action whose target ended leaves the relation |
+| `src/autonomous_trading/adapters/simulated_broker.py` | A step may name a tagged timeout's `order_id` and a `domain` (test adapter only) |
+| `src/autonomous_trading/kernel/safety.py`, `coordinator.py` | E-3's exclusion; E-5's ineligibility |
 | Spec amendments | The ledger catalogue (`FILL`, `RESOLVED_*`, `COMPLETED`), the state table (a fill on a completed close), I-6, and `broker_identity`'s new column. The execution-domain spec's reasons, refusal codes and `hold_entries` |
 
 ### Migration 005
@@ -432,7 +436,7 @@ ALTER TABLE broker_identity ADD COLUMN broker_order_id TEXT;     -- the order a 
 | Event | Payload (new fields in **bold**) | Guard and fold |
 |---|---|---|
 | `RESOLVED_REACHED` | `attempt_no`, `legs` (`[{leg_role, broker_order_id}]`), `observation_digest`, `broker_order_ids`, `reservation_after` (`null`, single-leg), **`basis`** (`observation`, `attempt_resolve`), **`principal`** (array or `null`) | `StateGuard({UNCERTAIN}, attempt_no, None)`; command → `WORKING`; attempt `AMBIGUOUS` → `ACKNOWLEDGED`, its `legs` rewritten with `cls` `acknowledged` where an ID is named and `not_sent` otherwise, its `domain` the event's `execution_domain`; a `broker_identity` order row per named ID, with its role and that domain (owned by another command: `InvariantViolated`) |
-| `RESOLVED_NEVER_REACHED` | as above, `broker_order_ids` `[]` | the same guard; command → `ADMITTED`; attempt → `NOT_SENT` (a retry then needs `DISPATCH_RETRY_REQUESTED`) |
+| `RESOLVED_NEVER_REACHED` | as above, `broker_order_ids` `[]`; its `legs` keep the attempt's order IDs ([as built](#step-2-as-built)) | the same guard; command → `ADMITTED`; attempt → `NOT_SENT`, every leg `cls` `not_sent` with its ID kept, and no `broker_identity` row (a retry then needs `DISPATCH_RETRY_REQUESTED`) |
 | `FILL` | `fill_id`, `broker_order_id`, `leg_role`, `quantity`, `price`, `observation_digest`, `reservation_after`, **`reservation_before`**, **`position_id`**, **`instrument`** | no command guard and no state change; the writer's I-4 drop; a `broker_identity` row (`fill_id`, `quantity`, `price`, `command_key` the order's, `broker_order_id`); the position checks above; `reservation_before` against the current `amount`, then `reservation_after` copied (entry fills only) |
 | `COMPLETED` | as SLICE-05 step 3, plus **`settlement_withheld`** (boolean; every writer passes it) | `WORKING` → `COMPLETED`; an entry's reservation `RELEASED` unless `settlement_withheld` |
 | `CONFLICT_RECORDED`, `FOREIGN_RECORDED`, `RECONCILIATION_ESCALATED` | the catalogue's payloads | a `reconciliation_fact` row; an existing key raises `TransitionNotAllowed` |
@@ -562,6 +566,64 @@ All five join `ADMISSION_REQUIRED`. The composition carries `reconciliation` (a 
   * let `resolve_attempt` name an order another command owns;
   * let a non-human resolve;
   * record a foreign order twice.
+
+### Step 2 as built
+
+Commit `ee2225a` on `slice-07`, on top of step 1's `9bc4529`. It changes 25 paths (1,421 lines added, 144 removed).
+
+**A correction the tests found.** As first written, `RESOLVED_NEVER_REACHED` cleared its legs' order IDs. A tagged timeout judged never reached then lost its ID, so when that order appeared later it was recorded as *foreign*, not `after_never_reached`. The resend block (E-5) never fired, and the command could be sent again. Now the event's `legs` keep the attempt's IDs, and the fold marks every leg `not_sent` without creating an identity row. The events table above is amended to match. `test_never_reached_releases_nothing_and_blocks_a_resend_once_its_order_appears` proves it, and so does its break check.
+
+**Choices made while building** (none sets a money value; `money.rounding` still has no production value, and tests bind the synthetic `half_even`):
+
+| Topic | As built |
+|---|---|
+| Where the commit-side tests live | In a new file, `tests/integration/test_reconciliation_commits.py`, because they need a composed ledger world. The pure rule they add, no `never_reached` after fills, is in `test_reconciliation_rules.py` |
+| E-3's proof | In `test_conflict_relation.py`. The exclusion is visible only while the ended target still counts as resting in the admission observation. That observation is the action world's: an uncertain modify of `o-stop` blocks protection's cancel until `target_ended` is recorded. The commits file checks only that the escalation is recorded and the modify stays `UNCERTAIN` |
+| The simulated broker | A `timeout` step may name an `order_id` (a tagged timeout), and any step may name a `domain`. This is test-adapter only; both default to the old behaviour |
+| `resolve_attempt`'s human check | A second layer: the grant model refuses `attempt_resolve` to a service (`a service principal may hold only trading actions`), and a kernel principal's built-ins never include it. The check is tested with an authority stub that allows every action |
+| A `LED-R08` on a reconciliation decision | Escalated with reason `fill_mismatch` when the decision holds a `FILL`, else `order_owned`, with the command key as subject. `LED-R09` is dropped, and the next observation re-reads the view; any other refusal raises `WriterLost` |
+| The invariant machine | Its timeouts are tagged, so its new `book` rule can reach them and its `absence` rule (an empty book past every window) can judge them never reached. A fixed-order test, `test_a_fill_sequence_keeps_every_invariant`, runs every invariant after each step. 25 random examples did not always reach a reduced fill, so a break of I-6 could survive a run |
+
+**Tests** (566 passed, twice, with `pytest` in the slice's virtual environment on the development machine; no broker variables):
+
+| File | Cases |
+|---|---|
+| `test_reconciliation_commits.py` (25, new) | **Fills:** a reduction and its position; reconciling twice; a correction escalated; reach and fill in one transaction; over-reduction clamped; another instrument; overclose with its excess; a fill on a completed resting close. **Resolution:** never reached, then the order appears, then `DOM-R06`; `order_owned` (E-1). **Q-006:** `unknown` under `forbid` and `accounting_only`; `conflicting`; a withheld completion stays withheld; a live completion releases. **Facts and guards:** a foreign order once, with `LED-R09` on a direct second decision; the fold's `reservation_before` and position-ID checks. **Holdings:** `LedgerPositions` before and after the first fill. **Q-007:** reached with the recorded domain; never reached; every refusal; the untagged fact required |
+| `test_ledger_invariants.py` (6) | The machine with fill, book and absence rules; I-6 restated; I-4 and positions; `EXPECTED_RESERVATION` keyed on `settlement_withheld`; the fixed-order sequence; PRF-LED-11's hand calculation, the 2.00/1.00/0.01 boundary (`half_even` 0.00 where floats give 0.01), the clamp, and the 0.00 rule |
+| `test_command_identity.py` (10) | PRF-LED-12: a redelivered identical `FILL` dropped while the rest of its decision commits, a decision of only that fill committing nothing, and other values refused `LED-R08` `fill_mismatch` |
+| `test_entry_outcomes.py` (16) | PRF-LED-16's entry row: never on its ACK or an open order, not while fills are missing, then on the terminal order; cancelled unfilled; never vacuously after a reach by resolution |
+| `test_conflict_relation.py` (26) | E-3: an action whose target ended leaves the relation |
+| `test_verb_completion.py` (11), `test_policy_parameters.py` (25), `test_reconciliation_rules.py` (43) | Migrated through `reconcile`; the five settings; no `never_reached` after fills |
+
+**Break checks** (each applied to the source, run against the named tests, and reverted byte for byte with an md5 check; every one failed its tests):
+
+| Change | Tests that failed |
+|---|---|
+| `never_reached` after fills exist | `test_no_never_reached_after_fills` |
+| Skip the fill's reach | `test_a_tagged_timeout_reaches_and_fills_in_one_decision` |
+| The writer keeps a duplicate fill | `test_redelivered_fill` |
+| Ignore a fill correction | `test_a_correction_is_escalated_never_recorded` |
+| Reduce an `unknown` fill under `forbid` | `test_an_unknown_fill_reduces_only_under_accounting_only` |
+| Reduce a `conflicting` fill | `test_a_conflicting_fill_never_reduces` |
+| Release a completion whose fills were withheld | `test_a_withheld_fill_keeps_its_completion_withheld` |
+| Complete an entry vacuously (unobserved legs skipped, no judged leg required) | `test_entry_completes_on_a_terminal_order_with_its_fills` |
+| Count a missing fill as accounted | `test_entry_outcomes.py` |
+| Complete a close before its fills are recorded | `test_verb_completion.py` |
+| Drop the `reservation_before` check | `test_the_fold_checks_reservation_before` |
+| Scale a reservation with a float | `test_the_boundary_rounds_half_even_where_floats_do_not` |
+| Skip the position-ID check | `test_the_fold_checks_the_position_id` |
+| Let `resolve_attempt` name an order another command owns | `test_resolve_refusals` |
+| Let a non-human resolve | `test_resolve_refusals` |
+| Record a foreign order twice | `test_a_foreign_order_is_recorded_once` |
+| Keep an action whose target ended in the relation | `test_an_action_whose_target_ended_leaves_the_relation` |
+| Resend a command whose order appeared after never reached | `test_never_reached_releases_nothing_and_blocks_a_resend_once_its_order_appears` |
+| Never-reached clears the attempt's IDs | the same test |
+| Let an ID another command owns resolve this one | `test_an_order_another_command_owns_is_a_conflict_not_a_crash` |
+| The fold ignores a fill's reduction | `test_ledger_invariants.py` |
+| A fill leaves its position unchanged | `test_ledger_invariants.py` |
+| Keep every completed reservation held | `test_ledger_invariants.py` |
+
+Against the machine alone, three breaks from the list above survive: a duplicate fill, a stale `reservation_before` and a withheld completion. In the machine another layer refuses the duplicate (the fold rejects a known fill ID), and the other two never arise: one process never reads a stale reservation, and every machine fill is `simulated`. The files named above catch all three.
 
 ## Step 3 — the observation loop (scoped)
 
