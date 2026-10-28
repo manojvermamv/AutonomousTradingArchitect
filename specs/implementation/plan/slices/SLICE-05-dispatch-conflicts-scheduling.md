@@ -1,6 +1,6 @@
 # SLICE-05 — Dispatch, conflicts and scheduling
 
-* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-05-review-2026-10-27)). Step 1 is built (OA_NEW `6f49827` on `slice-05`; [Step 1 as built](#step-1-as-built)). Step 2 is built (OA_NEW `68570b0`; [Step 2 as built](#step-2-as-built)). Step 3 is decision-complete below and not yet built.
+* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-05-review-2026-10-27)). Step 1 is built (OA_NEW `6f49827` on `slice-05`; [Step 1 as built](#step-1-as-built)). Step 2 is built (OA_NEW `68570b0`; [Step 2 as built](#step-2-as-built)). Step 3 is built (OA_NEW `a4c4516`; [Step 3 as built](#step-3-as-built)), so every step of the slice is built on `slice-05`.
 * **Precedence:** the master README, then the ROADMAP, then this package. The authorities are the [dispatch spec](../../design/dispatch-and-coordination.md), the [protection spec](../../design/protection-and-safety.md) (kill and holds, the permission matrix, the conflict relation) and the [ledger spec](../../design/ledger-and-atomic-transaction.md) (the identity rule's retry branch, verb completion). Every deviation is marked **Deviation**. No score, threshold or money value is set: every refusing setting is bound only to labelled synthetic or owner-answered values in tests.
 * **Phase:** master Phase 1 (D13 revalidation, A03-F1/F2/F3, ATA-04; kill and hold events, POL-002 and POL-003). Class S. Disarmed: the simulated broker only.
 * **Builds on:** [SLICE-04](SLICE-04-intent-to-admission.md) as built; branch `slice-05` cut from `slice-04` (OA_NEW `36717dc`).
@@ -549,6 +549,50 @@ record_completions(writer, account, observation) -> list[str]     # the command 
   * keep a replaced order as an owned order;
   * drop `is_protective` from B5's `protective_order_ids`;
   * keep the entry-only filter.
+
+### Step 3 as built
+
+Commit `a4c4516` on `slice-05`, after `68570b0`. It changes 16 paths: the step 3 files table's code and test files. The spec amendments are this repository's.
+
+**Choices made while building** (none sets a money value):
+
+| Topic | As built |
+|---|---|
+| `record_completions` | The signature is `(writer, account, observation, *, max_age_secs)`. B1's age rule needs the limit, and the caller passes `reconciliation.max_observation_age_secs` |
+| One row rule, two readers | `admission.owned_order_from_row(account, row)` builds an `OwnedOrder` from one `owned_orders` row. `LedgerHoldings` uses it, and so does completion's lookup of a modify target's `order_kind` (`lifecycle._target_kind`), which also reads replaced rows. A target with no ledger row (the fixture worlds) falls back to the requested field: trigger for a stop, else price |
+| Order inside a pass | For an action, `run_pass` checks the round trip first, then the observation's age (wait), then the conflict relation, then rows 1–6. A request that does not round-trip stops the kernel before anything is judged |
+| A completed resting close | Its order stays owned and protective after `COMPLETED`: the stop still guards the position, and conflict rows 1, 3 and 5 still see it (`test_resting_stop_close`) |
+| One pass, several completions | `record_completions` judges every `WORKING` action of the account. A test that cancels or modifies a resting close's stop therefore also sees the close itself complete, and asserts membership of the command it judges |
+| The negative identity case | No simulated step can make a cancel ACK name another order (a cancel step with `order_id` raises). `test_a_cancel_ack_naming_another_order_is_refused` wraps the simulated broker, keeps its published evidence, and rewrites the ACK's order ID, so the outcome reaches the fold |
+
+**Tests** (441 passed with `scripts/safe_tests.py`, no broker variables; the full suite was run three times with the same result):
+
+| File | Cases |
+|---|---|
+| `test_verb_completion.py` (12) | Never on the ACK alone, nor on a book read before the claim. **Cancel:** absent; `cancelled`; `target_terminal`; the unresolved effect clears. **Modify:** another level stays `WORKING`; `parameters_observed` with `confirmed_level` and `confirmed_quantity`; `target_terminal`; a replacement inherits the close, is protective, supersedes the old ID and is the one judged. **Market close:** `filled`; `order_ended`, with a `None` fill total staying `WORKING`; the positions-book freshness guard. **Resting stop close:** another quantity; `resting_observed` (the order still owned and protective); `filled` before it was seen resting |
+| `test_dispatch_revalidation.py` (+6) | Cancel, modify and close sent with no plan, each leg's role its verb, each command `WORKING`. **Row 6:** refuses a cancel of an observed `cancelled` order; refuses a close of a position observed at 0; waits on an absent target. A stale observation makes an action wait. The kill row reads the observation at dispatch |
+| `test_bounded_io.py` (+1) | CUJ-DSP-1 with a cancel: B's cancel of its own acknowledged entry order is sent while A's entry send is stalled |
+| `test_admission_checks.py` (+6) | `LedgerHoldings` rows for an entry leg and a close (every field of the table); a resting close's 9000.00 is not counted as an external commitment; a cancel ACK records no owner; a cancel ACK naming another order, and an entry ACK naming an owned order, end `outcome_refused`; `holdings` and `positions` set together raise |
+| `test_capabilities.py` (+1) | The simulated broker's action rows |
+
+**Break checks** (each applied, run, and reverted byte for byte with an md5 check; every one failed its tests):
+
+| Change | Tests that failed |
+|---|---|
+| Complete a cancel on its ACK | `test_never_on_the_ack_alone` |
+| Treat an absent order as terminal (completion) | `test_cancel` |
+| Treat an absent order as terminal (row 6 refuses) | `test_row_6_waits_on_an_absent_target` |
+| Complete a modify on any open observation | `test_modify_parameters_observed` |
+| Complete a close with `filled_quantity` `None` | `test_market_close_ended` |
+| Skip row 6 | the three row 6 tests |
+| Refuse an action on a stale observation | `test_a_stale_observation_makes_an_action_wait` |
+| Build an action's facts from the payload | `test_kill_row_reads_the_observation_at_dispatch` |
+| Record a cancel ACK's echoed ID as a new owner | 8 cases, among them `test_never_on_the_ack_alone` |
+| Leave the identity fold unchanged | 11 cases |
+| Give a replacement the modify's own key | `test_modify_replacement_inherits_the_close` |
+| Keep a replaced order as an owned order | `test_modify_replacement_inherits_the_close` |
+| Drop `is_protective` from B5's `protective_order_ids` | `test_a_resting_close_is_not_an_external_commitment` |
+| Keep the entry-only filter | 23 cases |
 
 ## Completion conditions
 
