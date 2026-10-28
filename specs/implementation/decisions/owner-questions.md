@@ -30,7 +30,7 @@ Status: **open owner decision** unless a row says answered. Each question is a g
 | [Q-024](#q-024) | The trail's opposing-signal tightening: what supplies the opposing score in the kernel? | `src/core/framework/protection/trail.py:476-481` @445eb116; [SLICE-06 step 1](../plan/slices/SLICE-06-protection-and-safety.md#step-1--the-ladder-protection-state-and-the-derived-leg) | TASK-S06-01 (SLICE-06 step 2's trail loop) | answered 2026-10-28: option B, after a correction ([answers](owner-answers-2026-10-27.md)) |
 | [Q-025](#q-025) | A refused or failed stop modify: does the ladder keep legacy's library rule (the move not taken) or the live host's (only the stop put back)? | `scripts/run_framework_live.py:5221-5278` @445eb116; [SLICE-06 step 1](../plan/slices/SLICE-06-protection-and-safety.md#step-1-as-built) | TASK-S06-01 (SLICE-06 step 2's trail loop) | answered 2026-10-28 ([answers](owner-answers-2026-10-27.md)) |
 | [Q-026](#q-026) | The deep-OTM delta exit: legacy's live host never ran it. Keep it in the kernel, or not? | `scripts/run_framework_live.py` @445eb116 (no `premium_exit` call); [SLICE-06 step 2](../plan/slices/SLICE-06-protection-and-safety.md#step-2--the-protection-loop) | TASK-S06-01 (step 2's tick exits), step 3's exits | answered 2026-10-28 ([answers](owner-answers-2026-10-27.md)) |
-| [Q-027](#q-027) | Basket maintenance where the spec goes beyond legacy's live host (partial fills, partial or unfilled entries, failed cancels, unproven roles): spec or legacy? | `scripts/run_framework_live.py:4588-4687` @445eb116; [SLICE-06 step 3](../plan/slices/SLICE-06-protection-and-safety.md#step-3--basket-placement) | TASK-S06-01 (SLICE-06 step 3) | open |
+| [Q-027](#q-027) | Basket maintenance where the spec goes beyond legacy's live host (partial fills, partial or unfilled entries, failed cancels, unproven roles): spec or legacy? | `scripts/run_framework_live.py:4588-4687` @445eb116; [SLICE-06 step 3](../plan/slices/SLICE-06-protection-and-safety.md#step-3--basket-placement) | TASK-S06-01 (SLICE-06 step 3) | answered 2026-10-28 ([answers](owner-answers-2026-10-27.md)) |
 
 ---
 
@@ -578,3 +578,5 @@ Proof: tests/unit/test_protection_basket.py; PRF-PRT-01.
 - **Per item:** any mix; the step's text marks each of the four rows.
 
 Step 3 is written with option A and marks the five rows; their build waits on the answer. Nothing else in step 3 depends on it.
+
+**Answer (2026-10-28): option A.** The spec's five basket rules, as written in SLICE-06 step 3.
