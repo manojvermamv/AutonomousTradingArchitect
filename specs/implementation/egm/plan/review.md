@@ -269,3 +269,27 @@ The new [SLICE-05 slice file](../../plan/slices/SLICE-05-dispatch-conflicts-sche
 | R-M5 | Major | A second hold reason could not be engaged in step 1 | FIX: the test appends a `recovery` `HOLD_ENGAGED`; any engaged reason may be released |
 | R-M6 | Major | The "absent is not terminal" break check could not fail | FIX: a test with the stop missing from the observation |
 | R-N1…N8 | Nit | Override wiring; the `unresolved_commands` read; payload types and principal column; setting fields and test settings; break-check assertion; `WORKING` stays unresolved; `version` input and refusal fields; port docstring | FIX |
+
+## SLICE-05 step 2 review (2026-10-28)
+
+[SLICE-05 step 2](../../plan/slices/SLICE-05-dispatch-conflicts-scheduling.md#step-2--the-coordinator-loop) (the coordinator loop) was reviewed by fresh `egm:egm-design` and `egm:egm-implementation-readiness` reviewers (read-only) against the dispatch, ledger, protection, sessions and execution-domain specs, the code built through step 1 and the legacy export at `OA@445eb116`. Design: 0 Critical, 5 Major, 6 Minor. Readiness: 2 Critical, 10 Major, 4 Minor. The release deviation rested on a false reading of `kernel/recovery.py:169-175` (a same-bundle restart records no new binding) and was withdrawn. Every finding is resolved by FIX; the claims that changed the design were checked by hand in the code first.
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| R-1 | Critical | `wire(Deadline)` drops the monotonic start, so neither deadline call could be computed | FIX: each door registers its `Deadline` in `coordinator.deadlines`; a missing entry with a persisted deadline is judged on the restart rule |
+| R-2 | Critical | The seam records `release_binding_id: None`, so every seam dispatch would be refused `DSP-R02` | FIX: a `None` recorded ID skips row 2 |
+| D-1, R-3 | Major | The release deviation's premise was false; its break check could never fail | FIX: compare binding IDs as the spec says; A → B → A refuses (stated); break check "skip row 2" |
+| D-2, R-8 | Major | A0 (busy) runs before A1a, so a retry at the bound is refused and a lost reply gets "busy" | FIX: A1 and A1a first, then A0; a retry test at the bound and a break check |
+| D-3 | Major | The wake flag could lose a return if cleared after draining | FIX: a `threading.Event` cleared before the drain; `wait_woken`; not break-checkable (stated) |
+| D-4 | Major | No timer for deadlines of commands admitted by an earlier process | FIX: `next_wake` includes them, early never late |
+| D-5, R-4 | Major | Nothing rebuilds the request and plan from the payload | FIX: `entry_request_from_wire`, `plan_ref_from_wire`; a digest check before the claim; mismatch exits before claiming |
+| R-5 | Major | `DISPATCH_RETRY_REQUESTED` would not carry `command_key`; its family | FIX: in `_COMMAND_KINDS`, family `dispatch`; the fold's guards spelled out |
+| R-6 | Major | `dispatch_inline` under SLICE-01 compositions and seam entries without `underlying` | FIX: hook, stage, rows 1–3; rows 4–5 only when composed; no eligibility or conflict check |
+| R-7 | Major | Which safety and conflicts objects dispatch uses | FIX: taken from the admission ports after `replace`; dispatch tests use the kernel's |
+| R-9 | Major | `test_review_semantics.py` missing; the in-flight probe would run on the worker thread | FIX: added to the files; the probe becomes `run_pass`, `wait_stalled`, assert, `release` |
+| R-10 | Major | A second account would be refused at admission by the fixtures | FIX: `two_accounts=True` spelled out (session, binding, grant, loss limit, planner, intents) |
+| R-11 | Major | No way to build an admission world in a crash child or reopen one | FIX: module-level `build_admission_world(..., reopen)`; the child sequence stated |
+| R-12 | Major | The conflict-wait test was blocked by the busy worker, so its break check could not fail | FIX: the first entry scripted `ack`, so only the conflict holds the second |
+| D-6…D-11 | Minor | Adapter-error flag and hand-off time; `dispatch_inline` with a busy worker; `ADM-R14` in row 4 and the stage row's scope; step 3's action facts; the stall outside `take`'s lock and per-step accounts; a failed claim and the actions' `DSP-R01` record | FIX |
+| R-13…R-16 | Minor | `dispatch(world)` blocking and bound; a `kernel_busy` option; the payload's `principal` path; one `wait_stalled` signature, the stall step shape, the `DISPATCH_REFUSED` catalogue row, `CommitFailed` on a return exits | FIX |
+

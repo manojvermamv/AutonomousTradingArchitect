@@ -181,7 +181,7 @@ The writer validates each payload against `resources/events.schema.json`, which 
 | `PAUSE_STARTED`, `PAUSE_CLEARED` | `kernel.policy`; committed in the `REVIEW_RECORDED` transaction (start) or on an owner command (clear) | [intent spec](intent-to-admission.md#review-application-kernelpolicypy) | `pause` |
 | `REVIEW_RECORDED`, `INTENT_SEEN` | `kernel.policy` | review fields, kernel arrival time and, for the first review of a digest, the frozen application; intent digest and first-seen time | `review` |
 | `REVIEW_DEADLINE_PASSED` | `kernel.policy`, when a required review is still missing at its deadline | `intent_digest`, the frozen `proceed_unavailable` application (cause `no_review`) | `review` (freezes the application; the first freeze wins) |
-| `DISPATCH_REFUSED` | `kernel.coordinator` | `code`, `dependency` | command `REFUSED`; reservation `RELEASED` |
+| `DISPATCH_REFUSED` | `kernel.coordinator` | `code`, `message`, `dependency` | command `REFUSED`; reservation `RELEASED` |
 | `DISPATCH_RETRY_REQUESTED` | `kernel.admission`, on an identical resubmission by a principal holding the command's verb ([identity rule](#request-digest-and-the-identity-rule)) | `attempt_no` (the `NOT_SENT` one), `principal` | attempt `retry_requested_sequence` |
 | `DISPATCH_CLAIMED` | `kernel.coordinator` | `attempt_no`, `epoch_id` | attempt `CLAIMED`; command `IN_FLIGHT`; reservation `HELD` |
 | `OUTCOME_NOT_SENT` / `_REJECTED` / `_ACKNOWLEDGED` / `_AMBIGUOUS` | `kernel.coordinator`; `kernel.recovery` for outcomes rebuilt from published evidence and for `_AMBIGUOUS` | `attempt_no`, `epoch_id`, `legs`, `unassigned_order_ids`, `reason` (for `_AMBIGUOUS`: `timeout`, `adapter_error`, `interrupted`, `outcome_refused`, `evidence_unusable`, `evidence_unpublished`), `raw_digest`, `reservation_after` when legs were rejected | per the state table; `broker_identity` order IDs |
@@ -384,7 +384,7 @@ A request never carries a review result or a plan. `kernel.policy` and `kernel.p
 | Refused and not recorded (`LED-R01`, `LED-R02`, `ADM-R12`) | `refused` | `unchanged` | `False` | No |
 | `ADM-R15` (`review_pending`); only `INTENT_SEEN` may be written | `refused` | `unchanged` | `False` | Yes, the same request and key, until the review deadline |
 | Admission commit failed (persistence unknown) | `refused` | `commit_failed` | `False` | No; after restart the caller retries with the **same** key, which returns `Existing` if the commit persisted, and never resubmits under a new key |
-| Admitted, awaiting dispatch (an action before SLICE-05 dispatches it); `attempt_no` is `None` | `not_sent` | `committed` | `False` | No; dispatch runs it ([SLICE-04 step 2](../plan/slices/SLICE-04-intent-to-admission.md#the-not-sent-outcome)) |
+| Admitted, awaiting dispatch (a command admitted by a front door; the coordinator dispatches it, [SLICE-05 step 2](../plan/slices/SLICE-05-dispatch-conflicts-scheduling.md#decisions)); `attempt_no` is `None` | `not_sent` | `committed` | `False` | No; dispatch runs it ([SLICE-04 step 2](../plan/slices/SLICE-04-intent-to-admission.md#the-not-sent-outcome)) |
 | Adapter returned `not_sent`; outcome committed | `not_sent` | `committed` | `False` | Only through the normal loop after fresh revalidation |
 | Adapter returned another class; outcome committed | that class | `committed` | `True` | No |
 | Adapter returned a result; outcome commit failed | the adapter's class, with its broker IDs | `commit_failed` | `True` unless the class is `not_sent` | No; recovery rebuilds the outcome from published evidence |
