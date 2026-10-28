@@ -442,3 +442,33 @@ Fresh `egm:egm-design` and `egm:egm-implementation-readiness` reviews of the new
 | R-3, R-4, R-6, R-7, R-8, R-10, R-11 | Major | The live order's role, `LegView`, `Desire`, the float-to-money conversion, the quantity rule, the migration and fold wiring, and the event schema were underspecified | FIX: each specified |
 | F-15, F-17…F-21, F-23, R-13…R-19 | Minor | Restart test, `ladder_state` encoding, level and quantity rules, policy fields, fold shapes, gap dedupe, tick source, citations, test construction, the reserved-role check's place, break wording, `commands_with_prefix`, types, an unused parameter | FIX |
 
+## SLICE-06 step 2 review (2026-10-28)
+
+Fresh `egm:egm-design` and `egm:egm-implementation-readiness` reviews of [SLICE-06 step 2](../../plan/slices/SLICE-06-protection-and-safety.md#step-2--the-protection-loop), the protection loop, after the owner's answers to Q-024 and Q-025 (option B, live-host parity). Design: 2 Critical, 10 Major, 1 Minor (F-1…F-13). Readiness: 2 Critical, 11 Major, 4 Minor (R-1…R-17). The design reviewer checked every cited line of legacy's live host (`scripts/run_framework_live.py` @445eb116). Every finding is resolved by FIX in the rewritten step. Where the live host and the spec differ, the step follows the host as the owner's answers did, and marks what it does not take as a Deviation. The deep-OTM delta exit, which the live host never ran, is [Q-026](../../decisions/owner-questions.md#q-026) (open).
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| F-1 | Critical | The exit's close could sell more than held: an `ENDED` stop with an unrecorded or partial fill leaves `q` stale | FIX: close only when every order in the chain has a fresh terminal row whose filled quantity equals the recorded fills, never on `fill_pending` |
+| F-3, R-2 | Critical | A placement with no broker order left the position unprotected, or built a modify or cancel of `None` | FIX: the placement is the latest close with an order ID; `placement_failed` (`rejected`: `stop_rejected`, no re-place; `refused`: placed again); `ORPHANED` needs a live order |
+| R-1 | Critical | Composing the loop under the test settings changes every existing world | FIX: `ADMISSION_SETTINGS` binds `basket_at_plan`; step 2's tests bind `stop_on_fill` |
+| F-2, R-13 | Major | The close role had no pending, rejected or competing rules | FIX: one request, retry and refusal memory on the close role; `exit_close_rejected` and `exit_close_incomplete` once, never resent, as legacy |
+| F-4 | Major | Square-off waited for ever on a stop never placed | FIX: the open-exit rule waits only on a live order, a pending placement or cancel, or `q` > 0 (step 1's rule amended) |
+| F-5 | Major | The trailed level skipped the host's `round(after, 2)` | FIX: `level_of(round(sl, 2), up=True)`, as the host and gateway |
+| F-6 | Major | Real OHLC candles instead of the host's bars from consecutive closes | FIX: the port serves closes; bars are built as `_premium_bars`, the first flat |
+| F-7 | Major | A modify pending over a bar then rejected put the ladder back to the wrong stop | FIX: `sl` is put back to the newest confirmed desire's `sl` or the confirmed level |
+| F-8 | Major | Seed and loop departures from the host were unmarked | FIX: conviction 0.0 and the filled quantity, as the host; policy overrides as POL-012 allows; restart from the full state marked a Deviation; no cycling once `ENDED` or exiting |
+| F-9, R-4 | Major | Refusals could be recorded on nearly every pass, including dispatch refusals | FIX: a ledger-derived refusal memory per leg, cleared only by a named change; B2's `effect_check` added to the pre-checks |
+| F-10 | Major | Escalation rules differed from the spec without an amendment; false `external` ends | FIX: once per position until step 3's episodes, listed as a spec amendment with the new reasons; `external` only from a fresh row; `unprotected_under_hold` |
+| F-11 | Major | Square-off was one-shot and closed entries still working | FIX: every pass after the instant; a working entry skipped and escalated, as the host |
+| F-12 | Major | Tick exits had no freshness bound, fired under kill, and the target exit was unmarked | FIX: fresh ticks after the fill only; no exit recorded under kill; the target tick exit marked a Deviation |
+| R-3 | Major | The one-request gate blocked the `NOT_SENT` retry | FIX: the retry is checked first, rebuilt from `COMMAND_ADMITTED` |
+| R-5 | Major | `entry_premium` is a two-place string, not `repr` | FIX: stated; the chain LTP on a 0.05 tick reads back exactly, and the host read the plan's figure too |
+| R-6, F-13 | Major / Minor | The first bar comparison and the through-market check were undefined | FIX: a non-`bar:` `view_id` means none cycled; the check reads the bar just cycled, and the placement is unchecked, as the host |
+| R-7 | Major | The desire was never re-recorded when `q` changed | FIX: the quantity re-record on every evaluation |
+| R-8 | Major | A modify cannot complete at a different level; the adoption test was unbuildable | FIX: adoption of a higher confirmed level on every evaluation; the test uses a human's modify |
+| R-9 | Major | Wire shapes of the levels, session and recorded policy were unnamed | FIX: each parsing step named; `ProtectionPolicy.from_resolved` |
+| R-10 | Major | The shared `escalate` dropped `evidence` and the result list; citation claim too wide | FIX: `evidence=()` and a bool result; the citation test narrowed to what each event carries |
+| R-11 | Major | The crash tests could not rebuild the book or reach a crash point | FIX: the child-process pattern with `CP-P1` and `CP-P4` crash points and a scripted book in the parent |
+| R-12 | Major | Three break checks failed no test | FIX: tests for two closes between passes and the no-score level; "escalate on every pass" replaced by "drop the refusal memory" |
+| R-14…R-17 | Minor | Types, boundaries, wiring, the calendar offset, the account, the tick's money form, the unseeded ladder, `DesireRefused`, the fixture plan | FIX: each specified |
+

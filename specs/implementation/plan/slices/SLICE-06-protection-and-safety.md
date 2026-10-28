@@ -305,137 +305,252 @@ Commit `03bbbde` on `slice-06`, on top of `slice-07`'s `1b42505`. It changes 17 
 
 ## Step 2 — the protection loop
 
-The authorities are the protection spec's [Evaluation](../../design/protection-and-safety.md#evaluation-kernelprotectionpy), [Protective stop and tick exits](../../design/protection-and-safety.md#protective-stop-and-tick-exits-kernelprotectionpy), [Structures](../../design/protection-and-safety.md#structures-kernelprotectionpy) and [Session-close exit](../../design/protection-and-safety.md#session-close-exit-kernelprotectionpy) sections, its crash points CP-P1…CP-P4, and the owner's answers to [Q-024](../../decisions/owner-questions.md#q-024) and [Q-025](../../decisions/owner-questions.md#q-025) (both option B, live-host parity). The step builds on step 1 as built (OA_NEW `03bbbde`).
+The authorities are:
 
-Step 2 covers `stop_on_fill` only. In the first release that placement serves structure legs, which admission still refuses (Q-020), and the shared per-leg rules that step 3's basket reuses. A composition bound to `basket_at_plan` composes no protection loop until step 3.
+* the protection spec's [Evaluation](../../design/protection-and-safety.md#evaluation-kernelprotectionpy), [Protective stop and tick exits](../../design/protection-and-safety.md#protective-stop-and-tick-exits-kernelprotectionpy), [Structures](../../design/protection-and-safety.md#structures-kernelprotectionpy) and [Session-close exit](../../design/protection-and-safety.md#session-close-exit-kernelprotectionpy) sections;
+* the spec's crash points CP-P1…CP-P4;
+* the owner's answers to [Q-024](../../decisions/owner-questions.md#q-024) and [Q-025](../../decisions/owner-questions.md#q-025), both option B, which is parity with legacy's live host.
+
+The step builds on step 1 as built (OA_NEW `03bbbde`). Fresh EGM design and implementation-readiness reviewers reviewed it ([review](../../egm/plan/review.md#slice-06-step-2-review-2026-10-28)), and their findings are resolved in the text below.
+
+**The rule for choices.** Where the live host and the package spec differ, step 2 follows the live host, as the owner's answers did, and says so. Where the spec decides something the host never did, the text marks it **Deviation (from the live host)** with the spec's reason.
+
+**Scope.** Step 2 covers `stop_on_fill` only. In the first release that placement serves structure legs, which admission still refuses (Q-020). It also builds the per-leg rules that step 3's basket reuses. A composition bound to `basket_at_plan` composes no protection loop until step 3.
 
 **Deviation:** the kernel host's loop is SLICE-11's. Step 2's tests drive the loop through `Coordinator.run_pass`. They prove PRF-PRT-06's "worker stopped" half; the "kernel frozen" half needs the host and is proved in SLICE-11.
 
-### What legacy's live host does, and what that decides
+### What legacy's live host does
 
 All citations are at 445eb116. The live host is `scripts/run_framework_live.py`, read from OA's history with `git show 445eb116:scripts/run_framework_live.py` (the step 1 export holds only `src/`).
 
-* **Cadence.** One sweep per poll (20 s) steps each filled position with a resting stop once (`sweep_trail`, `:5502-5555`; the 20 s poll, `:4`, `:5248`). Each step cycles the ladder on the latest bar only: `orch.on_bar(managed, bar_index=len(bars) - 1, bars=bars, emit=emit)` (`:5485`). Re-cycling an unchanged latest bar on the next poll changes nothing once its move is taken: the ratchet needs a new high, and the activation path repeats the same arithmetic.
-* **Bars.** The held contract's own one-minute candles, out of the 60 s chain snapshots, from the entry's first fill onward on the same day (`_premium_bars`, `:5062-5100`). The ladder is first stepped at two bars (`:5454`). The host never shows the ladder a bar from before its position existed, which a dry run on 20 August 2026 showed is essential (`:5070-5078`).
-* **Inputs.** The host passes no `opposing_score`, no `delta` and no `modify` callback (`:5485`). With the shipped `sl_method: atr`, `delta` changes nothing in the cycle: it is read only by the `delta` method (`trail.py:356`).
-* **The broker move.** The move is taken in the ladder first. Then `_apply_move` sends a modify of the remaining quantity at `round(after, 2)` (`:5221-5270`), which the gateway rounds up to the tick (`execution_gateway/__init__.py:1363-1371`). On failure it puts back only `sl` (`:5277`), so `premium_trail_active`, `premium_trail_peak`, `premium_trail_sl` and `trail_activation_sl` keep the move's values. When the registry later records a higher broker stop, the host adopts it before the next cycle (`:5468-5470`).
+* **Cadence.** One sweep per poll steps each position that is `filled`, has quantity left and has a stop not cancelled, once (`sweep_trail`, `:5502-5555`). The poll is 20 s (`:4`, `:5248`).
+  * Each step cycles the ladder on the latest bar only: `orch.on_bar(managed, bar_index=len(bars) - 1, bars=bars, emit=emit)` (`:5485`).
+  * Cycling the same latest bar again on the next poll changes nothing once its move is taken: the ratchet needs a new high, and the activation path repeats the same arithmetic.
+* **Bars** (`_premium_bars`, `:5062-5134`).
+  * The held contract's `ltp`, one per 60 s chain snapshot, from the entry's first fill onward on the same day.
+  * Each bar's open is the previous close, its high and low are that pair's extremes, and the first bar is flat.
+  * The leg's own `open`, `high` and `low` are refused on purpose, because they are the day's. They made ATR fourteen times too wide (`:5108-5124`).
+  * The ladder is first stepped at two bars (`:5454`). It never sees a bar from before its position existed (`:5070-5078`).
+* **Inputs.** The host passes no `opposing_score`, no `delta` and no `modify` callback (`:5485`). With the shipped `sl_method: atr`, `delta` changes nothing in the cycle (`trail.py:356`). The settings are always `TrailSettings()` (`:5048`).
+* **The seed** (`_build_ladder`, `:5163-5217`).
+  * `entry_premium` is the plan's (`:5207-5208`), the stop is the plan's, and the target is the plan's.
+  * The quantity is the filled quantity (`:5211`).
+  * `entry_conviction` is never set, so it is 0.0.
+* **The broker move.** The move is taken in the ladder first. Then `_apply_move` sends a modify of the remaining quantity at `round(after, 2)` (`:5221-5270`), which the gateway rounds up to the tick (`execution_gateway/__init__.py:1363-1371`).
+  * On failure it puts back only `sl` (`:5277`).
+  * Before every cycle, a higher broker stop recorded by the gateway replaces `sl` (`:5468-5470`). After a successful move, that is the tick-rounded level.
+* **Restart.** The host rebuilds a cold ladder from the higher of the plan stop and the recorded `trail_stop`, and loses the peaks (`:5188-5196`, `:5457-5463`).
 * **No tick exits run live.** Nothing in the host calls `premium_exit`, `check_exit` or `on_tick`. The target rested at the broker (the basket), and the deep-OTM delta exit never ran ([Q-026](../../decisions/owner-questions.md#q-026)).
-* **No re-placement.** No legacy code places a new stop after the broker rejects, expires or cancels one. A modify that returns a new order ID is a replacement of the same stop (`registry.py:1603`), not a re-placement (TASK-S06-01's first characterization, closed here).
-* **Square-off** (`src/runtime/session_close.py:92-270`). After `square_off_time` in IST, it cancels each protective leg and moves on. On a later pass, with a fresh book, it closes only when every leg is cancelled or rejected. A leg found filled means the position is closed, and nothing is sent. Under kill it sends nothing; the broker's square-off is the backstop (`:119-122`).
+* **No re-placement.** No legacy code places a new stop after the broker rejects, expires or cancels one. A modify that returns a new order ID is a replacement of the same stop (`registry.py:1603`).
+* **Square-off** (`src/runtime/session_close.py:92-270`), on every pass after `square_off_time` in IST.
+  * It skips a partly filled entry (`:146-152`).
+  * It waits while any exit order is in flight (`:165-169`), and never resends a close the broker rejected (`:170-175`).
+  * It cancels each protective leg, then on a later pass with a fresh book closes only when every leg is cancelled or rejected. A leg found filled means no close (`:182-220`).
+  * A refusal before the broker is retried (`:261-269`).
+  * Under kill it sends nothing; the broker's square-off is the backstop (`:119-122`).
 
 ### Decisions
 
-#### Owner answers applied
+#### Owner answers applied, and the host's ladder inputs
 
-* **Q-024, option B.** The loop always cycles with `opposing_score=None`. `trail.py` keeps the parameter because it is ported unchanged, and step 1's `opposing` golden case stays as a characterization of the library.
-* **Q-025, option B: the refused outcome is the live host's.** `trail.step` is changed so that `refused` is a copy of `accepted` with `sl` put back to the stop before the cycle. Every other field keeps the move's value. The two outcomes are equal when the cycle did not move `sl`.
-  * `scripts/gen_trail_parity.py` emulates the host's put-back for the `refused` state (a deep copy of the accepted state with `sl` set back). It regenerates `tests/fixtures/trail_parity_445eb116.json` against the same legacy checkout. Step 1's library-rule `refused` states are not kept.
-  * Step 1's test `test_two_outcomes` changes to: on a moving bar, `refused.sl` is the old stop, and every other field equals `accepted`'s.
-* **The ladder's `delta` is `None`** in the cycle, as the live host's. The tick exits read `Tick.delta` (below).
+* **Q-024 B.** The loop cycles with `opposing_score=None`. `trail.py` keeps the parameter because it is ported unchanged, and step 1's `opposing` golden case stays as a characterization of the library.
+* **Q-025 B: the refused outcome is the host's put-back.**
+  * `trail.step` changes: `refused` is a copy of `accepted` with `sl` set back to the stop before the cycle. Every other field keeps the move's value. The two outcomes are equal when `sl` did not move.
+  * `scripts/gen_trail_parity.py` emulates that put-back for the `refused` state and regenerates `tests/fixtures/trail_parity_445eb116.json` against the same legacy checkout.
+* **The host's ladder inputs, taken as the host's:**
+  * no `delta`;
+  * bars built from closes (below);
+  * `entry_conviction` 0.0;
+  * the seed quantity is the filled `q`;
+  * the trailed level is `level_of(round(accepted.sl, 2), up=True, tick_size=…)`: the host's `round(after, 2)`, then the gateway's tick round up. Step 1's `level_of` is unchanged; the round is applied before the call.
+* **Policy overrides.** The ladder uses `ProtectionPolicy.trail_settings()`. That equals the host's `TrailSettings()` unless a policy overrides a value, which the spec allows (POL-012).
+* **Deviation (from the live host): restart.** The kernel resumes from the full recorded `ladder_state`, peaks included, as the spec requires (PRF-PRT-02, "a restarted kernel ratchets exactly as an uninterrupted one"). The host rebuilt cold and lost its peaks.
 
 #### Where the loop runs
 
-* **`ProtectionLoop`** (in `kernel/protection.py`) is composed by `bootstrap` when `protection_placement` is `stop_on_fill`. It holds the writer, the clock, the market port, the calendar port, the safety and conflict checks, the bound policy reader and the coordinator's action door. Under `basket_at_plan` the composition holds `None` and nothing runs, until step 3.
-* **`Coordinator.run_pass` calls `protection.run_once()`** after the observation drain and only when the stage is `OPERATING`. It runs before the deadline sweep, so a request it admits can be claimed in the same pass. Protection never runs before `OPERATING` (the spec's Goal 1), and the broker-held stop stands meanwhile.
-* **Level-triggered.** Each pass evaluates every protected subject from the ledger, the latest observation and the market port. That one evaluation stands for the spec's `ObservationChanged`, `LedgerChanged` and first-evaluation triggers (CP-P1). `BarConfirmed`, `Tick` and `SquareOffTime` are read from their sources at the same time (below). The spec's rule that a `DESIRED` leg submits on any trigger but `Tick` holds, because a pass is never only a tick.
-* **Requests go through the ordinary door:** `coordinator.admit_action(request, auth=Authenticated(PROTECTION, "in_process"))`. Admission, the permission matrix, the conflict relation and dispatch apply unchanged.
+* **`ProtectionLoop(writer, clock, *, market, calendar, policy, safety, conflicts, holdings, observations, max_observation_age_secs, admit)`** in `kernel/protection.py`. `admit` is the coordinator's `admit_action`, and `policy` is `kernel.policy.Policy` (for `bound_policy`).
+* **Composition.**
+  * `bootstrap` composes it only when admission is composed and `protection_placement` is `stop_on_fill`.
+  * It is held as `Coordinator.protection`, next to `observation_loop`, and exposed as `Composition.protection`. Under `basket_at_plan` both are `None`.
+* **Test defaults.** `tests/conftest.py`'s `ADMISSION_SETTINGS` binds `protection_placement: basket_at_plan`. So no existing test, step 1's included, composes the loop. Step 2's tests bind `stop_on_fill` through `admission_settings`.
+* **When it runs.** `Coordinator.run_pass` calls `self.protection.run_once()` after the observation drain, only when the stage is `OPERATING`, and before the deadline sweep, so a request it admits can be claimed in the same pass. Protection never runs before `OPERATING` (Goal 1); the broker-held stop stands meanwhile.
+* **Level-triggered.** Each pass evaluates every protected subject from the ledger, the latest observation, the market port and the clock. That one evaluation stands for the spec's `ObservationChanged`, `LedgerChanged` and first-evaluation triggers (CP-P1). `BarConfirmed`, `Tick` and `SquareOffTime` are read from their sources at the same time.
+* **The door.** Requests go to `admit(request, auth=Authenticated(PROTECTION, "in_process"))`. Admission, the permission matrix, the conflict relation and dispatch apply unchanged.
+* **A refused protection event stops the kernel.** A `DesireRefused`, or a refused `EXIT_STARTED` or escalation other than `LED-R09`, is a payload bug. It is raised as `WriterLost`, as an outcome refusal is.
 
-#### Protected subjects
+#### The subject and its inputs
 
-A **protected subject** is each ledger `position` row that is `open`, or that has a stop leg not `ENDED`. Its inputs:
+A **protected subject** is each ledger `position` row that is `open`, or that has a stop leg with a live order not `ENDED`. For each one:
 
-* the entry's `COMMAND_ADMITTED` (`plan`, `plan_ref.legs[0]`, `strategy`, `dependencies.session_id`);
-* `q`, the row's `owned_quantity`; `entry_ended`, whether the entry command is `COMPLETED` or `REFUSED`;
-* the stop leg: `leg_view(writer, position_id, "stop", observation, now, max_age_secs=…, exit_open=…)`;
-* the `protection_state` row;
-* the policy: the leg's recorded `policy` once a desire exists (Combined-F6), else `BoundPolicy.protection` of the entry's session, else the all-defaults policy.
+* **From the entry's `COMMAND_ADMITTED`** (`lifecycle._admitted`):
+  * the plan (`payload["plan"]`);
+  * the entry leg (`plan_ref.legs[0]`: instrument, product, `tick_size`);
+  * `strategy`;
+  * the session ID, as `session_id_for(SessionScope(AccountId(*account), calendar_id), trading_date)` from `dependencies.session_id`'s wire fields.
+* **Levels:** `dict(plan["protective_levels"])` gives the stop and target as two-place strings, or `None`.
+* **`q`, the account and the entry's end:**
+  * `q` is the row's `owned_quantity`;
+  * the account is `AccountId(*json.loads(row.account))`;
+  * `entry_ended` is true when the entry command is `COMPLETED` or `REFUSED`.
+* **The stop leg:** `leg_view(writer, pid, "stop", observation, now, max_age_secs=max_observation_age_secs, exit_open=…)`, with `observation = observations.latest(account)`.
+* **`exit_open`:** the `protection_state` row's `exit_reason` is set, and the exit is not finished (below).
+* **The policy:** the desire's recorded `policy`, through a new `ProtectionPolicy.from_resolved(d)` (the inverse of `resolved()`, refusing anything `protection_policy_from` refuses). Before the first desire it is the session's `BoundPolicy.protection`, else `ProtectionPolicy()`.
+
+#### Step 1 changes to `leg_view` and the open exit (F-3, F-4)
+
+* **The placement is the latest `close` command under the leg's prefix that obtained a broker order ID.** The live order and its chain follow from it, as before.
+* **A placement that ended with no order ID** never placed a stop:
+  * `DISPATCH_REFUSED`;
+  * `REJECTED` with no ID;
+  * resolved never reached and then refused.
+* `LegView` gains `placement_failed: str | None`: `rejected` when the latest close ended `REJECTED` with no order ID, `refused` when it ended `REFUSED`, else `None`.
+* **`ORPHANED` requires a live order** (`live_order_id` not `None`), not only a command.
+* **An exit is open** while `q` > 0, or a live order exists and is not `ENDED`, or a placement or a cancel of the leg is pending. Step 1's rule ("`q` > 0 or the stop leg not `ENDED`") read a leg with no order as open for ever.
 
 #### The seed and the first desire
 
-At the first evaluation that finds `q` > 0 and no `protection_state` desire, protection records the first `PROTECTION_DESIRED`:
+At the first evaluation that finds `q` > 0 and no desire, protection records the first `PROTECTION_DESIRED`:
 
-* **Level:** the plan's stop, `Plan.protective_levels.stop`, which the planner has already tick-rounded up (POL-015).
+* **Level:** the plan's stop.
 * **Quantity:** `q`.
-* **Ladder:** `trail.seed(entry_premium=float(entry_facts.entry_premium), target=float(target), stop=float(stop), conviction=float(entry_facts.trail_conviction), quantity=PlanLeg.quantity)`, as `orchestrator.py:916-925`. The plan's `EntryFacts` fields are `repr` strings of the planner's floats, so `float()` returns legacy's exact values. The two-place stop and target are the planner's `to_tick` floats as text, and `float()` of them is exact too.
-* **`ladder_state_if_refused`:** equal to `ladder_state`.
+* **Ladder:** `trail.seed(entry_premium=float(entry_facts.entry_premium), target=float(target), stop=float(stop), conviction=0.0, quantity=q)`. Both states are equal.
 * **View:** the plan's `view_id`.
 
-A plan with no `entry_facts` or no target gives no ladder. Protection still places the stop at the plan level, records the desire with `ladder_state` `{}`, never trails it, and escalates once (reason `ladder_unseeded`). For that case `_protection_shape` accepts an empty object in place of a ladder state.
+Two notes on the seed's values:
+
+* **`entry_premium`.** The planner stores it as `format(premium, ".2f")` (`planner.py:253`), not `repr`. It is the chain LTP, a two-place price on a 0.05 tick, so `float()` returns the same value; the host read the plan's figure too.
+* **The stop and target** are the planner's `to_tick` floats as text, and `float()` of them is exact.
+
+**A plan with no `entry_facts` or no target gives no ladder.** Protection still places the stop at the plan level and records the desire with both states `{}`, which `_protection_shape` accepts for exactly this case. It never trails or tests tick exits on it, and it escalates once (`ladder_unseeded`).
+
+#### The desire on every evaluation
+
+Evaluated in this order. Each records through `record_desired`, which writes only when a field changed.
+
+1. **Quantity.** When `q` differs from `desired_quantity` and `q` > 0, re-record with quantity `q` and every other field unchanged (CP-P4).
+2. **A higher broker level** (POL-014, the host's adoption). When the leg is not `PENDING`, has a confirmed level, and `Decimal(confirmed_level) > Decimal(desired_level)`, re-record with that level, and with `ladder_state.sl = float(confirmed_level)` (only `sl` changes). This is how a human's completed modify that raises the stop is kept.
+3. **The trail**, on a new bar (below).
 
 #### The trail on a confirmed bar
 
-* **The market port gains confirmed bars** (fixture-backed until SLICE-08): `MarketPort.bars(instrument, since: Timestamp) -> tuple[InstrumentBar, ...]`, in order, with `InstrumentBar(instrument, ts: Timestamp, open, high, low, close)` and prices as decimal strings. `ts` is the bar's close time in the `exchange` domain.
-* **History.** The bars since the entry's first `FILL` event's `event_time`, which is the kernel's stamp of the fill, as legacy's `since`. `Bar.ts` is the UTC datetime: during NSE hours (03:45–10:00 UTC) the UTC and IST dates agree, so `_same_day` groups as legacy's.
-* **When.** When the latest bar is newer than the bar the last desire names (its `view_id`, `bar:<instrument>:<ts>`), and there are at least two bars. Only the latest bar is cycled, as the live host. Bars skipped while the kernel was down are a gap, recorded in step 5 and never cycled.
-* **The starting state.** Either the recorded `ladder_state`, or `ladder_state_if_refused` when the last desire's move did not reach the broker: the leg is not `PENDING` and its confirmed level is below that desire's level. Then, if the leg's confirmed level is above the starting `sl`, `sl` takes the confirmed level (the host's adoption at `:5468-5470`, and POL-014). While the leg is `PENDING`, the recorded `ladder_state` is used, since the move may yet land. The live host never had a pending modify across a bar, so this case is a decision of this step.
-* **The cycle.** `trail.step(settings, pos, bar_index=len(bars) - 1, bars=bars, delta=None, opposing_score=None)`. The new desire is `level_of(accepted.sl, up=True, tick_size=PlanLeg.tick_size)`, with quantity `q`, both states, and the bar's `view_id`, recorded by `record_desired`. With the policy's `enabled` false, the bar is not cycled and the desire keeps the plan level.
+* **The market port gains confirmed closes**, fixture-backed until SLICE-08: `MarketPort.closes(instrument, since: Timestamp) -> tuple[InstrumentClose, ...]`.
+  * `InstrumentClose(instrument, ts: Timestamp, close: str)`, oldest first.
+  * `ts` is the exchange time the close was confirmed, and `close` is a decimal string.
+* **The bars** are built exactly as the host's `_premium_bars`. For the i-th close: `trail.Bar(ts=datetime.fromisoformat(close.ts.utc_iso), open=prev, high=max(prev, c), low=min(prev, c), close=c)`, with `c = float(close)`, `prev` the previous close, and the first bar flat. During NSE hours (03:45–10:00 UTC) the UTC and IST dates agree, so `_same_day` groups them as the host did.
+* **History.** The closes with `ts` at or after the `event_time` of the entry's first `FILL` event (inclusive), as the host's `since`.
+* **When a bar is cycled.** When there are at least two bars, and the latest close's `ts` is later than the last cycled bar's.
+  * The last cycled bar is the desire's `view_id` when it has the form `bar:<instrument>:<utc_iso>`. Any other `view_id` (the plan's) means no bar has been cycled.
+  * The quantity and adoption re-records keep the `view_id`.
+* **Only the latest bar is cycled,** as the host. Bars skipped in between (a slow pass, or the kernel down) are a gap: step 5 records it, and it is never cycled.
+* **The starting state.** `pos = from_state(ladder_state)`, then:
+  * **While the leg is `PENDING`**, nothing more: the move may yet land. The live host never had a pending modify across a bar, so this case is this step's decision.
+  * **Otherwise, when the desire's level is not confirmed** (the move was refused, rejected or withheld), `pos.sl` is put back to the highest of:
+    * the `ladder_state` `sl` of the newest `PROTECTION_DESIRED` whose `desired_level` equals the leg's confirmed level;
+    * `float(confirmed_level)`;
+    * the plan stop, when nothing is confirmed.
+
+    Only `sl` changes, which is Q-025 B applied across any number of bars.
+* **The cycle.** `trail.step(settings, pos, bar_index=len(bars) - 1, bars=bars, delta=None, opposing_score=None)`. The new desire has:
+  * level `level_of(round(st.accepted.sl, 2), up=True, tick_size=leg.tick_size)`;
+  * quantity `q`;
+  * `ladder_state = to_state(st.accepted)`, `ladder_state_if_refused = to_state(st.refused)` (evidence);
+  * `view_id = bar:<instrument>:<ts>`.
+* **No cycling** when the policy's `enabled` is false, the ladder is unseeded, the leg is `ENDED`, or an exit is open, as the host stops trailing a stop whose cancel was accepted (`:5537-5540`).
 
 #### The stop leg's requests
 
-Each evaluation acts on the leg's derived state, at most one request per leg per pass, and only when none of the leg's own commands is `ADMITTED`, `IN_FLIGHT`, `UNCERTAIN` or `WORKING` (the spec's one-request rule):
+Each evaluation acts on the leg, at most one request per leg per pass, in this order.
 
-| Leg state and condition | Request (principal `kernel:protection`) |
+1. **A retry first.** When the leg's latest command is `ADMITTED` and its latest attempt is `NOT_SENT` with no retry requested (after `OUTCOME_NOT_SENT` or `RESOLVED_NEVER_REACHED`), protection rebuilds the request from its `COMMAND_ADMITTED`, using the coordinator's `action_request_from_wire`, not from the current desire. It then calls `admit`, which reaches `existing_or_retry` and records `DISPATCH_RETRY_REQUESTED`.
+2. **Otherwise, nothing** while any of the leg's commands is `ADMITTED`, `IN_FLIGHT`, `UNCERTAIN` or `WORKING`.
+3. **Otherwise**, by the derived state (`account` and keys as above):
+
+| Leg | Request (principal `kernel:protection`) |
 |---|---|
-| `DESIRED`, no placement yet, `q` > 0 | `CloseRequest(prot:<p>:stop:<n>, position, q, StopOrder(desired_level))` (`trigger_only`) |
-| `DESIRED`, placed; the level or the quantity differs | `ModifyRequest(prot:<p>:stop:<n>, live order, ModifyChanges(trigger_price=desired_level if the level differs, quantity=filled + q if the quantity differs))` |
-| `ORPHANED` | `CancelRequest(prot:<p>:stop:<n>, live order)` |
-| `ENDED` | nothing; see the escalations below |
-| `PENDING`, `CONFIRMED` | nothing |
+| `DESIRED`, no live order, `placement_failed` `None`, `q` > 0 | `CloseRequest(prot:<p>:stop:<n>, account, pid, q, StopOrder(desired_level))` (`trigger_only`) |
+| `DESIRED`, no live order, `placement_failed` `rejected` | none; escalate `stop_rejected` once. Nothing is re-placed |
+| `DESIRED`, no live order, `placement_failed` `refused` | a fresh placement, as the first row, under the refusal memory (below) |
+| `DESIRED`, live order; level or quantity differs | `ModifyRequest(prot:<p>:stop:<n>, account, live order, ModifyChanges(trigger_price=desired_level if the level differs, quantity=filled + q if the confirmed quantity differs from q))` |
+| `ORPHANED` | `CancelRequest(prot:<p>:stop:<n>, account, live order)` |
+| `ENDED` | none; the escalations below |
+| `CONFIRMED` | none |
 
-* **The latest command ended `NOT_SENT` or `RESOLVED_NEVER_REACHED`:** the identical request is resubmitted under the same key, and admission records `DISPATCH_RETRY_REQUESTED`.
-* **The latest modify ended `REJECTED`:** no request at that same level (F-P11). The next desire at a different level submits.
-* **A level through the market:** a desired stop at or above the latest bar's close is not sent, and is escalated once (`level_through_market`).
-* **Before submitting**, protection asks the read-only checks that admission will apply, so a refusal is never recorded on every pass:
-  * kill, through `Safety.check`. Under kill, `kernel:protection` is always refused, so nothing is submitted. Escalated once: `unprotected_under_kill` (placement or a raise), `orphan_under_kill` (a cancel), `exit_under_kill` or `square_off_under_kill` (the exit sequence).
-  * a hold with `safety.hold_automatic_actions: refused`: nothing is submitted, nothing is escalated, and it is retried after the release;
-  * the conflict relation (`Conflicts.check`): it waits and is retried at the next evaluation, silently;
-  * the observation age: a stale or incomplete book waits.
+* **A rejected modify** (the latest command `REJECTED` with that same trigger and quantity) is not resent (F-P11). The next desire with a different level or quantity submits.
+* **Through the market.** A trail modify whose level is at or above the close of the bar just cycled is not sent, and is escalated once (`level_through_market`). The placement is not checked, as the host's basket was not. A modify that only changes the quantity is not checked.
+* **The pre-checks.** Before submitting, protection runs the read-only checks admission will apply, with `admission.action_facts(request, order, position, observation)` and the targets from `holdings`:
+  * **Kill** (`Safety.check`). Under kill `kernel:protection` is always refused, so nothing is submitted. Escalated once by request type:
+    * a placement or a quantity raise: `unprotected_under_kill`;
+    * a cancel: `orphan_under_kill`;
+    * a step of an exit: `exit_under_kill`, or `square_off_under_kill` for a square-off.
+    * A trail level move under kill only records the desire (CUJ-PRT-3).
+  * **A hold, with `safety.hold_automatic_actions: refused`.** Nothing is submitted. A placement or raise escalates `unprotected_under_hold` once (spec "No requests under a refusing condition"); other requests wait silently.
+  * **The conflict relation** (`Conflicts.check`): the request waits, silently, and is retried at the next evaluation.
+  * **B1's observation age and B2's `effect_check`** (`admission.py:393`): the request waits. That covers a positions book that lags the ledger's fill.
+* **The refusal memory**, read from the ledger, so it survives a restart. After the leg's newest refusal (an `ADMISSION_REFUSED` with a `prot:<p>:stop:` key, or a `DISPATCH_REFUSED` of one of its commands), no request is made for that leg until one of these is committed after the refusal's sequence:
+  * a safety event (`KILL_*`, `HOLD_*`);
+  * any event of a command on the position or its live order;
+  * a `FILL` on the position;
+  * a desire with a different level or quantity.
 
-  A refusal that still happens (a race with another commit) is recorded by admission. The same request is not resubmitted until the ledger head or the observation digest has changed. That memory is in-process; a restart allows one more attempt.
+  A freshness refusal (`ADM-R05`) also clears on a newer observation cycle, so at most once per poll interval. So a degraded system records at most one refusal per change of its inputs (PRF-PRT-09).
 
 #### Escalations
 
-* **A new `lifecycle.escalate(writer, subject, reason, *, principal, observation_digest=None, excess=None)`** replaces the closure inside `reconcile`, so both callers share it. It records `RECONCILIATION_ESCALATED` with episode 0 and treats `LED-R09` (already recorded) as done.
-* Protection's subject is the `position_id`, so each reason is recorded once per position. Clearing and recurrence by episode are step 3's (the holds).
-* **Reasons in step 2:**
-  * `stop_rejected` or `stop_expired`, for a leg `ENDED` with reason `broker`. Nothing is re-placed.
-  * `protection_ended_external`, for `ENDED` `external`.
-  * `level_through_market`, `ladder_unseeded`.
-  * The four kill reasons above.
-  * `square_off_unscheduled` (below).
-
-  An `ENDED` leg with reason `human:<key>`, `fill`, `exit` or `orphan` escalates nothing.
+* **A shared helper.** `lifecycle.escalate(writer, subject, reason, *, principal, observation_digest=None, excess=None, evidence=()) -> bool` replaces the closure inside `reconcile`. It records `RECONCILIATION_ESCALATED` with episode 0, returns True when it committed and False on `LED-R09` (already recorded), and raises `WriterLost` on any other refusal. `reconcile` keeps its behaviour, appending to its result when the call returns True.
+* **Protection's escalations.**
+  * The subject is the `position_id`, with the latest observation's digest when one was read.
+  * Each reason is recorded once per position.
+  * **Spec amendment:** the spec's "until its condition clears" needs episodes, which step 3 builds for the holds, so step 2 records once per position. A second kill episode on the same position is visible as `KILL_ENGAGED` in the ledger.
+* **The reasons step 2 records:**
+  * `stop_rejected` and `stop_expired`: the leg `ENDED` with reason `broker` and an observed status `rejected` or `expired`, or a placement `REJECTED` with no ID;
+  * `protection_ended_external`: only when a fresh observation shows the live order `cancelled`, `rejected` or `expired` with no matching cancel command;
+  * `level_through_market`, `ladder_unseeded`, `square_off_unscheduled`;
+  * `exit_close_rejected`, `exit_close_incomplete` (the exit sequence);
+  * `square_off_entry_working` (square-off);
+  * the kill and hold reasons above.
+* **New reasons are spec amendments** to the event catalogue's list: `ladder_unseeded`, `protection_ended_external`, `square_off_unscheduled`, `square_off_entry_working`, `exit_close_rejected`, `exit_close_incomplete` and `unprotected_under_hold`.
+* **Ends that escalate nothing:**
+  * `human:<key>`, `fill`, `exit` and `orphan`;
+  * `fill_pending`, which waits for the fill;
+  * a ledger end with no fresh row, which waits for one.
 
 #### Tick exits (`stop_on_fill` only)
 
-* **The market port gains** `latest_tick(instrument) -> Tick | None`, with `Tick(instrument, price, delta, at)`: decimal strings, `delta` possibly `None`, and `at` in the `exchange` domain. Only the latest tick is read, so ticks are coalesced by construction.
-* **The test.** `premium_exit(settings, pos, float(price), delta)`, with `pos` from `ladder_state`:
+**Deviation (from the live host):** the live host ran no tick exits; under its basket the target rested at the broker. `stop_on_fill` has no resting target, so the spec's target tick exit is the only target it has.
+
+* **The market port gains** `latest_tick(instrument) -> Tick | None`, with `Tick(instrument, price, delta, at)`: `price` in money form, `delta` a decimal string or `None`, and `at` in the `exchange` domain. Only the latest tick is read, so ticks are coalesced by construction.
+* **A tick is used only when** `at` is at or after the entry's first `FILL` event time and within `max_observation_age_secs` of the clock, and the ladder is seeded. Any other tick is ignored.
+* **The test.** `premium_exit(settings, from_state(ladder_state), float(price), delta)`:
   * `premium_sl_hit` does nothing, because the broker's stop executes.
-  * `premium_target_hit` records `EXIT_STARTED` (reason `target`, cause `{"price": <tick price as money>, "at": <tick at>}`) once per position.
-  * **Deep-OTM waits on [Q-026](../../decisions/owner-questions.md#q-026).** Until it is answered, the loop passes `delta=None`, so the delta test never fires. That is the live host's behaviour. Under option A the loop passes `Tick.delta` and records reason `deep_otm_delta`, a one-line change with its test.
-* A tick older than the latest bar, or with `at` in the future of the clock, is ignored.
+  * `premium_target_hit` records `EXIT_STARTED` (reason `target`, cause `{"price": price, "at": at.utc_iso}`) once per position. It is not recorded while kill or a refusing hold would withhold the sequence; it escalates `exit_under_kill` once instead.
+  * **Deep-OTM waits on [Q-026](../../decisions/owner-questions.md#q-026).** Until it is answered, `delta` is passed as `None`, so the delta test never fires, which is the live host's behaviour. Under option A the loop passes `Tick.delta` and records reason `deep_otm_delta`: a one-line change with its test.
 
 #### The exit sequence
 
-While `EXIT_STARTED` is open (step 1's derived rule: `q` > 0 or the stop leg not `ENDED`), it replaces the leg's own requests:
+While an exit is open (above), it replaces the stop leg's own requests:
 
-1. Cancel the resting stop (`prot:<p>:stop:<n>`).
-2. Wait until it is `ENDED`.
-3. If `q` > 0, submit `CloseRequest(prot:<p>:close:<n>, position, q, MarketOrder())`.
+1. **Cancel the stop.** While a live order rests and is not `ENDED`, cancel it (`prot:<p>:stop:<n>`), by the same one-request, retry and refusal-memory rules.
+2. **Close only when the whole chain is accounted for** (F-1). Every order in the leg's chain must have a fresh observed row (within `max_observation_age_secs`) that is terminal and whose `filled_quantity` equals the fills recorded for it, and the leg's end reason must not be `fill_pending`. So `q` includes every fill of the stop.
+3. **Then, if `q` > 0,** submit `CloseRequest(prot:<p>:close:<n>, account, pid, q, MarketOrder())`.
 
-* A stop found filled ends the leg with reason `fill`, and with `q` = 0 nothing more is sent, as `session_close.py:209-214`.
-* The sequence resumes after a restart and after `SESSION_CLOSED` (CP-P3).
-* Under kill it submits nothing and escalates once.
+* **The `close` role follows the same rules:** one request at a time, the retry first, and the refusal memory.
+* **No close while a human principal's close of the position is unresolved.** Conflict row 2 already makes it wait.
+* **A close that ends `REJECTED`** is escalated once (`exit_close_rejected`) and never resent, as `session_close.py:170-175`. The broker's square-off is the backstop.
+* **A close that `COMPLETED` `order_ended` with `q` still > 0** is escalated once (`exit_close_incomplete`) and not resent.
+* **The exit finishes** when `q` ≤ 0 and no live order rests. A stop found filled ends the leg with reason `fill`, and with `q` = 0 nothing is sent (`session_close.py:209-214`).
+* **The sequence resumes** after a restart and after `SESSION_CLOSED` (CP-P3).
+* **Under kill** it submits nothing and escalates once.
 
 #### The session-close exit
 
-* **The square-off instant** is the session's `trading_date` at `square_off_time` in exchange time. Exchange time comes from a new keyword field on the calendar port's `TradingDay`: `utc_offset_minutes`, which is `330` for NSE fixtures. A calendar that gives no offset leaves square-off unscheduled: it is escalated once (`square_off_unscheduled`), and the broker's own square-off is the backstop.
-* **When.** At the first evaluation at or after that instant, while the session is `OPEN` or after a restart before `SESSION_CLOSED`, with `session_close: square_off`. Protection then records `EXIT_STARTED` (reason `square_off`, cause `{"session_id": …}`) for each subject with `q` > 0 or a resting stop, and runs the exit sequence.
-* With `session_close: broker` nothing is recorded or sent.
-
-#### Kill and holds
-
-Protection records desires under kill and holds; only its requests are withheld, as above. With `safety.hold_automatic_actions: allowed` (Q-001) a hold does not stop protection.
+* **The square-off instant** is the session's `trading_date` at `square_off_time` in exchange time.
+  * Exchange time comes from a new field on the calendar port's `TradingDay`, after `_: KW_ONLY`: `utc_offset_minutes: int | None = None`. `FakeCalendar.day` sets 330.
+  * A calendar of `None`, a `Holiday`, an `Unavailable` result or a `None` offset leaves square-off unscheduled. It is escalated once per position (`square_off_unscheduled`), and the broker's square-off is the backstop.
+* **When.** On every evaluation at or after the instant, with `session_close: square_off`, while the session is `OPEN`, or after a restart before `SESSION_CLOSED`. Each subject with `q` > 0 or a resting stop, and no exit recorded, gets `EXIT_STARTED` (reason `square_off`, cause `{"session_id": …}`) and the exit sequence.
+  * So a position that fills after the instant is still closed, as the host's every-pass check.
+* **An entry still working** (`ADMITTED`, `IN_FLIGHT`, `UNCERTAIN` or `WORKING`) is skipped, as the host skips a partly filled entry (`session_close.py:146-152`). It is escalated once (`square_off_entry_working`), and the broker's square-off is the backstop. It is evaluated again on later passes, after the entry ends.
+* **With `session_close: broker`** nothing is recorded or sent.
+* **Under kill:** see the exit sequence.
 
 #### The structure-action map
 
@@ -444,75 +559,112 @@ No structure is admitted (Q-020), so step 2 adds no structure code. The spec's m
 #### TASK-S06-01's characterizations
 
 * **Legacy re-placement:** none exists (above).
-* **The marketable-stop alternative** (modify the trigger through the market instead of cancel-then-close): legacy never did it, and step 2 does not build it. It stays a recorded alternative in the spec's risks.
+* **The marketable-stop alternative**, which modifies the trigger through the market instead of cancelling then closing: legacy never did it, and step 2 does not build it. It stays a recorded alternative in the spec's risks.
 
 ### Files
 
 | File | Change |
 |---|---|
-| `src/autonomous_trading/kernel/protection.py` | `ProtectionLoop` (`run_once`, subjects, the seed, the trail, requests, tick exits, the exit sequence, square-off) |
-| `src/autonomous_trading/kernel/trail.py` | `step`'s refused outcome: the live host's put-back (Q-025 B) |
+| `src/autonomous_trading/kernel/protection.py` | `ProtectionLoop`; `leg_view`'s placement rule, `placement_failed`, `ORPHANED` needing a live order, the open-exit rule |
+| `src/autonomous_trading/kernel/trail.py` | `step`'s refused outcome: the host's put-back (Q-025 B) |
 | `src/autonomous_trading/kernel/lifecycle.py` | `escalate(...)`, shared; `reconcile` uses it |
-| `src/autonomous_trading/kernel/coordinator.py` | `run_pass` calls `protection.run_once()` after the drain, in `OPERATING` |
-| `src/autonomous_trading/kernel/ports.py`, `contracts/market.py` | `MarketPort.bars`, `MarketPort.latest_tick`, `InstrumentBar`, `Tick`; `TradingDay.utc_offset_minutes` |
-| `src/autonomous_trading/kernel/ledger/store.py` | `_protection_shape` accepts `{}` for an unseeded ladder |
-| `src/autonomous_trading/bootstrap.py` | Composes the loop under `stop_on_fill` |
-| `scripts/gen_trail_parity.py`, `tests/fixtures/trail_parity_445eb116.json` | The live put-back for `refused`; regenerated |
-| `tests/conftest.py` | `FixtureMarket.bars`, `latest_tick`; a fixture plan with `entry_facts` and a target; the calendar's offset |
-| `tests/unit/test_protection_states.py` | The step's unit tests |
+| `src/autonomous_trading/kernel/coordinator.py` | `protection` attribute; `run_pass` calls `run_once()` after the drain in `OPERATING`; crash points `CP-P1`, `CP-P4` in `FaultPlan` |
+| `src/autonomous_trading/kernel/ports.py`, `contracts/market.py` | `MarketPort.closes`, `MarketPort.latest_tick`, `InstrumentClose`, `Tick`; `TradingDay.utc_offset_minutes` |
+| `src/autonomous_trading/contracts/decisions.py` | `ProtectionPolicy.from_resolved` |
+| `src/autonomous_trading/kernel/ledger/store.py` | `_protection_shape` accepts both states `{}` together |
+| `src/autonomous_trading/bootstrap.py` | Composes the loop under `stop_on_fill`; `Composition.protection` |
+| `scripts/gen_trail_parity.py`, `tests/fixtures/trail_parity_445eb116.json` | The host's put-back for `refused`; regenerated |
+| `tests/conftest.py` | `ADMISSION_SETTINGS` binds `basket_at_plan`; `FixtureMarket.closes`, `latest_tick`; `FakeCalendar.day` offset 330; `protected_plan` (below) |
+| `tests/unit/test_protection_states.py` | The step's unit tests; step 1's `test_two_outcomes` updated |
 | `tests/integration/test_protection_kernel.py` | New: CUJ-PRT-1 (no worker exists), CUJ-PRT-4, CP-P3, the exit sequence |
 | `tests/recovery/test_crash_boundaries.py` | CP-P1, CP-P2, CP-P4 |
+| Spec amendments | The protection spec: the new escalation reasons; once per position until step 3's episodes; the open-exit rule; the trail's host inputs (bars from closes, `round(sl, 2)`, conviction 0.0, filled quantity) |
 
 ### Step 2 tests
 
-All values are labelled synthetic: prices, bars, ticks, quantities and times.
+All values are labelled synthetic. **`protected_plan`** is `make_plan` with:
+
+* `protective_levels (("stop", "15.00"), ("target", "30.00"))`;
+* `entry_facts = EntryFacts("20.00", "0.5", "0.3", "1.0", "0.0", "5.0")`;
+* the leg's `tick_size` `"0.05"`.
+
+Worlds are `admission_world(policy=OFF, plan=protected_plan, kernel_positions=True, loop=True, admission_settings=dict(LOOP_SETTINGS, protection_placement="stop_on_fill"))`. The closes are fed through `FixtureMarket.closes`.
 
 * **The ladder (PRF-PRT-02):**
-  * the regenerated golden cases, with `refused` as the live put-back;
-  * a moving bar's refused outcome differs from the accepted one only in `sl`.
+  * the regenerated golden cases;
+  * a moving bar's refused outcome differs from the accepted one only in `sl`;
+  * bars from closes equal the host's `_premium_bars` on a fixed list, the first one flat.
 * **The loop on a filled entry (PRF-PRT-01, `stop_on_fill`):**
-  * the first `FILL` records the seed desire and places one stop at the plan level for `q`, while the entry is still `WORKING`;
-  * a later fill raises the quantity by a modify to `filled + q`;
-  * a ratcheting bar records a desire and submits one modify; a second bar while it is `PENDING` records a desire and submits nothing;
-  * a rejected modify is not resent at that level, and the next bar cycles from the put-back state with only `sl` back;
-  * a modify completing at a different broker level adopts the higher level;
-  * an older or equal bar cycles nothing;
-  * fewer than two bars place the stop and do not cycle;
-  * the first cycle never sees a bar from before the first fill;
-  * an `ORPHANED` leg is cancelled;
-  * a broker-rejected stop escalates `stop_rejected` once and is never re-placed;
-  * a human cancel ends the leg and nothing is re-placed;
-  * a level through the market is escalated and not sent;
-  * `NOT_SENT` is resubmitted under the same key.
+  * **Placement and quantity:**
+    * the first `FILL` records the seed desire (conviction 0.0, quantity `q`) and places one stop at 15.00 for `q`, while the entry is still `WORKING`;
+    * a later fill re-records the quantity and raises the stop by a modify to `filled + q`.
+  * **Trail modifies:**
+    * a ratcheting bar records a desire at `level_of(round(sl, 2), up=True)` and submits one modify;
+    * two new closes between passes cycle only the latest, and the desire equals `trail.step` on the latest bar alone;
+    * a second bar while the modify is `PENDING` records a desire and submits nothing;
+    * a modify `PENDING` over a bar, then rejected: the next bar starts with `sl` put back to the newest confirmed desire's `sl`, every other field from the latest state;
+    * a rejected modify is not resent at that level;
+    * a human's completed modify raising the stop is adopted at once, and protection never modifies it down;
+    * an older or equal close cycles nothing, and fewer than two bars cycle nothing;
+    * the history never includes a close before the first fill;
+    * on the `opposing` golden path the desire equals the no-score step.
+  * **Placement failures:**
+    * a placement refused at dispatch is placed again under the refusal memory;
+    * a placement rejected with no order ID escalates `stop_rejected` once and is never re-placed;
+    * a broker-rejected resting stop escalates `stop_rejected` once and is never re-placed.
+  * **Ends:**
+    * an `ORPHANED` leg is cancelled, and a leg with no live order is never `ORPHANED`;
+    * a human cancel ends the leg and nothing is re-placed.
+  * **Other rules:**
+    * a trail level through the market is escalated and not sent;
+    * `NOT_SENT` is resubmitted under the same key with `DISPATCH_RETRY_REQUESTED`;
+    * an unseeded plan places the stop, escalates `ladder_unseeded`, and never trails.
 * **Tick exits:**
-  * a target tick records one `EXIT_STARTED` and runs the sequence to the close, even after the price moves back;
+  * a fresh target tick records one `EXIT_STARTED` and runs the sequence to the close, even after the price moves back;
+  * a stale tick, or one from before the fill, does nothing;
   * a stop tick does nothing;
-  * a deep-OTM tick does nothing while Q-026 is open.
-* **The exit sequence:** the close is never submitted while the stop rests; a stop found filled sends no close.
+  * a deep-OTM tick does nothing while Q-026 is open;
+  * a target tick under kill records no exit and escalates once.
+* **The exit sequence:**
+  * the close is never submitted while the stop rests;
+  * a stop that partly filled, was then cancelled and has its fill recorded late is closed only for the true `q`, after the fill is recorded;
+  * a stop found filled sends no close;
+  * a rejected close is escalated once and not resent;
+  * a position whose stop was never placed (placement under kill) is still closed at square-off after the kill is released.
 * **Session close (PRF-PRT-07):**
   * `square_off` at 15:13 IST runs the sequence;
+  * a position filled after 15:13 is closed on a later pass;
+  * an entry still working is skipped and escalated once;
   * `broker` sends nothing;
   * no offset escalates `square_off_unscheduled`.
-* **Kill and holds:** under kill, desires are recorded, nothing is submitted, and each kill reason is escalated once over several passes. A hold with `allowed` proceeds; with `refused` it waits silently.
-* **Degraded passes (PRF-PRT-09):** ten passes in a refusing state record no repeated `ADMISSION_REFUSED` or escalation. Every record cites its bar `view_id`, tick, observation digest or session.
-* **Crash points (PRF-PRT-03), in `test_crash_boundaries.py`:**
-  * **CP-P1:** a desire committed, then a restart before admission; one request after `OPERATING`.
-  * **CP-P2:** a modify `UNCERTAIN` over a restart; no second modify, and the leg confirms from the book.
-  * **CP-P4:** a fill committed, then a restart before the raise; one modify.
-* **The loop is not composed under `basket_at_plan`,** and does not run before `OPERATING`.
-* **Break checks** (named in the docstrings):
+* **Kill and holds:**
+  * under kill, desires are recorded, nothing is submitted, and each kill reason is escalated once over ten passes;
+  * a hold with `allowed` proceeds;
+  * a hold with `refused` withholds the placement and escalates `unprotected_under_hold` once.
+* **Degraded passes (PRF-PRT-09):**
+  * ten passes with a conflicting command record no `ADMISSION_REFUSED`;
+  * a refusal that does happen is recorded once until a change is committed;
+  * desires cite their bar `view_id`, exits their tick or session, and escalations their observation digest.
+* **Composition:** the loop is not composed under `basket_at_plan`, and does not run before `OPERATING`.
+* **Crash points (PRF-PRT-03), in `test_crash_boundaries.py`.** They use the existing child-process pattern (`FaultPlan`, `_crash_point`, exit 86). The parent reopens the ledger and seeds the book with `queue_cycle` on a `ScriptedObservationPort` showing the stop:
+  * **CP-P1:** a crash point between `record_desired` and `admit`. After `OPERATING`, exactly one request is admitted.
+  * **CP-P2:** a modify left `UNCERTAIN` (the `unresolved` helper) before the reopen. No second modify is sent, and the leg confirms from the book.
+  * **CP-P4:** a crash point after a fill's `FILL` commit and before the raise. One modify follows.
+* **Break checks** (named in the docstrings), each failing a test above:
   * cycle every bar since the last one instead of the latest;
-  * show the ladder bars from before the first fill;
+  * show the ladder closes from before the first fill;
   * pass an opposing score;
   * keep the library's refused outcome;
   * start from `ladder_state` after a rejected modify;
+  * build bars from real OHLC instead of consecutive closes;
+  * send `level_of(sl)` without `round(sl, 2)`;
   * submit while the leg is `PENDING`;
   * resend a rejected modify at the same level;
   * submit under kill;
   * re-place a rejected stop;
-  * close before the stop is `ENDED`;
-  * escalate on every pass;
-  * pass `Tick.delta` to `premium_exit` (while Q-026 is open);
+  * close before the chain is accounted for;
+  * drop the refusal memory;
+  * pass `Tick.delta` to `premium_exit` while Q-026 is open;
   * run protection before `OPERATING`.
 
 ## Step 3 — basket placement (scoped)
