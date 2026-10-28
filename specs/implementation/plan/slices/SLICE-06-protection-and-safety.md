@@ -1,6 +1,6 @@
 # SLICE-06 — Protection and safety
 
-* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-06-review-2026-10-28)). Step 1 is built (OA_NEW `03bbbde` on `slice-06`; [Step 1 as built](#step-1-as-built)). Step 2 is built (OA_NEW `e27a436`; [Step 2 as built](#step-2-as-built); Q-024 and Q-025 option B, [Q-026](../../decisions/owner-questions.md#q-026) option A). Steps 3–5 are scoped; each is deepened once the step before it is built, as in SLICE-04, SLICE-05 and SLICE-07 (the delivery plan's depth rule).
+* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-06-review-2026-10-28)). Step 1 is built (OA_NEW `03bbbde` on `slice-06`; [Step 1 as built](#step-1-as-built)). Step 2 is built (OA_NEW `e27a436`; [Step 2 as built](#step-2-as-built); Q-024 and Q-025 option B, [Q-026](../../decisions/owner-questions.md#q-026) option A). Step 3 is decision-complete below and not yet built; four of its rules wait on [Q-027](../../decisions/owner-questions.md#q-027). Steps 4–5 are scoped; each is deepened once the step before it is built, as in SLICE-04, SLICE-05 and SLICE-07 (the delivery plan's depth rule).
 * **Precedence:** the master README, then the ROADMAP, then this package. The authority is the [protection spec](../../design/protection-and-safety.md), with the [ledger spec](../../design/ledger-and-atomic-transaction.md) for the events and index tables and the [execution-domain spec](../../design/execution-domain-and-observations.md) for the observations protection reads. Every deviation is marked **Deviation**. No score, threshold or money value is set here: the ladder's parameters are the approved shipped values (POL-012), and every refusing setting is bound only to labelled synthetic or owner-answered values in tests.
 * **Phase:** master Phase 1 (ATA-01, POL-004…POL-006, POL-010…POL-015, A03-F5 kernel side, Combined-F6 protection part). Class S: the simulated broker only.
 * **Builds on:** [SLICE-07](SLICE-07-observations-reconciliation-domain.md) as built (fills, positions, observations, the OpenAlgo adapter's single orders). The branch `slice-06` is cut from `slice-07` (OA_NEW `1b42505`). SLICE-06 follows SLICE-07 because protection needs fills and observations (delivery plan).
@@ -720,18 +720,267 @@ Commit `e27a436` on `slice-06`, on top of step 1's `03bbbde`. It changes 15 path
 | Pass no delta to `premium_exit` | `test_a_deep_otm_tick_starts_the_exit_and_beats_the_target` |
 | Run protection before `OPERATING` | `test_protection_never_runs_before_operating` |
 
-## Step 3 — basket placement (scoped)
+## Step 3 — basket placement
 
-`basket_at_plan`, as the [Basket placement](../../design/protection-and-safety.md#basket-placement-basket_at_plan-kernelprotectionpy) section specifies:
+The authorities are:
 
-* `basket_legs` and `PlanRef.protective_legs`, and `ADM-R13`;
-* the simulated broker's basket, and the OpenAlgo `basketorder` call with the in-send validated join (PRF-DOM-04's basket clauses);
-* the SLICE-07 hand-offs: `LEG_ASSIGNED`, `RESIDUAL_RECORDED` and partial resolution, `resolve_attempt` per leg (for CP-B2), and multi-leg I-6 reductions;
-* the basket derived states and classification;
-* the quantity rule and P-1;
-* the failure classes;
-* `overclose` and `sibling_failed` holds by episode, resolving the spec's F-P18 wording, which names hold reason `recovery` where the Basket section names `overclose`;
-* CP-B1…CP-B6.
+* the protection spec's [Basket placement](../../design/protection-and-safety.md#basket-placement-basket_at_plan-kernelprotectionpy) section, its crash points CP-B1…CP-B6 and F-P15…F-P25;
+* the execution-domain spec's [OpenAlgo adapter](../../design/execution-domain-and-observations.md#openalgo-adapter-adaptersopenalgopy) basket clauses and `LEG_ASSIGNED` rule;
+* the ledger spec's `PlanRef.protective_legs`, `ProtectiveLeg` and `LEG_ASSIGNED`.
+
+The step builds on step 2 as built (OA_NEW `e27a436`). `basket_at_plan` is the first-release placement ([Q-013](../../decisions/owner-answers-2026-10-27.md)).
+
+**The rule for choices** is step 2's: where the live host and the spec differ, the text follows the host and says so. The exception is four rules the spec adds beyond the host. They are written as the spec says and marked **[Q-027]**; their build waits on the owner's answer to [Q-027](../../decisions/owner-questions.md#q-027).
+
+### What legacy does
+
+All citations are at 445eb116. `RFL` is `scripts/run_framework_live.py` (read with `git show`); the rest is under `src/`.
+
+* **The basket** (`core/framework/execution/orders.py:155-214`).
+  * The legs are `[entry, stop?, target?]`.
+  * The protective legs take the side opposite the entry, the entry's full quantity and the entry's product (`:199-201`).
+  * The stop is `SL-M` with `trigger_price` = the stop and `price` 0.0 (`:209-210`). The target is `LIMIT` with `price` = the target and `trigger_price` 0.0 (`:212-213`).
+  * A stop or target of 0 or less adds no leg (`:173-175`).
+  * Both are priced from the plan's premium, not the fill: "a deliberate trade" (`:179-186`). They are rounded the tight way: the stop up, the target down for a BUY entry (`:256-269`).
+* **The send** (`runtime/execution_gateway/__init__.py`).
+  * One `basketorder` call, `{"orders": [...], "strategy": …}`: "Always a basket, even for one leg" (`:678-689`, `:736-762`).
+  * Roles come from one fresh `orderbook` read after a multi-leg response with IDs (`core/basket_observation.py:44-77`) and an exact join (`core/framework/execution/basket_identity.py:48-76`, `:79-180`).
+    * The join matches symbol, exchange, product, action, price type and quantity, with prices within 0.05 (`_PRICE_TOLERANCE`, `:17`).
+    * Index 0 is the entry, `SL`/`SL-M` the stop, `LIMIT` the target.
+  * "Roles come from a fresh orderbook join, never basket completion order" (gateway `:1150`).
+  * A count mismatch, a duplicate ID, or a failed row that carries an ID makes the result invalid (`basket_identity.py:101-117`).
+  * An entry that is proven with a protective leg missing is still accepted, with reason `PARTIAL: …` and no hold (`:170-180`; gateway `:1810-1821`).
+  * A timeout is `UNKNOWN` (gateway `:1092-1101`).
+* **After fills (RFL).**
+  * A protective fill is a close of the entry's position (`:6176-6204`).
+  * Any recorded close cancels every other protective leg (`_cancel_resting_siblings`, `:4588-4664`, called at `:6647-6649`). It cancels only and never modifies a quantity [Q-027].
+  * A cancel that fails holds the strategy at once (`_hold_unconfirmed_siblings`, `:4668-4687`) [Q-027], the fix for 15 October 2026 (`:4611-4618`).
+  * A close beyond the held quantity is an overclose. The host records a hold, "a reverse position may be open", and sends nothing (`_report_overclose`, `:5631-5664`).
+* **Partial and unfilled entries [Q-027].**
+  * The legs stay at the planned quantity.
+  * A partly filled row is neither trailed (`:5522`) nor squared off (`session_close.py:144-152`).
+  * An entry that never fills leaves its legs resting.
+* **The trail** modifies the basket's stop leg (`stop_id` from `protective_roles`, `:5533-5534`) with quantity `filled − closed` (`:5236-5237`, `:5262-5268`).
+* **The target leg** is never modified (gateway `:1356-1360`).
+* **Square-off** cancels both legs, then closes on a later pass when both show cancelled or rejected. A leg found `complete` means no close (`session_close.py:182-220`).
+* **Holds** are per strategy, guard only new submits, and are cleared only by a person (`core/framework/execution/holds.py:39`, `:57-59`, `:137-154`, `:188-209`). Cancels, modifies and closes do not read them (RFL `:4617-4618`).
+
+### Decisions
+
+#### Contracts and the plan
+
+* **`ProtectiveLeg(leg_role, instrument, product, side, quantity, order)`** in `contracts/execution.py`, with:
+  * `leg_role` `stop` or `target`;
+  * `side` `SELL`, the only value;
+  * `order` `StopOrder` for the stop, `LimitOrder` for the target.
+
+  `PlanLeg` stays BUY-only.
+* **`PlanRef.protective_legs: tuple = ()`** is a keyword field. `PlanRef.plan_digest` does not cover it (the spec), but `request_digest` and `COMMAND_ADMITTED`'s `plan_ref` do, through the wire form.
+* **`kernel.protection.basket_legs(plan, *, stop_order_type) -> tuple[ProtectiveLeg, ...]`**, as legacy's `build_basket`:
+  * `stop` when `protective_levels.stop` > 0, as `StopOrder(trigger=stop)` (`trigger_only`: no limit);
+  * `target` when `protective_levels.target` is set and > 0, as `LimitOrder(price=target)`;
+  * each with the entry leg's instrument, product and quantity.
+
+  The planner has already rounded both levels the tight way (`planner.py:212-214`).
+
+#### Admission
+
+Under `basket_at_plan`, after planning and the reserved-role check:
+
+* **A one-leg plan with `limit_price` set** is refused `ADM-R13`, stage `placement`, reason `limit_entry_in_basket` (F-P23). The planner never sets one today (`planner.py:251`).
+* **A one-leg plan** gets `dataclasses.replace(ref, protective_legs=basket_legs(plan, …))`. A plan with more than one leg gets none: a structure leg is `stop_on_fill`, and no structure is admitted (Q-020).
+* **Capacity and exposure.** B5 already counts only the plan's totals, which are the entry leg's. `resulting_exposure` stays the entry leg's. The reservation stays single-leg. The protective legs carry no capital, and a rejected protective leg reduces nothing (no I-6 reduction).
+* **No stop leg** (the plan has no stop): the entry and target are sent, as legacy, and protection escalates `no_stop_planned` once at the first fill.
+
+#### Ownership and fills of the protective legs
+
+* **`owned_order_from_row` for an entry row whose `leg_role` is `stop` or `target`** builds `OwnedOrder(side SELL, order_kind stop | limit, position_id = position_id(entry key, the entry leg's role))`, taken from the admitted `plan_ref.protective_legs`.
+  * So `is_protective` holds for both legs.
+  * Conflict row 2 sees them as members of the group.
+  * Capacity's external commitments skip them.
+* **A `FILL` on a `stop` or `target` order of an entry command** lowers the entry leg's position by the fill's quantity.
+  * Its `position_id` is the entry leg's, and the fold checks that.
+  * It carries `reservation_before` and `reservation_after` null: it never touches the entry's reservation or state.
+  * `lifecycle`'s fill draft and the `_fill` fold gain this branch. Today such a fill escalates `fill_mismatch`.
+* **The entry completes on its entry leg alone** (`_entry_completion` reads `plan_ref.legs` only), as the ledger spec says.
+
+#### The send
+
+* **`BasketTicket(entry: SendTicket, legs: tuple[SendTicket, ...])`** is built by `send_ticket` for an entry with protective legs:
+  * the stop's `SendTicket` has `order_kind` `stop`, side SELL and the trigger;
+  * the target's has `limit`, SELL and the price.
+
+  A broker that requires a ticket and gets none is `DSP-R04`, as today.
+* **The simulated broker** places the entry and each protective leg in its book: the stop with its trigger, the target with its price, both SELL. Scripted steps:
+  * `"legs": {"stop": "S1", "target": "T1"}` names their IDs;
+  * a role mapped to `null` is rejected in the response;
+  * `"unassigned": ["X1"]` returns an ID with no role.
+
+  It returns one `LegResult` per `plan.legs` entry, then one per `protective_legs` entry.
+* **The OpenAlgo adapter** sends `basketorder` with `{"strategy": …, "orders": [entry, stop, target]}`. The legs are built exactly as `orders.py:191-213`: the stop is `SL-M`, `trigger_price` = trigger, `price` 0; the target is `LIMIT`, `price`, `trigger_price` 0.
+  * Then, within the same total deadline, it makes one `orderbook` read when more than one leg was sent and the response carries IDs. The read is published as evidence and counts against the per-account read budget (SLICE-07 step 3).
+  * **Each returned ID is assigned by the validated join:** its orderbook row matches exactly one unassigned requested leg on instrument, exchange, product, side, price type and quantity, with price or trigger within 0.05 (legacy's tolerance, `basket_identity.py:17`).
+    * The `SL`/`SL-M` row is the stop, the `LIMIT` row the target, and index 0 the entry.
+    * **Deviation (from the execution-domain spec)** for live-host parity: the spec's "exact, on the tick grid" is replaced by legacy's 0.05 tolerance, which never confuses the two legs because the price type differs.
+  * **What goes unassigned, and how a result is classed:**
+    * an ID with no match, or a failed read, goes to `unassigned_order_ids`;
+    * a count mismatch or a duplicate ID makes the result `ambiguous`;
+    * a row that failed but carries an ID makes it `ambiguous` too.
+  * **The response shape** (`{"status", "results": [{"status", "orderid"}, …]}`) is read as legacy's `basket_observation.py:20-41` reads it. No capture exists at 445eb116, so the body and response are confirmed against a capture in TASK-S07-05 before live use. The tests use labelled synthetic responses.
+  * **The command class** is the execution spec's: `acknowledged` if any leg is acknowledged and none is ambiguous; `rejected` if every leg is rejected; otherwise `ambiguous`.
+
+#### `LEG_ASSIGNED`
+
+* **A new event** (family `lifecycle`, principal `kernel:lifecycle`), with payload `attempt_no`, `broker_order_id`, `leg_role`, `observation_digest`.
+* **The fold** sets `broker_identity.leg_role` and the attempt's `legs` entry, and removes the ID from `unassigned_order_ids`. A second one for the same ID raises `TransitionNotAllowed` (`LED-R09`).
+* **Reconciliation commits it** when an attempt's unassigned ID matches exactly one unassigned leg by the same join on a fresh, complete orderbook.
+* **A fill on an order with no role waits** (`reconciliation.py:406-407` already skips it) and is recorded after the assignment.
+* `RESIDUAL_RECORDED` is not needed: a basket has one entry leg, and protective legs never count. It stays with multi-leg entries.
+
+#### The basket leg
+
+* **`leg_view` gains the basket source.** The placement is the entry command's `broker_identity` order row with the leg's role, followed through replacements. The placed level comes from the admitted `plan_ref.protective_legs`, and the placed quantity is that leg's quantity. The leg's own commands are `prot:<p>:<role>:<n>` (modifies and cancels), as before.
+* **The derived states**, first match wins, are the spec's six:
+  1. **`ENDED`**:
+     * observed terminal;
+     * or never reached, or transport-rejected (escalate `unprotected` once if `q` > 0);
+     * or rejected in the basket response (escalate `stop_rejected` once for the stop).
+  2. **`PENDING`**:
+     * the entry command is `ADMITTED`, `IN_FLIGHT` or `UNCERTAIN`;
+     * or an order ID has no role yet;
+     * or `observed` is `None`;
+     * or a leg's own command is pending.
+  3. **`HELD_BACK`**: a hold-bearing failure of this leg, with its hold engaged.
+  4. **`ORPHANED`** [Q-027]: the entry window has ended, `q` ≤ 0, and the leg rests.
+  5. **`CONFIRMED`**: `observed` rests at the desired level and the desired order quantity.
+  6. **`DESIRED`**.
+* **The entry window** runs from the entry's claim until the entry command is `COMPLETED` or `REFUSED`, or its entry leg is never reached or transport-rejected.
+* **Desired level:** the stop's `PROTECTION_DESIRED.desired_level`, or the target's plan price, never trailed.
+* **Desired order quantity** [Q-027]: during the window, the leg's current order quantity; after it, the leg's recorded fills plus `max(q, 0)`.
+* **The first desire.** At the first evaluation after the entry's outcome or resolution commits with the stop leg acknowledged or reached, it is recorded with:
+  * the plan's stop as the level;
+  * the stop's order quantity;
+  * the plan's `view_id`;
+  * `ladder_state` seeded as in step 2 (`entry_premium` from `entry_facts`, conviction 0.0, the planned quantity, as the host's `_build_ladder`).
+* **A basket leg never places.** It submits a `ModifyRequest` or a `CancelRequest` on its live order, under `prot:<p>:<role>:<n>`.
+
+#### The quantity rule and P-1 [Q-027]
+
+* **When it applies.** After the entry window, while no `EXIT_STARTED` is open, at each evaluation.
+* **What each leg in `DESIRED` or `ORPHANED` submits:**
+  * `q` ≤ 0: cancel the leg (the one-cancels-other step, or the orphan rule);
+  * unfilled quantity > `q` > 0: a modify to the new total `fills + q`.
+
+  `ModifyChanges.quantity` is the total, OpenAlgo's semantics; TASK-S07-05 confirms it at the source. Conflict row 2 never blocks these: they only remove sale quantity.
+* **During the window** no quantity request is made.
+* **P-1:** after the window, once a leg's requests have completed, each resting leg's unfilled quantity is at most `max(q, 0)`.
+* **Under option B** the quantity rule is legacy's instead:
+  * any recorded protective close cancels every other resting leg whole;
+  * nothing is modified;
+  * an entry that ended partly filled or never filled leaves its legs as they rest.
+
+#### The trail under the basket
+
+The ladder moves only the `stop` leg, by `ModifyRequest(prot:<p>:stop:<n>, the stop's live order, ModifyChanges(trigger_price=level, quantity=filled + q only when the quantity rule needs it))`. The target is changed only by the quantity rule.
+
+Step 2's trail rules apply unchanged: bars from closes, the latest close only, the host's put-back and adoption, and `trail_level`.
+
+[Q-027]: under option B, the stop is trailed only when the entry filled its whole planned quantity (`RFL:5522`).
+
+#### Failure classes and holds
+
+* **The spec's failure-class table, with the escalation time `reconciliation.working_escalation_secs`:**
+  * **transient** (`ADM-R05`, `ADM-R12`, `PRT-R06`, `NOT_SENT`): retried until the transient condition has lasted the escalation time, then hold-bearing [Q-027: under option B, a failed cancel is hold-bearing at once];
+  * **success** (`ADM-R07` because the order is already terminal, or `target_terminal`): the leg is `ENDED`;
+  * **kill** (`PRT-R01`): not resubmitted, `orphan_under_kill` once;
+  * **held** (`PRT-R04`): not resubmitted until the release, `sibling_held` once;
+  * **hold-bearing:** escalated `sibling_failed` with a hold; the leg reads `HELD_BACK`.
+* **Holds by episode.** `kernel:protection` gains the built-in capability `hold_engage`, as `kernel:recovery` has (`authority.py:20-24`).
+  * `Safety.engage_protection_hold(strategy, reason)` builds a `HOLD_ENGAGED` draft (`reason` `sibling_failed` or `overclose`, principal `kernel:protection`), or nothing when that reason is already engaged.
+  * The **episode** of a reason for a strategy is the number of `HOLD_RELEASED` events with that `released_reason` for the strategy.
+  * `lifecycle.escalate` gains `episode=0` and `extra=()` (more drafts in the same decision), so an escalation and its hold are one decision (CP-B6). A recurrence after a release escalates and holds again (F-P24).
+* **Overclose.** Reconciliation already commits an overclosing `FILL` with an `overclose` escalation in one decision (SLICE-07 step 2). Step 3 adds the hold draft and the episode to that same decision, for every placement.
+  * Nothing buys the excess back, as legacy.
+  * **Spec amendment:** F-P18's "hold (reason `recovery`)" becomes reason `overclose`, as the Basket section names it.
+* **Roles not yet assigned.** Until every protective leg with an order ID has its role, protection submits nothing for the subject and escalates `protective_roles_unassigned` once.
+
+#### Exits under the basket
+
+* **No target tick exit:** the target rests at the broker.
+* **Deep-OTM** (Q-026 A) and **square-off** run the exit sequence over both legs: cancel each resting leg under its own `prot:` key, wait until both are `ENDED` and their fills are accounted for (step 2's rule, over both chains), then, only if `q` > 0, close `q`.
+* While `EXIT_STARTED` is open, the quantity rule is suspended.
+* **Classification:** a resting leg is broker-held when `observed` shows it at its desired level; the deep-OTM exit stays runtime-dependent.
+
+#### Crash points
+
+CP-B1…CP-B6 are as the spec tables them, proved in `test_crash_boundaries.py` by the child-process pattern. Their crash points sit in the coordinator, lifecycle and protection where each table row names its boundary:
+
+* **CP-B1:** after the entry outcome commits, before protection evaluates.
+* **CP-B2:** an untagged basket timeout, resolved per leg by `lifecycle.resolve_attempt`, which accepts the protective roles.
+* **CP-B3:** after a protective `FILL`, before the sibling's request.
+* **CP-B4:** a leg's request `UNCERTAIN`.
+* **CP-B5:** during the exit sequence, with one leg cancelled.
+* **CP-B6:** the escalation and its hold in one decision.
+
+### Files
+
+| File | Change |
+|---|---|
+| `src/autonomous_trading/contracts/execution.py` | `ProtectiveLeg`, `PlanRef.protective_legs`, `BasketTicket` |
+| `src/autonomous_trading/kernel/protection.py` | `basket_legs`; the basket leg view and its six states; the quantity rule; failure classes; the basket exit |
+| `src/autonomous_trading/kernel/admission.py` | `limit_entry_in_basket`; attaching the legs; `owned_order_from_row` for protective roles; `send_ticket`'s `BasketTicket` |
+| `src/autonomous_trading/kernel/ledger/projections.py`, `store.py`, `resources/events.schema.json` | `LEG_ASSIGNED`; the protective `FILL` branch |
+| `src/autonomous_trading/kernel/lifecycle.py`, `kernel/reconciliation.py` | The protective fill draft; `LEG_ASSIGNED`; `resolve_attempt` for protective roles; `escalate`'s episode and extra drafts; the overclose hold |
+| `src/autonomous_trading/kernel/safety.py`, `kernel/authority.py` | `engage_protection_hold`; `kernel:protection`'s `hold_engage` |
+| `src/autonomous_trading/adapters/simulated_broker.py` | The basket |
+| `src/autonomous_trading/adapters/openalgo.py` | `basketorder`, the in-send orderbook read and the validated join |
+| `src/autonomous_trading/bootstrap.py` | The loop composed under both placements |
+| `tests/unit/test_protection_basket.py` | New: the step's tests |
+| `tests/integration/test_openalgo_contract.py` | The basket send, labelled synthetic |
+| `tests/recovery/test_crash_boundaries.py` | CP-B1…CP-B6 |
+| Spec amendments | The protection spec: F-P18's reason; the join's tolerance (execution-domain spec) |
+
+### Step 3 tests
+
+All values are labelled synthetic.
+
+* **The basket (PRF-PRT-01):**
+  * `basket_legs` gives an SL-M stop and a LIMIT target at plan prices and the planned quantity;
+  * a plan with no stop sends the entry and target, and escalates `no_stop_planned` once;
+  * F-P23: a limit entry is refused.
+* **The send:**
+  * the simulated basket books three orders;
+  * the OpenAlgo body equals legacy's leg shapes;
+  * the validated join assigns by price type, never by response order;
+  * a failed read leaves the IDs unassigned;
+  * a duplicate ID is `ambiguous`;
+  * `LEG_ASSIGNED` follows on a fresh book, and a fill on a role-less order waits for it.
+* **Fills:** a protective fill lowers `q` and never the reservation; the entry completes on its entry leg.
+* **States:** each row of the six, in order, including `PENDING` before `ORPHANED` and `HELD_BACK`; interleaved stop and target commands keep separate states.
+* **Requests:**
+  * the trail modifies only the stop;
+  * no quantity request during the window;
+  * the quantity rule's two rows with totals that pass B2;
+  * P-1 after the window;
+  * F-P15…F-P17 [Q-027].
+* **Failures and holds:**
+  * each failure class;
+  * F-P19, F-P20, F-P21;
+  * `overclose` with its hold in one decision;
+  * F-P24 (a second episode escalates without a second hold; a recurrence after a release holds again).
+* **Exits:**
+  * deep-OTM and square-off cancel both legs before the close;
+  * a target fill ends the exit with no close.
+* **Crash points:** CP-B1…CP-B6.
+* **Break checks** (named in the docstrings):
+  * infer roles from response order;
+  * let a protective fill touch the reservation;
+  * send a quantity request during the window;
+  * engage a second hold for an engaged reason;
+  * record an overclose without its hold;
+  * modify the target's price;
+  * close before both legs are `ENDED`;
+  * place a stop for a basket leg.
 
 ## Step 4 — the latch and safety visibility (scoped)
 

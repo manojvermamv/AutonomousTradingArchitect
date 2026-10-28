@@ -30,6 +30,7 @@ Status: **open owner decision** unless a row says answered. Each question is a g
 | [Q-024](#q-024) | The trail's opposing-signal tightening: what supplies the opposing score in the kernel? | `src/core/framework/protection/trail.py:476-481` @445eb116; [SLICE-06 step 1](../plan/slices/SLICE-06-protection-and-safety.md#step-1--the-ladder-protection-state-and-the-derived-leg) | TASK-S06-01 (SLICE-06 step 2's trail loop) | answered 2026-10-28: option B, after a correction ([answers](owner-answers-2026-10-27.md)) |
 | [Q-025](#q-025) | A refused or failed stop modify: does the ladder keep legacy's library rule (the move not taken) or the live host's (only the stop put back)? | `scripts/run_framework_live.py:5221-5278` @445eb116; [SLICE-06 step 1](../plan/slices/SLICE-06-protection-and-safety.md#step-1-as-built) | TASK-S06-01 (SLICE-06 step 2's trail loop) | answered 2026-10-28 ([answers](owner-answers-2026-10-27.md)) |
 | [Q-026](#q-026) | The deep-OTM delta exit: legacy's live host never ran it. Keep it in the kernel, or not? | `scripts/run_framework_live.py` @445eb116 (no `premium_exit` call); [SLICE-06 step 2](../plan/slices/SLICE-06-protection-and-safety.md#step-2--the-protection-loop) | TASK-S06-01 (step 2's tick exits), step 3's exits | answered 2026-10-28 ([answers](owner-answers-2026-10-27.md)) |
+| [Q-027](#q-027) | Basket maintenance where the spec goes beyond legacy's live host (partial fills, partial or unfilled entries, failed cancels): spec or legacy? | `scripts/run_framework_live.py:4588-4687` @445eb116; [SLICE-06 step 3](../plan/slices/SLICE-06-protection-and-safety.md#step-3--basket-placement) | TASK-S06-01 (SLICE-06 step 3) | open |
 
 ---
 
@@ -551,3 +552,28 @@ Step 2 is built without the deep-OTM row until the answer; everything else in st
 
 **Answer (2026-10-28): option A.** The kernel keeps the deep-OTM delta exit as the spec says: `premium_exit` receives the tick's delta, and a delta below `delta_exit_threshold` starts the exit sequence (reason `deep_otm_delta`). This is new live behaviour relative to the 445eb116 host.
 
+## Q-027
+
+**Basket maintenance: keep the spec's rules, or legacy's live host's, where they differ?**
+
+```text
+Requirement: protection keeps every approved rule exactly; it never leaves more resting sell quantity than the
+position can absorb without a recorded reason (ATA-01, Goal 4, POL-008, Q-013).
+Owner: kernel.protection (SLICE-06 step 3, basket_at_plan).
+Proof: tests/unit/test_protection_basket.py; PRF-PRT-01.
+```
+
+**Why it matters.** The protection spec's [Basket placement](../design/protection-and-safety.md#basket-placement-basket_at_plan-kernelprotectionpy) section adds four rules that legacy's live host at 445eb116 never ran. The owner chose the legacy basket (Q-013), and live-host parity for the trail (Q-024 B, Q-025 B). Each rule below gates real sell orders.
+
+1. **A protective leg fills partly.** Legacy cancels every other protective leg on any recorded close, even a partial one (`_cancel_resting_siblings`, `scripts/run_framework_live.py:4588-4664`, called at `:6647-6649`). After a partial target fill the stop is cancelled whole, and the rest of the position has no stop. The spec instead modifies the sibling to its recorded fills plus `q` ("new: keeps each leg within q"), and cancels it only when `q` ≤ 0.
+2. **The entry ends partly filled.** Legacy never changes the legs: both rest at the planned quantity (`src/core/framework/execution/orders.py:200`). It trails only fully filled entries (`run_framework_live.py:5522`) and skips them at square-off, leaving the broker's square-off as the backstop (`src/runtime/session_close.py:144-152`). The spec shrinks both legs to `q`, trails the stop, and squares the position off.
+3. **The entry never fills, or is rejected, while its legs rest.** Legacy has no rule: the legs stay resting (an unproven entry becomes a recovery hold, `run_framework_live.py:2921-2929`). The spec cancels them as orphans (F-P15).
+4. **A sibling's cancel fails.** Legacy holds the strategy at once and does not retry (`run_framework_live.py:4658-4687`). The spec retries a transient refusal until `reconciliation.working_escalation_secs` has passed, then holds.
+
+**Options.**
+
+- **A:** the spec's four rules, as written.
+- **B:** legacy's four behaviours, for live-host parity.
+- **Per item:** any mix; the step's text marks each of the four rows.
+
+Step 3 is written with option A and marks the four rows; their build waits on the answer. Nothing else in step 3 depends on it.
