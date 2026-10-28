@@ -1,6 +1,6 @@
 # SLICE-05 — Dispatch, conflicts and scheduling
 
-* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-05-review-2026-10-27)). Step 1 is built (OA_NEW `6f49827` on `slice-05`; [Step 1 as built](#step-1-as-built)). Step 2 is built (OA_NEW `68570b0`; [Step 2 as built](#step-2-as-built)). Step 3 is deepened next, as SLICE-04's later steps were (the delivery plan's depth rule).
+* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-05-review-2026-10-27)). Step 1 is built (OA_NEW `6f49827` on `slice-05`; [Step 1 as built](#step-1-as-built)). Step 2 is built (OA_NEW `68570b0`; [Step 2 as built](#step-2-as-built)). Step 3 is decision-complete below and not yet built.
 * **Precedence:** the master README, then the ROADMAP, then this package. The authorities are the [dispatch spec](../../design/dispatch-and-coordination.md), the [protection spec](../../design/protection-and-safety.md) (kill and holds, the permission matrix, the conflict relation) and the [ledger spec](../../design/ledger-and-atomic-transaction.md) (the identity rule's retry branch, verb completion). Every deviation is marked **Deviation**. No score, threshold or money value is set: every refusing setting is bound only to labelled synthetic or owner-answered values in tests.
 * **Phase:** master Phase 1 (D13 revalidation, A03-F1/F2/F3, ATA-04; kill and hold events, POL-002 and POL-003). Class S. Disarmed: the simulated broker only.
 * **Builds on:** [SLICE-04](SLICE-04-intent-to-admission.md) as built; branch `slice-05` cut from `slice-04` (OA_NEW `36717dc`).
@@ -11,7 +11,7 @@
 
 * **SLICE-06:** the daily-loss latch and its matrix row; the `SAFETY_CHECK_STATE` record, and with it PRF-DSP-04's inert half (no check can be inert before the latch exists); the recovery and protection holds (`recovery`, `overclose`, `sibling_failed`); PRF-PRT-04's F-P12, F-P14, F-P20 and ratchet clauses.
 * **SLICE-11:** the kernel process's wake loop and the hand-off of other threads' decisions to the writer thread (step 2 builds `run_pass`, `next_wake` and the wake flag it calls); the supervisor that reports a worker past its total deadline (F-D6).
-* **SLICE-07:** the observation loop; the real `positions` side of the holdings port (the `position` table); conflict terminality bound to durable ledger facts (below); dispatch row 6 against live observations; the OpenAlgo adapter and its total-deadline proof.
+* **SLICE-07:** the observation loop; the real `positions` side of the holdings port (the `position` table); conflict terminality bound to durable ledger facts (below); dispatch row 6 against live observations and its wake on observation arrival (step 3 builds the row's logic); entry completion, `FILL` and the recorded-fills precondition for a close's completion; the OpenAlgo adapter and its total-deadline proof.
 * **Step 3 of this slice:** the real `order` and `orders` side of the holdings port (`broker_identity` joined to `command_identity`), as SLICE-04 step 2 planned, together with capacity's `protective_order_ids`, because step 3 is when the kernel first dispatches closes that create orders.
 
 ## Step 1 — kernel safety: kill, holds and the conflict relation
@@ -409,12 +409,146 @@ Commit `68570b0` on `slice-05`, after `02f9377`. It changes 22 paths: the step 2
 | Let the decoder drop a field | 19 cases, among them `test_the_admitted_request_round_trips` |
 | Re-send an uncertain claim after restart | `test_cp_d1_crash_with_a_worker_in_flight`, `test_cuj_dsp_3_a_timeout_is_ambiguous_and_never_retried` |
 
-## Step 3 — cancel, modify and close dispatch and completion (deepened after step 2)
+## Step 3 — cancel, modify and close: dispatch, ownership and completion
 
-* **Dispatch:** `BrokerPort.send` widened to cancel, modify and close requests, and the simulated broker's script for them.
-* **Ownership:** the holdings port's `order` and `orders` bound to `broker_identity` joined to `command_identity` (positions stay a fixture until SLICE-07), and capacity's `protective_order_ids` from the same join.
-* **Completion:** the verb-specific completion rules of the ledger spec as pure decisions over an observation (`COMPLETED` with `confirmed_level` for a modify and a resting close; `target_terminal`), which SLICE-07's loop calls.
-* **Proof:** PRF-LED-16 (`tests/integration/test_verb_completion.py`, T-22).
+TASK-S05-05, with the step 2 obligations it inherits. Proof: PRF-LED-16 for cancel, modify and close (`tests/integration/test_verb_completion.py`, T-22), plus CUJ-DSP-1 rerun with a cancel as the dispatch spec states it. The authorities are the [ledger spec](../../design/ledger-and-atomic-transaction.md#command-and-attempt-state-machine) (verb-specific completion, the state table, `broker_identity`), the [execution-domain spec](../../design/execution-domain-and-observations.md#reconciliation-kernelreconciliationpy) (the reconciliation finding table), the [dispatch spec](../../design/dispatch-and-coordination.md) and [SLICE-04 step 2](SLICE-04-intent-to-admission.md#ownership) (the holdings field table). Every deviation is marked **Deviation**. Reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-05-step-3-review-2026-10-28)).
+
+### What legacy does, and what that decides
+
+* **A broker ACK is acceptance, not completion.** Legacy's `cancel` records the broker's acceptance and leaves "whether the leg executed first" to the tradebook on the next settle pass (`src/runtime/execution_gateway/__init__.py:1265-1266` @445eb116). The target never completes a cancel, modify or close on its ACK (`README.md:750`; ledger spec, verb-specific completion).
+* **A modify may name a replacement order.** Legacy takes the `orderid` of the `modifyorder` response as the replacement and records the moved level against the **same owner** (`record_stop_moved(our_id, …, replaces_broker_order_id=…)`, `__init__.py:1435-1462`). The ledger spec says the same: a replacement ID inherits the replaced order's `command_key` and `leg_role` (`broker_identity`; execution-domain finding table). Whether OpenAlgo ever returns a different ID is an endpoint fact for SLICE-07's endpoint contract.
+* **A modify records its level.** Legacy records the requested trigger on ACK so the trail survives a restart (`__init__.py:1453-1463`). The target records a level only when it is observed (`confirmed_level` on `COMPLETED`); POL-014's broker level for a proven timed-out modify arrives with reconciliation (SLICE-07).
+* **A close is a selective opposite-side order** capped at what is proven held (`__init__.py:1487-1499`, `:1512`). The target's close already is: a SELL of `quantity` on one owned position, capped by B2 (SLICE-04 step 2).
+
+### Decisions
+
+* **The broker port takes every verb.** `BrokerPort.send(request: EntryRequest | CancelRequest | ModifyRequest | CloseRequest, plan: PlanRef | None, attempt_no)`, `plan` `None` for an action ([execution-domain spec](../../design/execution-domain-and-observations.md#ports-kernelportspy)). An action's `LegResult.leg_role` is its verb. Both `adapter_error` sites (the worker and `dispatch_inline`) take the role from the verb when `plan` is `None`.
+* **The verb filter goes.** Every `ADMITTED` command is eligible under step 2's rules.
+* **For an action, the observation's age is checked first.** Before the conflict relation and rows 1–5, an action whose account observation fails B1's age rule (`observation_age(observation, now, max_observation_age_secs) is None`) **waits** (step 2's sweep still refuses it at its deadline). Then rows 5 and the conflict relation judge `admission.action_facts(request, order, position, observation)`: the kill row reads `remaining` and `resting` from the observation. An entry keeps step 2's payload facts.
+* **Revalidation row 6 is built now (Deviation in timing).** The dispatch spec gives row 6 to SLICE-07 with the observation loop. Its logic is admission's B2 again and needs only the observation port, so it is built here; SLICE-07 binds the live observation and adds the wake on its arrival (PRF-DSP-09). Row 6 **refuses** only on proof: the target observed with a status other than `open`, `identity_mismatch`, `above_owned`, `not_owned`, or a close's position with observed `owned ≤ 0`. A target absent from the observation, `broker_net_unknown` and `filled_unknown` are observation gaps and make the command **wait** (absence is never terminal).
+* **ACK identity rule (the `OUTCOME_ACKNOWLEDGED` fold).** For a **cancel**, an acknowledged leg must carry the command's `target` or no ID; it records nothing. For a **modify**, a leg carrying the `target` records nothing; a leg carrying an unknown ID is a **replacement** and records a row with the **target's** `command_key` and `leg_role` (ledger `broker_identity`; legacy `record_stop_moved`); `_load_touched` loads the target's row for this. Anything else — a cancel naming another ID, a modify naming an ID owned by another command, a replacement whose target has no row — raises `InvariantViolated` (`LED-R08`), which the coordinator records as `OUTCOME_AMBIGUOUS` `outcome_refused` for reconciliation. Entry and close legs are unchanged (an already-owned ID is `LED-R08`).
+* **A replaced order leaves the group.** With the replacement owned by the same command and role, the holdings port takes, per (`command_key`, `leg_role`), only the row with the highest `first_sequence`; earlier rows were replaced and are not owned orders. So a moved protective stop stays protective (its command is still the close), and the replaced ID, which may vanish from the book, never stays "resting" for conflict rows 1, 3 and 5.
+* **Ownership comes from the ledger.** `LedgerHoldings(writer, positions)` implements `HoldingsPort`: `order` and `orders` read the ledger by SLICE-04 step 2's field table; `position` and `positions` delegate to `positions` (a fixture until SLICE-07 binds the ledger's `position` table). `AdmissionPorts` gains a last keyword field `positions: object | None = None`. When it is set, `holdings` must be `None` (bootstrap raises `ValueError` if both are set), and bootstrap composes `LedgerHoldings(writer, positions)` **first** and gives the same object to `Conflicts`, both doors (`dataclasses.replace(admission, holdings=…)`) and `DispatchPorts.holdings`.
+* **Capacity's `protective_order_ids`** (B5) becomes `{o.broker_order_id for o in holdings.orders(account) if is_protective(o)}`, as SLICE-04 step 2 planned. Before step 3 no protective order reached the ledger, so the set was empty.
+* **Completion is a pure decision plus one recorder.** `lifecycle.completion(...)` decides a `WORKING` cancel, modify or close; `lifecycle.record_completions(writer, account, observation)` commits `COMPLETED`. SLICE-07's observation loop calls the recorder; step 3's tests call it. Entry completion needs `FILL` and stays SLICE-07's.
+* **A close also completes when its order ends unfilled (Deviation).** The ledger spec completes a market close only when its order is observed filled. Observed `cancelled`, `rejected` or `expired`, it would stay `WORKING` for ever and, as an unresolved effect, block its group under conflict row 2. As the spec already does for an entry rejected after its ACK, it completes with `reason` `order_ended` — **only when `filled_quantity` is known**. With `filled_quantity` `None` the close stays `WORKING`, as the execution-domain finding table requires (escalation, POL-016, is SLICE-07's). The ledger's completion table is amended to say so.
+* **A close completes before `FILL` is recorded (Deviation), with a freshness guard.** The spec's "its fills recorded by fill ID" needs `FILL` (SLICE-07). Until then a close completes on its order's observed status and `filled_quantity`, and **only when the completing observation's positions book is at least as new as its orders book** (`positions.as_of ≥ orders.as_of`). Completion ends conflict row 2's block, and the next close's B2 cap then rests on broker net, which this guard keeps no older than the fill it follows. SLICE-07 adds the recorded-fills precondition before any live composition, and must accept a late `FILL` for a `COMPLETED` close (the state table has no such row yet).
+* **A limit close is resting** (SLICE-04 step 2's `action_facts`, `kernel/admission.py:363`, as built): the ledger table's "close (market or limit, not resting)" row applies to market closes only (Deviation, recorded so it is not mistaken for a gap).
+* **Position IDs.** `position_id(entry_command_key, leg_role) = digest([entry_command_key, leg_role])`, one function in `kernel/ledger/projections.py`, which SLICE-07's `position` fold must use.
+
+### Files
+
+| File | Change |
+|---|---|
+| `src/autonomous_trading/contracts/execution.py` | `action_request_from_wire(d)` (cancel, modify, close) |
+| `src/autonomous_trading/kernel/ports.py` | `BrokerPort.send` for every verb; `AdmissionPorts.positions` (last, keyword); `DispatchPorts` gains `holdings` and `max_observation_age_secs`, appended last |
+| `src/autonomous_trading/adapters/simulated_broker.py` | `send` for cancel, modify and close (below) |
+| `src/autonomous_trading/kernel/coordinator.py` | No verb filter; the action age check (wait); `_rebuild` for actions; action facts; row 6 and its wait result; both `adapter_error` roles |
+| `src/autonomous_trading/kernel/admission.py` | `LedgerHoldings`; B5's `protective_order_ids` |
+| `src/autonomous_trading/kernel/ledger/store.py`, `projections.py` | `COMPLETED` (family `lifecycle`, `_COMMAND_KINDS`) and its fold; the ACK identity rule and the target-row load; `position_id`; reads `owned_orders(account)` and `working_actions(account)` |
+| `src/autonomous_trading/kernel/lifecycle.py` | `("WORKING", "COMPLETED"): "COMPLETED"`; `completion`; `record_completions` |
+| `src/autonomous_trading/resources/events.schema.json` | `COMPLETED` |
+| `src/autonomous_trading/bootstrap.py` | The `LedgerHoldings` composition order; the two `DispatchPorts` fields |
+| `tests/conftest.py` | `kernel_holdings=True`; `owned_close(...)`; a cancel grant on the second account |
+| `tests/integration/test_verb_completion.py` | New (T-22): PRF-LED-16 for cancel, modify and close |
+| `tests/integration/test_dispatch_revalidation.py`, `test_bounded_io.py` | Action dispatch, row 6, the age wait, CUJ-DSP-1 with a cancel |
+| `tests/unit/test_admission_checks.py`, `test_conflict_relation.py`, `tests/contracts/test_capabilities.py` | `LedgerHoldings` rows and capacity; the identity rule; completion freeing a group; the simulated broker's action rows |
+| Spec amendments | The [ledger catalogue](../../design/ledger-and-atomic-transaction.md#event-catalogue)'s `COMPLETED` payload gains `reason` and `confirmed_quantity`; the ledger's completion table, close row, names `order_ended` (with `filled_quantity` known); the [execution-domain spec](../../design/execution-domain-and-observations.md#simulated-broker-adapterssimulated_brokerpy)'s script table gains the action rows |
+
+No migration and no tree delta (T-22 is in the tree).
+
+### The simulated broker for actions
+
+* `send(request, None, n)` takes the account's next step as for an entry; `stall`, `not_sent`, `reject`, `timeout` and `raise` behave the same. The leg role is the verb.
+* `ack` for a cancel returns the target's ID; an `order_id` on a cancel step is a test bug (it raises). `ack` for a modify returns the target's ID, or the step's `order_id` (a replacement). `ack` for a close needs `order_id` (its new order).
+* The published evidence content is an entry's, with the request's own wire form.
+
+### Ledger
+
+* **`COMPLETED`** (family `lifecycle`, in `_COMMAND_KINDS`), principal `lifecycle.LIFECYCLE`. Payload `observation_digest` (string: the orders observation's digest), `filled_quantity` (integer or null), `confirmed_level` (string or null), `confirmed_quantity` (integer or null), `reason` (string: `cancelled`, `target_terminal`, `parameters_observed`, `filled`, `order_ended`, `resting_observed`). Guard `WORKING`. Fold: `WORKING → COMPLETED`; an entry's reservation (none for actions) `RELEASED`.
+* **`owned_orders(account)`**: `broker_identity` rows of kind `order_id` with a non-null `leg_role`, joined to their `command_identity` on the account and to that command's `COMMAND_ADMITTED` payload: `broker_order_id`, `command_key`, `leg_role`, `verb`, `strategy`, `underlying`, `first_sequence`, the payload's `plan_ref`, `request` and `resulting_exposure`. A row whose `leg_role` is `NULL` (an unassigned leg) gives no owned order.
+* **`working_actions(account)`**: the account's `WORKING` commands whose verb is not `entry`, with `command_key`, `verb`, the `COMMAND_ADMITTED` payload's `request` and `target`, and the latest attempt (its `legs` and `claimed_at`).
+* **`LedgerHoldings.order` / `orders`** build `OwnedOrder` per row (after the per-command-and-role "latest row" rule above):
+
+| `OwnedOrder` field | Entry leg | Close (and its replacements) |
+|---|---|---|
+| `verb`, `strategy`, `underlying`, `command_key`, `leg_role`, `account` | the command's | the command's (the close's, also for a replacement) |
+| `instrument`, `side`, `order_kind` | the `plan_ref` leg of that role; `BUY`; `limit` with a limit price, else `market` | the single key of the close's `resulting_exposure` (its position's instrument, recorded at admission); `SELL`; `request.order.kind` |
+| `position_id` | `position_id(command_key, leg_role)` | `request.position_id` |
+| `managed_by_protection` | key prefix `prot:` | key prefix `prot:` |
+
+  A basket's `stop` and `target` legs arrive with `PlanRef.protective_legs` in SLICE-06 ([Q-013](../../decisions/owner-answers-2026-10-27.md)).
+* **Cost (A09-F4).** `orders(account)` reads every owned order of the account on each call; a one-leg buyer places tens a day. A per-pass cache is not built (its invalidation is a risk of its own); the read is measured with the other dispatch reads.
+
+### Dispatch of actions and row 6
+
+| Step | Check | Result |
+|---|---|---|
+| Age (actions) | `observation_age(observations.latest(account), now, max_observation_age_secs)` | `None`: wait |
+| Conflicts, rows 1–5 | as step 2, with `action_facts` from that observation | as step 2 |
+| 6 (actions) | the target absent from the observation, or `effect_check` giving `broker_net_unknown` or `filled_unknown` | wait |
+| 6 (actions) | `effect_check` giving any other reason | `ADM-R07`, `dependency` `target`, message `effect_mismatch` |
+
+* `_revalidate` returns a refusal, `None`, or `"wait"`; `run_pass` adds a waiting key to `waiting` and goes on to the next command. `dispatch_inline` (entries only) never reaches the action steps.
+* `_rebuild` for an action: `action_request_from_wire(payload["request"])`, plan `None`; it checks `wire(request) == payload["request"]` and `request_digest(request) == payload["request_digest"]`.
+
+### `kernel/lifecycle.py` — completion
+
+```text
+completion(verb, request, judged_order_id: str | None, observation) -> Completion | None
+Completion(reason, filled_quantity: int | None, confirmed_level: str | None, confirmed_quantity: int | None,
+           observation_digest)
+record_completions(writer, account, observation) -> list[str]     # the command keys completed
+```
+
+* **The judged order:** a cancel's target; a modify's latest attempt leg's `broker_order_id` (the target or its replacement); a close's own order (its latest attempt leg's ID). Its observed row is the single `observation.orders.items` entry with that ID; none, or more than one, decides nothing (absence is never terminal). Terminal statuses: `filled`, `cancelled`, `rejected`, `expired`.
+
+| Verb | Completes when | `reason` | `confirmed_level`, `confirmed_quantity` |
+|---|---|---|---|
+| cancel | the target is observed terminal | `cancelled` if `cancelled`, else `target_terminal` | — |
+| modify | the judged order is observed `open` with every non-`None` requested field equal: `trigger_price`, `limit_price` (the row's `price`), `quantity` (the row's `quantity`) | `parameters_observed` | by the target's `order_kind`: a stop's `trigger_price`, a limit's `price`; the row's `quantity` |
+| modify | the judged order is observed terminal | `target_terminal` | — |
+| close, market | its order is observed `filled` with `filled_quantity` known | `filled` | — |
+| close, market | its order is observed `cancelled`, `rejected` or `expired` with `filled_quantity` known | `order_ended` | — |
+| close, stop or limit (resting) | its order is observed `open` with `quantity` equal to the request's and, for a stop, `trigger_price` (and `price` when it has a limit) equal; for a limit, `price` equal | `resting_observed` | a stop's trigger, a limit's price; the row's `quantity` |
+| close, stop or limit | its order is observed terminal before it was seen resting, `filled_quantity` known | `filled` if `filled`, else `order_ended` | — |
+
+* `filled_quantity` is the judged order's observed `filled_quantity`.
+* A modify observed `open` at other levels stays `WORKING`; reconciliation escalates it in SLICE-07 (POL-014's proven level arrives there).
+* Money values compare as decimals.
+* **`record_completions`** decides nothing when the observation fails B1's age rule, or when its `orders.as_of` is not later than the command's latest `claimed_at` (a book read before the send proves nothing about it). A close also needs `positions.as_of ≥ orders.as_of` (the freshness guard). Each `Completion` is committed with guard `WORKING`; `LED-R09` (no longer `WORKING`) is skipped, any other refusal raises `WriterLost`. The caller supplies the account's latest observation.
+
+### Step 3 tests
+
+* **Fixtures** (conftest):
+  * `kernel_holdings=True`: `holdings=None`, `positions=FixtureHoldings()`, seeded through `world.ports.positions.position_rows`; `action_world` is not used with it. With `two_accounts=True` it also issues `g-act-2` (cancel, modify, close) on the second account.
+  * `owned_close(world, key, order, *, quantity=50, order_id="o-close", position=None) -> str`: seeds an owned position (owned 50, observed net 50) unless given; appends `{"result": "ack", "order_id": order_id}` to `world.comp.broker.responder.steps`; admits the close; `dispatch(world)`; adds `make_observed_order(broker_order_id=order_id, …)` (open, at the request's levels) to `world.orders`; `world.fresh()`; returns the key.
+* `test_verb_completion.py` (PRF-LED-16), each verb dispatched through the loop:
+  * never on the ACK alone: with the order still `open` at its old level, `record_completions` completes nothing; nor with an observation older than the claim;
+  * cancel: target observed `cancelled` → `cancelled`; `filled` → `target_terminal`; absent → nothing;
+  * modify: the requested trigger observed → `parameters_observed` with `confirmed_level` and `confirmed_quantity`; another trigger → stays `WORKING`; target terminal → `target_terminal`; a replacement ACK: the replacement is owned by the close with the stop's role, is protective, the replaced ID is no longer an owned order, and completion reads the replacement;
+  * close, market: observed `filled` → `filled`; observed `rejected` with `filled_quantity` 0 → `order_ended`; with `filled_quantity` `None` → stays `WORKING`; a positions book older than the orders book → nothing;
+  * close, resting stop: observed `open` at its trigger and quantity → `resting_observed`; at another quantity → nothing; observed `filled` first → `filled`;
+  * a `COMPLETED` command is no longer an unresolved effect: the group's conflict clears;
+  * the dispatched cancel, modify and close each end `WORKING` with no `OUTCOME_AMBIGUOUS`.
+* `test_dispatch_revalidation.py`: a cancel, modify and close claimed and sent with `plan` `None`; row 6 refuses a cancel whose target is observed `cancelled` and a close whose position is observed at 0 (`ADM-R07`, `target`); a target absent from the observation waits; a stale observation makes an action wait (not refuse) before its facts are judged; under a kill, a cancel of an order whose observed remaining quantity is 0 is refused `PRT-R01` at row 5.
+* `test_bounded_io.py`: CUJ-DSP-1 as the dispatch spec states it: account A's entry send stalled, account B's admitted cancel of its own acknowledged entry order is sent.
+* `test_admission_checks.py`: `LedgerHoldings` rows for an entry leg and a close (each field of the table); a resting close's order is protective and excluded from B5's external commitments; a cancel ACK records no identity row; a cancel ACK naming another ID, and an entry ACK naming an owned ID, give `outcome_refused`; `positions` and `holdings` both set raise.
+* `test_capabilities.py`: the simulated broker's action rows.
+* **Break checks** (named in the docstrings):
+  * complete a cancel on its ACK;
+  * treat an order absent from the observation as terminal (completion, or row 6 refusing);
+  * complete a modify on any open observation, whatever its level;
+  * complete a close with `filled_quantity` `None`;
+  * skip row 6;
+  * refuse an action on a stale observation instead of waiting;
+  * build an action's facts from the payload (the kill test);
+  * record a cancel ACK's echoed ID as a new owner;
+  * leave the identity fold unchanged (the cancel ends `UNCERTAIN`, `outcome_refused`);
+  * give a replacement the modify's own command key (the moved stop is not protective);
+  * keep a replaced order as an owned order;
+  * drop `is_protective` from B5's `protective_order_ids`;
+  * keep the entry-only filter.
 
 ## Completion conditions
 

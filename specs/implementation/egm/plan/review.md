@@ -293,3 +293,28 @@ The new [SLICE-05 slice file](../../plan/slices/SLICE-05-dispatch-conflicts-sche
 | D-6…D-11 | Minor | Adapter-error flag and hand-off time; `dispatch_inline` with a busy worker; `ADM-R14` in row 4 and the stage row's scope; step 3's action facts; the stall outside `take`'s lock and per-step accounts; a failed claim and the actions' `DSP-R01` record | FIX |
 | R-13…R-16 | Minor | `dispatch(world)` blocking and bound; a `kernel_busy` option; the payload's `principal` path; one `wait_stalled` signature, the stall step shape, the `DISPATCH_REFUSED` catalogue row, `CommitFailed` on a return exits | FIX |
 
+## SLICE-05 step 3 review (2026-10-28)
+
+[SLICE-05 step 3](../../plan/slices/SLICE-05-dispatch-conflicts-scheduling.md#step-3--cancel-modify-and-close-dispatch-ownership-and-completion) (cancel, modify and close dispatch, ownership and completion) was reviewed by fresh `egm:egm-design` and `egm:egm-implementation-readiness` reviewers (read-only) against the ledger, dispatch, protection and execution-domain specs, SLICE-04's ownership rules, the code built through step 2 and the legacy export at `OA@445eb116`. Design: 1 Critical, 5 Major, 6 Minor. Readiness: 0 Critical, 5 Major, 6 Minor. The Critical was checked by hand: the ledger's `broker_identity` row and the execution-domain finding table both give a replacement the replaced order's command key and role, which the draft contradicted. Every finding is resolved by FIX except D-12 (CONTEST).
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| D-1 | Critical | A modify replacement owned by the modify made a moved protective stop non-protective: rows 1, 3 and 5 stopped seeing it, so a position could be oversold | FIX: the replacement inherits the target's command key and role (ledger, execution-domain, legacy `record_stop_moved`); break check |
+| D-2 | Major | The replaced ID, absent from the book, would stay a resting protective order for ever and block every close | FIX: per command and role only the latest row is an owned order; break check |
+| D-3, R-1 | Major | The ACK identity rule was too loose, and wrong in fixture worlds where the target has no ledger row | FIX: a cancel's leg carries the target or nothing; a modify's the target or a new replacement; anything else `LED-R08` → `outcome_refused`; tests |
+| D-4 | Major | Completing a close with `filled_quantity` `None` contradicted the execution-domain finding table | FIX: every close completion needs a known filled quantity; the ledger's completion row amended |
+| D-5 | Major | Completing a close before `FILL` lowers no owned quantity, so a stale positions book could let a second close oversell | FIX: a close completes only when the positions book is at least as new as the orders book; SLICE-07's late-`FILL` obligation named |
+| D-6 | Major | Row 6 refused on observation gaps (absence, unknown net, unknown fills) | FIX: those wait; only proof refuses |
+| R-2 | Major | The fold could not read the target's role | FIX: `_load_touched` loads the target's row for cancel and modify |
+| R-3 | Major | A replacement's `verb` was unstated, so it could lose protective status | FIX: resolved with D-1 (the row is the close command's) |
+| R-4 | Major | `kernel_holdings` composition and seeding unspecified; `Conflicts` built from the wrong holdings | FIX: `positions` field, composition order, `ValueError` if both set, seeding through `world.ports.positions` |
+| R-5 | Major | The owned-close helper and CUJ-DSP-1's cancel grant were unspecified | FIX: `owned_close(...)` specified; `g-act-2` on the second account |
+| D-7, D-8 | Minor | `confirmed_level` chosen by request field, quantity not confirmed; a resting close ignored quantity | FIX: level by order kind; `confirmed_quantity`; quantity required |
+| D-9 | Minor | No age or after-claim check on the completing observation | FIX: B1 age rule and `orders.as_of` later than `claimed_at` |
+| D-10 | Minor | A close's row depended on the positions fixture | FIX: the instrument from the close's recorded `resulting_exposure` |
+| D-11, R-9 | Minor | Composition order; `NULL` leg roles; both `adapter_error` sites; `DispatchPorts` field order | FIX |
+| D-12 | Minor | `owned_orders` reads every order on every check | CONTEST: tens of orders a day for a one-leg buyer; a cache's invalidation is a risk of its own; measured with the dispatch reads (A09-F4) |
+| R-6, R-7, R-10 | Minor | Row 6's wait result; a `working_actions` read, the judged order, the principal; stale facts before row 6 | FIX: `_revalidate` returns `"wait"`; the read and rules named; the action age check runs first |
+| R-8 | Minor | Four break checks missing | FIX: added |
+| R-11 | Minor | Every limit close treated as resting, unmarked | FIX: marked, citing SLICE-04's `action_facts` |
+

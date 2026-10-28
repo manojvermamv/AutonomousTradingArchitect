@@ -168,6 +168,8 @@ SimulatedBroker(responder: ScriptResponder | RuleResponder, clock: Clock,
   | `ack` | `acknowledged` | `order_id`; the order enters the book as open |
   | `timeout` | `ambiguous` | reason `timeout` |
   | `raise` | — | raises inside the adapter, to exercise `adapter_error` |
+  | `ack` for a cancel or modify | `acknowledged` | the target's ID; a modify step may name `order_id` (a replacement), a cancel step may not; the leg role is the verb ([SLICE-05 step 3](../plan/slices/SLICE-05-dispatch-conflicts-scheduling.md#the-simulated-broker-for-actions)) |
+  | `ack` for a close | `acknowledged` | `order_id` (its new order); the leg role is `close` |
 
   A `"stall": "until_released"` step blocks the call until the test releases it (CUJ-DSP-1). `BookStep`s (fills and status changes at a clock time) refer to acknowledged orders, so the book stays coherent with the sends.
 * **`RuleResponder`** (simulation runs). It accepts every request and fills it under a versioned fill and cost model injected by the run (A07-F3, `README.md:889`; owned by the [research spec](research-rl-custody-promotion.md)), so an open-ended run needs no script.
