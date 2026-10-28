@@ -368,8 +368,30 @@ TASK-S07-02 (commits; `attempt_resolve`), TASK-S07-03, and the commit side of TA
 * **The positions side of the holdings port.** `LedgerPositions(writer)` serves `position` and `positions` from the `position` table, with `underlying` from the entry's `COMMAND_ADMITTED`. Before an entry's first fill it serves each entry leg that has an acknowledged order as a position with `owned_quantity` 0, as SLICE-04 step 2 specifies. `AdmissionPorts.positions` set to `kernel.admission.LEDGER_POSITIONS` (the string `"ledger"`) composes it.
 * **`hold_entries` is refused at load (Deviation).** Acting on it needs an account-level hold that the protection spec has not defined, and Q-016 binds `escalate`.
 * **Publish-before-reference waits for the loop (Deviation in timing).** Every event carries the observation's digest as `observation_digest`. Publishing the raw observation before that reference commits (Combined-F2) needs the raw response, which the loop holds (step 3). In step 2, observations are built by tests (disarmed).
-* **An `UNCERTAIN` modify whose target ended** is escalated (`target_ended`, subject the command key) and stays `UNCERTAIN`. A terminal order is no member of its group (the conflict relation already excludes it), and `UNCERTAIN` is not busy, so it blocks nothing. No machine route resolves it; the escalation reaches the operator.
+* **An `UNCERTAIN` modify whose target ended** is escalated (`target_ended`, subject the command key) and stays `UNCERTAIN`. A terminal order is no member of its group (the conflict relation already excludes it), and `UNCERTAIN` is not busy, and the second-round decisions below remove it from the conflict relation. No machine route resolves it; the escalation reaches the operator.
 * **Not in step 2:** a replacement ID seen in an observation (it needs an endpoint field only TASK-S07-05 can verify); multi-leg rows (`LEG_ASSIGNED`, `RESIDUAL_RECORDED`, partial resolution), which are SLICE-06's.
+
+### Second-round decisions
+
+A second fresh design review of the revised step ([review](../../egm/plan/review.md#slice-07-step-2-second-review-2026-10-28)) found a crash loop, two dead ends and a resend path. Where these decisions differ from the text above, they win.
+
+* **An order another command owns never resolves this one (E-1).** `reached`, `never_reached` and fill-proves-reach apply to an attempt's order ID only when the ID's `IdentityView` belongs to this command or no `IdentityView` exists for it. When another command owns it, rule 2 gives `conflict` (`order_owned`) and its escalation, and nothing else for that ID. Lifecycle escalates a `LED-R08` on any decision (`order_owned` for `RESOLVED_*`, `fill_mismatch` for `FILL`) instead of raising `WriterLost`. Only `LED-R03`, `LED-R05`, `LED-R10` and `CommitFailed` stop the kernel, as for every other writer path.
+* **Every untagged timeout escalates (E-2).** Rule 4 gives `escalate` (`untagged_timeout`) for every `UNCERTAIN` entry whose latest `AMBIGUOUS` attempt has no order ID, whether or not an order could account for it. Absence is never usable without an endpoint contract, so this escalation is the route Q-007 names. `resolve_attempt` step 2 then always has its fact.
+* **An action whose target ended leaves the conflict relation (E-3).** `Conflicts` (SLICE-05 `kernel/safety.py`) excludes from its unresolved effects every command with a recorded `target_ended` escalation: such a command can no longer act on its group. The earlier claim that it "blocks nothing" was wrong (`UNCERTAIN` is unresolved for the relation), and this rule is what makes it true.
+* **A never-reached command whose order then appears is never resent (E-5).** A `CONFLICT_RECORDED` with reason `after_never_reached` for a command blocks it:
+  * the coordinator treats it as ineligible;
+  * the identity rule's retry branch refuses its resubmission with `DOM-R06` (`resend_blocked`), unrecorded.
+  The trades of that order are not recorded as `FILL` (the order has no identity row). They stay escalated, and capacity counts the position through broker observations. The same holds after `after_rejected`. A human route for both arrives with the operator interfaces (SLICE-10).
+* **One decision per command per observation (E-6).** Lifecycle builds, for each command, one decision: `RESOLVED_REACHED` when present, then its `FILL`s, after dropping fill IDs already recorded identically. The fills are chained, each `reservation_before` the previous `after`. A refusal drops the whole decision; the next observation re-reads the view. A `LED-R08` escalates (`fill_mismatch`, subject the command key).
+* **Smaller corrections:**
+  * a close fill on a position not yet recorded is `InvariantViolated` (`LED-R08`, escalated), not a retryable `LED-R09` (E-7);
+  * an order with no recorded fills counts as 0 in `fills` (E-8);
+  * the order a fill belongs to is built from the command's own `COMMAND_ADMITTED` (the `plan_ref` leg, or the close's `resulting_exposure` and request), with the attempt leg's ID and role, so it never needs a `broker_identity` row to exist first (E-9);
+  * the writer checks a `FILL`'s nested `reservation_before` and `reservation_after` for the ledger's money form (`LED-R06`), as it does `COMMAND_ADMITTED`'s (E-10);
+  * I-6 sums `before − after` over `FILL` events (single-leg entries; multi-leg reductions are SLICE-06's), and the invariant test expects `HELD` or `RELEASED` for `COMPLETED` by `settlement_withheld` (E-11);
+  * at an `amount` of 0.00, `margin` and `worst_case_loss` stay **unchanged** (E-12);
+  * `resolve_attempt` also checks that the cited observation is an `orderbook` of the command's account. A published observation's content is `{"kind": "observation", "endpoint", "account", "as_of", "domain", "items"}`, items in their wire form (E-13);
+  * `ledger_view` loads `COMPLETED` commands only from the account's current session onward (since its open session's `opened_sequence`, or all when none is open), so the read stays bounded (E-15).
 
 ### Files
 
@@ -431,7 +453,7 @@ reduce_on_fill(amount: str, margin: str, worst_case_loss: str, fill_amount: str,
 ```
 
 * All arithmetic is `Decimal`. `fill_amount = quantity × price`, quantized to 0.01 with `rounding` (`half_even`, `half_up` or `down`, i.e. `ROUND_HALF_EVEN`, `ROUND_HALF_UP`, `ROUND_DOWN`).
-* When `amount` is 0.00, all three stay 0.00 and the whole fill is excess.
+* When `amount` is 0.00, all three stay unchanged and the whole fill is excess.
 * Otherwise the reduction is `min(fill_amount, amount)`, the new `amount` is `amount − reduction`, and `margin` and `worst_case_loss` are each multiplied by `new / amount` and quantized the same way. The excess is `fill_amount − reduction`.
 
 ### `kernel/reconciliation.py` changes

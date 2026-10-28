@@ -186,7 +186,7 @@ The writer validates each payload against `resources/events.schema.json`, which 
 | `DISPATCH_CLAIMED` | `kernel.coordinator` | `attempt_no`, `epoch_id` | attempt `CLAIMED`; command `IN_FLIGHT`; reservation `HELD` |
 | `OUTCOME_NOT_SENT` / `_REJECTED` / `_ACKNOWLEDGED` / `_AMBIGUOUS` | `kernel.coordinator`; `kernel.recovery` for outcomes rebuilt from published evidence and for `_AMBIGUOUS` | `attempt_no`, `epoch_id`, `legs`, `unassigned_order_ids`, `reason` (for `_AMBIGUOUS`: `timeout`, `adapter_error`, `interrupted`, `outcome_refused`, `evidence_unusable`, `evidence_unpublished`), `raw_digest`, `reservation_after` when legs were rejected | per the state table; `broker_identity` order IDs |
 | `RESOLVED_REACHED`, `RESOLVED_NEVER_REACHED` | `kernel.lifecycle` from reconciliation | `attempt_no`, `legs` (per-leg resolution), `observation_digest`, `broker_order_ids`, `reservation_after`, `basis` and `principal` ([SLICE-07 step 2](../plan/slices/SLICE-07-observations-reconciliation-domain.md#events-and-folds)) | per the state table |
-| `FILL` | `kernel.lifecycle` from reconciliation | `fill_id`, `broker_order_id`, `leg_role`, `quantity`, `price`, `observation_digest`, `reservation_after` and `reservation_before` (`null` for a `stop` or `target` order, and when the settlement gate withholds it), `position_id`, `instrument` ([SLICE-07 step 2](../plan/slices/SLICE-07-observations-reconciliation-domain.md#events-and-folds)) | `broker_identity` (`fill_id`); `position`; reservation reduced for entry-leg fills only |
+| `FILL` | `kernel.lifecycle` from reconciliation | `fill_id`, `broker_order_id`, `leg_role`, `quantity`, `price`, `observation_digest`, `reservation_after` and `reservation_before` (`null` for a close, a `stop` or `target` order, a late fill, and when the settlement gate withholds it), `position_id`, `instrument` ([SLICE-07 step 2](../plan/slices/SLICE-07-observations-reconciliation-domain.md#events-and-folds)) | `broker_identity` (`fill_id`); `position`; reservation reduced for entry-leg fills only |
 | `LEG_ASSIGNED` | `kernel.lifecycle` from reconciliation | `attempt_no`, `broker_order_id`, `leg_role`, `observation_digest` | `broker_identity.leg_role`; the attempt's `legs` |
 | `RESIDUAL_RECORDED` | `kernel.lifecycle` | `legs` that reached the broker while others did not (entry legs only; a basket's protective legs never count) | none (read by reconciliation and protection) |
 | `COMPLETED` | `kernel.lifecycle` from reconciliation | `observation_digest`, `filled_quantity`, `confirmed_level` and `confirmed_quantity` (modify and resting close), `settlement_withheld` (entries), `reason` ([SLICE-05 step 3](../plan/slices/SLICE-05-dispatch-conflicts-scheduling.md#kernellifecyclepy--completion)) | command `COMPLETED`; reservation per the state table |
@@ -272,7 +272,7 @@ A reduction lowers the amounts and keeps the state. Every change is decided here
 * **On a fill** (legacy `reduce()`, `reservations.py:644`; event checks at `:130-133`): the fill's amount (quantity × price) is removed from `amount`. For a **single-leg** entry, `margin` and `worst_case_loss` scale by `ratio = (amount − r) / amount` (legacy `:205-216`), with `money.rounding` applied. The filled part becomes position exposure, which capacity counts through broker observations; removing it here avoids counting it twice (D16).
 * A basket entry (`basket_at_plan`) is a **single-leg** entry here: its protective legs carry no amount and none of these rules applies to them.
 * **On rejected or never-reached legs** of a multi-leg entry (carried by the outcome or the resolution that found them, never a separate event): `amount` drops by those legs' planned amounts; `margin` and `worst_case_loss` stay at the plan's values until the structure completes or closes, because a spread with a missing hedge can need more margin, not less (`README.md:776`). The reached legs are recorded with `RESIDUAL_RECORDED`.
-* **On completion or dispatch refusal:** `RELEASED` (the demonstrated unused part).
+* **On completion or dispatch refusal:** `RELEASED` (the demonstrated unused part), except a completion whose settlement gate withholds it (`settlement_withheld`), which keeps the reservation `HELD`.
 
 I-6 below states the head rule these changes keep.
 
@@ -308,8 +308,8 @@ Attempt states: `CLAIMED`, `NOT_SENT`, `REJECTED`, `ACKNOWLEDGED`, `AMBIGUOUS`. 
 | `WORKING` | `RESOLVED_REACHED` or `RESOLVED_NEVER_REACHED` for legs still unresolved after a partial resolution | `WORKING` | per leg | `HELD`, reduced by never-reached entry legs |
 | any | `FILL` of a basket's `stop` or `target` order | unchanged | — | unchanged; `position` lowered |
 | `COMPLETED` | `RESOLVED_REACHED` or `RESOLVED_NEVER_REACHED` for a basket's protective legs still unresolved | `COMPLETED` | per leg | unchanged |
-| `WORKING` | `COMPLETED` | `COMPLETED` | — | `RELEASED` |
-| `COMPLETED` | late fill or correction of an entry leg | `COMPLETED` | — | unchanged; `RECONCILIATION_ESCALATED` instead |
+| `WORKING` | `COMPLETED` | `COMPLETED` | — | `RELEASED`; `HELD` when `settlement_withheld` ([SLICE-07 step 2](../plan/slices/SLICE-07-observations-reconciliation-domain.md#decisions-1)) |
+| `COMPLETED` | late fill or correction of an entry leg | `COMPLETED` | — | unchanged: the `FILL` is recorded with no reduction, and `RECONCILIATION_ESCALATED` (`late_fill`) instead of a reduction |
 | `WORKING` or `COMPLETED` close | `FILL` of its order (a resting stop that triggers after `resting_observed`) | unchanged | — | none; `position` lowered |
 
 * Reductions ride on `OUTCOME_*`, `RESOLVED_*` and `FILL` as `reservation_after`; there is no separate reduction event, so nothing is reduced twice.

@@ -306,7 +306,7 @@ Assessment(matched: list[(command_key, attempt_no, leg_role | None, item)],
 |---|---|---|
 | `CONFLICT_RECORDED` | `command_key` or none, `broker_order_id`, `attempt_domain`, `observed_domain`, `reason` (`domain_conflict`, `after_rejected`, `after_never_reached`, `cross_domain_id`), `observation_digest` | (`broker_order_id`, `reason`) |
 | `FOREIGN_RECORDED` | `broker_order_id`, `account`, `instrument`, `side`, `quantity`, `observation_digest` | `broker_order_id` |
-| `RECONCILIATION_ESCALATED` | `subject` (command key, broker order ID, or `position_id` for protection's reasons), `episode` (0, or for protection's hold reasons the number of releases of that hold reason for the strategy), `excess_quantity` (`overclose` only; `null` otherwise), `reason` (`domain_conflict`, `untagged_timeout` (Q-007), `unknown_domain_unresolved` (Q-012), `close_without_fill_total`, `working_without_completion`, `foreign_activity` (Q-016), `late_fill`, `fill_mismatch`, `target_ended`, `settlement_withheld`, `over_reduction` ([SLICE-07 step 2](../plan/slices/SLICE-07-observations-reconciliation-domain.md#decisions-1)), `after_rejected` and `after_never_reached` ([SLICE-07 step 1](../plan/slices/SLICE-07-observations-reconciliation-domain.md#assess-and-findings--the-rules)), or a protection reason from the [protection catalogue](protection-and-safety.md#event-catalogue)), `observation_digest` or none | (`subject`, `reason`, `episode`) |
+| `RECONCILIATION_ESCALATED` | `subject` (command key, broker order ID, or `position_id` for protection's reasons), `episode` (0, or for protection's hold reasons the number of releases of that hold reason for the strategy), `excess_quantity` (`overclose` only; `null` otherwise), `reason` (`domain_conflict`, `untagged_timeout` (Q-007), `unknown_domain_unresolved` (Q-012), `close_without_fill_total`, `working_without_completion`, `foreign_activity` (Q-016), `late_fill`, `fill_mismatch`, `target_ended`, `settlement_withheld`, `over_reduction`, `order_owned` ([SLICE-07 step 2](../plan/slices/SLICE-07-observations-reconciliation-domain.md#decisions-1)), `after_rejected` and `after_never_reached` ([SLICE-07 step 1](../plan/slices/SLICE-07-observations-reconciliation-domain.md#assess-and-findings--the-rules)), or a protection reason from the [protection catalogue](protection-and-safety.md#event-catalogue)), `observation_digest` or none | (`subject`, `reason`, `episode`) |
 
 All three fold into the `reconciliation_fact` index table, keyed as shown, which is how each is recorded once.
 
@@ -336,7 +336,8 @@ All three fold into the `reconciliation_fact` index table, keyed as shown, which
 | `DOM-R02` (`unauthenticated`) | The mediator's caller did not authenticate |
 | `DOM-R03` (`order_owned`) | `attempt_resolve` named an order tied by identity to another command |
 | `DOM-R04` (`not_untagged`) | `attempt_resolve` was asked about a command that is not an escalated untagged timeout |
-| `DOM-R05` (`evidence_unresolved`) | `attempt_resolve`'s observation does not resolve in the evidence store, or does not contain a named order |
+| `DOM-R05` (`evidence_unresolved`) | `attempt_resolve`'s observation does not resolve in the evidence store, is not an orderbook of the command's account, or does not contain a named order |
+| `DOM-R06` (`resend_blocked`) | A resubmission of a command whose order appeared after it was resolved never reached ([SLICE-07 step 2](../plan/slices/SLICE-07-observations-reconciliation-domain.md#second-round-decisions)) |
 
 ## Failure modes and crash points
 

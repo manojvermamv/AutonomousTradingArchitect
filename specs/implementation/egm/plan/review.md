@@ -359,3 +359,17 @@ The new [SLICE-07 slice file](../../plan/slices/SLICE-07-observations-reconcilia
 | D-11 | Major | `resolve_attempt`'s recorded domain, evidence, attempt guard and legs | FIX: the attempt's domain; the evidence resolves and contains the order (`DOM-R05`); guard with the attempt number; one leg until SLICE-06 |
 | R-4, R-5, R-7, R-8 | Major | Touched rows for the new events; the reached attempt's legs; the test migration; `late_fill`'s source | FIX: each `_load_touched` branch; legs rewritten; `filled_entry` and the return shape; late is the command's state at commit |
 | D-12…D-15, R-11…R-14 | Minor | Overclose silent; `target_ended`'s route; rule 6 for entries; signatures; settings fields and the non-negative kind; `underlying`; the always-passed `settlement_withheld`; `now` and subjects; PRF-LED-16's file | FIX |
+
+## SLICE-07 step 2 second review (2026-10-28)
+
+A second fresh `egm:egm-design` review of the revised [SLICE-07 step 2](../../plan/slices/SLICE-07-observations-reconciliation-domain.md#second-round-decisions) checked each first-round resolution and looked for new defects: 1 Critical, 4 Major, 10 Minor. D-1, D-3, D-6, D-7, D-11 and D-13's resolutions did not fully hold; the rest held. E-1 was checked by hand against SLICE-05's tested `outcome_refused` path, which keeps leg IDs another command owns. Every finding is resolved by FIX in the step's second-round decisions.
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| E-1 | Critical | An ambiguous attempt's ID owned by another command made `RESOLVED_REACHED` refuse `LED-R08`, and lifecycle raised `WriterLost` (a crash loop on restart) | FIX: resolution only by IDs this command owns or no one owns; `conflict` `order_owned`; `LED-R08` escalated, never `WriterLost` |
+| E-2 | Major | A never-reached untagged timeout had no `untagged_timeout` fact, so `attempt_resolve` refused it and its reservation was held forever | FIX: every untagged timeout escalates |
+| E-3 | Major | `target_ended` "blocks nothing" was false: row 2 could refuse every close for good | FIX: the conflict relation excludes such commands |
+| E-4 | Major | Ledger state table, reservations, late-fill and `FILL` lines did not match | FIX: amended |
+| E-5 | Major | A fill after `never_reached` could leave the order resendable | FIX: `after_never_reached` blocks eligibility and retries (`DOM-R06`); escalated |
+| E-6…E-15 | Minor | Decision grouping; a lost close fill; zero fills; instrument before an identity row; nested money checks; I-6 and expected states; the 0.00 rule; evidence checks; an unbounded read; the ACK row's column | FIX |
+
