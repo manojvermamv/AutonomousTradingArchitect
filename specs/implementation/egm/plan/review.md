@@ -340,3 +340,22 @@ The new [SLICE-07 slice file](../../plan/slices/SLICE-07-observations-reconcilia
 | D-13, D-14, D-15 | Minor | Step 2 scope wording and missing obligations; "default contract" readable as source-derived; time comparison; episode; the identity-only combination test | FIX |
 | R-14…R-20 | Minor | Unknown `placed_at`; time parsing and window as a pair; gap precedence; account; validation and the `ModeRead` test; `after_never_reached` wording; builders and finding order | FIX |
 
+## SLICE-07 step 2 review (2026-10-28)
+
+[SLICE-07 step 2](../../plan/slices/SLICE-07-observations-reconciliation-domain.md#step-2--lifecycle-commits-fills-positions-settlement-and-attempt_resolve) (lifecycle commits, fills, positions, settlement and `attempt_resolve`) was reviewed by fresh `egm:egm-design` and `egm:egm-implementation-readiness` reviewers (read-only) against the ledger, execution-domain and cross-cutting specs, the owner answers, SLICE-05's hand-offs, the code built through step 1 and legacy `reservations.py`. Design: 3 Critical, 8 Major, 4 Minor. Readiness: 2 Critical, 8 Major, 4 Minor. The two Criticals they share were checked by hand: `reached` comes only from an orderbook and `fill` only from a tradebook (`reconciliation.py:365-375`), and fill rows carry no order ID (`001_initial.sql`). Every finding is resolved by FIX.
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| D-1, R-1 | Critical | Reach and fill could never meet; a filled order could be judged never reached and resent | FIX: a tradebook fill on an uncertain attempt's order gives `reached` first, committed with the `FILL`; no `never_reached` after fills; break checks |
+| D-2 | Critical | Entry completion vacuous after a reach by resolution (no `acknowledged` legs), releasing money on no evidence | FIX: judged over `PlanRef.legs`, at least one; `RESOLVED_REACHED` rewrites the attempt's legs and domain; break check |
+| D-3 | Critical | A later marked book released money held back for `unknown` fills (Q-006) | FIX: completion releases only when every `FILL` reduced and the completing domain passes; break check |
+| R-2 | Critical | Fill rows had no order ID, so per-order totals and I-4's same-order check were impossible | FIX: `broker_identity.broker_order_id` (migration 005) |
+| D-4, D-5, R-3 | Major | I-4 differed from the ledger spec unmarked; corrections silently ignored; three break checks could not fail | FIX: the writer drops identical duplicates per I-4, `LED-R08` `fill_mismatch` otherwise; `fill_records` in the view, a correction escalated; direct-decision tests |
+| D-6 | Major | Fills of a completed resting close had no rule | FIX: a fill never changes command state; the state table row added; test |
+| D-7 | Major | No reservation-head guard on `reservation_after` | FIX: `reservation_before` checked by the fold; fills chained in one decision |
+| D-8, R-9 | Major | The clamp departed from legacy unmarked; divide by zero at 0.00; two signatures | FIX: Deviation with reason; 0.00 rule; `over_reduction`; one signature; the boundary case |
+| D-9, R-10 | Major | I-6 silently redefined; the state machine extension too thin to write | FIX: the ledger's I-6 restated; the machine's rules and invariants named |
+| D-10, R-6 | Major | Positions unchecked; the entry and role not derivable from a digest; execution ID and instrument sources | FIX: only entry fills create, with `position_id(key, role)` checked; a close's `target` and instrument checked; sources named |
+| D-11 | Major | `resolve_attempt`'s recorded domain, evidence, attempt guard and legs | FIX: the attempt's domain; the evidence resolves and contains the order (`DOM-R05`); guard with the attempt number; one leg until SLICE-06 |
+| R-4, R-5, R-7, R-8 | Major | Touched rows for the new events; the reached attempt's legs; the test migration; `late_fill`'s source | FIX: each `_load_touched` branch; legs rewritten; `filled_entry` and the return shape; late is the command's state at commit |
+| D-12…D-15, R-11…R-14 | Minor | Overclose silent; `target_ended`'s route; rule 6 for entries; signatures; settings fields and the non-negative kind; `underlying`; the always-passed `settlement_withheld`; `now` and subjects; PRF-LED-16's file | FIX |

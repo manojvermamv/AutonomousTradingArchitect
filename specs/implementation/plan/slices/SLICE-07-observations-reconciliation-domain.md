@@ -1,6 +1,6 @@
 # SLICE-07 — Observations, reconciliation, domain and the OpenAlgo adapter
 
-* **Status:** proposed. Step 1 is built (OA_NEW `9bc4529` on `slice-07`; [Step 1 as built](#step-1-as-built)). Steps 2–4 are scoped, and each is deepened once the step before it is built, as SLICE-04's and SLICE-05's were (the delivery plan's depth rule).
+* **Status:** proposed. Step 1 is built (OA_NEW `9bc4529` on `slice-07`; [Step 1 as built](#step-1-as-built)). Step 2 is decision-complete below and not yet built. Steps 2–4 are scoped, and each is deepened once the step before it is built, as SLICE-04's and SLICE-05's were (the delivery plan's depth rule).
 * **Precedence:** the master README, then the ROADMAP, then this package. The authority is the [execution-domain spec](../../design/execution-domain-and-observations.md) (evidence contract, attribution and combination, reconciliation, the OpenAlgo adapter), with the [ledger spec](../../design/ledger-and-atomic-transaction.md) for the events findings become. Every deviation is marked **Deviation**. No score, threshold or money value is set: every refusing setting is bound only to labelled synthetic or owner-answered values in tests.
 * **Phase:** master Phase 1/3 (D15, D16, ATA-06, the A06-F2 decision). Class S → R: steps 1–3 are disarmed (the simulated broker only); step 4 builds the real adapter and proves it against recorded responses and a local fake server, never a deployment.
 * **Builds on:** [SLICE-05](SLICE-05-dispatch-conflicts-scheduling.md) as built; branch `slice-07` cut from `slice-05` (OA_NEW `a4c4516`).
@@ -329,14 +329,217 @@ Commit `9bc4529` on `slice-07`, cut from `slice-05` at `a4c4516`. It changes 6 p
 | Ignore `facts` | 2 cases |
 | Run absence on a tradebook | `test_no_absence_on_a_tradebook` |
 
-## Step 2 — lifecycle commits (scoped; deepened after step 1)
+## Step 2 — lifecycle commits, fills, positions, settlement and `attempt_resolve`
 
-* **Events:** `RESOLVED_REACHED` and `RESOLVED_NEVER_REACHED` (per leg), `FILL`, `CONFLICT_RECORDED`, `FOREIGN_RECORDED`, `RECONCILIATION_ESCALATED` with the ledger catalogue's payloads; the `reconciliation_fact` and `position` tables (migration 005, with its tree delta as T-27 had).
-* **Accounting:** fills lower an entry's reservation by `reservation_after` (D16), released only on verified identity and a non-conflicting domain, with `unknown` held under `forbid` (Q-006).
-* **Completion:** entry completion; close completion through `findings`, with the recorded-fills precondition and the positions book's `as_of` (ending SLICE-05 step 3's pre-`FILL` Deviation; `order_ended` is a standing amendment); `record_completions` routed through `findings`; a late `FILL` accepted for a `COMPLETED` close (SLICE-05 step 3's obligation).
-* **Also:** the `attempt_resolve` grant action; a replacement ID seen in an observation (the spec's rules table); an `UNCERTAIN` modify whose target ended; `hold_entries`; the escalation episode in `reconciliation_fact`'s key.
-* **`attempt_resolve`** (Q-007) and the positions side of the holdings port (`LedgerHoldings` over the `position` table).
-* **Settings:** `reconciliation.unknown_domain_settlement`, `clock_skew_secs`, `working_escalation_secs` and `foreign_response`.
+TASK-S07-02 (commits; `attempt_resolve`), TASK-S07-03, and the commit side of TASK-S07-04. Proofs: PRF-LED-11; PRF-LED-12's redelivered fill; PRF-LED-09's fill terms (I-4, I-6); PRF-DOM-02's once-per-key and idempotence clauses; PRF-LED-16's entry row. The authorities are the [ledger spec](../../design/ledger-and-atomic-transaction.md) (catalogue, state table, reservations, I-4, I-6) and the [execution-domain spec](../../design/execution-domain-and-observations.md#reconciliation-kernelreconciliationpy) (what domain gates, the events, `attempt_resolve`). Reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-07-step-2-review-2026-10-28)).
+
+### What legacy does, and what that decides
+
+* **A fill reduces the reservation proportionally, in floats.** Legacy `_fold_events` takes the fill's amount off `amount` and scales `margin` and `worst_case_loss` by `ratio = (amount − r) / amount`, with no rounding (`src/core/framework/execution/reservations.py:205-216` @445eb116; `reduce()` at `:644`). The target keeps the rule in exact decimals, so it needs a rounding rule where legacy had none: `money.rounding`, a refusing parameter. Any rounding differs from legacy's floats, so binding a production value needs the owner's confirmation (the [register](../../design/cross-cutting-invariants.md#refusing-parameter-pattern-req-xc-003)'s rule). Tests bind a labelled synthetic value.
+* **A reduction needs fill evidence attributed to the reservation's own order** (`reservations.py:670-675`, "fill is not attributed to reservation"). It also refuses when the reservation head changed since it was read (`:664-665`). The target keeps both: a `FILL` reduces only its own entry's reservation, and carries the amount it read.
+* **Legacy refuses a reduction larger than the remaining amount** (`reservations.py:209-210`). The target clamps it instead (a **Deviation**, below).
+
+### Decisions
+
+* **`kernel.lifecycle.reconcile` is the one entry point.**
+  * `reconcile(writer, account, observation, policy, *, rounding) -> list[tuple[str, str | None]]` builds the ledger view, runs `assess` and `findings`, commits each finding, and returns the committed (event kind, command key) pairs. `now` is `writer.clock.now()`.
+  * SLICE-05's `record_completions` is removed and its tests move to `reconcile`.
+  * Close completion now runs through `findings` with the recorded-fills precondition, and fills now lower owned quantity, so SLICE-05 step 3's positions-book freshness guard ends. The `order_ended` rule stays a standing amendment.
+* **A fill proves reach, in one decision.** On a tradebook, a trade whose order is named by the latest `AMBIGUOUS` attempt of an `UNCERTAIN` entry or close gives `reached` (that leg, the trade's domain) before its `fill`. Lifecycle commits that `RESOLVED_REACHED` and the command's `FILL`s in one decision, as the ledger spec requires. Rule 4 never gives `never_reached` for an attempt whose order IDs have recorded fills, so a filled order is never resent.
+* **Corrections are seen, duplicates are dropped (I-4).**
+  * `LedgerView.fill_records` maps each recorded fill ID to its (order ID, quantity, price). A trade whose fill ID is recorded with the same values gives nothing. One recorded with other values gives `escalate` (`fill_mismatch`, subject the fill ID) and no `FILL`, so a broker correction is never silently ignored.
+  * The writer applies I-4 as the ledger spec states it. A `FILL` draft whose fill ID exists with the same order, quantity and price is dropped from the decision and the rest proceeds. Different values refuse the decision with `LED-R08`, message `fill_mismatch`.
+* **The reservation read is guarded.** An entry `FILL` that reduces carries `reservation_before` (the `amount` it read) beside `reservation_after`. The fold refuses (`TransitionNotAllowed`, `LED-R09`) when the current `amount` differs, so a stale read never overwrites a reduction; the next poll recomputes. Several fills in one decision are chained: each one's `before` is the previous one's `after`.
+* **What domain gates (Q-006).** Facts are always committed. Only lowering or freeing a reservation is gated. A **domain passes** when it is `simulated`, `analyzer` or `live`, or `unknown` under `accounting_only`. Under `forbid`, `unknown` fails, and `conflicting` always fails.
+  * An entry fill whose domain fails carries `reservation_after` and `reservation_before` `null`: the reservation keeps that money.
+  * An entry's `COMPLETED` releases its reservation only when the completing domain passes **and** every recorded `FILL` of the entry reduced (none was withheld). Otherwise it completes with `settlement_withheld` true, the reservation stays `HELD`, and it is escalated (`settlement_withheld`, subject the command key). Money held back for an `unknown` fill is never released by a later marked book.
+* **Over-reduction clamps (Deviation from legacy).** A fill amount above the remaining `amount` takes the reservation to 0.00 instead of being refused. Legacy refuses, but here the fill is a broker fact: refusing would lose the `FILL` and the position change. The excess is escalated (`over_reduction`, subject the fill ID). At an `amount` of 0.00 all three fields stay 0.00 (no ratio is taken).
+* **I-6 is restated (ledger amendment).** With withheld and clamped fills, "Σ fill amounts" is not what moved the reservation. I-6 becomes: admitted `amount` = current `amount` + Σ (`reservation_before.amount` − `reservation_after.amount`) over the events that carried a reduction, in any state. It is checked by the invariant test against the events; the fold still computes no money.
+* **Fills on any state; late entry fills escalate.** A `FILL` never changes a command's state.
+  * A fill on a `COMPLETED` close's order (a resting stop that triggers after `resting_observed`) is recorded and lowers the position, as SLICE-05 step 3 handed over. The state table gains that row.
+  * A fill on an entry whose command is `COMPLETED` at commit is recorded with no reduction and escalated (`late_fill`, subject the fill ID).
+  * Rule 6's working escalation now covers `WORKING` entries too (`working_without_completion`), so an entry with missing fills never holds its reservation silently.
+* **Positions are created by entry fills and checked.**
+  * Only an entry `FILL` creates a `position` row. The fold requires `position_id == position_id(command_key, leg_role)` (the projections function).
+  * A close `FILL` requires its `position_id` to equal the close command's `target` and its `instrument` to equal the row's. It lowers the row. A close fill on a missing position refuses with `TransitionNotAllowed`.
+  * Any other mismatch raises `InvariantViolated` (`LED-R08`); lifecycle escalates it (`fill_mismatch`).
+  * `instrument` comes from the order's `OwnedOrder` (`owned_order_from_row`). Lifecycle also compares the trade's instrument and side with the order's, and on a difference escalates `fill_mismatch` instead of committing.
+  * A position going below zero commits its `FILL` (`overclosed`) and an escalation (`overclose`, subject the position ID, `excess_quantity`); SLICE-06 adds the protection hold.
+* **The positions side of the holdings port.** `LedgerPositions(writer)` serves `position` and `positions` from the `position` table, with `underlying` from the entry's `COMMAND_ADMITTED`. Before an entry's first fill it serves each entry leg that has an acknowledged order as a position with `owned_quantity` 0, as SLICE-04 step 2 specifies. `AdmissionPorts.positions` set to `kernel.admission.LEDGER_POSITIONS` (the string `"ledger"`) composes it.
+* **`hold_entries` is refused at load (Deviation).** Acting on it needs an account-level hold that the protection spec has not defined, and Q-016 binds `escalate`.
+* **Publish-before-reference waits for the loop (Deviation in timing).** Every event carries the observation's digest as `observation_digest`. Publishing the raw observation before that reference commits (Combined-F2) needs the raw response, which the loop holds (step 3). In step 2, observations are built by tests (disarmed).
+* **An `UNCERTAIN` modify whose target ended** is escalated (`target_ended`, subject the command key) and stays `UNCERTAIN`. A terminal order is no member of its group (the conflict relation already excludes it), and `UNCERTAIN` is not busy, so it blocks nothing. No machine route resolves it; the escalation reaches the operator.
+* **Not in step 2:** a replacement ID seen in an observation (it needs an endpoint field only TASK-S07-05 can verify); multi-leg rows (`LEG_ASSIGNED`, `RESIDUAL_RECORDED`, partial resolution), which are SLICE-06's.
+
+### Files
+
+| File | Change |
+|---|---|
+| `src/autonomous_trading/resources/migrations/005_reconciliation.sql` | New: `position`, `reconciliation_fact`, and `broker_identity.broker_order_id` (tree delta **T-28**) |
+| `src/autonomous_trading/kernel/ledger/schema.py`, `store.py`, `projections.py` | Migration 5; families, command kinds, `TABLES`, `_PK` and touched-row loading; the folds; the writer's I-4 drop; reads for the view and positions |
+| `src/autonomous_trading/kernel/lifecycle.py` | Transition rows; `ledger_view`; `reconcile`; `resolve_attempt`; `record_completions` removed |
+| `src/autonomous_trading/kernel/reservations.py` | `reduce_on_fill` |
+| `src/autonomous_trading/kernel/reconciliation.py` | Fill-proves-reach; corrections; entry completion; close completion's fills precondition; no `never_reached` after fills; `target_ended`; rule 6 for entries; the view fields |
+| `src/autonomous_trading/kernel/admission.py` | `LedgerPositions`, `LEDGER_POSITIONS` |
+| `src/autonomous_trading/resources/events.schema.json` | The seven events |
+| `src/autonomous_trading/settings/schema.py`, `loader.py`, `resources/defaults.yaml` | Five settings; a non-negative int kind |
+| `src/autonomous_trading/bootstrap.py` | `LedgerPositions`; `Composition.reconciliation` and `Composition.money_rounding` |
+| `tests/conftest.py` | The settings; `kernel_positions=True`; `filled_entry(...)`; a `tradebook(...)` builder |
+| `tests/unit/test_reconciliation_rules.py` | The commit side of PRF-DOM-02 and the new pure rules |
+| `tests/unit/test_ledger_invariants.py`, `test_command_identity.py` | PRF-LED-09's fill terms and PRF-LED-11; PRF-LED-12's redelivered fill |
+| `tests/integration/test_verb_completion.py` | Moves to `reconcile`; closes fill a ledger position; the positions-age test is removed |
+| `tests/integration/test_entry_outcomes.py` | PRF-LED-16's entry row (the ledger spec's file for it) |
+| `tests/unit/test_policy_parameters.py` | The settings |
+| Spec amendments | The ledger catalogue (`FILL`, `RESOLVED_*`, `COMPLETED`), the state table (a fill on a completed close), I-6, and `broker_identity`'s new column. The execution-domain spec's reasons, refusal codes and `hold_entries` |
+
+### Migration 005
+
+```sql
+CREATE TABLE position (position_id TEXT PRIMARY KEY, entry_command_key TEXT NOT NULL, leg_role TEXT NOT NULL,
+  account TEXT NOT NULL, instrument TEXT NOT NULL, strategy TEXT NOT NULL, owned_quantity INTEGER NOT NULL,
+  state TEXT NOT NULL, opened_sequence INTEGER NOT NULL, closed_sequence INTEGER);
+CREATE TABLE reconciliation_fact (kind TEXT NOT NULL, key TEXT NOT NULL, reason TEXT NOT NULL,
+  first_sequence INTEGER NOT NULL, PRIMARY KEY (kind, key, reason));
+ALTER TABLE broker_identity ADD COLUMN broker_order_id TEXT;     -- the order a fill row belongs to; NULL on order rows
+```
+
+* **`reconciliation_fact.key`** is canonical JSON: a conflict's `[order ID]`; a foreign record's `[order ID]` (reason `""`); an escalation's `[subject, episode]`.
+
+### Events and folds
+
+| Event | Payload (new fields in **bold**) | Guard and fold |
+|---|---|---|
+| `RESOLVED_REACHED` | `attempt_no`, `legs` (`[{leg_role, broker_order_id}]`), `observation_digest`, `broker_order_ids`, `reservation_after` (`null`, single-leg), **`basis`** (`observation`, `attempt_resolve`), **`principal`** (array or `null`) | `StateGuard({UNCERTAIN}, attempt_no, None)`; command → `WORKING`; attempt `AMBIGUOUS` → `ACKNOWLEDGED`, its `legs` rewritten with `cls` `acknowledged` where an ID is named and `not_sent` otherwise, its `domain` the event's `execution_domain`; a `broker_identity` order row per named ID, with its role and that domain (owned by another command: `InvariantViolated`) |
+| `RESOLVED_NEVER_REACHED` | as above, `broker_order_ids` `[]` | the same guard; command → `ADMITTED`; attempt → `NOT_SENT` (a retry then needs `DISPATCH_RETRY_REQUESTED`) |
+| `FILL` | `fill_id`, `broker_order_id`, `leg_role`, `quantity`, `price`, `observation_digest`, `reservation_after`, **`reservation_before`**, **`position_id`**, **`instrument`** | no command guard and no state change; the writer's I-4 drop; a `broker_identity` row (`fill_id`, `quantity`, `price`, `command_key` the order's, `broker_order_id`); the position checks above; `reservation_before` against the current `amount`, then `reservation_after` copied (entry fills only) |
+| `COMPLETED` | as SLICE-05 step 3, plus **`settlement_withheld`** (boolean; every writer passes it) | `WORKING` → `COMPLETED`; an entry's reservation `RELEASED` unless `settlement_withheld` |
+| `CONFLICT_RECORDED`, `FOREIGN_RECORDED`, `RECONCILIATION_ESCALATED` | the catalogue's payloads | a `reconciliation_fact` row; an existing key raises `TransitionNotAllowed` |
+
+* **Families and envelopes.** The reconciliation events' family is `lifecycle`. `RESOLVED_*`, `FILL` and `COMPLETED` are command kinds, so the envelope carries the order's command key. A `FILL`'s `execution_id` is `"<key>#<n>"` for the attempt whose IDs name the order, else `null` (a modify replacement).
+* **Touched rows (`_load_touched`).**
+  * `FILL` loads `broker_identity` (`fill_id`, its value), the order row (`order_id`, `broker_order_id`), the `position` row by `position_id`, the command, and its reservation.
+  * `RESOLVED_*` loads the command, the attempt, and the order rows of the named IDs.
+  * Each fact event loads its `reconciliation_fact` row by (kind, key, reason).
+  * `position` and `reconciliation_fact` join `TABLES` and `_PK`.
+* **The state table** gains: `WORKING` or `COMPLETED` close, `FILL` of its order: unchanged; position lowered.
+
+### `kernel/reservations.py`
+
+```text
+reduce_on_fill(amount: str, margin: str, worst_case_loss: str, fill_amount: str, *, rounding: str)
+    -> tuple[dict, str]                        # ({amount, margin, worst_case_loss}, excess amount)
+```
+
+* All arithmetic is `Decimal`. `fill_amount = quantity × price`, quantized to 0.01 with `rounding` (`half_even`, `half_up` or `down`, i.e. `ROUND_HALF_EVEN`, `ROUND_HALF_UP`, `ROUND_DOWN`).
+* When `amount` is 0.00, all three stay 0.00 and the whole fill is excess.
+* Otherwise the reduction is `min(fill_amount, amount)`, the new `amount` is `amount − reduction`, and `margin` and `worst_case_loss` are each multiplied by `new / amount` and quantized the same way. The excess is `fill_amount − reduction`.
+
+### `kernel/reconciliation.py` changes
+
+* **New `LedgerView` fields:**
+  * `fills: Mapping[order ID, int]` (recorded quantity per order);
+  * `fill_records: Mapping[fill ID, (order ID, quantity, price)]`;
+  * on `CommandView`, `plan_legs: tuple[str, ...]` (the entry's `PlanRef.legs` roles) and `fills_withheld: bool` (an entry has a `FILL` without a reduction).
+* **On a tradebook:** a recorded fill ID with the same values gives nothing, and with other values `escalate` `fill_mismatch`. A new fill on the latest `AMBIGUOUS` attempt's order of an `UNCERTAIN` entry or close gives `reached`, then `fill`.
+* **Rule 4** gives no `never_reached` for an attempt any of whose order IDs has `fills`.
+* **Entry completion** (a `WORKING` entry, orderbook) needs at least one planned leg. For every role in `plan_legs`, either:
+  * the command's identity order of that role is observed terminal, with `filled_quantity` known and equal to `fills[order]`;
+  * or the latest attempt's leg of that role is `not_sent` or `rejected`.
+
+  That gives `completed`, with reason `filled` if every reached leg's order is `filled`, else `order_ended`. The `Completion` carries `filled_quantity` as the sum.
+* **Close completion:** the SLICE-05 rule, plus `fills[order] == filled_quantity` for `filled` and `order_ended`. A resting close's `resting_observed` needs no fills.
+* **`target_ended`:** an `UNCERTAIN` modify whose target is observed terminal gives `escalate` (`target_ended`, subject the command key).
+* **Rule 6** includes `WORKING` entries.
+
+### `kernel/lifecycle.py`
+
+```text
+ledger_view(writer, account) -> LedgerView
+reconcile(writer, account, observation, policy, *, rounding) -> list[tuple[str, str | None]]
+resolve_attempt(writer, authority, auth, command_key, attempt_no, legs: Mapping[str, str | None],
+                observation: EvidenceRef) -> Committed | Refusal
+```
+
+* **`ledger_view`** reads index tables and the commands' own events:
+  * commands: those not final, plus `REJECTED` ones, commands with a `NOT_SENT` attempt, and `COMPLETED` commands of the account (a fill may still arrive);
+  * `target_level`, `target_kind`, `target_domain`, `updated_at`, `facts`, `fills`, `fill_records`, `plan_legs` (from `plan_ref`) and `fills_withheld` (from the entry's `FILL` events).
+* **`reconcile`** commits:
+
+| Finding | Decision |
+|---|---|
+| `reached` with the same command's `fill`s | `RESOLVED_REACHED` (`basis` `observation`) followed by the `FILL`s, one decision |
+| `reached` alone | `RESOLVED_REACHED` |
+| `never_reached` | `RESOLVED_NEVER_REACHED` (`basis` `observation`) |
+| `fill` | `FILL`, reduced through `reduce_on_fill` when the order is an entry leg, the command is not `COMPLETED`, and the domain passes; plus the escalations above (`late_fill`, `over_reduction`, `overclose`, `fill_mismatch`) as their own decisions |
+| `completed` | `COMPLETED`; for an entry, `settlement_withheld` per the gate, with its escalation |
+| `conflict`, `foreign`, `escalate` | `CONFLICT_RECORDED`, `FOREIGN_RECORDED`, `RECONCILIATION_ESCALATED` |
+
+* Every envelope's `execution_domain` is the finding's domain (`none` for an event with no external effect). The principal is `lifecycle.LIFECYCLE`.
+* A decision refused `LED-R09` is dropped, `LED-R08` on a `FILL` is escalated (`fill_mismatch`), and any other refusal raises `WriterLost`.
+* **`resolve_attempt`** (Q-007), in order:
+  1. `SES-R01` unauthenticated; `SES-R02` not human; then `authority.check("attempt_resolve", auth, account)`.
+  2. The command is an `UNCERTAIN` entry whose latest attempt is `attempt_no`, `AMBIGUOUS`, with an `untagged_timeout` escalation recorded (`DOM-R04`, `not_untagged`).
+  3. `legs` names exactly the attempt's one leg role (`ADM-R01`; more than one leg waits for SLICE-06).
+  4. `observation` resolves in the evidence store (`DOM-R05`, `evidence_unresolved`), and a named order appears in its items (`DOM-R05` too).
+  5. No named order is tied to another command (`DOM-R03`, `order_owned`).
+
+  It then commits `RESOLVED_REACHED` or `RESOLVED_NEVER_REACHED` with `basis` `attempt_resolve`, the principal, and guard `UNCERTAIN` with that attempt number. The named identity is recorded with the attempt's domain (`unknown` when the attempt has none), which the settlement gate then reads. The machine never names an order itself.
+
+### Settings added
+
+| Setting (field) | Values | Env (`test` profile) | Owner answer |
+|---|---|---|---|
+| `reconciliation.unknown_domain_settlement` (`unknown_domain_settlement`) | `forbid`, `accounting_only` | `AT_UNKNOWN_DOMAIN_SETTLEMENT` | Q-006 binds `forbid` |
+| `reconciliation.clock_skew_secs` (`clock_skew_secs`) | int ≥ 0 (a new non-negative kind) | `AT_CLOCK_SKEW_SECS` | measured; synthetic in tests |
+| `reconciliation.working_escalation_secs` (`working_escalation_secs`) | int > 0 | `AT_WORKING_ESCALATION_SECS` | measured; synthetic in tests |
+| `reconciliation.foreign_response` (`foreign_response`) | `record_only`, `escalate` (`hold_entries` refused) | `AT_FOREIGN_RESPONSE` | Q-016 binds `escalate` |
+| `money.rounding` (`money_rounding`) | `half_even`, `half_up`, `down` | `AT_MONEY_ROUNDING` | none yet: it differs from legacy's floats, so the production value needs the owner's confirmation; synthetic `half_even` in tests |
+
+All five join `ADMISSION_REQUIRED`. The composition carries `reconciliation` (a `ReconciliationPolicy` from them and `reconciliation.max_observation_age_secs`, with no endpoint contracts) and `money_rounding`.
+
+### Step 2 tests
+
+* **Fixtures (conftest):**
+  * `kernel_positions=True` (`positions` = `LEDGER_POSITIONS`, with `kernel_holdings`);
+  * `tradebook(world, *trades, as_of=None)`, which builds a tradebook `Observation` stamped one second before now;
+  * `filled_entry(world, key, *, order_id="E1", quantity=75, price="20.00")`, which admits an entry, acknowledges it, and reconciles one tradebook fill, so the position exists in the ledger. It returns the position ID.
+* `test_ledger_invariants.py` (PRF-LED-09's fill terms, PRF-LED-11):
+  * the state machine gains rules: a tradebook fill (fill IDs drawn from a small pool, so redelivery and corrections happen), an orderbook reach, absence with `rcontract`, and completion;
+  * I-4 holds, and the restated I-6 holds;
+  * `EXPECTED_RESERVATION` gains `COMPLETED`, and `amounts_unchanged` is replaced by I-6;
+  * PRF-LED-11: a partial fill gives `reservation_after` equal to a `Decimal` hand calculation; the boundary amount 2.00, fill 1.00, margin 0.01 gives `half_even` 0.00 where floats give 0.01; a clamp; an `amount` of 0.00.
+* `test_command_identity.py` (PRF-LED-12): a redelivered identical `FILL` draft is dropped by the writer (the rest of the decision commits); other values give `LED-R08` `fill_mismatch`.
+* `test_reconciliation_rules.py`:
+  * the commit of each kind;
+  * reconciling twice commits nothing new;
+  * each fact key once (also through a direct second `Decision`, which gives `LED-R09`);
+  * reach and fill in one decision;
+  * no `never_reached` after fills;
+  * a correction escalated;
+  * Q-006 under `forbid` and `accounting_only`, `conflicting`, and a withheld fill keeping its completion withheld;
+  * `late_fill`, a fill on a completed resting close, `over_reduction`, `overclose`, position checks, `target_ended`;
+  * the `reservation_before` guard;
+  * `resolve_attempt`: each refusal, reached, never reached, the recorded domain;
+  * `LedgerPositions` before and after the first fill.
+* `test_verb_completion.py`: the SLICE-05 tests through `reconcile`, with closes against `filled_entry` positions; a close completes only after its fills are recorded.
+* `test_entry_outcomes.py` (PRF-LED-16's entry row): completes when its order is terminal with fills accounted, never on its ACK, not while fills are missing, and never vacuously after a reach by resolution.
+* `test_policy_parameters.py`: the five settings resolve, are null by default, refuse other values (`hold_entries` included, and `-1` for skew), and the composition refuses each unbound.
+* **Break checks** (named in the docstrings):
+  * give `never_reached` after fills exist;
+  * skip the fill's reach;
+  * let the writer keep a duplicate fill;
+  * ignore a fill correction;
+  * reduce an `unknown` fill under `forbid`;
+  * reduce a `conflicting` fill;
+  * release a completion whose fills were withheld;
+  * complete an entry vacuously (no legs judged);
+  * complete a close before its fills are recorded;
+  * drop the `reservation_before` check;
+  * scale a reservation with a float;
+  * skip the position-ID check;
+  * let `resolve_attempt` name an order another command owns;
+  * let a non-human resolve;
+  * record a foreign order twice.
 
 ## Step 3 — the observation loop (scoped)
 

@@ -104,3 +104,4 @@ These are files the slices need that README §6 does not list (T-01…T-23). T-0
 | T-25 | `src/autonomous_trading/resources/migrations/003_policy.sql` | SLICE-04 | The `review` and `pause` tables of `kernel.policy` (as T-24) |
 | T-26 | `tests/fixtures/planner_parity_445eb116.json` | SLICE-04 | Legacy planner inputs and outputs generated once from `OA@445eb116`: the step 3 golden parity cases (PRF-ADM-03) |
 | T-27 | `src/autonomous_trading/resources/migrations/004_safety.sql` | SLICE-05 | The `safety_state` table of `kernel.safety` (as T-24) |
+| T-28 | `src/autonomous_trading/resources/migrations/005_reconciliation.sql` | SLICE-07 | The `position` and `reconciliation_fact` tables (as T-24) |
