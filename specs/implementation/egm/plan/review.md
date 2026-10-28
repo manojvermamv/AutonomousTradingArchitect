@@ -420,3 +420,25 @@ Fresh `egm:egm-design` and `egm:egm-implementation-readiness` reviews of [SLICE-
 | R-11 | Major | Malformed rows had no rule | FIX: `ReadFailed` for orders, positions and funds; trades dropped and named |
 | R-13, R-14 | Major | No test proved the ticket reaches `send`; the 0-trigger break could not fail | FIX: a recording wrapper; an `SL` row test |
 | F-11…F-21, R-15…R-21 | Minor | Publishing inside the deadline; non-finite JSON; `filled_quantity` only when consistent; `request_digest`; `ticket_missing` spending an attempt (now `DSP-R04` before the claim); the trade price; flat-row money; HTTP details and a body bound; one account per adapter; the error mapping as a composition precondition; stale plan lines; test seams; build timing; the product path; concrete test values; `availablecash` types | FIX |
+
+## SLICE-06 review (2026-10-28)
+
+Fresh `egm:egm-design` and `egm:egm-implementation-readiness` reviews of the new [SLICE-06 slice file](../../plan/slices/SLICE-06-protection-and-safety.md): the step split, and step 1 in depth. Design: 1 Critical, 13 Major, 9 Minor (F-1…F-23). Readiness: 1 Critical, 13 Major, 7 Minor (R-1…R-20). Both confirmed three points: legacy `PremiumTrail`'s only state outside `TrailPosition` is for logging; `to_tick` matches legacy; and the 60 s boundary matches POL-021. Every finding is resolved by FIX in the rewritten step 1 and the step scopes, except the opposing-signal input. That became [Q-024](../../decisions/owner-questions.md#q-024), which is open and must be answered before step 2 is deepened.
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| F-1 | Critical | Never passing legacy's `modify` callback would change ladder moves after a rejected or withheld modify: legacy keeps the stop and advances only the peaks | FIX: each bar records the accepted and the refused outcome; step 2 adopts the refused one when the modify is rejected or withheld |
+| R-1, F-16 | Critical / Minor | The golden cases were neither buildable nor reproducible | FIX: generator, seeds, paths, grid, extra cases, stored bars, JSON shape |
+| F-2 | Major | The ladder's other inputs (bar history, `ts`, delta, opposing score) were undecided | FIX: decided; the opposing score is Q-024 |
+| F-3, R-2 | Major | The `sl_method` set was not legacy's | FIX: `fixed_pct`, `fixed_pts`, `atr`, `delta`; `key_level` refused |
+| F-4 | Major | Policy values were not validated | FIX: legacy's ranges and types at load; `policy_version` over the resolved values |
+| F-5 | Major | `protection = None` had no meaning | FIX: the all-defaults policy; no new gate |
+| F-6 | Major | Continuity data was only a digest | FIX: the resolved policy is recorded with each desire |
+| F-7, R-12 | Major | `ORPHANED` was out of order and underspecified | FIX: the spec's five rows in order, with required inputs |
+| F-8, R-5 | Major | `ENDED` depended on a fresh observation, and its reasons were partial | FIX: a sticky ledger end; a complete reason order with `fill_pending`, `orphan` and `external` |
+| F-9, R-9 | Major | The `observed` rule was looser than admission's | FIX: `observation_age` and the single-row rule, with the bound 60 s setting |
+| F-10, F-12, F-13, F-14, F-22, R-20 | Major / Minor | Hand-offs, characterizations, the gap guard, the host loop, structures, POL-006 and basket classification had no step | FIX: each assigned; the host-loop half of PRF-PRT-06 is a Deviation to SLICE-11 |
+| F-11 | Major | PRF-PRT-08's deferral was unmarked | FIX: marked Deviation; run with TASK-S11-07's recorded sessions before live use |
+| R-3, R-4, R-6, R-7, R-8, R-10, R-11 | Major | The live order's role, `LegView`, `Desire`, the float-to-money conversion, the quantity rule, the migration and fold wiring, and the event schema were underspecified | FIX: each specified |
+| F-15, F-17…F-21, F-23, R-13…R-19 | Minor | Restart test, `ladder_state` encoding, level and quantity rules, policy fields, fold shapes, gap dedupe, tick source, citations, test construction, the reserved-role check's place, break wording, `commands_with_prefix`, types, an unused parameter | FIX |
+

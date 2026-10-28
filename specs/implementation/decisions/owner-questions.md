@@ -27,6 +27,7 @@ Status: **open owner decision** unless a row says answered. Each question is a g
 | [Q-021](#q-021) | While a position's group has an unresolved effect, may protection raise its stop's quantity up to the owned position? | [SLICE-05 step 1 build](../plan/slices/SLICE-05-dispatch-conflicts-scheduling.md#step-1-as-built); [protection spec, conflict row 2](../design/protection-and-safety.md#conflict-relation-kernelsafetypy) | TASK-S05-03, TASK-S06-01 | answered 2026-10-28 ([answers](owner-answers-2026-10-27.md)) |
 | [Q-022](#q-022) | A broker trade with no trade ID (live Upstox): how is it counted as a fill? | upstream-findings PART 31; [SLICE-07 step 4](../plan/slices/SLICE-07-observations-reconciliation-domain.md#step-4--the-openalgo-adapter) | The OpenAlgo adapter's production composition (SLICE-11); TASK-S07-05 | open |
 | [Q-023](#q-023) | How is a timed-out close, cancel or modify resolved when no book can prove its absence? | [SLICE-07 step 4](../plan/slices/SLICE-07-observations-reconciliation-domain.md#step-4--the-openalgo-adapter); Q-012 | The OpenAlgo adapter's production composition (SLICE-11); TASK-S07-05 | open |
+| [Q-024](#q-024) | The trail's opposing-signal tightening: what supplies the opposing score in the kernel? | `src/core/framework/protection/trail.py:476-481` @445eb116; [SLICE-06 step 1](../plan/slices/SLICE-06-protection-and-safety.md#step-1--the-ladder-protection-state-and-the-derived-leg) | TASK-S06-01 (SLICE-06 step 2's trail loop) | open |
 
 ---
 
@@ -464,3 +465,24 @@ Such an action stays `UNCERTAIN`. Conflict row 2 then holds every later close, a
 - **C:** both: B for the common case, and A for what the contracts cannot cover.
 
 Nothing runs live before this is answered: the adapter is not composed until it is.
+
+## Q-024
+
+**The trail's opposing-signal tightening: what supplies the opposing score in the kernel?**
+
+```text
+Requirement: the ladder moves the stop exactly as legacy (ATA-01, POL-012, PRF-PRT-08).
+Owner: kernel.protection (the trail loop, SLICE-06 step 2).
+Proof: tests/unit/test_protection_states.py (golden cases with an opposing score).
+```
+
+**Why it matters.** Legacy's trail cycle takes an `opposing_score`: the score of a fresh, strong signal against the position, which the strategy judges and passes (`src/analysis/core/eventsource.py:81-84` @445eb116). It shrinks the activation threshold and speeds up the step, so the stop moves closer (`src/core/framework/protection/trail.py:476-481`). In the target, protection runs in the kernel, and a strategy worker's only route to the kernel is an intent. If nothing supplies the score, the kernel's trail is looser than legacy's whenever an opposing signal exists.
+
+**Options.**
+
+- **A:** a strategy worker reports its opposing score through a typed, recorded input that the kernel reads at the next bar. This is a new contract; the worker's view and freshness are checked as they are for intents.
+- **B:** drop the tightening and record it as a Deviation among PRF-PRT-08's listed corrections. The trail is then never tighter than the base ladder.
+- **C:** compute the opposing score in the kernel, from the strategy's retained scorer over the same view. The scorer would then run in the kernel process.
+
+SLICE-06 step 1 ports the ladder with the input intact, so any option fits. Step 2 is deepened only after the answer.
+
