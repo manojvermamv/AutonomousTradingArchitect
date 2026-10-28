@@ -2,7 +2,7 @@
 
 * **Status:** proposed, non-normative. A record of what the read-only checker found, not a claim that the design is correct.
 * **Precedence:** master README, then ROADMAP, then the package. This file edits nothing.
-* **Run:** 2026-10-28, against the package at branch commit `6b014df` (this file is rebuilt in the commit after it), master pin `b9bb32c`, legacy pin `OA@445eb116`.
+* **Run:** 2026-10-28, against the package at branch commit `a5ee6fe` (this file is rebuilt in the commit after it), master pin `b9bb32c`, legacy pin `OA@445eb116`.
 
 ## Results against the hard targets
 
@@ -10,10 +10,10 @@
 |---|---|---|---|
 | J1 | 0 unresolved Blockers in every EGM report; every Major fixed, contested with evidence, or raised as Q/X | pass: every Blocker raised in stages 5–9 and the final zoom-out is resolved (FIX, or Q-013 for the protection-placement Blocker); every Major is FIX, CONTEST or a Q/X item | [egm/](../egm/README.md) review files |
 | J6 | SLICE-01 passes EGM stage 9 with 0 Blockers | pass: round 2 found 0 Blockers (readiness 0/16/20, codebase 0/11/12); all round-2 Majors fixed | [egm/plan/review.md](../egm/plan/review.md) |
-| J2 | Every full-depth key has decision, module, task and proof; stub keys name their acceptance row | see output: 87 full-depth keys, 56 stub keys, 0 incomplete rows, 0 undefined proofs | Checker output below; [traceability](../traceability.md) |
-| J3 | 0 module references outside README §6 plus listed tree deltas; 0 modules specified twice | see output | Checker output below |
-| J4 | 0 broken relative links; 0 duplicate IDs | see output | Checker output below |
-| J5 | Every master citation falls inside the section holding the cited ID | see output | Checker output below |
+| J2 | Every full-depth key has decision, module, task and proof; stub keys name their acceptance row | pass: 87 full-depth keys, 56 stub keys, 0 incomplete rows, 0 undefined proofs | Checker output below; [traceability](../traceability.md) |
+| J3 | 0 module references outside README §6 plus listed tree deltas; 0 modules specified twice | pass | Checker output below |
+| J4 | 0 broken relative links; 0 duplicate IDs | pass | Checker output below |
+| J5 | Every master citation falls inside the section holding the cited ID | pass | Checker output below |
 | J7 | Only `specs/implementation/` changes in ATA (plus the master `README.md`, edited on the owner's authorization of 2026-10-27 for X-001, X-003, X-006, X-007; master citations stay pinned to `b9bb32c`) | pass: 48 files changed since the branch base `b9bb32c`, 0 outside `specs/implementation/` other than the authorized master `README.md` (2); working tree has 0 changes outside it | `git diff --name-only b9bb32c..HEAD` and `git status --porcelain` below |
 
 Passing J2–J5 shows only that the documents agree with each other and with the master. Correctness evidence comes from the zero-context EGM reviews (J1, J6), the owner's answers to the open questions, and, later, the executed proofs. No proof in this package is *executable* or *passing* yet: every one is *specified*.
@@ -21,11 +21,10 @@ Passing J2–J5 shows only that the documents agree with each other and with the
 ## Checker output
 
 ```text
-files=46 tree_paths=176 deltas=35 full_keys=87 stub_keys=56
+files=46 tree_paths=176 deltas=36 full_keys=87 stub_keys=56
 J7 changed=0 outside_specs=0 []
 
-## J3 out-of-tree path: 1
-   plan/slices/SLICE-06-protection-and-safety.md:689 `tests/unit/test_protection_loop.py`
+no problems
 ```
 
 ## Scope proof (J7)
