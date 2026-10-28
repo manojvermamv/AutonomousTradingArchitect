@@ -1,6 +1,6 @@
 # SLICE-05 — Dispatch, conflicts and scheduling
 
-* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-05-review-2026-10-27)). Step 1 is built (OA_NEW `6f49827` on `slice-05`; [Step 1 as built](#step-1-as-built)). Step 2 is decision-complete below and not yet built; step 3 is deepened after it, as SLICE-04's later steps were (the delivery plan's depth rule).
+* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-05-review-2026-10-27)). Step 1 is built (OA_NEW `6f49827` on `slice-05`; [Step 1 as built](#step-1-as-built)). Step 2 is built (OA_NEW `68570b0`; [Step 2 as built](#step-2-as-built)). Step 3 is deepened next, as SLICE-04's later steps were (the delivery plan's depth rule).
 * **Precedence:** the master README, then the ROADMAP, then this package. The authorities are the [dispatch spec](../../design/dispatch-and-coordination.md), the [protection spec](../../design/protection-and-safety.md) (kill and holds, the permission matrix, the conflict relation) and the [ledger spec](../../design/ledger-and-atomic-transaction.md) (the identity rule's retry branch, verb completion). Every deviation is marked **Deviation**. No score, threshold or money value is set: every refusing setting is bound only to labelled synthetic or owner-answered values in tests.
 * **Phase:** master Phase 1 (D13 revalidation, A03-F1/F2/F3, ATA-04; kill and hold events, POL-002 and POL-003). Class S. Disarmed: the simulated broker only.
 * **Builds on:** [SLICE-04](SLICE-04-intent-to-admission.md) as built; branch `slice-05` cut from `slice-04` (OA_NEW `36717dc`).
@@ -362,6 +362,52 @@ It joins `ADMISSION_REQUIRED`. Only `in_flight()` reads it in step 2; the OpenAl
   * let the decoder drop a field (the round-trip test fails);
   * re-send a claim after restart.
 * **Not break-checked:** clearing the wake event after draining. The lost wake needs a worker to queue between two writer-thread statements, which no test can schedule deterministically; the order is stated above and checked by reading.
+
+### Step 2 as built
+
+Commit `68570b0` on `slice-05`, after `02f9377`. It changes 22 paths: the step 2 files table's code and test files. The spec amendments are this repository's.
+
+**Choices made while building** (none sets a money value):
+
+| Topic | As built |
+|---|---|
+| Crash point CP-L2 | In `run_pass` it sits after revalidation and the round trip, just before the claim. In `dispatch_inline` it stays where SLICE-01 put it, before revalidation |
+| Eligibility before revalidation | `run_pass` checks the conflict relation (wait) before rows 1–5 (refuse), as the dispatch spec's loop does: a command that both conflicts and is held waits until the conflict clears or its deadline passes |
+| `dispatch_inline` caller rule | `test_capabilities.py` allows `dispatch_inline` only in `kernel/coordinator.py`; `operations/verification.py` reaches it through `_submit_admitted`, which keeps its two callers |
+| A0 after A1a | A1 (which records `INTENT_SEEN`) and A1a now run before A0, so a busy refusal leaves an `INTENT_SEEN` behind. It is still unrecorded as a refusal; `test_a0_busy_is_not_recorded` asserts no `COMMAND_ADMITTED` and no `ADMISSION_REFUSED` |
+| Workers | Daemon threads, created on an account's first claim and never stopped; shutting them down belongs to the SLICE-11 host |
+| `next_wake` for restart deadlines | `clock.elapsed()` plus the time left on the ratchet (`origin + budget − effective_now`, floored at 0) |
+| Fixtures | `admission_ports`, `admission_calendar` and `open_admission_world` are shared by the `admission_world` fixture and `build_admission_world`. `make_plan` plans on the account whose session the intent names, and `admitted(out)` names the doors' "admitted, awaiting dispatch" outcome. A reopen in the same test uses a fresh `FakeLeaseStore`, because the closed process's lease is still held in the shared one |
+| Migrated tests | Tests that read the entry door's send now assert `admitted(...)`, or call `dispatch(world)` and read `command_status`. In `test_conflict_relation.py`, the in-flight probe runs while a worker's send is stalled |
+| An added test | `test_no_send_without_a_durable_claim`: a claim that fails to commit stops the pass with nothing sent. The "send before the claim commits" break check needed it |
+
+**Tests** (415 passed with `scripts/safe_tests.py`, no broker variables; the full suite was run three times with the same result):
+
+| File | Cases |
+|---|---|
+| `test_dispatch_revalidation.py` (22) | **Rows** (one test each): the deadline, a release bound after admission, A → B → A, the grant revoked, the session closed, a kill. The first failing row is recorded. An unrelated `ADMISSION_REFUSED` refuses nothing. **Restarts:** on the same bundle the command dispatches with no new `RELEASE_BOUND`; a restart deadline is never extended and `next_wake` comes no later than it; the in-process `next_wake`. **PRF-DSP-04:** a conflict waits, another account's entry is claimed meanwhile, and the deadline then refuses. **PRF-DSP-08:** CUJ-DSP-2; a hold and a kill after the claim leave the send in flight, and its outcome commits. **PRF-DSP-10:** the ledger busy count at the bound, with `UNCERTAIN` and `WORKING` not counted; `command_status` for `ADMITTED`, `IN_FLIGHT`, `WORKING`, `UNCERTAIN`, `REJECTED` and `REFUSED`, and an unknown key. **PRF-DSP-11:** no send loop after `not_sent`; the retry is recorded once and attempt 2 is sent; a retry at the busy bound; a retry needs the grant; a rejected command is final. **Other:** the round trip; no send without a durable claim |
+| `test_bounded_io.py` (3) | CUJ-DSP-1, two accounts: B is sent while A's send is stalled; A's next command waits for A; `in_flight` reports A's age and `over_deadline` past the synthetic 2000 ms. CUJ-DSP-3: a timeout gives `UNCERTAIN`, keeps the reservation `HELD`, and is never sent again. F-D3: no cancel command is ever created |
+| `test_scheduling.py` (4) | Oldest first, one claim per account per pass; a blocked older command does not stop a younger one; accounts are claimed in canonical order; `dispatch_inline` refuses beside a worker |
+| `test_crash_boundaries.py` | CP-D1: the child exits while `a-1`'s send is stalled after its claim and `b-1` is admitted. On reopen, `a-1` is `AMBIGUOUS` (`interrupted`) and never sent again, and `b-1` is dispatched from the ledger alone |
+| Migrated | `test_admission_checks.py`, `test_review_semantics.py`, `test_conflict_relation.py`; the setting in `test_policy_parameters.py`; the caller rule in `test_capabilities.py` |
+
+**Break checks** (each applied, run, and reverted byte for byte with an md5 check; every one failed its tests):
+
+| Change | Tests that failed |
+|---|---|
+| Send before the claim commits | `test_no_send_without_a_durable_claim`, `test_no_send_loop_after_not_sent` |
+| Skip revalidation row 5 | `test_row_5_kill`, `test_cuj_dsp_2_hold_before_the_claim` |
+| Skip row 2 | both row 2 tests |
+| Refuse on a conflict instead of waiting | `test_a_conflict_waits_then_the_deadline_refuses`, `test_a_blocked_older_command_does_not_stop_a_younger_one` |
+| Skip the sweep | `test_a_conflict_waits_then_the_deadline_refuses` |
+| One lock across all accounts | `test_cuj_dsp_1_a_slow_account_never_blocks_another`, `test_accounts_in_canonical_order` |
+| Claim the newest eligible command first | 6 cases, among them `test_oldest_first_one_per_pass` |
+| Let a blocked older command stop the account | `test_a_blocked_older_command_does_not_stop_a_younger_one` |
+| Retry after `not_sent` without a retry request | the three retry tests |
+| Run A0 before A1a | `test_retry_at_the_busy_bound` |
+| Count `UNCERTAIN` in the busy count | `test_busy_count_from_the_ledger` |
+| Let the decoder drop a field | 19 cases, among them `test_the_admitted_request_round_trips` |
+| Re-send an uncertain claim after restart | `test_cp_d1_crash_with_a_worker_in_flight`, `test_cuj_dsp_3_a_timeout_is_ambiguous_and_never_retried` |
 
 ## Step 3 — cancel, modify and close dispatch and completion (deepened after step 2)
 
