@@ -472,3 +472,29 @@ Fresh `egm:egm-design` and `egm:egm-implementation-readiness` reviews of [SLICE-
 | R-12 | Major | Three break checks failed no test | FIX: tests for two closes between passes and the no-score level; "escalate on every pass" replaced by "drop the refusal memory" |
 | R-14…R-17 | Minor | Types, boundaries, wiring, the calendar offset, the account, the tick's money form, the unseeded ladder, `DesireRefused`, the fixture plan | FIX: each specified |
 
+## SLICE-06 step 3 review (2026-10-28)
+
+Fresh `egm:egm-design` and `egm:egm-implementation-readiness` reviews of [SLICE-06 step 3](../../plan/slices/SLICE-06-protection-and-safety.md#step-3--basket-placement), basket placement. Design: 2 Critical, 9 Major, 1 Minor (F-1…F-12). Readiness: 3 Critical, 13 Major, 5 Minor (R-1…R-21). Every finding is resolved by FIX in the rewritten step. The design reviewer found one more place legacy differs from the spec: legacy holds the strategy when a basket's roles cannot be proven. That became item 5 of [Q-027](../../decisions/owner-questions.md#q-027) (open), with the other four rules the spec adds beyond legacy's live host.
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| F-1, R-8 | Critical / Major | The loop's subjects were position rows only: an unfilled basket, and the target after a stop fill closed the position, were never evaluated | FIX: subjects add every entry with protective legs not all `ENDED`; the early return and exit checks read every leg |
+| F-2, R-9 | Critical / Major | The basket `leg_view` would let the entry's `COMPLETED` end the stop, or leave the confirmed level `None`; `CONFIRMED` was exact while the join tolerates 0.05 | FIX: no placement command; the chain by entry key and role; placed values until a modify completes; the entry's `COMPLETED` excluded; a level within 0.05 adopted (POL-014) |
+| R-1 | Critical | The `PlanRef` wire form and digest would break every rebuild | FIX: `wire` and `plan_ref_from_wire` for `ProtectiveLeg`, omitted when empty; excluded from `plan_digest`; the `request_digest` claim corrected |
+| R-2, F-3 | Critical / Major | Unassigned IDs had no path into the ledger; their class was undefined; the divergence from legacy's hold was unmarked | FIX: `TransportResult.unassigned_order_ids`, through the outcome, evidence and `recover`; role-less identity rows; the class `ambiguous`; legacy's hold is Q-027 item 5 |
+| R-3 | Critical | Existing tests would all become baskets with a running loop | FIX: a `protection_loop` composition flag, off in tests unless asked; unscripted basket legs `not_sent`; the tests that change listed at build |
+| F-4 | Major | CP-B2 could not name the protective legs | FIX: self-built ambiguous results list every role; `resolve_attempt` takes roles from `plan_ref`, one call naming all |
+| F-5, R-7 | Major | An entry whose entry leg failed never completed | FIX: completion `order_ended` at 0 when the only plan leg is rejected or never reached |
+| F-6, R-6 | Major | The overclose was not one decision; several fills in one decision could hold twice or drop the decision | FIX: entry fills first; `q` once per decision; one escalation and one hold appended to the fill decision |
+| F-7, R-5 | Major | Protective fills tripped `late_fill`, the sign, the fold's position check and `fills_withheld` | FIX: a protective branch in `fill_draft` and the fold; excluded from settlement checks; a fill with no position row waits |
+| F-8, R-14 | Major | A hold could re-engage at once after its release; the hold mechanics and F-P24 text were unclear | FIX: a failure belongs to the episode of its triggering event; `hold_draft` and `episode` named; F-P24 restated |
+| F-9, R-12, R-11 | Major | The transient-to-hold clock had no anchor; the memory never cleared on basket orders | FIX: "due since" from a ledger event; transient codes cleared each poll; the chain by entry key and role |
+| F-10, R-17 | Major / Minor | The desired quantity's meaning differed from step 2's; the seed quantity contradicted step 2 | FIX: one stored total for the basket, replacing step 2's rule 1; the seed explained (`remaining_qty` is metrics only) |
+| F-11 | Major | The modify-quantity semantics diverged from the host, unmarked, with an oversell risk | FIX: marked; a leg with its own fills is cancelled, not shrunk, until TASK-S07-05 confirms the semantics |
+| R-4, F-12 | Major / Minor | The join used fields `ObservedOrder` lacks; legacy compares the trigger or price by type | FIX: the join on observed fields by price type, exchange and product a marked Deviation; malformed rows classed |
+| R-10 | Major | Basket-leg modifies could not be ticketed or resolved | FIX: `_leg_product` and `target_level` read `protective_legs` |
+| R-13 | Major | `HELD_BACK` could not be derived per leg | FIX: per-leg subjects `<position_id>:<role>` |
+| R-15 | Major | The in-send read's budget, failure and evidence were undefined | FIX: a `read_budget` constructor argument; exhausted means unassigned; the evidence shape |
+| R-16 | Major | Crash points were unnamed | FIX: `CP-B1`, `CP-B3`, `CP-B5` call sites; CP-B2, CP-B4 and CP-B6 by state |
+| R-18…R-21 | Minor | Admission details, the simulated basket, break-check mapping, the helpers, Q-027 coverage | FIX: each specified; the Q-027 rows marked by item, and which tests build now |
+
