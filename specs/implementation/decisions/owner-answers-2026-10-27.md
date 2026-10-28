@@ -1,6 +1,6 @@
 # Owner answers, 2026-10-27
 
-* **Status:** owner decisions, recorded by the package. They answer [Q-001…Q-021](owner-questions.md) (Q-017 raised by the third basket review, Q-018 by the SLICE-04 step 2 build, Q-019 and Q-020 by the step 3 and step 4 deepenings, each answered the same day; Q-021 raised by the SLICE-05 step 1 build and answered 2026-10-28; Q-024 raised by the SLICE-06 slice file and answered 2026-10-28; Q-022 and Q-023 stay open) and the master corrections [X-001…X-007](../consistency/master-contradictions.md).
+* **Status:** owner decisions, recorded by the package. They answer [Q-001…Q-021](owner-questions.md) (Q-017 raised by the third basket review, Q-018 by the SLICE-04 step 2 build, Q-019 and Q-020 by the step 3 and step 4 deepenings, each answered the same day; Q-021 raised by the SLICE-05 step 1 build and answered 2026-10-28; Q-024 and Q-025 raised by SLICE-06 and answered 2026-10-28; Q-022, Q-023 and Q-026 stay open) and the master corrections [X-001…X-007](../consistency/master-contradictions.md).
 * **Rule for every value below (Q-015):** every limit and switch stays a **configurable** setting. An answer gives the value bound in config for the first release; nothing is hard-coded, and the loader still refuses a live composition that leaves a setting unbound.
 
 ## Owner questions
@@ -28,7 +28,8 @@
 | Q-019 | Option B: a long-only plan carries `amount = margin = worst_case_loss` = the full premium debit at the LTP. Options A (debit at the ask) and C (loss to the stop) stay documented and selectable by configuration for later adoption | bound policy `planner.debit_price: ltp`, `planner.worst_case_loss: full_debit` (alternatives `ask`, `to_stop`) |
 | Q-020 | Option C: `structure_v1` plans and gates as legacy, then refuses every structure (`structure_protection_unbound`) until a per-leg protection rule is adopted. Options A (the one-leg stop rule per leg) and B (the template's declared points) are recorded for later adoption | rule in SLICE-04 step 4; no setting |
 | Q-021 | Option A (2026-10-28): while a position's group has an unresolved effect, a modify that raises its protective order's quantity is refused by conflict row 2; lowering, and the excepted cancels, still pass. Option B (except a raise to the owned quantity) is recorded | rule in the protection spec (conflict row 2); no setting |
-| Q-024 | Option A (2026-10-28): the strategy worker reports its opposing score as a typed, recorded input, which the kernel reads at the next bar; the trail keeps legacy's opposing-signal tightening (`trail.py:476-481` @445eb116). Options B (drop it as a Deviation) and C (score in the kernel) are recorded. **Reconfirmation asked** the same day: the question's premise was wrong, since legacy's live host passes no opposing score ([Q-024 correction](owner-questions.md#q-024)) | contract in SLICE-06 step 2 if A stands; no setting |
+| Q-024 | Option B (2026-10-28, after a correction: legacy's live host passes no opposing score, `scripts/run_framework_live.py:5485`): the kernel cycles the ladder with no opposing score, as live. Option A (a worker-reported score) was first chosen on the wrong premise and is not built | no setting |
+| Q-025 | Option B (2026-10-28): after a refused or failed stop modify the ladder puts back only `sl` and keeps the move's other fields, as the live host (`scripts/run_framework_live.py:5221-5278`); option A, the library rule step 1 built, is replaced | no setting |
 
 ## Master corrections
 

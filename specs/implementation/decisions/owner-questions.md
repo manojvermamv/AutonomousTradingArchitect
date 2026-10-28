@@ -27,8 +27,9 @@ Status: **open owner decision** unless a row says answered. Each question is a g
 | [Q-021](#q-021) | While a position's group has an unresolved effect, may protection raise its stop's quantity up to the owned position? | [SLICE-05 step 1 build](../plan/slices/SLICE-05-dispatch-conflicts-scheduling.md#step-1-as-built); [protection spec, conflict row 2](../design/protection-and-safety.md#conflict-relation-kernelsafetypy) | TASK-S05-03, TASK-S06-01 | answered 2026-10-28 ([answers](owner-answers-2026-10-27.md)) |
 | [Q-022](#q-022) | A broker trade with no trade ID (live Upstox): how is it counted as a fill? | upstream-findings PART 31; [SLICE-07 step 4](../plan/slices/SLICE-07-observations-reconciliation-domain.md#step-4--the-openalgo-adapter) | The OpenAlgo adapter's production composition (SLICE-11); TASK-S07-05 | open |
 | [Q-023](#q-023) | How is a timed-out close, cancel or modify resolved when no book can prove its absence? | [SLICE-07 step 4](../plan/slices/SLICE-07-observations-reconciliation-domain.md#step-4--the-openalgo-adapter); Q-012 | The OpenAlgo adapter's production composition (SLICE-11); TASK-S07-05 | open |
-| [Q-024](#q-024) | The trail's opposing-signal tightening: what supplies the opposing score in the kernel? | `src/core/framework/protection/trail.py:476-481` @445eb116; [SLICE-06 step 1](../plan/slices/SLICE-06-protection-and-safety.md#step-1--the-ladder-protection-state-and-the-derived-leg) | TASK-S06-01 (SLICE-06 step 2's trail loop) | answered 2026-10-28 (option A); reconfirmation asked after a correction ([Q-024](#q-024)) |
-| [Q-025](#q-025) | A refused or failed stop modify: does the ladder keep legacy's library rule (the move not taken) or the live host's (only the stop put back)? | `scripts/run_framework_live.py:5221-5278` @445eb116; [SLICE-06 step 1](../plan/slices/SLICE-06-protection-and-safety.md#step-1-as-built) | TASK-S06-01 (SLICE-06 step 2's trail loop) | open |
+| [Q-024](#q-024) | The trail's opposing-signal tightening: what supplies the opposing score in the kernel? | `src/core/framework/protection/trail.py:476-481` @445eb116; [SLICE-06 step 1](../plan/slices/SLICE-06-protection-and-safety.md#step-1--the-ladder-protection-state-and-the-derived-leg) | TASK-S06-01 (SLICE-06 step 2's trail loop) | answered 2026-10-28: option B, after a correction ([answers](owner-answers-2026-10-27.md)) |
+| [Q-025](#q-025) | A refused or failed stop modify: does the ladder keep legacy's library rule (the move not taken) or the live host's (only the stop put back)? | `scripts/run_framework_live.py:5221-5278` @445eb116; [SLICE-06 step 1](../plan/slices/SLICE-06-protection-and-safety.md#step-1-as-built) | TASK-S06-01 (SLICE-06 step 2's trail loop) | answered 2026-10-28 ([answers](owner-answers-2026-10-27.md)) |
+| [Q-026](#q-026) | The deep-OTM delta exit: legacy's live host never ran it. Keep it in the kernel, or not? | `scripts/run_framework_live.py` @445eb116 (no `premium_exit` call); [SLICE-06 step 2](../plan/slices/SLICE-06-protection-and-safety.md#step-2--the-protection-loop) | TASK-S06-01 (step 2's tick exits), step 3's exits | open |
 
 ---
 
@@ -496,6 +497,8 @@ SLICE-06 step 1 ports the ladder with the input intact, so any option fits. Step
 
 So option A adds a tightening that the live system never applied, and PRF-PRT-08's comparison over recorded days would show it as a difference. Option B is not a Deviation after all: it is exactly the live behaviour. The owner is asked to confirm A or choose B with this corrected.
 
+**Answer (2026-10-28), after the correction: option B.** The kernel's ladder is cycled with no opposing score, exactly as the live host did. Option A's contract is not built. The ladder keeps the parameter, since it is ported unchanged.
+
 ## Q-025
 
 **A refused or failed stop modify: which legacy rule does the ladder keep?**
@@ -519,4 +522,30 @@ The two give different stops after any refused or failed modify. The live host's
 - **B:** the live host's rule: after a refused or failed modify, keep the accepted outcome with only `sl` put back. Step 2 builds this, and step 1's "refused" outcome is replaced or kept only as evidence.
 
 Step 2 is deepened only after the answer.
+
+**Answer (2026-10-28): option B.** After a refused or failed modify the ladder keeps the move's other fields and puts back only `sl`, as the live host did. Step 2 builds it, and step 1's library-rule "refused" outcome is replaced.
+
+## Q-026
+
+**The deep-OTM delta exit: legacy's live host never ran it. Does the kernel run it?**
+
+```text
+Requirement: protection keeps every approved exit rule exactly (ATA-01, POL-012).
+Owner: kernel.protection (the tick exits, SLICE-06 step 2; the basket exits, step 3).
+Proof: tests/unit/test_protection_states.py; PRF-PRT-08 over recorded days.
+```
+
+**Why it matters.** The protection spec runs `premium_exit` on each tick, and its first test closes the position when the option's delta falls below `delta_exit_threshold` (0.10). At 445eb116 nothing live calls it:
+
+- `scripts/run_framework_live.py` has no call to `premium_exit`, `check_exit` or `on_tick`; it steps only the bar ladder (`:5485`).
+- The only callers are the replay driver (`src/core/framework/protection/replay.py:179`), the replay outcome rule (`src/data/replay_engine/outcomes.py:177`) and `orchestrator.on_tick` (`src/core/framework/runtime/orchestrator.py:1108`), which nothing calls.
+
+So a kernel deep-OTM exit is new live behaviour: it would sell positions that the live system held until the stop, the target or square-off. The stop and target rows are not affected. Under `basket_at_plan` the target rests at the broker, as it did live.
+
+**Options.**
+
+- **A:** keep the exit as the spec says. The kernel closes on a deep-OTM tick.
+- **B:** do not run it, as the live host did not. `premium_exit` is called with no delta, so its delta test never fires. The other rows are unchanged.
+
+Step 2 is built without the deep-OTM row until the answer; everything else in step 2 does not depend on it.
 
