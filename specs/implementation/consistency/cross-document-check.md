@@ -2,7 +2,7 @@
 
 * **Status:** proposed, non-normative. A record of what the read-only checker found, not a claim that the design is correct.
 * **Precedence:** master README, then ROADMAP, then the package. This file edits nothing.
-* **Run:** 2026-10-28, against the package at branch commit `cba3ebc` (this file is rebuilt in the commit after it), master pin `b9bb32c`, legacy pin `OA@445eb116`.
+* **Run:** 2026-10-28, against the package at branch commit `4e2ac66` (this file is rebuilt in the commit after it), master pin `b9bb32c`, legacy pin `OA@445eb116`.
 
 ## Results against the hard targets
 
