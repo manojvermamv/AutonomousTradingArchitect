@@ -25,6 +25,8 @@ Status: **open owner decision** unless a row says answered. Each question is a g
 | [Q-019](#q-019) | What amount, margin and worst-case loss does a long-only plan carry for capacity (B5)? | [SLICE-04 step 3](../plan/slices/SLICE-04-intent-to-admission.md#the-plans-money-figures-q-019-answer-option-b) | TASK-S04-02 | answered 2026-10-27 ([answers](owner-answers-2026-10-27.md)) |
 | [Q-020](#q-020) | How is each structure leg's stop and target level set? | [SLICE-04 step 4](../plan/slices/SLICE-04-intent-to-admission.md#step-4--structure_v1); [protection spec, Structures](../design/protection-and-safety.md#structures-kernelprotectionpy) | TASK-S04-02, TASK-S06-01 | answered 2026-10-27 ([answers](owner-answers-2026-10-27.md)) |
 | [Q-021](#q-021) | While a position's group has an unresolved effect, may protection raise its stop's quantity up to the owned position? | [SLICE-05 step 1 build](../plan/slices/SLICE-05-dispatch-conflicts-scheduling.md#step-1-as-built); [protection spec, conflict row 2](../design/protection-and-safety.md#conflict-relation-kernelsafetypy) | TASK-S05-03, TASK-S06-01 | answered 2026-10-28 ([answers](owner-answers-2026-10-27.md)) |
+| [Q-022](#q-022) | A broker trade with no trade ID (live Upstox): how is it counted as a fill? | upstream-findings PART 31; [SLICE-07 step 4](../plan/slices/SLICE-07-observations-reconciliation-domain.md#step-4--the-openalgo-adapter) | The OpenAlgo adapter's production composition (SLICE-11); TASK-S07-05 | open |
+| [Q-023](#q-023) | How is a timed-out close, cancel or modify resolved when no book can prove its absence? | [SLICE-07 step 4](../plan/slices/SLICE-07-observations-reconciliation-domain.md#step-4--the-openalgo-adapter); Q-012 | The OpenAlgo adapter's production composition (SLICE-11); TASK-S07-05 | open |
 
 ---
 
@@ -406,3 +408,59 @@ Proof: tests/unit/test_conflict_relation.py::test_row_2_exceptions refuses the r
 
 - **A — chosen:** Refuse it. A raise waits until the group's unresolved effects resolve; a lowering modify, and every cancel row 2 excepts, still pass. The protection spec and the step 1 build already do this.
 - **B:** Except a raise whose new total equals the recorded fills plus the owned quantity. Risk: an in-flight close plus a raised stop can oversell. It would reverse D-M1 and amend the protection spec.
+
+## Q-022
+
+**A broker trade with no trade ID (live Upstox): how is it counted as a fill?**
+
+```text
+Requirement: a fill counts once, by its fill ID (ledger I-4). An entry's fill creates its ledger position; a reservation is reduced, and a close completes, only from recorded fills.
+Owner: adapters.openalgo (the tradebook mapping), kernel.lifecycle.
+Proof: tests/integration/test_openalgo_contract.py (the live-shaped trade test); tests/unit/test_reconciliation_rules.py (trade_without_id).
+```
+
+**Why it matters.** OpenAlgo's live Upstox tradebook carries no trade ID (upstream-findings PART 31); analyze mode does. The built rule leaves such a row out and escalates it when the order is ours. In live mode that means:
+
+- no entry fill is ever recorded, so no ledger position exists;
+- every close is refused `not_open`, because a close may sell at most what the ledger owns (`min(owned, broker net)`);
+- protection can never close a position the kernel opened; the broker's own stop, and a human through OpenAlgo, still can;
+- no reservation is reduced and no close completes;
+- each dropped trade of ours is escalated (`trade_without_id`), and none is lost silently.
+
+Analyze mode is unaffected.
+
+Legacy instead gives such a row a hashed identity, `anonymous-evidence:v1:<sha256>:<occurrence>` (`src/contract/fills.py:90-109,319-330` @445eb116). The hash covers the order ID, symbol, exchange, product, action, quantity, price and timestamp, and identical rows are counted by occurrence. Its risk is a field in the key that changes between polls (a timestamp or a price the broker later corrects), which would count one fill twice. Over-counting is capped for closes by `min(owned, net)`, and under `forbid` no reservation is reduced anyway (Q-006).
+
+**Options.**
+
+- **A — built until answered:** leave such rows out and escalate them. No automatic close is possible in live mode until OpenAlgo passes the trade ID through.
+- **B:** adopt legacy's hashed identity, with its double-count risk.
+- **C:** report upstream that the broker's trade ID should be passed through (as for PART 31), and keep A until it is.
+
+Nothing runs live before this is answered: the adapter is not composed until it is.
+
+## Q-023
+
+**How is a timed-out close, cancel or modify resolved when no book can prove its absence?**
+
+```text
+Requirement: an action whose send timed out stays UNCERTAIN until reconciliation resolves it (reached, by identity or level; never reached, by usable absence).
+Owner: kernel.reconciliation, kernel.lifecycle (attempt_resolve).
+Proof: tests/unit/test_reconciliation_rules.py; the execution-domain spec's Q-012 rule.
+```
+
+**Why it matters.** Through the OpenAlgo adapter, every result and observation has domain `unknown` and coverage `unknown` until TASK-S07-05 binds endpoint contracts, so absence is never usable. Effects:
+
+- an ambiguous close with no order ID can be resolved only by an order that appears, never by absence;
+- an ambiguous cancel or modify resolves only when its target's book shows the change;
+- `attempt_resolve` covers entries only (Q-007).
+
+Such an action stays `UNCERTAIN`. Conflict row 2 then holds every later close, and every stop removal, on that position (only a human's protective cancel is excepted). Q-012's escalation reaches the operator, but no recorded route resolves it.
+
+**Options.**
+
+- **A:** extend `attempt_resolve` to closes, cancels and modifies: a human names the order the action placed, or that it placed none, citing a published orderbook.
+- **B:** compose the adapter only after TASK-S07-05 binds contracts that make absence usable for the consumed books, and keep Q-012's escalation for anything they cannot cover.
+- **C:** both: B for the common case, and A for what the contracts cannot cover.
+
+Nothing runs live before this is answered: the adapter is not composed until it is.

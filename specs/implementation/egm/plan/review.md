@@ -395,3 +395,28 @@ Fresh `egm:egm-design` and `egm:egm-implementation-readiness` reviews of [SLICE-
 | R-13 | Major | "Release across domains" named no mutation; CUJ-DOM-1's test was vacuous for a working entry | FIX: a cross-domain filled book with a trade; the mutation "`cross_domain_id` records facts" |
 | R-14 | Major | The stale-close test collided with the 9 s close deadline | FIX: a timeline (55 s, then 6 s) |
 | F-8…F-15, R-15…R-28 | Minor | INSPECTING contradiction; recovery-step predicate; unbounded queue and stale reconcile; kind and endpoint validation; same-account blocking; tagged CUJ-DOM-1 variant; contracts only in simulation; the latest read off-thread; publish-failure counts and step 4's in-send read; wire forms; endpoint names; `AccountObservation` field names; publish semantics; `ReadHealth`; `observed_accounts` return; simulated data fields; the coverage interval's start (`book_start`); spec drift; `observation_loop` attribute; positions break via a spy; files row; CUJ-DSP-4 numbers; how to get `unknown` | FIX |
+
+## SLICE-07 step 4 review (2026-10-28)
+
+Fresh `egm:egm-design` and `egm:egm-implementation-readiness` reviews of [SLICE-07 step 4](../../plan/slices/SLICE-07-observations-reconciliation-domain.md#step-4--the-openalgo-adapter), the OpenAlgo adapter, before it was built. Design: 1 Critical, 9 Major, 11 Minor (F-1…F-21). Readiness: 3 Critical, 12 Major, 6 Minor (R-1…R-21). Several overlap (F-1 with R-2, F-3 with R-10, F-4 with R-4, F-7 with R-12, F-19 with R-1). Both checked the captures' field names, the 4 August example row and 15:15 IST = 09:45 UTC, and found them correct. Every finding is resolved by FIX in the step's text, which was rewritten. Two findings needed the owner: they became [Q-022](../../decisions/owner-questions.md#q-022) (rewritten with its real consequences) and [Q-023](../../decisions/owner-questions.md#q-023) (new). Both block only the adapter's production composition.
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| F-1, R-2 | Critical | The modify ticket rebuilt the whole order from the admitted order plus one confirmed level, so it could resend a lowered quantity, lose a stop-limit's limit, miss a `WORKING` modify and lose history after a replacement: an oversell | FIX: the unchanged fields come from the observed row row 6 has just validated; modifies of one target go out one at a time (`WAIT`) |
+| R-1 | Critical | No rule turned broker JSON numbers into money strings; rounding would have been the implementer's money choice | FIX: literal-preserving parse; exact two-place values only, never rounded; otherwise `None`, a dropped trade or `ReadFailed` |
+| R-3 | Critical | The wire bodies, `pricetype` mapping and JSON types were unspecified | FIX: the write-mapping table and an exact example body |
+| F-2 | Major | `_finish` turned a provable `not_sent` with no evidence into `ambiguous` | FIX: `_finish` keeps `not_sent`; dispatch spec amended; end-to-end test |
+| F-3, R-10 | Major | An adapter exception was recorded with domain `simulated` | FIX: `send` never raises; the coordinator's fallback uses the broker's `error_domain` |
+| F-4, R-4 | Major | A cancel's `strategy` had no source | FIX: every ticket carries `strategy` from the command; a cancel's ticket carries only that |
+| F-5 | Major | Q-022 misstated its consequences (no live position ever, every close refused, silent loss of a late stop fill, an unused `complete = no`) | FIX: Q-022 rewritten; `Observation.dropped` and the `trade_without_id` escalation |
+| F-6 | Major | `mtm_pnl` came from a field that repeats the realized loss | FIX: `None` until TASK-S07-05 |
+| F-7, R-12 | Major | Applying contracts was claimed to be "data, not code" but needed a trading-day source and had no test | FIX: no contracts in step 4; applied with TASK-S07-05 |
+| F-8 | Major | The basket guard counted only `plan.legs`, so SLICE-06 could send an entry without its stop | FIX: protective legs also give `basket_unsupported` |
+| F-9 | Major | A timed-out close through this adapter can never be resolved, which was not disclosed | FIX: disclosed; [Q-023](../../decisions/owner-questions.md#q-023) |
+| F-10 | Major | The key could leak through a response, a message or an exception; `http` to a remote host sent it in clear text | FIX: the key scrubbed from every string; `http` only to loopback; an echo test |
+| R-5 | Major | The deadline's time source and the timestamps were unstated | FIX: `time.monotonic_ns()`; `as_of`/`arrived_at`; domain `exchange` for broker times |
+| R-6, R-7 | Major | Existing `send` wrappers and PRF-XC-02's module check would break | FIX: wrappers listed; the adapter imported in a fixture |
+| R-8, R-9 | Major | An ambiguous leg's ID and "an ID present" were undefined | FIX: both defined |
+| R-11 | Major | Malformed rows had no rule | FIX: `ReadFailed` for orders, positions and funds; trades dropped and named |
+| R-13, R-14 | Major | No test proved the ticket reaches `send`; the 0-trigger break could not fail | FIX: a recording wrapper; an `SL` row test |
+| F-11…F-21, R-15…R-21 | Minor | Publishing inside the deadline; non-finite JSON; `filled_quantity` only when consistent; `request_digest`; `ticket_missing` spending an attempt (now `DSP-R04` before the claim); the trade price; flat-row money; HTTP details and a body bound; one account per adapter; the error mapping as a composition precondition; stale plan lines; test seams; build timing; the product path; concrete test values; `availablecash` types | FIX |

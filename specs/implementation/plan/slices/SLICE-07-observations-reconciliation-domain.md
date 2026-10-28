@@ -1,6 +1,6 @@
 # SLICE-07 — Observations, reconciliation, domain and the OpenAlgo adapter
 
-* **Status:** proposed. Steps 1–3 are built (OA_NEW `9bc4529`, `ee2225a` and `c58f10e` on `slice-07`; [Step 1 as built](#step-1-as-built), [Step 2 as built](#step-2-as-built), [Step 3 as built](#step-3-as-built)). Step 4 is scoped, and each is deepened once the step before it is built, as SLICE-04's and SLICE-05's were (the delivery plan's depth rule).
+* **Status:** proposed. Steps 1–3 are built (OA_NEW `9bc4529`, `ee2225a` and `c58f10e` on `slice-07`; [Step 1 as built](#step-1-as-built), [Step 2 as built](#step-2-as-built), [Step 3 as built](#step-3-as-built)). Step 4 is decision-complete below and not yet built, and each is deepened once the step before it is built, as SLICE-04's and SLICE-05's were (the delivery plan's depth rule).
 * **Precedence:** the master README, then the ROADMAP, then this package. The authority is the [execution-domain spec](../../design/execution-domain-and-observations.md) (evidence contract, attribution and combination, reconciliation, the OpenAlgo adapter), with the [ledger spec](../../design/ledger-and-atomic-transaction.md) for the events findings become. Every deviation is marked **Deviation**. No score, threshold or money value is set: every refusing setting is bound only to labelled synthetic or owner-answered values in tests.
 * **Phase:** master Phase 1/3 (D15, D16, ATA-06, the A06-F2 decision). Class S → R: steps 1–3 are disarmed (the simulated broker only); step 4 builds the real adapter and proves it against recorded responses and a local fake server, never a deployment.
 * **Builds on:** [SLICE-05](SLICE-05-dispatch-conflicts-scheduling.md) as built; branch `slice-07` cut from `slice-05` (OA_NEW `a4c4516`).
@@ -24,7 +24,7 @@
 | 1 | The evidence contract at the spec's shape; domain attribution and combination; the pure `assess` and `findings` (this file, below) | PRF-DOM-01; PRF-DOM-02, -03, -09 (pure rules) |
 | 2 | `kernel.lifecycle` turning findings into `RESOLVED_*`, `FILL`, `COMPLETED`, `CONFLICT_RECORDED`, `FOREIGN_RECORDED`, `RECONCILIATION_ESCALATED`; the `reconciliation_fact` and `position` tables (migration 005); fill and obligation accounting (D16) under Q-006; entry completion and the recorded-fills precondition of a close's completion (SLICE-05 step 3's Deviation ends); `attempt_resolve` (Q-007); the positions side of the holdings port; the reconciliation settings | PRF-LED-11, PRF-LED-12 (redelivered fill), PRF-DOM-02 (once per key, idempotence) |
 | 3 | `ObservationLoop` (one reader per account, the latest observation per kind, an arrival wakes the coordinator, an older observation of an order is ignored); the simulated broker as `ObservationPort` with `BookStep`s; row 6 against those observations; capacity against real funds and positions | PRF-DSP-09, PRF-ADM-09, PRF-DOM-08 |
-| 4 | `adapters/openalgo.py`: the REST backend, the total deadline, retries disabled, transport classes, per-leg basket results, pagination; the default endpoint contract | PRF-DOM-04 |
+| 4 | `adapters/openalgo.py`: single orders over REST, the total deadline, retries disabled, transport classes, the recorded books; the kernel's `SendTicket` (baskets and endpoint contracts wait for SLICE-06 and TASK-S07-05) | PRF-DOM-04 (single-order clauses) |
 
 ## Step 1 — the evidence contract, domain and the pure reconciliation
 
@@ -662,7 +662,7 @@ The authorities are the execution-domain spec's [polling](../../design/execution
 * **The read budget.**
   * Each account keeps a sliding window of read times over the last 60 seconds (`(now − 60 s, now]` on `clock.elapsed()`). A cycle starts only if four reads fit in the window; otherwise it is skipped whole, and `health(account).budget_skips` rises. A read that raises still counts.
   * The settings loader refuses a budget below one full cycle per interval: `4 × ceil(60 / observation_poll_interval_secs) > observation_max_requests_per_minute` is a `SettingsError`. It applies after both are resolved and only when both are bound, and `compose_simulation` applies the same check before composing the loop. The check sets no value: it refuses an owner pair that would starve the reads.
-  * The budget counts the kernel's book reads. Step 4's in-send orderbook read (the basket's validated join) also counts against the same per-account budget. The supervisor's reads go through the mediator (SLICE-11).
+  * The budget counts the kernel's book reads. If SLICE-06's basket send adds an in-send orderbook read (the validated join), it counts against the same per-account budget. The supervisor's reads go through the mediator (SLICE-11).
 * **Every citing decision publishes first, and the writer checks it.**
   * The loop's `publish(observation) -> EvidenceRef` publishes `observation.content`. It raises `EvidenceUnpublished` when `content` is `None`, when publishing raises anything, or when the returned digest differs from `observation.digest`. `class EvidenceUnpublished(Exception)` is not an `OSError`, so it never marks the writer failed. Nothing is remembered between calls: `EvidenceStore.publish` already skips an intact object.
   * **Reconciliation:** `lifecycle.reconcile(..., publish=None)` calls `publish` exactly once, before its first `transact`, if and only if `findings` is non-empty. It then puts the returned ref in every draft's `evidence`, so the writer resolves it inside the transaction (`store.py:643-650`). `EvidenceUnpublished` propagates out of `reconcile`; `drain` catches it, counts `health(account).publish_failures`, keeps the cycle as the latest, and moves on. The next cycle is judged afresh (F-O11). With `publish=None` (step 2's callers), drafts carry no ref, as now.
@@ -885,12 +885,291 @@ Commit `c58f10e` on `slice-07`, on top of step 2's `ee2225a`. It changes 20 path
 
 One run of the break script left a mutation in place. Its second anchor did not match after the first edit had been written, so `kernel/lifecycle.py` stayed changed. It was restored by hand and checked against the md5 recorded before the run. The script now checks every anchor before it writes anything. The suite runs above came after the restore.
 
-## Step 4 — the OpenAlgo adapter (scoped)
+## Step 4 — the OpenAlgo adapter
 
-`adapters/openalgo.py` over the REST backend, with retries disabled, the total deadline `adapter.http_timeout_ms` covering resolution to read, and the transport-class table. Also:
+TASK-S07-01: PRF-DOM-04's single-order, transport, deadline and read clauses. The authorities are the execution-domain spec's [OpenAlgo adapter](../../design/execution-domain-and-observations.md#openalgo-adapter-adaptersopenalgopy) and [evidence contract](../../design/execution-domain-and-observations.md#evidence-contract-contractsevidencepy) sections, and the dispatch spec's adapter deadline. The step builds on step 3 as built (OA_NEW `c58f10e`). Fresh EGM design and implementation-readiness reviewers reviewed it ([review](../../egm/plan/review.md#slice-07-step-4-review-2026-10-28)); their findings are resolved in the text below.
 
-* per-leg basket results; pagination with `complete = no` on a failed page;
-* proof against recorded responses (the legacy captures at `OA/tests/fixtures/legacy-buyer-edge/openalgo/`, read-only) and a socket-level fake that drips its response (PRF-DOM-04). No call reaches a deployment. With no endpoint contract recorded, the adapter uses *no record* (the spec's conservative values); it never derives a contract from source reading.
+Nothing in it reaches a deployment. The adapter is proved against recorded responses served by a local fake server, and no composition binds it. The production composition that binds it is SLICE-11's (PRF-XC-02). That waits for:
+
+* TASK-S07-05: capturing the order responses, the error mapping, the endpoint contracts and the money fields;
+* the owner's answers to [Q-022](../../decisions/owner-questions.md#q-022) and [Q-023](../../decisions/owner-questions.md#q-023).
+
+### What legacy does, and what that decides
+
+All legacy citations are at 445eb116.
+
+* **Legacy sends every order through the OpenAlgo SDK, and reads books through its own async REST client** (`src/interfaces/mcp/core/openalgo.py:478-518`). The SDK's synchronous call can outlive its cancellation (`:509-518`), so the target sends over REST too. Legacy's REST client has one per-call timeout (`openalgo.rest.timeout_secs`, 15 s by default) and calls `raise_for_status()` (`:151-188`). Neither bounds a response that drips in, so the target enforces one total deadline itself. Legacy has no retry on the order or book paths, and neither does the target.
+* **Request bodies** (`src/core/framework/execution/orders.py:118-129`; `openalgo.py:421-467`; `src/runtime/execution_gateway/__init__.py:1559-1579`):
+  * a place carries `strategy`, `exchange`, `symbol`, `action`, `quantity`, `pricetype`, `product`, `price`, `trigger_price` and `disclosed_quantity` 0;
+  * a cancel carries the order ID and `strategy`;
+  * a modify carries the whole order, not a delta;
+  * a close uses the entry's product and the opposite side;
+  * the key travels as body field `apikey` (`openalgo.py:164-179`).
+
+  Symbols are plain trading symbols with a separate `exchange` (`BANKNIFTY25AUG2658200CE` on `NFO` in the captures). Legacy never builds the JSON that goes on the wire for an order, because the SDK does. So the target's order bodies, their JSON types and its error mapping are confirmed only when TASK-S07-05 captures them.
+* **Classifying a send** (`src/tier1/openalgo_adapter.py:56-103`, `src/core/basket_observation.py:25-41`):
+  * an order ID in a success shape is acknowledged;
+  * `status` `error`, `rejected` or `failed` is rejected only when no order ID appears anywhere in the body; with an ID it is "invalid";
+  * a cancel's success with no ID is acknowledged;
+  * anything else is "invalid", which the spec maps to `ambiguous`.
+
+  Legacy's SDK hid the HTTP status, and no error response has been captured.
+* **The captures** in `OA/tests/fixtures/legacy-buyer-edge/openalgo/` come from this project's own OpenAlgo (v2.0.1.7, broker Upstox, analyze mode), for 2–4 August 2026. 2 August's books are empty. 3 August has 8 orders and 4 trades; 4 August has 23 orders and 12 trades, every order `complete` or `cancelled`. The fields:
+  * orderbook rows: `orderid`, `symbol`, `exchange`, `action`, `quantity`, `filled_quantity`, `pending_quantity`, `price`, `trigger_price`, `average_price`, `pricetype`, `product`, `order_status`, `timestamp` (local exchange time, `YYYY-MM-DD HH:MM:SS`), `strategy` and `rejection_reason`;
+  * tradebook rows: `tradeid`, `orderid`, `symbol`, `exchange`, `action`, `quantity`, `average_price`, `price`, `product`, `timestamp`, `trade_value` and `strategy`;
+  * positionbook rows: `symbol`, `exchange`, `product`, `quantity`, `average_price`, `ltp`, `pnl`, `today_realized_pnl` and `unrealized_pnl`. Flat instruments stay as rows at 0, and a flat row's `unrealized_pnl` equals its realized figure;
+  * funds: `availablecash` and other figures, but no margin field.
+
+  Prices are JSON numbers such as `511.5` and `500.83`. Every response carries `status` and `"mode": "analyze"`. No book has a page or cursor field, and legacy reads none.
+* **Order statuses.** Legacy's status sets are copied across several modules and disagree (`src/core/framework/execution/registry.py:984`, `src/tier1/gateway_route.py:837,945-998`, `src/core/framework/execution/reconcile.py:689,746-747`, `src/tier1/cutover.py:178-179`). Their broadest common reading:
+  * `complete` is filled;
+  * `cancelled`, `canceled` and `rejected` are finished;
+  * `open`, `pending` and `trigger pending` are resting, with `_` read as a space;
+  * anything else cannot be told.
+* **Upstream gaps that shape the reads:**
+  * live Upstox rows carry no cumulative filled quantity and no trade ID (upstream-findings PART 31 and PART 33). A missing fill total must not be read as zero, and the live meaning of the order timestamp is unknown;
+  * a missing price arrives as `0.0`, and a `0` trigger is accepted (items 19–21);
+  * funds can report success with an empty object after a broker 401 (PART 26);
+  * legacy gives a trade without a trade ID a hashed `anonymous-evidence` identity, counted by occurrence (`src/contract/fills.py:90-109,319-330`). Adopting that is the owner's choice ([Q-022](../../decisions/owner-questions.md#q-022)).
+
+### Decisions
+
+* **One account per adapter.** `OpenAlgoAdapter(base_url, api_key, account, clock, evidence, *, http_timeout_ms, exchange)`.
+  * A send for another account is `not_sent` (`wrong_account`) before any I/O, and a read for another account raises `ReadFailed`.
+  * `base_url` must be `https`, or `http` to a loopback host (`127.0.0.1`, `::1`, `localhost`); anything else raises `ValueError` at construction, so the key never crosses a network in clear text.
+  * `exchange` is set by the composition from the account's configuration (SLICE-11). It is not a threshold, and a mapping per instrument arrives with the market port (SLICE-08) if an account ever needs more than one.
+* **Single orders only; baskets wait for SLICE-06.** The adapter sends one order per call:
+  * an entry whose plan has one leg and no protective legs (the only entry the [Q-020 answer](../../decisions/owner-answers-2026-10-27.md) admits), through `placeorder`;
+  * a close, through `placeorder`;
+  * a cancel, through `cancelorder`;
+  * a modify, through `modifyorder`.
+
+  A plan with more than one leg, or with any protective leg (`getattr(plan, "protective_legs", ())`, the field SLICE-06 adds), is `not_sent` (`basket_unsupported`) before any I/O. So a one-leg entry with a stop can never go out without its stop. The basket call, its per-leg results, the in-send validated join and `LEG_ASSIGNED` arrive with protection in SLICE-06, with PRF-DOM-04's basket clauses. No basket response has been recorded.
+* **The kernel builds the whole order; the adapter only translates it.**
+  * `BrokerPort.send` becomes `send(request, plan, attempt_no, ticket=None)`, called as `send(request, plan, n, ticket=ticket)`.
+  * `contracts/execution.py` gains `SendTicket(strategy: str, instrument: str | None, side: Literal["BUY", "SELL"] | None, quantity: int | None, product: str | None, order_kind: Literal["market", "limit", "stop"] | None, price: str | None, trigger: str | None)`, with money in the ledger's two-place form.
+  * `kernel/admission.py` gains `send_ticket(writer, request, plan, observation) -> SendTicket | WAIT | None`, which never raises. For every verb, `strategy` is `writer.command(key).strategy`:
+
+    | Verb | The rest |
+    |---|---|
+    | entry | The plan's leg: instrument, `BUY`, quantity, product, and `limit` with its limit price, or `market` |
+    | close | The position's instrument; `SELL`; the request's quantity and order (kind, price, trigger); the product of the entry leg that opened the position. That product is read from the `position` row by `position_id`, then its `entry_command_key` and `leg_role`, then `_admitted_payload(...)["plan_ref"]["legs"]` with that role |
+    | cancel | `strategy` only, since a cancel names only its target |
+    | modify | The target as the broker shows it now, in the observed row that row 6 has just validated (at most 60 s old): its quantity, `price` and `trigger_price`. The instrument, side, kind and product come from the ledger's owned order, the product as for a close. The request's changes are then applied. `WAIT` while another modify of the same target is unresolved or `WORKING`, so modifies of one order go out one at a time |
+
+  * A modify built from the broker's current row cannot undo an earlier confirmed change, cannot lose a stop-limit's limit, and follows a replacement ID, because the target is then the replacement. Whether OpenAlgo's `quantity` means total or remaining for a partly filled order is confirmed by TASK-S07-05.
+  * **Where it is built.** The coordinator builds the ticket on the writer thread after `_revalidate` passes and before `_claim`, and so does `dispatch_inline`.
+    * `WAIT` is a wait, like row 6's.
+    * `None` (a close or modify whose fields cannot be built) commits `DISPATCH_REFUSED` with the new code `DSP-R04` (`ticket_unbuildable`), so no attempt is spent.
+    * The worker's inbox holds `(key, n, request, plan, ticket)`.
+
+    The sent body is recorded in the transport-result evidence, which is the ticket's audit trail.
+  * The simulated broker accepts the ticket and ignores it. So do the test wrappers that forward `send`.
+* **One total deadline, enforced by the adapter.** Each call, a send or a book read, gets `adapter.http_timeout_ms` from its start on `time.monotonic_ns()`, never the injected clock, whose recorded variant does not advance by itself. The deadline covers resolution, connection, TLS, writing, reading and publishing. The client is a small HTTP/1.1 client over `socket` and `ssl` in `adapters/openalgo.py`; the standard library's clients set a timeout per operation, which a drip never trips, and OA_NEW adds no dependency.
+  * **Request:** `POST <base path>/api/v1/<endpoint> HTTP/1.1`, with headers `Host: <host>[:<port>]`, `Content-Type: application/json`, `Content-Length` and `Connection: close`. The body is UTF-8 JSON with compact separators. One connection per call; no keep-alive, retry or redirect.
+  * **Resolution** goes through the module function `_getaddrinfo` on a daemon thread, joined with the time remaining. One resolution per host is in flight at a time; a second call waits on it rather than starting another. A resolution that failed or did not finish is `not_sent`.
+  * **Connection:** each resolved address is tried in turn with the time remaining.
+  * **`written`** is set immediately before the first `sendall`. A failure before it is `not_sent`; a failure after it is `ambiguous`.
+  * **Reading:** every `recv` gets the time remaining, so a drip is cut off at the deadline (F-O8). Chunked encoding wins over `Content-Length`; without either the body is read to close. A body over `MAX_RESPONSE_BYTES` (8 MiB, a fixed bound on memory, not a policy value) is `ambiguous` for a send and `ReadFailed` for a read.
+  * **TLS** uses the default context with verification. A handshake failure is `not_sent`, since no request byte was written.
+  * **`send` never raises.** Every exception inside it is classed by `written`, and an acknowledged result keeps its parsed ID. The coordinator's fallback for an adapter that raises takes the broker's `error_domain`: `simulated` for the simulated broker, `unknown` for this adapter. So an OpenAlgo failure is never labelled `simulated`.
+* **Transport classes:**
+
+  | What happened | Class, reason |
+  |---|---|
+  | Another account; a plan with more than one leg or a protective leg; no ticket where one is needed | `not_sent`, `wrong_account` / `basket_unsupported` / `ticket_missing`, before any I/O |
+  | Resolution failed or did not finish; connection refused or timed out; TLS handshake failed | `not_sent`, `transport_not_sent` |
+  | Any failure after `written`; the deadline passed after `written`; a body over the bound | `ambiguous`, `transport_ambiguous` / `deadline` / `oversize` |
+  | Any HTTP status but 2xx or 4xx (1xx, 3xx, 5xx); 429; a 4xx or 2xx body that is not a JSON object | `ambiguous`, `http_<status>` |
+  | 2xx or 4xx with a JSON object body | by the body (next table) |
+
+  JSON is parsed with non-finite constants refused, so a body with `NaN` counts as non-JSON. 429 stays `ambiguous` until TASK-S07-05 captures its mapping.
+* **Classifying a body.** `status` is compared case-insensitively. An order ID is the value of `orderid` or `order_id` that is a non-empty string or an int (as `str`). "Anywhere" means a recursive search of every object and list in the body for either key with any value that is not null or empty.
+
+  | Body | Class; the leg's ID |
+  |---|---|
+  | `status` `success` with a top-level ID | `acknowledged`. A place takes the ID. A modify takes the ID, which may be a replacement. A cancel takes its target, and a top-level ID that differs from the target is `ambiguous` (`id_mismatch`) |
+  | A cancel's `success` with no ID | `acknowledged`; the target |
+  | `status` `error`, `rejected` or `failed`, with no ID anywhere | `rejected`, reason from `message` (scrubbed, truncated to 200 characters); no ID |
+  | `status` `error`, `rejected` or `failed`, with an ID somewhere | `ambiguous` (`rejection_with_identity`) |
+  | Anything else, including a place's or modify's success with no ID | `ambiguous` (`unclassified`) |
+
+  An ambiguous place or modify leg carries the top-level ID when there is one, and is otherwise untagged. A cancel's ambiguous leg never carries an ID, so an echo never becomes an identity (step 1). The leg's role is the plan leg's for an entry and the verb for an action, as in the simulated broker.
+
+  Classing a JSON error body `rejected` follows legacy without a captured error response. Proving that mapping is a precondition of composition in TASK-S07-05 and SLICE-11, because a wrong `rejected` releases a reservation for an order that may exist.
+* **The write mapping** (OpenAlgo's REST names, the legacy builder's values):
+
+  | Ticket | `pricetype` | `price` | `trigger_price` |
+  |---|---|---|---|
+  | `market` | `MARKET` | 0 | 0 |
+  | `limit` | `LIMIT` | the price | 0 |
+  | `stop` with a price | `SL` | the price | the trigger |
+  | `stop` without a price | `SL-M` | 0 | the trigger |
+
+  * A place is `{"apikey", "strategy", "exchange", "symbol", "action", "quantity", "pricetype", "product", "price", "trigger_price", "disclosed_quantity": 0}`.
+  * A modify is the same plus `"orderid"`, the target.
+  * A cancel is `{"apikey", "strategy", "orderid"}`.
+  * `quantity` is a JSON int. Money is written as an unquoted JSON number from the two-place string exactly (`20.05`, not a float round trip), and 0 as `0`.
+
+  An example place body for a limit entry of 75 at 20.00: `{"apikey":"<key>","strategy":"buyer_edge","exchange":"NFO","symbol":"NIFTY-SIM-CE","action":"BUY","quantity":75,"pricetype":"LIMIT","product":"NRML","price":20.00,"trigger_price":0,"disclosed_quantity":0}`.
+* **Money read from the broker.** Bodies are parsed with `parse_float` keeping each number's literal. A money value is `Decimal(literal)`. When it is finite with at most two decimal places, it is written with exactly two (`477.2` becomes `"477.20"`). It is never rounded; any other value is not money:
+  * an order's or position's optional field becomes `None`;
+  * a trade row is left out;
+  * a funds `availablecash` that is not a JSON number raises `ReadFailed`, and so does a string or a bool.
+* **Domain and coverage, with no endpoint contract.** No record exists until TASK-S07-05.
+  * The adapter never reads `mode` as a domain; every transport result and observation carries `unknown`.
+  * Every book's coverage is `Coverage("unknown", endpoint=…, pages_seen=1)`, with no interval, so absence is never usable.
+  * Applying a contract (its mode marker, coverage rule and the trading day's start) is built and tested with TASK-S07-05, not here. The constructor takes no contracts.
+* **No book paginates.** Neither the captures nor legacy carry a page or cursor field. A book is one response, and a failed read is a failed cycle (step 3), not a partial book.
+* **Reading the books.** A read posts `{"apikey": …}` to `/api/v1/<endpoint>`. It raises `ReadFailed` on anything other than: HTTP 2xx, a JSON object, `status` `success` and `data` of the endpoint's shape. The loop counts that as a failed cycle (step 3).
+
+  | Row | Target |
+  |---|---|
+  | orderbook `data.orders[]` | `ObservedOrder`: `orderid` (or `order_id`); `symbol`; `action` upper-cased (`BUY` or `SELL`); `quantity`, a JSON int. `filled_quantity` only when both it and `pending_quantity` are ints that add up to `quantity`, else `None` (PART 31; never read as 0). Status by the mapping below. `amount` and `margin` are `None`; the book reports neither. `price` only for `LIMIT` and `SL` and above 0. `trigger_price` only for `SL` and `SL-M` and above 0. `placed_at` is `timestamp` read as exchange-local time (UTC+05:30), domain `exchange`; its live meaning is unknown (PART 31) |
+  | tradebook `data[]` | `ObservedTrade`: `tradeid` (or `trade_id`) as the fill ID; `orderid`; `symbol`; `action`; `quantity`; `average_price` as the price (the orderbook's `price` is not a fill price); `traded_at` from `timestamp`. A row with no trade ID, or with no positive int quantity, or with no positive two-place price, is left out. Its order ID goes in `Observation.dropped`, and the tradebook's coverage becomes `complete = no` |
+  | positionbook `data[]` | `ObservedPosition`: identity `<exchange>:<symbol>:<product>`; `symbol`; `quantity` (a JSON int) as the net. `average_price` above 0, else `None`. `amount`, `margin`, `realized_pnl` and `mtm_pnl` are `None`: the book reports no money field this step may trust, and a flat row's `unrealized_pnl` repeats its realized loss, which would count it twice (TASK-S07-05) |
+  | funds `data` | `ObservedFunds`: `availablecash`, a finite JSON number, else `ReadFailed` (PART 26's false success). It may be negative (PART 28 recorded −708), unlike legacy's `>= 0`: a negative balance is a fact, and capacity refuses on it. `margin_available`, `position_margin` and `working_margin` are `None`, since the endpoint reports none of them |
+
+  Any orderbook, positionbook or funds row that cannot be mapped exactly raises `ReadFailed`; such a row is never skipped, because a skipped order would under-count working orders. `as_of` is `clock.now()` before connecting and `arrived_at` is `clock.now()` after the body is read. `ObservedFunds.as_of` is the read's `as_of`.
+
+  **Status mapping** (lower-cased, `_` read as a space):
+  * `complete` → `filled`;
+  * `cancelled` and `canceled` → `cancelled`;
+  * `rejected` → `rejected`;
+  * `open`, `pending` and `trigger pending` → `open`;
+  * everything else, including empty, → `unknown`. Nothing maps to `expired`, since no capture shows it.
+* **A dropped trade of ours is escalated.** `Observation` gains `dropped: tuple[str, ...] = ()`. For a tradebook, reconciliation gives `escalate` (`trade_without_id`, subject the order ID), once per key, for every dropped order ID that identity ties to one of our commands. A resting stop that fills after its command completed is therefore never silently lost. The reason joins the execution-domain spec's list.
+* **What this means before the owner decides, which the owner should know.** The adapter is not composed until these are settled:
+  * **Admission refuses every entry through it.** B5 refuses a missing money field and never counts it as zero (intent spec). `margin_available` is `None`, so B5 refuses `margin`. Any position row, or any open order that is neither reserved nor protective, has no amount, so B5 refuses `observation_field_missing`. An empty book is flat only under complete coverage, which needs a contract. The adapter fills no money field from a guess. TASK-S04-03 with TASK-S07-05 characterize the fields.
+  * **On live Upstox, no fill is recorded.** Live rows carry no trade ID, so under the built rule no entry ever creates a ledger position, and every close is refused `not_open`. [Q-022](../../decisions/owner-questions.md#q-022) asks the owner how to count such trades.
+  * **A close, cancel or modify that times out has no automatic resolution.** Every domain is `unknown`, so no absence route exists, and `attempt_resolve` covers entries only. It stays `UNCERTAIN`, and conflict row 2 then holds later closes on its position. [Q-023](../../decisions/owner-questions.md#q-023) asks the owner how to resolve one.
+* **A provable `not_sent` stays `not_sent`.** `_finish` turns a result with `raw` `None` into `OUTCOME_AMBIGUOUS` (`evidence_unpublished`); it now does so only when the class is not `not_sent`. A stalled resolver or a dropped connection uses up the deadline, so it never gets to publish, yet it provably sent nothing. Recovery is unchanged: with no evidence, an interrupted attempt is still `interrupted`. The dispatch spec's worker paragraph is amended.
+* **Evidence.**
+  * **Transport results:** a send publishes `{"kind": "transport_result", "command_key", "attempt_no", "request_digest", "endpoint", "request", "http_status", "response", "arrived_at", "cls", "legs", "domain"}` with `attempt=(command_key, attempt_no)`.
+    * `request_digest` is `admission.request_digest(request)`, as the simulated broker computes it.
+    * `request` is the body without `apikey`.
+    * `response` is the parsed JSON object, or `{"text": body.decode("utf-8", "replace")[:4096]}`.
+    * Fields the call never reached are `null`.
+    * Publishing runs on a helper thread joined with the time remaining. A publish that fails, raises or runs out of time gives `raw` `None`, and so does an adapter with no evidence store.
+  * **Observations:** step 3's `observation_content(...)` plus `"response"` (the parsed body), and `digest = content_digest(content)`.
+  * **The key never leaves.** Before anything is published, raised or logged, every occurrence of the key's value in any string is replaced with `***`. `repr` is `OpenAlgoAdapter(<base_url>, <account>)`.
+* **Ports.** `OpenAlgoAdapter` implements `BrokerPort` (`send`) and `ObservationPort` (the four reads), with `error_domain = "unknown"`.
+
+### Files
+
+| File | Change |
+|---|---|
+| `src/autonomous_trading/adapters/openalgo.py` | New: `OpenAlgoAdapter`, the deadline client, the body classifier, the write and row mappings, `ReadFailed`, `MAX_RESPONSE_BYTES` |
+| `src/autonomous_trading/contracts/execution.py` | `SendTicket` |
+| `src/autonomous_trading/contracts/evidence.py` | `Observation.dropped` |
+| `src/autonomous_trading/kernel/ports.py` | `BrokerPort.send(..., ticket=None)`; `error_domain` |
+| `src/autonomous_trading/kernel/admission.py` | `send_ticket(writer, request, plan, observation)`, `WAIT` |
+| `src/autonomous_trading/kernel/coordinator.py` | The ticket built before `_claim` (and in `dispatch_inline`), `DSP-R04`, the 5-tuple inbox, the broker's `error_domain` fallback, `_finish` keeping `not_sent` |
+| `src/autonomous_trading/kernel/reconciliation.py` | `trade_without_id` for a dropped trade of ours |
+| `src/autonomous_trading/adapters/simulated_broker.py` | `send(..., ticket=None)`, ignored; `error_domain = "simulated"` |
+| `tests/integration/test_entry_outcomes.py`, `tests/recovery/test_crash_boundaries.py`, `tests/unit/test_admission_checks.py` | Their `send` wrappers (`Peek`, `PeekHeld`, `ArmAfterSend`, `_Echo`) gain `ticket=None` and forward it; `send_ticket`'s tests |
+| `tests/fixtures/openalgo/` | Byte-identical copies of the twelve book and funds captures, with a `README.md` table of file, SHA-256 and source `OA/tests/fixtures/legacy-buyer-edge/openalgo/` @445eb116 (tree delta **T-31**) |
+| `tests/integration/test_openalgo_contract.py` | PRF-DOM-04's single-order, transport, deadline and read clauses, with a fake server in the file |
+| `tests/integration/test_dispatch_revalidation.py` | The ticket reaching `send`; `DSP-R04`; a modify waiting on another; a `not_sent` that stays `not_sent` end to end |
+| `tests/unit/test_reconciliation_rules.py` | `trade_without_id` |
+| Spec amendments | The execution-domain spec: single orders here, baskets in SLICE-06; `mode` never read without a contract; no pagination; the funds rule; `dropped` and `trade_without_id`. The dispatch spec: `BrokerPort.send`'s `ticket`, `DSP-R04`, and `_finish` keeping `not_sent`. Q-022 and Q-023 in the owner questions |
+
+### `OpenAlgoAdapter` (`adapters/openalgo.py`)
+
+```text
+OpenAlgoAdapter(base_url: str, api_key: str, account: AccountId, clock, evidence, *, http_timeout_ms: int,
+                exchange: str)
+  error_domain = "unknown"
+  send(request, plan: PlanRef | None, attempt_no: int, ticket: SendTicket | None = None) -> TransportResult
+  orderbook(account) / tradebook(account) / positions(account) / funds(account) -> Observation  # or ReadFailed
+  __repr__ -> "OpenAlgoAdapter(<base_url>, <account>)"
+```
+
+### Step 4 tests
+
+`tests/integration/test_openalgo_contract.py` imports the adapter inside a module-scoped fixture, which removes it from `sys.modules` at teardown. Otherwise `test_simulation_has_no_live_adapter` (PRF-XC-02) would depend on test order.
+
+The fake server in the file listens on `127.0.0.1` on an ephemeral port. Each test scripts it with a status and body, a delay, a drip (at least 40 bytes, one per 100 ms), a close after N request bytes, a TLS-garbage reply, or an echo of the request. It counts connections and records request bodies.
+
+Test seams are module functions the tests patch:
+* `openalgo._getaddrinfo` (the resolver);
+* `openalgo._open_connection` (counted, so a retry on a refused port is seen);
+* `openalgo._remaining_ms` (so publishing can be skipped deterministically).
+
+The deadline is a labelled synthetic 500 ms. Transport tests use a `LiveClock`; the loop test uses the world's `RecordedClock`.
+
+* **Recorded books:** each of the twelve captures, served by the fake server, maps as the table says:
+  * order `26080443402106` of 4 August is `filled` (filled 30 of 30). As a MARKET row its `price` and `trigger_price` are `None`, and `placed_at` is `"2026-08-04T09:45:00.000000Z"`;
+  * a `cancelled` row reads `cancelled`;
+  * the trades carry their trade IDs, at their `average_price`;
+  * the flat positions have net 0 with every money field `None`;
+  * funds give `availablecash` `"63671.85"` and `margin_available` `None`.
+
+  Every observation's domain is `unknown`, its coverage is `unknown` with no interval, its `digest` equals `content_digest(content)`, and its `content` carries the response.
+* **Live-shaped rows** (labelled synthetic, PART 31, PART 26 and items 19–21):
+  * an order with no `filled_quantity` reads `None`;
+  * a trade with no `tradeid` is left out, with its order ID in `dropped` and the tradebook `complete = no`;
+  * an `SL` row with price 10.00 and trigger 0.0 reads `trigger_price` `None`;
+  * `477.2` reads `"477.20"`, and a trade priced `483.5533` is left out;
+  * `trigger_pending` reads `open`, and `validation pending` reads `unknown`;
+  * funds whose `data` is `{}` or whose `availablecash` is `"100"` raise `ReadFailed`, and funds of −708.00 read as `"-708.00"`;
+  * an orderbook row with a float quantity raises `ReadFailed`;
+  * a body with `status` `error`, a non-JSON 200, a `NaN` body and a 500 each raise `ReadFailed`;
+  * a read for another account raises `ReadFailed` with no connection made.
+* **Sends:**
+  * the example limit-entry body above, exactly, with `apikey` on the wire; an ID acknowledges it;
+  * an error without an ID is rejected with its message;
+  * an error carrying a nested ID is ambiguous;
+  * a success without an ID is ambiguous for a place and a modify, and acknowledged with the target for a cancel; a cancel echoing another ID is ambiguous and untagged;
+  * a modify returning a new ID is acknowledged with the replacement;
+  * a close body is SL-M with its trigger, the ticket's product and `SELL`;
+  * the cancel body is exactly `{"apikey","strategy","orderid"}`;
+  * a two-leg plan, a plan with a protective leg, a missing ticket and another account are each `not_sent`, with no connection made.
+* **Transport:**
+  * a refused connection, a failing resolver and a resolver stalling past the deadline are each `not_sent` within the deadline;
+  * an `https` URL against the plain fake server is `not_sent`;
+  * an `http` URL to a non-loopback host refuses construction;
+  * a server that closes after reading the request, a server that never answers, a 302, 500, 429 or non-JSON 400, and a body over the bound are each `ambiguous`;
+  * the drip is `ambiguous` within the deadline plus 250 ms;
+  * every failing case made exactly one connection, so nothing was retried.
+* **Evidence and the key:**
+  * a send publishes its transport result under its attempt key, with `request_digest` equal to `admission.request_digest(request)`;
+  * with an echoing server and a rejecting server whose `message` quotes the key, the key's value appears in no published object, no exception text, no `ReadFailed` text and no `repr`;
+  * with `_remaining_ms` returning 0 before publishing, `raw` is `None`.
+* **The coordinator** (`test_dispatch_revalidation.py`):
+  * a recording broker wrapper sees a `SendTicket` equal to `send_ticket(...)` for an entry and for a close, through `run_pass` and through `dispatch_inline`;
+  * a close whose entry product cannot be found is refused `DSP-R04` with no attempt;
+  * a modify waits while another modify of its target is `WORKING`;
+  * a scripted `not_sent` result with `raw` `None` commits `OUTCOME_NOT_SENT`, not `OUTCOME_AMBIGUOUS`;
+  * an adapter that raises is recorded with domain `unknown` when its `error_domain` is `unknown`.
+* **The loop:** an `ObservationLoop` over the adapter reads one recorded cycle from the fake server, stores it, and reconciles nothing (domain `unknown`, no commands).
+* **`trade_without_id`** (`test_reconciliation_rules.py`): a tradebook whose `dropped` names an order of ours escalates once; one that names a foreign order gives nothing.
+* **`send_ticket`** (`test_admission_checks.py`, labelled synthetic):
+  * an entry's ticket is `NIFTY-SIM-CE`, `BUY`, 75, `NRML`, `limit` at `"20.00"`;
+  * a close of 50 by `StopOrder("10.00")` is `SELL`, 50, `NRML`, `stop`, trigger `"10.00"`;
+  * a modify of a stop observed at quantity 40 and trigger `"11.00"`, with `ModifyChanges(trigger_price="12.00")`, is quantity 40, trigger `"12.00"`;
+  * a cancel carries `strategy` only.
+* **Break checks** (named in the docstrings; each fails the named test):
+
+  | Break | Test |
+  |---|---|
+  | Retry a failed call once | the one-connection assertion |
+  | A timeout per `recv` instead of one total deadline | the drip test |
+  | Class a failure after `written` as `not_sent` | the close-after-read test |
+  | Read an error body carrying an ID as rejected | the nested-ID test |
+  | Read `mode` as the domain | the recorded-books domain assertion |
+  | Read a missing `filled_quantity` as 0 | the live-shaped order test |
+  | Give a trade without a trade ID a derived fill ID | the live-shaped trade test |
+  | Accept funds whose `data` is empty | the PART 26 test |
+  | Leave the key in a published response | the echo test |
+  | Map an unknown status to `open` | the `validation pending` test |
+  | Read a 0 trigger as a level | the `SL` row test |
+  | Round a three-place price | the `483.5533` test |
+  | Send a plan with a protective leg | the `basket_unsupported` test |
+  | Pass `ticket=None` from the coordinator | the recording-wrapper test |
+  | Let `_finish` downgrade a `not_sent` | the end-to-end `not_sent` test |
+  | Drop the per-target modify wait | the modify-waits test |
+  | Skip `trade_without_id` | the `dropped` test |
 
 ## Completion conditions
 
@@ -900,4 +1179,4 @@ One run of the break script left a mutation in place. Its second anchor did not 
 
 ## Prerequisites
 
-SLICE-05 as built. No open owner question. TASK-S07-05 and TASK-S07-06 wait for the owner's authorization and block no step.
+SLICE-05 as built. No open owner question blocks a step: [Q-022](../../decisions/owner-questions.md#q-022) and [Q-023](../../decisions/owner-questions.md#q-023) block only the adapter's production composition (SLICE-11). TASK-S07-05 and TASK-S07-06 wait for the owner's authorization and block no step.

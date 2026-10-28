@@ -147,6 +147,8 @@ EndpointContract(endpoint, deployment_version, mode_marker_field | None,
 | HTTP 429 from OpenAlgo's rate limiter | per the captured `status_mapping`; `ambiguous` until characterized | Whether OpenAlgo forwarded the request is not yet proven |
 | HTTP 2xx or 4xx with a parsable per-leg body | per leg, by `status_mapping` and the legacy classifier | — |
 
+**In SLICE-07 the adapter sends single orders only** ([step 4](../plan/slices/SLICE-07-observations-reconciliation-domain.md#step-4--the-openalgo-adapter)): an entry whose plan has one leg, a close, a cancel and a modify. The basket call and its per-leg join arrive with protection in SLICE-06. Without an endpoint contract it never reads `mode` as a domain (every result and observation is `unknown`), no consumed book paginates, funds without a finite `availablecash` are a failed read (upstream PART 26), and a trade row with no trade ID is left out, named in `Observation.dropped` and escalated when it is ours (`trade_without_id`). The adapter is composed only after TASK-S07-05 and the owner's answers to Q-022 and Q-023.
+
 The adapter uses the REST backend, not the SDK client, because a timed-out synchronous SDK call can outlive its cancellation (legacy note at `OA/src/interfaces/mcp/core/openalgo.py:509-518`). It disables HTTP-client retries and uses no retry wrapper. It fetches every page of one query; if any page fails, it returns the pages it has with `complete = no`. Observations are never merged across calls.
 
 ### Simulated broker (`adapters/simulated_broker.py`)
@@ -180,7 +182,8 @@ SimulatedBroker(responder: ScriptResponder | RuleResponder, clock: Clock,
 ### Ports (`kernel/ports.py`)
 
 ```text
-BrokerPort.send(request: ActionRequest, plan: PlanRef | None, attempt_no: int) -> TransportResult
+BrokerPort.send(request: ActionRequest, plan: PlanRef | None, attempt_no: int,
+                ticket: SendTicket | None = None) -> TransportResult      # the whole order (SLICE-07 step 4)
 ObservationPort.orderbook(account) -> Observation          # the endpoint's own coverage (Coverage.interval)
 ObservationPort.tradebook(account) -> Observation
 ObservationPort.positions(account) -> Observation          # a snapshot; interval is None
@@ -307,7 +310,7 @@ Assessment(matched: list[(command_key, attempt_no, leg_role | None, item)],
 |---|---|---|
 | `CONFLICT_RECORDED` | `command_key` or none, `broker_order_id`, `attempt_domain`, `observed_domain`, `reason` (`domain_conflict`, `after_rejected`, `after_never_reached`, `cross_domain_id`), `observation_digest` | (`broker_order_id`, `reason`) |
 | `FOREIGN_RECORDED` | `broker_order_id`, `account`, `instrument`, `side`, `quantity`, `observation_digest` | `broker_order_id` |
-| `RECONCILIATION_ESCALATED` | `subject` (command key, broker order ID, or `position_id` for protection's reasons), `episode` (0, or for protection's hold reasons the number of releases of that hold reason for the strategy), `excess_quantity` (`overclose` only; `null` otherwise), `reason` (`domain_conflict`, `untagged_timeout` (Q-007), `unknown_domain_unresolved` (Q-012), `close_without_fill_total`, `working_without_completion`, `foreign_activity` (Q-016), `late_fill`, `fill_mismatch`, `target_ended`, `settlement_withheld`, `over_reduction`, `order_owned` ([SLICE-07 step 2](../plan/slices/SLICE-07-observations-reconciliation-domain.md#decisions-1)), `after_rejected` and `after_never_reached` ([SLICE-07 step 1](../plan/slices/SLICE-07-observations-reconciliation-domain.md#assess-and-findings--the-rules)), or a protection reason from the [protection catalogue](protection-and-safety.md#event-catalogue)), `observation_digest` or none | (`subject`, `reason`, `episode`) |
+| `RECONCILIATION_ESCALATED` | `subject` (command key, broker order ID, or `position_id` for protection's reasons), `episode` (0, or for protection's hold reasons the number of releases of that hold reason for the strategy), `excess_quantity` (`overclose` only; `null` otherwise), `reason` (`domain_conflict`, `untagged_timeout` (Q-007), `unknown_domain_unresolved` (Q-012), `close_without_fill_total`, `working_without_completion`, `foreign_activity` (Q-016), `late_fill`, `fill_mismatch`, `target_ended`, `settlement_withheld`, `over_reduction`, `order_owned` ([SLICE-07 step 2](../plan/slices/SLICE-07-observations-reconciliation-domain.md#decisions-1)), `trade_without_id` (a dropped tradebook row of ours, [SLICE-07 step 4](../plan/slices/SLICE-07-observations-reconciliation-domain.md#step-4--the-openalgo-adapter)), `after_rejected` and `after_never_reached` ([SLICE-07 step 1](../plan/slices/SLICE-07-observations-reconciliation-domain.md#assess-and-findings--the-rules)), or a protection reason from the [protection catalogue](protection-and-safety.md#event-catalogue)), `observation_digest` or none | (`subject`, `reason`, `episode`) |
 
 All three fold into the `reconciliation_fact` index table, keyed as shown, which is how each is recorded once.
 
@@ -419,7 +422,7 @@ Class **T** is an automated test; **M** is a measurement or deployment record.
 | PRF-DOM-01 | T | `tests/unit/test_domain_attribution.py` | Attribution and combination tables, both orders; a missing marker gives `unknown`; combination applies only to identity matches; a mode read is never attached to an effect | live is assumed by default |
 | PRF-DOM-02 | T | `tests/unit/test_reconciliation_rules.py` | Each rules-table row and the evaluation order; per-verb evidence; each conflict, foreign record and escalation once per key; older observations ignored; a redelivered observation is a no-op (F-O6); observation fields complete; the liveness row with `working_escalation_secs`; an unknown-domain timeout escalates once; CUJ-DOM-2 and -4; unresolved legs account for orders | empty is taken as flat, or shape adopts |
 | PRF-DOM-03 | T | `tests/unit/test_reconciliation_rules.py` | POL-016 (no fill total), POL-014 (changed level only), POL-021 (`abs(age)`, future stamps) | a stale or future observation is used |
-| PRF-DOM-04 | T | `tests/integration/test_openalgo_contract.py` | Recorded basket responses give per-leg results, the validated join through a published orderbook observation inside the deadline, unassigned IDs and the command class; transport-failure rows; a zero average price is never fill evidence; a socket-level fake that drips its response is cut off at the total deadline | the wrapper alone is read, or a call outlives its deadline |
+| PRF-DOM-04 | T | `tests/integration/test_openalgo_contract.py` | Recorded basket responses give per-leg results, the validated join through a published orderbook observation inside the deadline, unassigned IDs and the command class (SLICE-06; single orders and recorded books in SLICE-07 step 4); transport-failure rows; a zero average price is never fill evidence; a socket-level fake that drips its response is cut off at the total deadline | the wrapper alone is read, or a call outlives its deadline |
 | PRF-DOM-05 | T | `tests/recovery/test_crash_boundaries.py` | CP-O1, CP-O2, F-O11 | a ledger reference commits before its evidence is published |
 | PRF-DOM-06 | T | `tests/contracts/test_capabilities.py` | Built only when native read-only proof is absent. The mediator exposes no write call; other requests get `DOM-R01` (`not_allowlisted`) and unauthenticated callers `DOM-R02` (`unauthenticated`); it serves with the kernel down; the credential is unreachable | a caller can route a write or read the credential |
 | PRF-DOM-07 | M | deployment record | OpenAlgo analyze and live responses captured and classified for each consumed endpoint; endpoint contracts produced, including visibility bounds and tag round trip | — (needs authorization) |
@@ -434,6 +437,7 @@ Class **T** is an automated test; **M** is a measurement or deployment record.
 | SLICE-01 | REQ-DOM-002 (domain `simulated` on every outcome); the broker order ID as the only identity | PRF-DSP-12 |
 | SLICE-02 | REQ-DOM-013 (with the evidence store) | PRF-DOM-05 |
 | SLICE-07 | REQ-DOM-001, -002 (`unknown`, `conflicting`), -003…-011, -014, -015; the native read-only branch of REQ-DOM-012 | PRF-DOM-01…04, -08, -09; PRF-DOM-07 and -10 on authorization |
+| SLICE-06 | The basket send and its per-leg join (with protection) | PRF-DOM-04's basket clauses |
 | SLICE-11 (only without native read-only proof) | REQ-DOM-012: the mediator | PRF-DOM-06 |
 
 See [plan/delivery-plan.md](../plan/delivery-plan.md).

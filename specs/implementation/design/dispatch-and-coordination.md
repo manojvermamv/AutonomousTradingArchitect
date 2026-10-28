@@ -123,7 +123,7 @@ wakes arriving during a pass are merged into one next pass:
       n = (highest attempt_no of cmd, or 0) + 1
       commit DISPATCH_CLAIMED(cmd, attempt_no=n, epoch=writer's active epoch)
       request, plan = load from cmd's COMMAND_ADMITTED event
-      worker[account].submit(cmd, request, plan, n) # no transaction held
+      worker[account].submit(cmd, request, plan, n, ticket)   # no transaction held; ticket: SLICE-07 step 4
       break
   set the deadline timer to the earliest dispatch deadline of any ADMITTED command (monotonic clock)
 
@@ -140,7 +140,7 @@ on worker return (command_key, attempt_no, result: TransportResult):
 **The worker.**
 
 * It calls `BrokerPort.send(request, plan, n)`.
-* It only forwards the result. The adapter publishes its raw result inside its own bounded call, keyed by command key and attempt number ([evidence contract](execution-domain-and-observations.md#evidence-contract-contractsevidencepy)); if publishing fails, `raw` is empty and the outcome is committed with reason `evidence_unpublished` and the broker IDs in its payload.
+* It only forwards the result. The adapter publishes its raw result inside its own bounded call, keyed by command key and attempt number ([evidence contract](execution-domain-and-observations.md#evidence-contract-contractsevidencepy)); if publishing fails, `raw` is empty and the outcome is committed with reason `evidence_unpublished` and the broker IDs in its payload, except a `not_sent` result, which provably sent nothing and is committed as `OUTCOME_NOT_SENT` ([SLICE-07 step 4](../plan/slices/SLICE-07-observations-reconciliation-domain.md#step-4--the-openalgo-adapter)).
 * It always returns. The adapter's own `NotSent` becomes `not_sent` ([transport classes](execution-domain-and-observations.md#openalgo-adapter-adaptersopenalgopy)); any other exception raised after the call started becomes `ambiguous` with reason `adapter_error`.
 * There are no in-process late results: once it returns, nothing more arrives for that attempt. Later broker evidence reaches the kernel only through observations and reconciliation.
 
@@ -219,6 +219,7 @@ command_status(command_key) -> CommandStatus
 |---|---|
 | `DSP-R01` (`deadline_passed`) | The dispatch deadline passed before the claim |
 | `DSP-R02` (`release_changed`) | The bound release changed since admission |
+| `DSP-R04` (`ticket_unbuildable`) | The whole order a close or modify sends could not be built from the ledger and the observation ([SLICE-07 step 4](../plan/slices/SLICE-07-observations-reconciliation-domain.md#step-4--the-openalgo-adapter)) |
 
 `DSP-R03` is unused: the policy dependency is met by row 4. Row 6 reuses admission's `ADM-R07`; the busy refusal is admission's `ADM-R12`.
 
