@@ -1,6 +1,6 @@
 # SLICE-07 — Observations, reconciliation, domain and the OpenAlgo adapter
 
-* **Status:** proposed. Step 1 is decision-complete below and not yet built. Steps 2–4 are scoped, and each is deepened once the step before it is built, as SLICE-04's and SLICE-05's were (the delivery plan's depth rule).
+* **Status:** proposed. Step 1 is built (OA_NEW `9bc4529` on `slice-07`; [Step 1 as built](#step-1-as-built)). Steps 2–4 are scoped, and each is deepened once the step before it is built, as SLICE-04's and SLICE-05's were (the delivery plan's depth rule).
 * **Precedence:** the master README, then the ROADMAP, then this package. The authority is the [execution-domain spec](../../design/execution-domain-and-observations.md) (evidence contract, attribution and combination, reconciliation, the OpenAlgo adapter), with the [ledger spec](../../design/ledger-and-atomic-transaction.md) for the events findings become. Every deviation is marked **Deviation**. No score, threshold or money value is set: every refusing setting is bound only to labelled synthetic or owner-answered values in tests.
 * **Phase:** master Phase 1/3 (D15, D16, ATA-06, the A06-F2 decision). Class S → R: steps 1–3 are disarmed (the simulated broker only); step 4 builds the real adapter and proves it against recorded responses and a local fake server, never a deployment.
 * **Builds on:** [SLICE-05](SLICE-05-dispatch-conflicts-scheduling.md) as built; branch `slice-07` cut from `slice-05` (OA_NEW `a4c4516`).
@@ -288,6 +288,46 @@ findings(assessment) -> list[Finding]
   * drop facts on a `domain_conflict` match;
   * ignore `facts`;
   * run absence on a tradebook.
+
+### Step 1 as built
+
+Commit `9bc4529` on `slice-07`, cut from `slice-05` at `a4c4516`. It changes 6 paths. The step 1 files table also listed `test_verb_completion.py`, which needed no change: it calls `record_completions`, not `completion` directly.
+
+**Choices made while building** (none sets a money value):
+
+| Topic | As built |
+|---|---|
+| One evaluator | `assess` and `findings` share one private `_evaluate(observation, view, policy, now)`. `assess` returns its buckets, and `findings` re-runs it from the assessment's own inputs, so both stay pure and always agree |
+| Whose attempt an identity row belongs to | Found by scanning every entry and close attempt's leg and unassigned IDs, first seen wins. A row no attempt names (a modify replacement) keeps its own domain and has no attempt |
+| `hold_entries` | Produces the same `escalate` finding as `escalate`. Acting on it is step 2's |
+| A modify's request "differs" | It does when its level field (trigger for a stop target, else limit) differs from `target_level`, or when it requests a quantity |
+| Working escalation of a resting close | Step 6 also escalates a `WORKING` close that has waited `working_escalation_secs`. Until step 2 routes close completion through findings, `record_completions` completes a resting close well within that time; the escalation is the safety net, not a substitute |
+| An added test | `test_an_echoed_id_never_becomes_the_cancels_identity`. Without it, the "a cancel's echoed ACK ID as identity" break check survived, because the other test's target already had an identity row |
+
+**Tests** (526 passed with `scripts/safe_tests.py`, no broker variables; the full suite was run three times with the same result):
+
+| File | Cases |
+|---|---|
+| `test_domain_attribution.py` (43) | Every attribution row; all 25 `combine` pairs in both orders; every `conflict_reason` case; no field of `Observation`, `TransportResult`, `LegResult` or `Outcome` is a `ModeRead`; the digest rule and the `unknown` default; combination only for identity matches |
+| `test_reconciliation_rules.py` (42) | **Inputs:** unknown endpoint and account mismatch; freshness both ways at and across 60 s; positions corroborate only. **Identity and domain:** reached by identity; CUJ-DOM-1's `cross_domain_id` with no `reached`; a `domain_conflict` that still records `reached`; `after_rejected`, and `after_never_reached` on a retry's attempt 1; a cancel's echoed ID never identity (two tests). **Evidence:** cancel reached only after the claim; an entry and a cancel judged on one item; POL-014's level rule; no `target_level`; fills on the tradebook (unassigned role, a known fill ID); no absence on a tradebook; a working cancel completed. **Absence:** never reached when usable and at exactly the window's end; all nine absence gaps; an unknown effective domain escalated once; cancel and modify never reached. **Attribution:** CUJ-DOM-4; an untagged entry resolved when every order is another command's; foreign and its escalation (`record_only` too); an in-flight attempt's window. **Escalation:** working escalation at and across 300 s; POL-016's close without a fill total. **Keys:** facts suppress each kind; determinism |
+
+**Break checks** (each applied to `kernel/reconciliation.py`, run against both files, and reverted byte for byte with an md5 check; every one failed its tests):
+
+| Change | Tests that failed |
+|---|---|
+| Treat a missing marker as `live` | 5 attribution cases |
+| Combine `simulated` with `unknown` as `simulated` | 3 cases |
+| `as_of − now` without `abs` | `test_freshness_both_ways` (a future stamp) |
+| Accept absence without a contract | `test_absence_gaps[no_contract]` |
+| Accept absence before the window's end | `test_absence_gaps[early]` |
+| Shape adoption | `test_cuj_dom_4_untagged_timeout` |
+| Record an in-flight attempt's order as foreign | `test_an_in_flight_attempt_keeps_a_new_order_from_being_foreign` |
+| Treat a cancel's echoed ACK ID as identity | `test_an_echoed_id_never_becomes_the_cancels_identity` |
+| Count an unchanged level as reached | 2 cases |
+| Count a missing `target_level` as reached | `test_modify_without_a_recorded_level_finds_nothing` |
+| Drop facts on a `domain_conflict` match | `test_domain_conflict_still_records_facts` |
+| Ignore `facts` | 2 cases |
+| Run absence on a tradebook | `test_no_absence_on_a_tradebook` |
 
 ## Step 2 — lifecycle commits (scoped; deepened after step 1)
 
