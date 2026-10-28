@@ -24,6 +24,7 @@ Status: **open owner decision** unless a row says answered. Each question is a g
 | [Q-018](#q-018) | A modify that raises an entry order's limit: how much more capital does it commit? | [SLICE-04 step 2](../plan/slices/SLICE-04-intent-to-admission.md#a-limit-raise-on-an-entry-order-q-018); [intent spec B2](../design/intent-to-admission.md#b2-effect) | TASK-S04-02 (B2 for a modify) | answered 2026-10-27 ([answers](owner-answers-2026-10-27.md)) |
 | [Q-019](#q-019) | What amount, margin and worst-case loss does a long-only plan carry for capacity (B5)? | [SLICE-04 step 3](../plan/slices/SLICE-04-intent-to-admission.md#the-plans-money-figures-q-019-answer-option-b) | TASK-S04-02 | answered 2026-10-27 ([answers](owner-answers-2026-10-27.md)) |
 | [Q-020](#q-020) | How is each structure leg's stop and target level set? | [SLICE-04 step 4](../plan/slices/SLICE-04-intent-to-admission.md#step-4--structure_v1); [protection spec, Structures](../design/protection-and-safety.md#structures-kernelprotectionpy) | TASK-S04-02, TASK-S06-01 | answered 2026-10-27 ([answers](owner-answers-2026-10-27.md)) |
+| [Q-021](#q-021) | While a position's group has an unresolved effect, may protection raise its stop's quantity up to the owned position? | [SLICE-05 step 1 build](../plan/slices/SLICE-05-dispatch-conflicts-scheduling.md#step-1-as-built); [protection spec, conflict row 2](../design/protection-and-safety.md#conflict-relation-kernelsafetypy) | TASK-S05-03, TASK-S06-01 | answered 2026-10-28 ([answers](owner-answers-2026-10-27.md)) |
 
 ---
 
@@ -386,3 +387,22 @@ Proof: tests/unit/test_planner_rules.py refuses every structure that passes lega
 - **A:** Each BUY leg gets the one-leg rule BuyerEdge uses today: `entry_stop` from that leg's delta and LTP premium (moneyness bands, floor, cap), with the stop rounded up and the target down to its tick.
 - **B:** The template's declared fields (`protection.hard_stop_points` / `target_points`, or the leg's `risk.stop_points` / `target_points`) as fixed premium-point distances per leg. Legacy declared these but never applied them at plan time.
 - **C — chosen:** `structure_v1` plans and gates as legacy, then refuses every structure at stage `stop` with `structure_protection_unbound` until a later decision. No structure entry is possible.
+
+## Q-021
+
+**Raising a protective stop while its group has an unresolved effect.**
+
+**Answered 2026-10-28: option A** ([answers](owner-answers-2026-10-27.md)).
+
+```text
+Requirement: conflict row 2 decides whether a modify that raises a protective order's quantity waits for the group's unresolved effects (protection spec, conflict relation).
+Owner: kernel.safety (Conflicts).
+Proof: tests/unit/test_conflict_relation.py::test_row_2_exceptions refuses the raise while a close of the group is unresolved and admits a lowering modify.
+```
+
+**Why it matters.** The SLICE-05 step 1 build found row 2's modify exception can never decide: row 2 applies only to an action that adds sale quantity or removes a stop, and the exception covers only a modify that lowers the stop's total. A lowering modify already passes, so the exception is redundant. The open case is a raise to the owned quantity (which B2 allows, intent spec): it adds sale quantity, and with a close of the same position in flight or uncertain, a raised stop can sell more than is owned. The EGM design review had already removed a raise from the exception (D-M1, [plan review](../egm/plan/review.md)).
+
+**Options.**
+
+- **A — chosen:** Refuse it. A raise waits until the group's unresolved effects resolve; a lowering modify, and every cancel row 2 excepts, still pass. The protection spec and the step 1 build already do this.
+- **B:** Except a raise whose new total equals the recorded fills plus the owned quantity. Risk: an in-flight close plus a raised stop can oversell. It would reverse D-M1 and amend the protection spec.

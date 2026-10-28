@@ -1,6 +1,6 @@
 # Owner answers, 2026-10-27
 
-* **Status:** owner decisions, recorded by the package. They answer [Q-001…Q-020](owner-questions.md) (Q-017 raised by the third basket review, Q-018 by the SLICE-04 step 2 build, Q-019 and Q-020 by the step 3 and step 4 deepenings, each answered the same day) and the master corrections [X-001…X-007](../consistency/master-contradictions.md).
+* **Status:** owner decisions, recorded by the package. They answer [Q-001…Q-021](owner-questions.md) (Q-017 raised by the third basket review, Q-018 by the SLICE-04 step 2 build, Q-019 and Q-020 by the step 3 and step 4 deepenings, each answered the same day; Q-021 raised by the SLICE-05 step 1 build and answered 2026-10-28) and the master corrections [X-001…X-007](../consistency/master-contradictions.md).
 * **Rule for every value below (Q-015):** every limit and switch stays a **configurable** setting. An answer gives the value bound in config for the first release; nothing is hard-coded, and the loader still refuses a live composition that leaves a setting unbound.
 
 ## Owner questions
@@ -27,6 +27,7 @@
 | Q-018 | Option A: in the first release a modify may not raise an entry order's limit (legacy parity: legacy never modifies an entry order); revisit when a strategy places limit entries | rule in the intent spec (B2, `ADM-R07` `wrong_field`); no setting |
 | Q-019 | Option B: a long-only plan carries `amount = margin = worst_case_loss` = the full premium debit at the LTP. Options A (debit at the ask) and C (loss to the stop) stay documented and selectable by configuration for later adoption | bound policy `planner.debit_price: ltp`, `planner.worst_case_loss: full_debit` (alternatives `ask`, `to_stop`) |
 | Q-020 | Option C: `structure_v1` plans and gates as legacy, then refuses every structure (`structure_protection_unbound`) until a per-leg protection rule is adopted. Options A (the one-leg stop rule per leg) and B (the template's declared points) are recorded for later adoption | rule in SLICE-04 step 4; no setting |
+| Q-021 | Option A (2026-10-28): while a position's group has an unresolved effect, a modify that raises its protective order's quantity is refused by conflict row 2; lowering, and the excepted cancels, still pass. Option B (except a raise to the owned quantity) is recorded | rule in the protection spec (conflict row 2); no setting |
 
 ## Master corrections
 
