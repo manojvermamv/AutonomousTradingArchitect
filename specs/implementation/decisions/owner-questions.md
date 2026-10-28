@@ -27,7 +27,7 @@ Status: **open owner decision** unless a row says answered. Each question is a g
 | [Q-021](#q-021) | While a position's group has an unresolved effect, may protection raise its stop's quantity up to the owned position? | [SLICE-05 step 1 build](../plan/slices/SLICE-05-dispatch-conflicts-scheduling.md#step-1-as-built); [protection spec, conflict row 2](../design/protection-and-safety.md#conflict-relation-kernelsafetypy) | TASK-S05-03, TASK-S06-01 | answered 2026-10-28 ([answers](owner-answers-2026-10-27.md)) |
 | [Q-022](#q-022) | A broker trade with no trade ID (live Upstox): how is it counted as a fill? | upstream-findings PART 31; [SLICE-07 step 4](../plan/slices/SLICE-07-observations-reconciliation-domain.md#step-4--the-openalgo-adapter) | The OpenAlgo adapter's production composition (SLICE-11); TASK-S07-05 | open |
 | [Q-023](#q-023) | How is a timed-out close, cancel or modify resolved when no book can prove its absence? | [SLICE-07 step 4](../plan/slices/SLICE-07-observations-reconciliation-domain.md#step-4--the-openalgo-adapter); Q-012 | The OpenAlgo adapter's production composition (SLICE-11); TASK-S07-05 | open |
-| [Q-024](#q-024) | The trail's opposing-signal tightening: what supplies the opposing score in the kernel? | `src/core/framework/protection/trail.py:476-481` @445eb116; [SLICE-06 step 1](../plan/slices/SLICE-06-protection-and-safety.md#step-1--the-ladder-protection-state-and-the-derived-leg) | TASK-S06-01 (SLICE-06 step 2's trail loop) | open |
+| [Q-024](#q-024) | The trail's opposing-signal tightening: what supplies the opposing score in the kernel? | `src/core/framework/protection/trail.py:476-481` @445eb116; [SLICE-06 step 1](../plan/slices/SLICE-06-protection-and-safety.md#step-1--the-ladder-protection-state-and-the-derived-leg) | TASK-S06-01 (SLICE-06 step 2's trail loop) | answered 2026-10-28 ([answers](owner-answers-2026-10-27.md)) |
 
 ---
 
@@ -485,4 +485,6 @@ Proof: tests/unit/test_protection_states.py (golden cases with an opposing score
 - **C:** compute the opposing score in the kernel, from the strategy's retained scorer over the same view. The scorer would then run in the kernel process.
 
 SLICE-06 step 1 ports the ladder with the input intact, so any option fits. Step 2 is deepened only after the answer.
+
+**Answer (2026-10-28): option A.** The strategy worker reports its opposing score as a typed, recorded input, and the kernel reads it at the next bar. SLICE-06 step 2 specifies the contract.
 
