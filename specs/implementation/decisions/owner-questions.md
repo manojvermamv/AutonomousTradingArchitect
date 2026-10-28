@@ -27,7 +27,8 @@ Status: **open owner decision** unless a row says answered. Each question is a g
 | [Q-021](#q-021) | While a position's group has an unresolved effect, may protection raise its stop's quantity up to the owned position? | [SLICE-05 step 1 build](../plan/slices/SLICE-05-dispatch-conflicts-scheduling.md#step-1-as-built); [protection spec, conflict row 2](../design/protection-and-safety.md#conflict-relation-kernelsafetypy) | TASK-S05-03, TASK-S06-01 | answered 2026-10-28 ([answers](owner-answers-2026-10-27.md)) |
 | [Q-022](#q-022) | A broker trade with no trade ID (live Upstox): how is it counted as a fill? | upstream-findings PART 31; [SLICE-07 step 4](../plan/slices/SLICE-07-observations-reconciliation-domain.md#step-4--the-openalgo-adapter) | The OpenAlgo adapter's production composition (SLICE-11); TASK-S07-05 | open |
 | [Q-023](#q-023) | How is a timed-out close, cancel or modify resolved when no book can prove its absence? | [SLICE-07 step 4](../plan/slices/SLICE-07-observations-reconciliation-domain.md#step-4--the-openalgo-adapter); Q-012 | The OpenAlgo adapter's production composition (SLICE-11); TASK-S07-05 | open |
-| [Q-024](#q-024) | The trail's opposing-signal tightening: what supplies the opposing score in the kernel? | `src/core/framework/protection/trail.py:476-481` @445eb116; [SLICE-06 step 1](../plan/slices/SLICE-06-protection-and-safety.md#step-1--the-ladder-protection-state-and-the-derived-leg) | TASK-S06-01 (SLICE-06 step 2's trail loop) | answered 2026-10-28 ([answers](owner-answers-2026-10-27.md)) |
+| [Q-024](#q-024) | The trail's opposing-signal tightening: what supplies the opposing score in the kernel? | `src/core/framework/protection/trail.py:476-481` @445eb116; [SLICE-06 step 1](../plan/slices/SLICE-06-protection-and-safety.md#step-1--the-ladder-protection-state-and-the-derived-leg) | TASK-S06-01 (SLICE-06 step 2's trail loop) | answered 2026-10-28 (option A); reconfirmation asked after a correction ([Q-024](#q-024)) |
+| [Q-025](#q-025) | A refused or failed stop modify: does the ladder keep legacy's library rule (the move not taken) or the live host's (only the stop put back)? | `scripts/run_framework_live.py:5221-5278` @445eb116; [SLICE-06 step 1](../plan/slices/SLICE-06-protection-and-safety.md#step-1-as-built) | TASK-S06-01 (SLICE-06 step 2's trail loop) | open |
 
 ---
 
@@ -487,4 +488,35 @@ Proof: tests/unit/test_protection_states.py (golden cases with an opposing score
 SLICE-06 step 1 ports the ladder with the input intact, so any option fits. Step 2 is deepened only after the answer.
 
 **Answer (2026-10-28): option A.** The strategy worker reports its opposing score as a typed, recorded input, and the kernel reads it at the next bar. SLICE-06 step 2 specifies the contract.
+
+**Correction (2026-10-28), raised while deepening step 2; reconfirmation asked.** The "Why it matters" paragraph above was wrong about legacy's live behaviour. At 445eb116 nothing passes an opposing score:
+
+- The live host steps the ladder through `orch.on_bar(managed, bar_index=…, bars=bars, emit=emit)` with no `opposing_score`, no `delta` and no `modify` (`scripts/run_framework_live.py:5485`).
+- `git grep opposing_score 445eb116` finds only the ladder's own parameter (`trail.py:438`, `:693`, `:873`). `src/analysis/core/eventsource.py:81-84` is a description of an unavailable input, not a producer, and BuyerEdge computes no opposing score.
+
+So option A adds a tightening that the live system never applied, and PRF-PRT-08's comparison over recorded days would show it as a difference. Option B is not a Deviation after all: it is exactly the live behaviour. The owner is asked to confirm A or choose B with this corrected.
+
+## Q-025
+
+**A refused or failed stop modify: which legacy rule does the ladder keep?**
+
+```text
+Requirement: the ladder moves the stop exactly as legacy (ATA-01, POL-012, PRF-PRT-08).
+Owner: kernel.protection (the trail loop, SLICE-06 step 2).
+Proof: tests/unit/test_protection_states.py (golden cases); PRF-PRT-08 over recorded days.
+```
+
+**Why it matters.** Legacy has two rules for a stop move the broker does not take, and they leave the ladder in different states:
+
+- **The library rule** (`src/core/framework/protection/trail.py:451-456`, `:558-561`, `:584-587` @445eb116). The cycle calls `modify` before it changes the stop. On False it returns `blocked` and changes neither `sl` nor `premium_trail_active`, so an activation that the broker refused is attempted again on the next bar. SLICE-06 step 1 built this rule as the "refused" outcome.
+- **The live host's rule** (`scripts/run_framework_live.py:5221-5278` @445eb116). The host cycles with no `modify`, so the move is taken, then sends the modify. On failure it puts back only `sl` (`managed.position.sl = before`, `:5277`). `premium_trail_active`, `premium_trail_peak`, `premium_trail_sl` and `trail_activation_sl` stay as the move set them. So after a refused activation the ladder counts as active and moves again only on a new high. When reconciliation later proves the broker holds a higher stop, the host adopts it (`:5466-5471`).
+
+The two give different stops after any refused or failed modify. The live host's rule is what traded; the library's is what the ladder's own docstring describes.
+
+**Options.**
+
+- **A:** keep the library rule (as built in step 1).
+- **B:** the live host's rule: after a refused or failed modify, keep the accepted outcome with only `sl` put back. Step 2 builds this, and step 1's "refused" outcome is replaced or kept only as evidence.
+
+Step 2 is deepened only after the answer.
 

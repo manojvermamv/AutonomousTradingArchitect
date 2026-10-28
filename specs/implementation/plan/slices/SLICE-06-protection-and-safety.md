@@ -1,6 +1,6 @@
 # SLICE-06 — Protection and safety
 
-* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-06-review-2026-10-28)). Step 1 is built (OA_NEW `03bbbde` on `slice-06`; [Step 1 as built](#step-1-as-built)). Step 2 waits on [Q-024](../../decisions/owner-questions.md#q-024) before it is deepened. Steps 2–5 are scoped; each is deepened once the step before it is built, as in SLICE-04, SLICE-05 and SLICE-07 (the delivery plan's depth rule).
+* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-06-review-2026-10-28)). Step 1 is built (OA_NEW `03bbbde` on `slice-06`; [Step 1 as built](#step-1-as-built)). Step 2 waits on the reconfirmation of [Q-024](../../decisions/owner-questions.md#q-024) and the answer to [Q-025](../../decisions/owner-questions.md#q-025) before it is deepened. Steps 2–5 are scoped; each is deepened once the step before it is built, as in SLICE-04, SLICE-05 and SLICE-07 (the delivery plan's depth rule).
 * **Precedence:** the master README, then the ROADMAP, then this package. The authority is the [protection spec](../../design/protection-and-safety.md), with the [ledger spec](../../design/ledger-and-atomic-transaction.md) for the events and index tables and the [execution-domain spec](../../design/execution-domain-and-observations.md) for the observations protection reads. Every deviation is marked **Deviation**. No score, threshold or money value is set here: the ladder's parameters are the approved shipped values (POL-012), and every refusing setting is bound only to labelled synthetic or owner-answered values in tests.
 * **Phase:** master Phase 1 (ATA-01, POL-004…POL-006, POL-010…POL-015, A03-F5 kernel side, Combined-F6 protection part). Class S: the simulated broker only.
 * **Builds on:** [SLICE-07](SLICE-07-observations-reconciliation-domain.md) as built (fills, positions, observations, the OpenAlgo adapter's single orders). The branch `slice-06` is cut from `slice-07` (OA_NEW `1b42505`). SLICE-06 follows SLICE-07 because protection needs fills and observations (delivery plan).
@@ -47,12 +47,12 @@ All legacy citations are at 445eb116.
   * `PremiumTrail.cycle`, `_advance` and `_lock_floor` (`:397-632`).
 
   It computes in floats. The target ports it unchanged, in floats, so that its moves are exactly legacy's.
-* **Legacy's live trail moves the broker stop through a `modify` callback** (`trail.py:451-456`; `src/analysis/core/eventsource.py:70-73`). When the callback returns False, because the gateway refused or rejected the modify (under kill or the rate limit, `src/runtime/execution_gateway/__init__.py:1377-1399`), the cycle does not advance `pos.sl` or `premium_trail_active`. It does advance `trail_peak_close`, `mfe` and `premium_trail_peak` (`:463-472`, `:558-561`, `:581-587`). The next cycle then retries from the old stop. The target keeps this exactly (the two outcomes, below).
+* **Legacy's live trail moves the broker stop through a `modify` callback** (`trail.py:451-456`; `src/analysis/core/eventsource.py:70-73`). When the callback returns False, because the gateway refused or rejected the modify (under kill or the rate limit, `src/runtime/execution_gateway/__init__.py:1377-1399`), the cycle does not advance `pos.sl` or `premium_trail_active`. It does advance `trail_peak_close`, `mfe` and `premium_trail_peak` (`:463-472`, `:558-561`, `:581-587`). The next cycle then retries from the old stop. The target keeps this exactly (the two outcomes, below). **Correction (2026-10-28):** that is the library's rule. The live host at 445eb116 never passes `modify`; it takes the move, sends the modify, and on failure puts back only `sl` (`scripts/run_framework_live.py:5221-5278`). Which rule the kernel keeps is [Q-025](../../decisions/owner-questions.md#q-025).
 * **`PremiumTrail` holds one piece of instance state outside `TrailPosition`, used for logging only.** That is `_last_pl_pct` and `milestones`: `_lock_floor` computes the floor (`:606-620`) before reading `_last_pl_pct` (`:622`), which feeds only the milestone log (`:627-631`). So `TrailPosition`, together with the same inputs, is the whole ladder state.
 * **The cycle reads more than `TrailPosition`:**
   * the confirmed bar history, since ATR's length guard reads the whole history and uses same-day bars only when there are enough (`:340-351`), and `_same_day` needs `Bar.ts.date()` (`:282-285`);
   * `delta`;
-  * an `opposing_score`, which legacy's strategy supplies from its fresh opposing signal (`src/analysis/core/eventsource.py:81-84`) and which tightens the step (`:476-481`). The kernel has no such signal yet: [Q-024](../../decisions/owner-questions.md#q-024).
+  * an `opposing_score`, which tightens the step (`:476-481`). **Correction (2026-10-28):** no legacy code supplies it; the live host passes none (`scripts/run_framework_live.py:5485`), and `src/analysis/core/eventsource.py:81-84` only describes it. See [Q-024](../../decisions/owner-questions.md#q-024).
 * **Validation** (`src/strategies/buyer_edge.py:612-655`; `src/core/framework/policy/schema.py:186-198`):
   * `sl_method` in `fixed_pct`, `fixed_pts`, `atr`, `delta`, `key_level`, after `.strip().lower()` (`:583`);
   * `activation_lock_pct` in [0, 1);
@@ -325,7 +325,7 @@ Commit `03bbbde` on `slice-06`, on top of `slice-07`'s `1b42505`. It changes 17 
 * crash points CP-P1…CP-P4;
 * TASK-S06-01's characterizations: legacy re-placement and the marketable-stop alternative.
 
-**Before it is deepened:** the owner's answer to [Q-024](../../decisions/owner-questions.md#q-024) on the opposing-signal input.
+**Before it is deepened:** the owner's reconfirmation of [Q-024](../../decisions/owner-questions.md#q-024) (corrected 2026-10-28: legacy's live host passes no opposing score) and the answer to [Q-025](../../decisions/owner-questions.md#q-025) (the library's or the live host's rule after a refused modify).
 
 **Deviation:** the kernel host's loop is SLICE-11's. Step 2's tests drive the loop directly. They prove PRF-PRT-06's "worker stopped" half; the "kernel frozen" half needs the host and is proved in SLICE-11.
 
