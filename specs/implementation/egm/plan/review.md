@@ -318,3 +318,25 @@ The new [SLICE-05 slice file](../../plan/slices/SLICE-05-dispatch-conflicts-sche
 | R-8 | Minor | Four break checks missing | FIX: added |
 | R-11 | Minor | Every limit close treated as resting, unmarked | FIX: marked, citing SLICE-04's `action_facts` |
 
+## SLICE-07 review (2026-10-28)
+
+The new [SLICE-07 slice file](../../plan/slices/SLICE-07-observations-reconciliation-domain.md) (step 1 at decision depth; steps 2–4 scoped) was reviewed by fresh `egm:egm-design` and `egm:egm-implementation-readiness` reviewers (read-only) against the execution-domain and ledger specs, the owner answers, the code built through SLICE-05 and the legacy export at `OA@445eb116`. Design: 1 Critical, 10 Major, 4 Minor. Readiness: 1 Critical, 12 Major, 7 Minor. D-5 was checked by hand: the spec's combination table gives `simulated` with `unknown` as `conflicting`, which the draft had reversed. Every finding is resolved by FIX.
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| D-1, R-2 | Critical | Rules not tied to an endpoint: absence on a tradebook could resolve a command never-reached and allow a duplicate order | FIX: kind from `observation.endpoint`; identity, per-verb, absence, unattributed and working escalation on the orderbook; identity, domain and fills on the tradebook; nothing on positions or funds |
+| R-1, D-8 | Critical | The could-account-for window undefined without `visibility_secs` or an outcome, so an in-flight send's order could be recorded foreign; "unresolved" undefined | FIX: unresolved defined; the could-account-for window is open-ended when its end is unknown; absence needs an end (gap `window_unbounded`); test |
+| D-2, R-6, R-12 | Major | A cancel's or modify's echoed ACK ID taken as identity; the no-ID absence row applied to them; which IDs are identity | FIX: identity is an `IdentityView` or an entry or close attempt's ID; target evidence separate; rows limited by verb |
+| D-3, R-4, R-5 | Major | A missing `target_level` counted as a changed level; "unchanged" had no baseline | FIX: no `target_level` means no level evidence (gap `no_recorded_level`); requested-field equality counts only when the request differs; cancel's and modify's never-reached evidence defined |
+| D-4, R-9 | Major | A close's effective domain contradicted Q-012 | FIX: `target_domain` — for a close, the domain of the entry order behind its position |
+| D-5 | Major | `simulated` with `unknown` reversed from the spec | FIX: the spec's table; the break check inverted |
+| D-6 | Major | Suppressing facts on any domain conflict contradicted REQ-DOM-015 | FIX: `cross_domain_id` only escalates (it may be another order); `domain_conflict` records the facts labelled `conflicting` |
+| D-7 | Major | Only the latest attempt in the view: a retry's attempt-1 order misread | FIX: every attempt; `after_never_reached` on the attempt the ID belongs to; test |
+| D-9 | Major | No account check | FIX: gap `account_mismatch`, no findings |
+| D-10, R-13 | Major | `Finding` lacked domains and the completion | FIX: `domain`, `recorded_domain`, `observed_domain`, `subject`, `completion` |
+| D-11, R-3 | Major | `completion` reused against the wrong input and without its guards or `target_kind` | FIX: moved to the pure module over the orders observation; guards stated; `target_kind`; close completion stays with `record_completions` until step 2 |
+| R-7, R-8, D-12 | Major | Working-escalation timing, subjects and reasons; `after_*` escalation reason; reason for every domain pair | FIX: all stated; `conflict_reason` total; the catalogue gains `after_rejected` and `after_never_reached` |
+| R-10, R-11 | Major | Recorded domain when both are unknown; both untagged and unknown-domain escalations | FIX: `unknown`; both produced, each once; CUJ-DOM-4 uses `simulated` |
+| D-13, D-14, D-15 | Minor | Step 2 scope wording and missing obligations; "default contract" readable as source-derived; time comparison; episode; the identity-only combination test | FIX |
+| R-14…R-20 | Minor | Unknown `placed_at`; time parsing and window as a pair; gap precedence; account; validation and the `ModeRead` test; `after_never_reached` wording; builders and finding order | FIX |
+
