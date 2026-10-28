@@ -1,6 +1,6 @@
 # SLICE-06 — Protection and safety
 
-* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-06-review-2026-10-28)). Step 1 is built (OA_NEW `03bbbde` on `slice-06`; [Step 1 as built](#step-1-as-built)). Step 2 is decision-complete below (Q-024 and Q-025 option B; [Q-026](../../decisions/owner-questions.md#q-026) option A) and not yet built. Steps 2–5 are scoped; each is deepened once the step before it is built, as in SLICE-04, SLICE-05 and SLICE-07 (the delivery plan's depth rule).
+* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-06-review-2026-10-28)). Step 1 is built (OA_NEW `03bbbde` on `slice-06`; [Step 1 as built](#step-1-as-built)). Step 2 is built (OA_NEW `e27a436`; [Step 2 as built](#step-2-as-built); Q-024 and Q-025 option B, [Q-026](../../decisions/owner-questions.md#q-026) option A). Steps 3–5 are scoped; each is deepened once the step before it is built, as in SLICE-04, SLICE-05 and SLICE-07 (the delivery plan's depth rule).
 * **Precedence:** the master README, then the ROADMAP, then this package. The authority is the [protection spec](../../design/protection-and-safety.md), with the [ledger spec](../../design/ledger-and-atomic-transaction.md) for the events and index tables and the [execution-domain spec](../../design/execution-domain-and-observations.md) for the observations protection reads. Every deviation is marked **Deviation**. No score, threshold or money value is set here: the ladder's parameters are the approved shipped values (POL-012), and every refusing setting is bound only to labelled synthetic or owner-answered values in tests.
 * **Phase:** master Phase 1 (ATA-01, POL-004…POL-006, POL-010…POL-015, A03-F5 kernel side, Combined-F6 protection part). Class S: the simulated broker only.
 * **Builds on:** [SLICE-07](SLICE-07-observations-reconciliation-domain.md) as built (fills, positions, observations, the OpenAlgo adapter's single orders). The branch `slice-06` is cut from `slice-07` (OA_NEW `1b42505`). SLICE-06 follows SLICE-07 because protection needs fills and observations (delivery plan).
@@ -667,6 +667,58 @@ Worlds are `admission_world(policy=OFF, plan=protected_plan, kernel_positions=Tr
   * drop the refusal memory;
   * pass no delta to `premium_exit`;
   * run protection before `OPERATING`.
+
+### Step 2 as built
+
+Commit `e27a436` on `slice-06`, on top of step 1's `03bbbde`. It changes 15 paths (1,573 lines added, 48 removed). The files match the step's table, except where the table below says otherwise. The golden cases were regenerated against the same legacy checkout with the host's put-back for `refused`. All 120 refused outcomes differ from the accepted one only in `sl`. SHA-256 `985251fdc146df57fec541e36ed278dab23f2c3721406a35e66ba8817250f464`.
+
+**Choices made while building** (none sets a money value; every test value is labelled synthetic):
+
+| Topic | As built |
+|---|---|
+| `ProtectionLoop`'s constructor | `ProtectionLoop(coordinator, *, market, calendar, policy)`. Safety, conflicts, holdings, observations and settings are read through the coordinator's action admission, so protection's pre-checks use exactly the objects admission uses |
+| The cycle's start | When the leg is not `PENDING` and its confirmed level is above the starting `sl`, `sl` takes it whether or not the last move landed. That is the host's adoption of the recorded, tick-rounded level before every cycle (`:5468-5470`); the text stated it only for the put-back case |
+| `DSP-R01` in the refusal memory | Clears after one poll interval, like `ADM-R05`. A placement refused for its dispatch deadline would otherwise never be placed again |
+| The session | Square-off and the pre-desire policy read the account's `OPEN` session row, not a parsed `dependencies.session_id` |
+| `MarketPort.closes` | Takes `since` as a UTC ISO string: the `event_time` of the entry's first `FILL` |
+| A plan with no stop | Escalates the spec's existing `no_stop_planned` once and records nothing more |
+| The through-market check | Reads the latest close the pass read |
+| The trailed level | One function, `protection.trail_level(sl, tick_size)`, which a test exercises at the tick boundary |
+| `lifecycle.escalate` | `reconcile`'s inner function keeps its name and calls the shared one through the alias `_escalate` |
+| `PassReport` | Gains `protected`: what the loop recorded and submitted that pass |
+| Test files | The step's tests are in a new `tests/unit/test_protection_loop.py`, not `tests/integration/test_protection_kernel.py`. CP-P3 is a child-process test in `test_crash_boundaries.py` with the other crash points |
+| Test worlds | Compose the kernel's own Safety and Conflicts (`kernel_safety`, `kernel_conflicts`), so kill, holds and conflict row 2 act as in production. Kill and holds are engaged after the entry is admitted, since they refuse the entry itself |
+| Crash children | `build_admission_world` gains `build_options` (funds, book start, settings). After a reopen the new simulated broker's book is seeded as the old one stood, a test seam on the simulated book |
+
+**Found while testing.** RISE (20.00 → 29.00) activates at 23.50. A ratchet's final stop depends only on the latest close, so the latest-close test uses a 30.00 peak then 27.00. A human's `UNCERTAIN` modify is resolved never reached on the next cycle, which frees the group, so the degraded-pass test uses a `WORKING` modify that the book never confirms.
+
+**Tests** (763 passed, twice, with `pytest` in the slice's virtual environment on the development machine; no broker variables; nothing reached a deployment):
+
+| File | Cases |
+|---|---|
+| `test_protection_loop.py` (44, new) | **Placement:** the first fill's seed and one stop. **Trail:** bars from closes; `trail_level`; a rising path equal to the host's step bar by bar; latest close only; no close before the fill; fewer than two bars; a pending modify; a rejected modify not resent, with only `sl` put back; a human raise adopted. **Quantity:** a later fill raised. **Placement failures:** refused at dispatch then re-placed; rejected and escalated; a resting stop rejected. **Ends:** a human cancel; an orphan cancelled. **Other rules:** through the market; `NOT_SENT` retried; an unseeded plan. **Tick exits:** target, deep-OTM and its precedence, four ticks that start nothing, kill. **Exit sequence:** a late partial fill, a stop found filled, a rejected close. **Square-off:** runs, after-the-instant fill, a working entry, `broker`, no offset. **Kill and holds:** under kill, after release, both hold settings. **Degraded:** no refusals; one refusal until a change. **Composition:** not composed under `basket_at_plan`; not run before `OPERATING`. **Policy:** `from_resolved` |
+| `test_crash_boundaries.py` (+4) | CP-P1, CP-P2, CP-P3, CP-P4 in a child process exiting 86, reopened in the parent |
+| `test_protection_states.py` | Step 1's `test_two_outcomes` for the host's put-back; the regenerated golden cases |
+
+**Break checks** (each applied with every anchor checked first, run against `test_protection_loop.py` and `test_protection_states.py`, and reverted byte for byte with an md5 check; every one failed). Three survived the first run, because their tests could not tell the change apart. They were strengthened (the 30.00 peak; the oracle over every bar with a pre-fill close; a non-rising bar after the rejected modify), and then all failed:
+
+| Change | Test that failed |
+|---|---|
+| Cycle every bar since the last one | `test_only_the_latest_close_is_cycled` |
+| Show closes from before the fill | `test_closes_before_the_fill_are_never_shown` |
+| Pass an opposing score | `test_a_rising_path_records_each_bar_and_moves_the_stop` |
+| Keep the library's refused outcome | `test_every_golden_case_is_reproduced_exactly` |
+| Start from `ladder_state` after a rejected modify | `test_a_rejected_modify_is_not_resent_and_the_next_bar_puts_back_only_sl` |
+| Bars from real OHLC | `test_bars_are_built_from_consecutive_closes_as_the_host` |
+| `level_of(sl)` without `round(sl, 2)` | `test_the_trailed_level_is_rounded_to_two_places_then_up_to_the_tick` |
+| Submit while `PENDING` | `test_the_first_fill_seeds_the_desire_and_places_one_stop` |
+| Resend a rejected modify at the same level | `test_a_rejected_modify_is_not_resent_and_the_next_bar_puts_back_only_sl` |
+| Submit under kill | `test_under_kill_the_desire_is_recorded_and_nothing_is_submitted` |
+| Re-place a rejected stop | `test_a_placement_rejected_by_the_broker_is_escalated_never_re_placed` |
+| Close before the chain is accounted for | `test_a_partial_stop_fill_recorded_late_is_closed_only_for_the_true_quantity` |
+| Drop the refusal memory | `test_a_placement_refused_at_dispatch_is_placed_again` |
+| Pass no delta to `premium_exit` | `test_a_deep_otm_tick_starts_the_exit_and_beats_the_target` |
+| Run protection before `OPERATING` | `test_protection_never_runs_before_operating` |
 
 ## Step 3 — basket placement (scoped)
 
