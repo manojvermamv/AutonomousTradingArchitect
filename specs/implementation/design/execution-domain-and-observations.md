@@ -109,7 +109,7 @@ ObservedOrder(broker_order_id, instrument, side, quantity, filled_quantity | Non
               amount | None, margin | None)                      # broker-reported; capacity's input
 ObservedTrade(fill_id, broker_order_id, instrument, side, quantity, price, traded_at)
 ObservedPosition(instrument, net_quantity, average_price | None,   # average price is never fill evidence
-                 realized_pnl | None, mtm_pnl | None,              # broker-reported; the latch's input
+                 day_pnl | None,                                    # the row's day P&L (OpenAlgo `pnl`); the latch's input
                  amount | None, margin | None)                     # broker-reported; capacity's input
 ObservedFunds(available, margin_available, position_margin | None, working_margin | None,
               as_of)                                       # broker-reported; capacity's input

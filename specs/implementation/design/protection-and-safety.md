@@ -270,7 +270,7 @@ A multi-leg structure entry creates one position per leg (ledger `position` row)
 | Event | Recorded by | Payload | Guard |
 |---|---|---|---|
 | `KILL_ENGAGED` / `KILL_RELEASED` | A human principal with `kill_engage` / `kill_release` | `principal`, `reason` | Engage only when released; release only when engaged |
-| `HOLD_ENGAGED` / `HOLD_RELEASED` | Engaged by a human principal with `hold_engage` (reason `operator`), by `kernel:recovery` (reason `recovery`, the legacy recovery-hold trigger characterized in TASK-S06-03), or by `kernel.safety` for protection (reasons `overclose`, `sibling_failed`, [Basket placement](#basket-placement-basket_at_plan-kernelprotectionpy)). Released by a human principal holding `hold_release`, through `safety.release_hold(principal, strategy, released_reason, justification)`, one reason at a time | Engaged: `strategy`, `reason`, `principal`. Released: `strategy`, `released_reason`, `justification`, `principal` | Engage only when that reason is not engaged; release only when it is |
+| `HOLD_ENGAGED` / `HOLD_RELEASED` | Engaged by a human principal with `hold_engage` (reason `operator`), by `kernel:recovery` (reason `recovery`: each pass while an entry of the strategy stays `UNCERTAIN` with an `untagged_timeout` or `unknown_domain_unresolved` escalation, as legacy re-places it; TASK-S06-03, [SLICE-06 step 4](../plan/slices/SLICE-06-protection-and-safety.md#step-4--the-latch-safety-visibility-and-the-recovery-hold)), or by `kernel.safety` for protection (reasons `overclose`, `sibling_failed`, [Basket placement](#basket-placement-basket_at_plan-kernelprotectionpy)). Released by a human principal holding `hold_release`, through `safety.release_hold(principal, strategy, released_reason, justification)`, one reason at a time | Engaged: `strategy`, `reason`, `principal`. Released: `strategy`, `released_reason`, `justification`, `principal` | Engage only when that reason is not engaged; release only when it is |
 
 * Kill applies to the whole desk and does not expire at session close (POL-002). A strategy is **held** while at least one reason is engaged.
 * Each takes effect at its event's ledger sequence ([dispatch spec](dispatch-and-coordination.md#holds-kills-and-latches-against-in-flight-requests)).
@@ -280,7 +280,7 @@ A multi-leg structure entry creates one position per leg (ledger `position` row)
 | Condition | Entry | Cancel | Modify | Close | Source |
 |---|---|---|---|---|---|
 | Kill engaged | refused | human principal with the grant, owned unfilled order | refused | human principal with the grant, a non-resting close of an owned position; a new resting close is refused | POL-002, as superseded by the [Q-014 answer](../decisions/owner-answers-2026-10-27.md) |
-| Daily-loss latch tripped (this session, this strategy) | refused | not restricted by this condition | not restricted | not restricted | POL-004 |
+| Daily-loss latch tripped (this session) | refused | not restricted by this condition | not restricted | not restricted | POL-004 |
 | Strategy held | refused | human principal: not restricted; automatic: per `safety.hold_automatic_actions` (first release `allowed`) | same as cancel | same as cancel | POL-003 (`sender.py:293-296`) |
 
 * An action matching no restricting row is not restricted by this table; grant, conflict and freshness checks still apply.
@@ -291,16 +291,17 @@ A multi-leg structure entry creates one position per leg (ledger `position` row)
 
 ### Daily-loss latch (`kernel/safety.py`)
 
+* **Scope.** One latch per session: the kernel binds one budget per session, so a trip refuses every entry in that session. **Deviation (from legacy's one latch per strategy):** identical for the first release's one strategy on one account ([SLICE-06 step 4](../plan/slices/SLICE-06-protection-and-safety.md#step-4--the-latch-safety-visibility-and-the-recovery-hold)).
 * **Input.** `kernel.safety` computes session P&L itself, as legacy does next to the latch (`OA/src/runtime/session_state.py:171`):
 
   ```text
-  session_pnl(strategy, session_id, now) -> SessionPnl(pnl, observation_digest, as_of) | Unavailable
+  session_pnl(observation) -> SessionPnl(pnl, observation_digest, as_of) | PnlUnavailable(reason)
   ```
 
-  `pnl` sums, over the positions owned by the strategy in the session, the broker-reported P&L field the legacy code reads, or realised plus mark-to-market where the endpoint splits them; which fields the deployed endpoint carries is characterized in TASK-S06-04 against the endpoint contract. A position belongs to the strategy of its entry command (the ledger `position` row). It is gross of estimated charges, as legacy (`loss_latch.py:11-14`), and `Unavailable` when the position observation is incomplete or lacks the field. A stale observation is not a latch state: reconciliation ignores it, and admission check B1 refuses entries on it (`ADM-R05`).
-* **Budget.** `risk.max_daily_loss_amount` is a refusing parameter; the first release binds `"3600.00"` for BuyerEdge ([Q-002 answer](../decisions/owner-answers-2026-10-27.md)). If `risk.max_daily_loss_pct` and `risk.capital` are also bound, the budget is the smaller of the amount and that percent of capital (legacy `budget()`, `loss_latch.py:167-177`).
-* **When.** `kernel.safety` evaluates the latch on every new fresh position observation, and only then. Admission check A4 reads the tripped state from `safety_state`; admission never trips the latch.
-* **Trip.** The first P&L at or below −budget records `LOSS_LATCH_TRIPPED` (`strategy`, `session_id`, `pnl`, `budget`, `observation_digest`). An already-tripped latch keeps its first trip (`trip`, `loss_latch.py:512`). Entries for that strategy are refused for the rest of the session.
+  `pnl` sums every row's `day_pnl` in the account's position book, the row's OpenAlgo `pnl` (the day's realised and open P&L together), as legacy's live host does over the whole account, including trades the system did not make ([Q-028](../decisions/owner-questions.md#q-028) option A, `scripts/run_framework_live.py:7983-7988`). It is gross of charges: the book's P&L is price-derived (`loss_latch.py:11-14`). It is `Unavailable` when the book's coverage is `no` (`positions_incomplete`) or a row lacks the field (`pnl_field_missing`); coverage `unknown` counts, as legacy reads every successful book whole. Live mode's fields are TASK-S07-05's. A stale observation is not a latch state: the latch evaluates only a fresh book, and admission check B1 refuses entries on a stale one (`ADM-R05`).
+* **Budget.** `risk.max_daily_loss_amount` (`BoundPolicy.risk`) is a refusing parameter; the first release binds `"3600.00"` for BuyerEdge ([Q-002 answer](../decisions/owner-answers-2026-10-27.md)). If `risk.max_daily_loss_pct` and `risk.capital` are also bound, the budget is the smaller of the amount and that percent of capital (legacy `budget()`, `loss_latch.py:167-177`). **Deviation (from legacy):** capital is the bound `risk.capital`, not the day's reviewed available cash.
+* **When.** `kernel.safety` (principal `kernel:safety`) evaluates the latch on every new fresh position observation, and only then. Admission check A4 reads the tripped state from `safety_state`; admission never trips the latch. Until a session's first evaluation the check is inert (`not_evaluated`).
+* **Trip.** The first P&L at or below −budget records `LOSS_LATCH_TRIPPED` (`session_id`, `account`, `pnl`, `budget`, `observation_digest`). An already-tripped latch keeps its first trip (`trip`, `loss_latch.py:512`). Entries are refused for the rest of the session.
 * **Unlock.** The owner or a delegated human principal holding `latch_unlock` ([Q-014 answer](../decisions/owner-answers-2026-10-27.md)), with a reason, records `LOSS_LATCH_UNLOCKED` (only when tripped). As in legacy, the next P&L still at or below −budget trips it again (`unlock`, `loss_latch.py:576-583`).
 * **Replay** has its own latch in its own ledger (POL-006).
 
@@ -335,10 +336,10 @@ This section is the authority for the session-close exit and for kill during it.
 | Check | Inert when | Guards |
 |---|---|---|
 | Kill, hold | Never (state is in the ledger index; a damaged index is `LED-R05`, which stops all writes) | The actions their rows restrict |
-| Latch | `session_pnl` is `Unavailable` | The strategy's entries |
+| Latch | Not yet evaluated this session, no bound budget, or `session_pnl` is `Unavailable` | The session's entries |
 | Conflict | Never (its inputs are ledger index tables and a bound `protective_independence`; a damaged index is `LED-R05`) | The actions its rows forbid |
 
-A change of state is recorded as `SAFETY_CHECK_STATE` (`check`, `scope`, `state`, `reason`), only on change. An inert check refuses the actions it guards at admission; at dispatch eligibility the command waits ([dispatch spec](dispatch-and-coordination.md#eligibility-and-scheduling)). It never passes them silently (LD-03). Stale observations are admission check B1's and dispatch row 6's, not a safety-check state.
+A change of state is recorded as `SAFETY_CHECK_STATE` (`check`, `session_id`, `account`, `state`, `reason`), only on change. An inert check refuses the actions it guards at admission; at dispatch eligibility the command waits ([dispatch spec](dispatch-and-coordination.md#eligibility-and-scheduling)). It never passes them silently (LD-03). Stale observations are admission check B1's and dispatch row 6's, not a safety-check state.
 
 ### Refusal codes (`kernel/safety.py`)
 
@@ -371,9 +372,9 @@ Every event below is committed through `transact` and folded by the ledger's `fo
 | `EXIT_STARTED` | `kernel.protection` | `position_id`, `reason` (`square_off`, `target`, `deep_otm_delta`), `cause` (the tick's `price` and `at`, or the `session_id`) | `protection_state` (open while `q` > 0, a live protective order rests, or a placement or cancel is pending; [SLICE-06 step 2](../plan/slices/SLICE-06-protection-and-safety.md#step-2--the-protection-loop)) |
 | `KILL_ENGAGED`, `KILL_RELEASED` | `kernel.safety`, on a human principal's command | `principal`, `reason` | `safety_state` |
 | `HOLD_ENGAGED`, `HOLD_RELEASED` | `kernel.safety`, on a human principal's command or `kernel:recovery` | `strategy`, `reason`, `principal` | `safety_state` |
-| `LOSS_LATCH_TRIPPED` | `kernel.safety` | `strategy`, `session_id`, `pnl`, `budget`, `observation_digest` | `safety_state` |
-| `LOSS_LATCH_UNLOCKED` | `kernel.safety`, on a human principal's command | `strategy`, `session_id`, `principal`, `reason` | `safety_state` |
-| `SAFETY_CHECK_STATE` | `kernel.safety` | `check`, `scope`, `state`, `reason` | `safety_state` |
+| `LOSS_LATCH_TRIPPED` | `kernel.safety` | `session_id`, `account`, `pnl`, `budget`, `observation_digest`, `principal` | `safety_state` |
+| `LOSS_LATCH_UNLOCKED` | `kernel.safety`, on a human principal's command | `session_id`, `account`, `principal`, `reason` | `safety_state` |
+| `SAFETY_CHECK_STATE` | `kernel.safety` | `check`, `session_id`, `account`, `state`, `reason`, `principal` | `safety_state` |
 
 Protection also records the ledger's `RECONCILIATION_ESCALATED` ([ledger catalogue](ledger-and-atomic-transaction.md#event-catalogue)) with the reasons named above: `stop_rejected`, `stop_expired`, `level_through_market`, `orphan_under_kill`, `exit_under_kill`, `square_off_under_kill`, `unprotected_under_kill`, and for basket placement `unprotected`, `no_stop_planned`, `overclose` (with `excess_quantity`), `sibling_failed`, `sibling_held`, `protective_roles_unassigned`. `overclose` and `sibling_failed` are committed with their `HOLD_ENGAGED` (when not already engaged) in one decision and are keyed by subject, reason and episode. The subject is the `position_id`, or `<position_id>:<role>` for a reason that names one leg (`sibling_failed`, `sibling_held`, `unprotected`, `stop_rejected`; [SLICE-06 step 3](../plan/slices/SLICE-06-protection-and-safety.md#step-3--basket-placement)); each is recorded once per subject and reason. [SLICE-06 step 2](../plan/slices/SLICE-06-protection-and-safety.md#step-2--the-protection-loop) adds `ladder_unseeded`, `protection_ended_external`, `square_off_unscheduled`, `square_off_entry_working`, `exit_close_rejected`, `exit_close_incomplete` and `unprotected_under_hold`, and records each once per position until step 3's episodes.
 

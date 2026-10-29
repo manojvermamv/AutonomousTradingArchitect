@@ -1,6 +1,6 @@
 # SLICE-06 — Protection and safety
 
-* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-06-review-2026-10-28)). Step 1 is built (OA_NEW `03bbbde` on `slice-06`; [Step 1 as built](#step-1-as-built)). Step 2 is built (OA_NEW `e27a436`; [Step 2 as built](#step-2-as-built); Q-024 and Q-025 option B, [Q-026](../../decisions/owner-questions.md#q-026) option A). Step 3 is built (OA_NEW `3e6d36a`, gaps closed in `84579d1`; [Step 3 as built](#step-3-as-built); [Q-027](../../decisions/owner-questions.md#q-027) option A). Step 4 is decision-complete below ([Q-028](../../decisions/owner-questions.md#q-028) option A, [Q-029](../../decisions/owner-questions.md#q-029) option B) and not yet built. Step 5 is scoped; it is deepened once the step before it is built, as in SLICE-04, SLICE-05 and SLICE-07 (the delivery plan's depth rule).
+* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-06-review-2026-10-28)). Step 1 is built (OA_NEW `03bbbde` on `slice-06`; [Step 1 as built](#step-1-as-built)). Step 2 is built (OA_NEW `e27a436`; [Step 2 as built](#step-2-as-built); Q-024 and Q-025 option B, [Q-026](../../decisions/owner-questions.md#q-026) option A). Step 3 is built (OA_NEW `3e6d36a`, gaps closed in `84579d1`; [Step 3 as built](#step-3-as-built); [Q-027](../../decisions/owner-questions.md#q-027) option A). Step 4 is built (OA_NEW `50e667f`; [Step 4 as built](#step-4-as-built); [Q-028](../../decisions/owner-questions.md#q-028) option A, [Q-029](../../decisions/owner-questions.md#q-029) option B). Step 5 is scoped; it is deepened once the step before it is built, as in SLICE-04, SLICE-05 and SLICE-07 (the delivery plan's depth rule).
 * **Precedence:** the master README, then the ROADMAP, then this package. The authority is the [protection spec](../../design/protection-and-safety.md), with the [ledger spec](../../design/ledger-and-atomic-transaction.md) for the events and index tables and the [execution-domain spec](../../design/execution-domain-and-observations.md) for the observations protection reads. Every deviation is marked **Deviation**. No score, threshold or money value is set here: the ladder's parameters are the approved shipped values (POL-012), and every refusing setting is bound only to labelled synthetic or owner-answered values in tests.
 * **Phase:** master Phase 1 (ATA-01, POL-004…POL-006, POL-010…POL-015, A03-F5 kernel side, Combined-F6 protection part). Class S: the simulated broker only.
 * **Builds on:** [SLICE-07](SLICE-07-observations-reconciliation-domain.md) as built (fills, positions, observations, the OpenAlgo adapter's single orders). The branch `slice-06` is cut from `slice-07` (OA_NEW `1b42505`). SLICE-06 follows SLICE-07 because protection needs fills and observations (delivery plan).
@@ -1326,6 +1326,51 @@ All values are labelled synthetic. Every case runs under both the owner and a de
 | Hold on a non-entry's escalation | the timed-out modify case |
 | Engage the recovery hold only once, not every pass | the release-while-unresolved case |
 | Let `kernel:recovery` release a hold | the release case |
+
+### Step 4 as built
+
+**In plain words.** The three brakes are built and tested: the daily-loss brake over the whole account, the rule that a blind check refuses new trades, and the recovery hold that comes back while an entry order stays unaccounted for. Nothing in them stops a stop-loss, a target or a square-off. Every test value is labelled synthetic; no money value is set in code.
+
+Commit `50e667f` on `slice-06`, on top of `84579d1`. It changes 17 paths (719 lines added, 28 removed). The files match the step's table, except where the table below says otherwise. `kernel/recovery.py` is unchanged ([Q-029](../../decisions/owner-questions.md#q-029) option B).
+
+**Choices made while building:**
+
+| Topic | As built |
+|---|---|
+| `admission.py` | Not changed: A4 and B:A4 call `check` with its default stage, `admission` |
+| Freshness for the latch | The positions book's own age within `max_observation_age_secs`, not B1's rule over all three books. B1's rule rejects any book with coverage `no`, which would hide `positions_incomplete` from the check |
+| The recovery hold's strategy | From the command's `command_identity` row (`CommandRow.strategy`), the same value `COMMAND_ADMITTED` records |
+| The sweep's place | `Coordinator.safety`, set by `bootstrap`; it runs in every composition with admission, whatever `latch` is. The latch evaluation is a no-op when `latch` is off |
+| Test files | F-P12 is in `test_protection_loop.py` and F-P20 in `test_protection_basket.py`, beside their helpers. The dispatch wait and the restart are in `test_safety_matrix.py`; the restart reopens the ledger in-process rather than in a child process exiting 86. The two-session test adds the next day to the composition's calendar, with no `conftest.py` helper |
+| A flaky test seen | `test_a_send_publishes_its_transport_result` (step 3's contract tests) failed once in one full run, and twice on its own (once in 6 runs, once within a loop of up to 12 that stopped at the failure), each time with no published evidence (`raw` `None`); 0 of 12 on `84579d1`, 0 of the last 20 on `50e667f`. The test gives the send 500 ms on a live clock (`DEADLINE_MS`), and the failing runs were the slow ones (about 7 s against about 1 s). It does not touch the latch. **Not checked:** whether it predates this step; recorded as a timing-sensitive test |
+
+**Tests** (831 passed, twice in a row, with `pytest` in the slice's virtual environment on the development machine; an earlier run had the one flaky failure above; no broker variables; nothing reached a deployment):
+
+| File | Cases |
+|---|---|
+| `test_safety_matrix.py` (+19) | **The latch:** a loss short of the budget and one equal to it; `PRT-R03` on entries only, cancels, modifies and closes untouched for a human and a kernel principal; the first trip kept; the unlock's refusals (no authentication, a kernel principal, no grant, no reason, not tripped), the owner's and a delegated principal's unlock, and the re-trip; two sessions; the budget and `risk_policy_from`; `session_pnl`'s four cases; a replay ledger's own latch. **Visibility:** `not_evaluated`, `pnl_field_missing`, coverage `no` and `unknown`, once per change, `budget_unbound`, the default composition. **The code order** at admission and dispatch. **Dispatch:** the inert wait, the deadline, `dispatch_inline`'s `PRT-R06`. **The recovery hold:** held at the next pass, once while engaged, back after a release while unresolved, none after resolution, none for a non-entry, kernel release refused, kept after a reopen |
+| `test_protection_basket.py` (+2, 1 changed) | F-P20 under kill; the latch tripped end to end from the simulated broker's row P&L on the observation loop; CP-B2's recovery hold |
+| `test_protection_loop.py` (+1) | F-P12 under kill |
+| `test_openalgo_contract.py` (+1, 1 changed) | Each captured row's `pnl` read exactly into `day_pnl`; `_pnl`'s exact and refused values |
+
+**Break checks** (each applied with every anchor checked first and reverted byte for byte with an md5 check). One survived the first run: a kernel principal's hold release, which the built-in capability table also refuses. The check was widened to remove both guards. Then all 17 failed:
+
+| Change | Test that failed |
+|---|---|
+| Trip on `<` | `test_the_latch_trips_at_the_budget_and_refuses_entries_only` |
+| Count a row without `day_pnl` as 0; require coverage `yes` | `test_session_pnl_counts_every_row_and_never_a_missing_field` |
+| Treat `not_evaluated` as active; keep the latch across sessions | `test_a_trip_does_not_cross_into_the_next_session` |
+| Treat `risk=None` as active | `test_an_unbound_budget_is_inert` |
+| Record a second trip; let the latch refuse a close; record the check state every evaluation | `test_the_latch_trips_at_the_budget_and_refuses_entries_only` |
+| Drop the inert row at admission | `test_an_entry_is_refused_until_the_latch_has_looked` |
+| Refuse instead of wait at dispatch | `test_an_admitted_entry_waits_while_the_check_is_inert` |
+| Put the hold before kill | `test_kill_before_hold` |
+| Hold on a non-entry's escalation | `test_a_non_entry_escalation_holds_nothing` |
+| Hold once, never again after a release; let a kernel principal release | `test_an_unresolved_entry_holds_its_strategy_every_pass` |
+| Round the row's `pnl` like money | `test_recorded_books_map_exactly` |
+| Leave the recovery hold unswept | `test_cp_b2_a_timed_out_basket_is_resolved_per_leg` |
+
+The text's "Trip at admission" check was not built: admission has no trip path to break. The not-yet-evaluated case proves no admission records a trip.
 
 ## Step 5 — gaps, continuity and cost (scoped)
 
