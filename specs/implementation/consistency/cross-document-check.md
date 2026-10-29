@@ -2,7 +2,7 @@
 
 * **Status:** proposed, non-normative. A record of what the read-only checker found, not a claim that the design is correct.
 * **Precedence:** master README, then ROADMAP, then the package. This file edits nothing.
-* **Run:** 2026-10-29, against the package at branch commit `1d84e25` (this file is rebuilt in the commit after it), master pin `b9bb32c`, legacy pin `OA@445eb116`.
+* **Run:** 2026-10-29, against the package at branch commit `b47fb42` (this file is rebuilt in the commit after it), master pin `b9bb32c`, legacy pin `OA@445eb116`.
 
 ## Results against the hard targets
 
@@ -21,7 +21,7 @@ Passing J2–J5 shows only that the documents agree with each other and with the
 ## Checker output
 
 ```text
-files=46 tree_paths=176 deltas=37 full_keys=87 stub_keys=56
+files=46 tree_paths=176 deltas=39 full_keys=87 stub_keys=56
 J7 changed=0 outside_specs=0 []
 
 no problems
