@@ -533,3 +533,29 @@ Fresh `egm:egm-design` and `egm:egm-implementation-readiness` reviews of [SLICE-
 | R-12 | Minor | The calendar has one day | FIX: a two-day calendar helper in `conftest.py` |
 | R-13 | Minor | Break checks missed `risk=None`, admission trips, dispatch order | FIX: rows added |
 | R-14 | Minor | Settings and schema coverage | FIX: no settings key, said explicitly; the schema payloads given |
+
+## SLICE-06 step 5 review (2026-10-29)
+
+Fresh `egm:egm-design` and `egm:egm-implementation-readiness` reviews of [SLICE-06 step 5](../../plan/slices/SLICE-06-protection-and-safety.md#step-5--gaps-continuity-cost-and-the-recovery-checks): the gap peak, continuity, the position check, the reconciliation-failure hold and the cost baseline. Design: 1 Blocker, 8 Major, 4 Minor (F-1…F-13). Readiness: 1 Blocker, 8 Major, 3 Minor (R-1…R-13; R-13 a values check, no finding). Every finding was checked against the code or the legacy export, and each is resolved by FIX in the rewritten step. No owner question was raised. The largest change: the first text refused the advance when a leg could not run, which would have stopped protection of every position; the leg is now isolated instead, a marked Deviation from PRF-PRT-12's wording.
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| F-1 | Blocker | Refusing the advance on one unrunnable leg stops all protection; check 9 repeats check 5 | FIX: the advance proceeds; `report["unrunnable"]`; the leg isolated; check 9 and `SES-R11` dropped; marked Deviation |
+| F-4, R-1 | Blocker / Major | `missing_minutes` can never record without the day-high source; its test and break check could not fail | FIX: not ported, with the day high, until SLICE-08 |
+| F-2 | Major | Skipping the whole subject also skipped square-off and exits | FIX: a frozen policy: the trail and tick exits off, everything else runs |
+| F-3 | Major | The spec records one per gap, with no stop when the peak does not exceed | FIX: the spec's rule, marked Deviation from legacy |
+| F-6, R-5 | Minor / Major | The record in a later decision could be lost on a crash; the restart test tested nothing | FIX: in the desire's own decision; the restart test and break check dropped |
+| F-7 | Major | "Touched" from position rows misses a missed fill | FIX: entry commands' instruments in any state, plus open positions; others on the same account |
+| F-8 | Major | False holds from read order, stale-skipped reconciliation, unresolved commands, incomplete books | FIX: only a cycle reconciled in full; instruments with unresolved commands skipped; coverage `no` passed over |
+| F-9, R-10 | Major | The catch swallowed `CommitFailed` and database errors; the hold scope was unmarked; re-holding unstated | FIX: `WriterLost`, `CommitFailed`, `LeaseLost`, `apsw.Error`, `EvidenceUnpublished` pass; scope marked Deviation; re-hold stated; `reconcile_failures` counted apart |
+| F-10 | Major | L7's counterpart is the position check, which had no exception path | FIX: caught per strategy, `position_check_failed` and the hold |
+| R-2 | Major | No last seen bar on a first step made every first step `multi_bar` | FIX: with no last seen close only `rebuild` applies |
+| R-3, F-5 | Major / Minor | The counterfactual loop was unspecified and misread legacy (bars before the peak are history; earliest on a tie) | FIX: the loop written out (`bars[:i + 1]`, from the peak's index); earliest on a tie; legacy description corrected |
+| R-4 | Minor | Peak conversion and comparison | FIX: `str(Decimal(repr(x)))`, compared as `Decimal` |
+| R-6 | Major | "Live leg" needed an observation; the skip's place and escalation call unstated | FIX: a ledger-only rule for `carried_runnable`; the frozen policy in `_policy`; `lifecycle.escalate` named |
+| R-7 | Major | The session hook runs only on a binding change; the adapter unstated | FIX: both stated; the lambda given; composed with or without admission; the test changes the binding |
+| R-8 | Minor | `SES-R11`'s place and the routine table | FIX: moot, both dropped |
+| R-9, F-11 | Major / Minor | The position check's lifecycle, coverage, session link and one-decision refusal | FIX: the book's conditions, `_position_checked`, the session by the request's `session_id`, one decision per instrument |
+| R-11, F-12 | Major / Minor | The script's command line, figure, world and timing; the test asserted timing; cross-machine baselines; queue delay understated | FIX: flags given; evaluation p95 compared; conftest builders reused; a pure `compare` tested; other machines refused; the delay bounded by two passes |
+| R-12 | Major | Regression left to the builder | FIX: `test_only_the_latest_close_is_cycled` named; the rules that keep the rest unchanged stated |
+| F-13 | Minor | Two ladder-version constants; exact match in `ProtectionPolicy` | FIX: one constant, imported by `trail.py`; membership in `SUPPORTED_LADDERS` |

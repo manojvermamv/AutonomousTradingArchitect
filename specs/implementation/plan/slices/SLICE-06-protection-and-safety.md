@@ -1,6 +1,6 @@
 # SLICE-06 — Protection and safety
 
-* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-06-review-2026-10-28)). Step 1 is built (OA_NEW `03bbbde` on `slice-06`; [Step 1 as built](#step-1-as-built)). Step 2 is built (OA_NEW `e27a436`; [Step 2 as built](#step-2-as-built); Q-024 and Q-025 option B, [Q-026](../../decisions/owner-questions.md#q-026) option A). Step 3 is built (OA_NEW `3e6d36a`, gaps closed in `84579d1`; [Step 3 as built](#step-3-as-built); [Q-027](../../decisions/owner-questions.md#q-027) option A). Step 4 is built (OA_NEW `50e667f`; [Step 4 as built](#step-4-as-built); [Q-028](../../decisions/owner-questions.md#q-028) option A, [Q-029](../../decisions/owner-questions.md#q-029) option B). Step 5 is scoped; it is deepened once the step before it is built, as in SLICE-04, SLICE-05 and SLICE-07 (the delivery plan's depth rule).
+* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-06-review-2026-10-28)). Step 1 is built (OA_NEW `03bbbde` on `slice-06`; [Step 1 as built](#step-1-as-built)). Step 2 is built (OA_NEW `e27a436`; [Step 2 as built](#step-2-as-built); Q-024 and Q-025 option B, [Q-026](../../decisions/owner-questions.md#q-026) option A). Step 3 is built (OA_NEW `3e6d36a`, gaps closed in `84579d1`; [Step 3 as built](#step-3-as-built); [Q-027](../../decisions/owner-questions.md#q-027) option A). Step 4 is built (OA_NEW `50e667f`; [Step 4 as built](#step-4-as-built); [Q-028](../../decisions/owner-questions.md#q-028) option A, [Q-029](../../decisions/owner-questions.md#q-029) option B). Step 5 is deepened below and not yet built, as in SLICE-04, SLICE-05 and SLICE-07 (the delivery plan's depth rule).
 * **Precedence:** the master README, then the ROADMAP, then this package. The authority is the [protection spec](../../design/protection-and-safety.md), with the [ledger spec](../../design/ledger-and-atomic-transaction.md) for the events and index tables and the [execution-domain spec](../../design/execution-domain-and-observations.md) for the observations protection reads. Every deviation is marked **Deviation**. No score, threshold or money value is set here: the ladder's parameters are the approved shipped values (POL-012), and every refusing setting is bound only to labelled synthetic or owner-answered values in tests.
 * **Phase:** master Phase 1 (ATA-01, POL-004…POL-006, POL-010…POL-015, A03-F5 kernel side, Combined-F6 protection part). Class S: the simulated broker only.
 * **Builds on:** [SLICE-07](SLICE-07-observations-reconciliation-domain.md) as built (fills, positions, observations, the OpenAlgo adapter's single orders). The branch `slice-06` is cut from `slice-07` (OA_NEW `1b42505`). SLICE-06 follows SLICE-07 because protection needs fills and observations (delivery plan).
@@ -27,7 +27,7 @@
 | 2 | The protection loop on the writer thread: triggers, `evaluate`, `stop_on_fill` placement on the first fill, trail modifies, one request at a time per leg, retries, orphans, the tick exits and the exit sequence, the session-close exit, kill and hold interaction, escalations once per subject; crash points CP-P1…CP-P4 | PRF-PRT-01 (`stop_on_fill`, shared rules), PRF-PRT-03 (CP-P), PRF-PRT-06, PRF-PRT-07, PRF-PRT-09 |
 | 3 | `basket_at_plan`: `basket_legs`, `PlanRef.protective_legs`, `ADM-R13`, the simulated broker's basket, the OpenAlgo basket call with the in-send validated join, `LEG_ASSIGNED`, the basket derived states, the quantity rule, the failure classes, `overclose` and `sibling_failed` holds by episode; CP-B1…CP-B6 | PRF-PRT-01 (basket), PRF-PRT-03 (CP-B), PRF-DOM-04 (basket clauses) |
 | 4 | The daily-loss latch (`session_pnl`, `RiskPolicy`, trip and unlock), `SAFETY_CHECK_STATE` and the inert check at admission and dispatch, the recovery hold trigger, and the permission matrix's remaining cells | PRF-PRT-04, PRF-PRT-05, PRF-DSP-04 (inert half) |
-| 5 | The gap peak (`GAP_PEAK_RECORDED` from a replay of the gap's bars), release continuity of a leg's ladder and policy versions, and the evaluation-cost baseline | PRF-PRT-02 (gap), PRF-PRT-10, PRF-PRT-12 |
+| 5 | The gap peak (`GAP_PEAK_RECORDED` from a replay of the gap's bars), release continuity of a leg's ladder and policy versions, the position check after an advance and the reconciliation-failure hold (step 4's carried gaps), and the evaluation-cost baseline | PRF-PRT-02 (gap), PRF-PRT-10, PRF-PRT-12 |
 
 ## Step 1 — the ladder, protection state and the derived leg
 
@@ -1372,12 +1372,202 @@ Commit `50e667f` on `slice-06`, on top of `84579d1`. It changes 17 paths (719 li
 
 The text's "Trip at admission" check was not built: admission has no trip path to break. The not-yet-evaluated case proves no admission records a trip.
 
-## Step 5 — gaps, continuity and cost (scoped)
+## Step 5 — gaps, continuity, cost and the recovery checks
 
-* `GAP_PEAK_RECORDED` from a replay of the gap's bars (POL-013);
-* the recovery-hold gaps step 4 carries: positions compared with the book (L6; with Q-029 option B it is also the only check on positions after a restart that could not read the broker), and exceptions out of reconciliation (L2, L4, L7);
-* the release refusal while a leg's recorded ladder version lives (PRF-PRT-12);
-* the evaluation-cost baseline (PRF-PRT-10).
+**In plain words.** This last step closes the slice with five pieces. None of them sends an order, and none changes a stop on its own.
+
+1. **Price gaps.** The trailing stop looks only at the newest price bar. When the system sees several new bars at once (a slow pass, or a restart), the price may have peaked unseen. The system records each such gap and, if the unseen peak was higher, the stop it *would* have set. It never moves the real stop for it, as in the old system.
+2. **Each position keeps its own rules.** A position opened under one set of trailing rules keeps those rules after the settings change. If a new version of the system cannot run an open position's trailing rules, that position's trailing is set aside and reported. Its stop keeps resting at the broker, and its square-off still runs. Every other position keeps full protection.
+3. **Positions checked after a restart.** After each start, the system compares the broker's positions with its own records once, after it has caught up on orders and trades. If a strategy's numbers disagree, that strategy is held until a person looks. This closes the gap your Q-029 answer accepted.
+4. **A crash in the checking code holds the strategies it was checking**, as in the old system, instead of passing silently. Failures of the ledger itself still stop the system, as today.
+5. **A speed baseline.** A tool that measures how long protection takes in one pass and keeps the figure, so a later slowdown on the same machine is caught.
+
+No owner question is open for this step. Every choice below follows the old system or the spec, and each one that differs is marked **Deviation**.
+
+The authorities are:
+
+* the protection spec's [Evaluation](../../design/protection-and-safety.md#evaluation-kernelprotectionpy) section ("Gaps", "Continuity"), POL-013, F-P6, REQ-PRT-014, and PRF-PRT-02 (gap case), PRF-PRT-10 and PRF-PRT-12;
+* the sessions spec's continuity hook (`SESSION_OPEN_FAILED` reason `continuity`) and recovery stages;
+* step 4's carried gaps: L6 (positions disagree) and L2, L4, L7 (code raised) in [Step 4's trigger table](#the-recovery-hold).
+
+The step builds on step 4 as built (OA_NEW `50e667f`). Fresh EGM design and implementation-readiness reviewers reviewed it ([review](../../egm/plan/review.md#slice-06-step-5-review-2026-10-29)); their findings are resolved in the text below. **The rule for choices** is step 2's: where the live host and the spec differ, the text follows the host and says so, unless the spec states the difference on purpose.
+
+### What legacy does
+
+All citations are at 445eb116. `RFL` is `scripts/run_framework_live.py` (read with `git show`); the rest is under `src/`.
+
+**The gap peak** (OD-14, POL-013).
+
+* **Detection** (`_trail_gap`, RFL `:5285-5313`). The framework has no gap signal of its own; the ladder acts only on `bars[-1]`. A gap is the stretch of bars since the last one the ladder saw (`_TRAIL_SEEN`, set after each live cycle, `:5486`):
+  * `missing_minutes`: two consecutive bar stamps more than 120 s apart (`_TRAIL_GAP_SECS`, `:5019`);
+  * `multi_bar`: more than one new bar since the last pass;
+  * `rebuild`: a new ladder over more than two bars, which means it was built late, after a restart (`:5294-5301`). A position first stepped normally has two.
+
+  The unseen bars are every new bar but the newest.
+* **The recovered peak** (`_record_trail_gap`, `:5346-5403`). The highest unseen close (`max`, so the earliest on a tie, `:5360`); or, if higher, the leg's day high when the option chain's running high rose across the gap (`_leg_day_high_jump`, `:5316-5343`). A single late bar has no unseen close, so `missing_minutes` alone can record only through the day high. Nothing is recorded when the peak is at or below the live peak (`trail_peak_close`, or the entry premium) read after the live cycle (`:5367-5372`).
+* **The would-be stop** (`:5374-5388`). A copy of the ladder taken before the live cycle (`:5480`). The series is the bars before the peak, as history only, then a bar closing at the peak (open the previous close, high and low their extremes), which is the peak's own bar when the peak is a close. The copy is cycled once at that bar, then once at each later real bar, each time over the series up to that bar. Its stop is the would-be stop.
+* **Record only.** `trail_gap_peak` with `applied: False`; the live stop is untouched, and any failure only adds a note (`:5473-5497`).
+
+**Continuity.** Legacy has none: a restart rebuilds each ladder from current settings (`_build_ladder`, RFL `:5460`). The spec's rule (Combined-F6, REQ-PRT-014) is new.
+
+**Positions at startup** (`core/framework/execution/recovery.py:plan`; `reconcile.py:1079-1196`).
+
+* Run once at startup per strategy, after the `UNKNOWN` orders are resolved against the book (`recovery.py:14-16`). A disagreement holds the strategy until a person clears it (RFL `:3157-3169`).
+* **The comparison** (`divergence`). The strategy's held quantity per symbol, from its filled orders less what closed (`_held`), against the broker's net quantity for that symbol **minus what every other strategy's records hold**. Only symbols the strategy sent an order for that day, **in any state**, are compared (`touched`): so "ours flat while the broker holds", a missed fill, is caught. A broker row for a symbol it never touched is reported as `unattributed`, never a divergence. Reported, never corrected.
+
+**Code that raised** (L2, L4, L7). Each `except Exception` around the per-strategy reconciliation or startup comparison places that strategy's hold with the error in its reason (RFL `:2900-2908`, `:2950-2957`, `:3198-3207`), and the pass continues. The next pass places it again while the error lasts.
+
+### Decisions
+
+#### The gap peak (POL-013, F-P6)
+
+* **Where.** In `ProtectionLoop._trail` (`kernel/protection.py:772-810`), around the existing step. **Deviation (from the spec's "when a feed gap ends"):** the kernel has no feed-gap flag until SLICE-08, and legacy's live host has none either; the gap is detected from the closes, as the host does.
+* **The last seen close** is the desire's `view_id` when it is a bar (`bar:<instrument>:<ts>`, as built in step 2, `protection.py:784-785`). Otherwise there is none: a position's first trail step still carries the plan's view.
+* **Detection**, with `closes` as `_trail` already reads them (every close since the first fill):
+  * **with a last seen close:** the new closes are those with `ts` after it. `multi_bar` when there are two or more; the unseen closes are all but the newest;
+  * **with none:** `rebuild` when there are more than two closes; the unseen closes are all but the newest. Two closes, a normal first step, are no gap.
+  * **Deviation (from legacy):** `missing_minutes` is not ported. Without the day-high source (below) it can never record anything: one late close has no unseen close, and two or more are `multi_bar`. Both arrive together with SLICE-08's market data.
+* **The record (one per gap).** For every detected gap, `GAP_PEAK_RECORDED(position_id, view_id, gap_started_at, gap_ended_at, live_peak, recovered_peak, would_be_stop)`:
+  * `view_id` is the live step's new view, `bar:<instrument>:<newest ts>`; `gap_started_at` is the last seen close's `ts`, or, for `rebuild`, the first close's; `gap_ended_at` is the newest close's `ts`;
+  * `recovered_peak` is the highest unseen close, as its `close` string; the earliest on a tie, as legacy's `max`;
+  * `live_peak` is the live step's `accepted.trail_peak_close`, else its `entry_premium`, as `str(Decimal(repr(x)))`. The two are compared as `Decimal`;
+  * `would_be_stop` is set when the recovered peak exceeds the live peak, else `None`. **Deviation (from legacy), as the spec states it on purpose:** legacy records nothing when the peak does not exceed; the spec records one per gap, with no stop (protection spec "Gaps", F-P6).
+* **The would-be stop.** `pre` is a deep copy of the ladder position after step 2's put-back and adoption, before the live step. `bars = trail.bars_from_closes(closes)` (already the bar shape legacy builds for a peak that is a close). `at` is the peak's index in `bars`. For each `i` from `at` to `len(bars) - 1`: `pre = trail.step(settings, pre, bar_index=i, bars=bars[:i + 1], delta=None, opposing_score=None).accepted`, with `settings` the leg's `trail_settings()`. The bars before `at` are history only, as legacy. The would-be stop is `trail_level(pre.sl, tick_size)`, the live stop's rounding.
+* **In the desire's own decision.** The record is committed in the same decision as the live step's `PROTECTION_DESIRED`: `_record(pid, desire, extra=(gap_draft,))`, with `record_desired` gaining `extra`. So a crash cannot keep the desire and lose the gap. The fold's guard (`projections.py:367-371`, one row per `(position_id, gap_started_at)`) refuses a duplicate; none can arise, since the desire's `view_id` moves in the same decision.
+* **Never applied.** `ladder_state` and the desired level are the live step's alone. If computing the would-be stop raises (anything but `WriterLost`, `CommitFailed`, `apsw.Error` and `DesireRefused`), the record is written with `would_be_stop` `None`, and `gap_peak_failed` is escalated once for the position after the commit (legacy `:5492-5497`).
+* **Deviation (from legacy):** the day-high source is not ported. It needs the option chain's running high (SLICE-08). Until then a peak that printed between closes and closed lower is not seen. Carried to SLICE-08, with `missing_minutes`.
+
+#### Continuity (REQ-PRT-014, PRF-PRT-12)
+
+* **Per leg, built in step 1.** A leg is evaluated with the policy its `PROTECTION_DESIRED` recorded (`_policy`, `protection.py:715-720`); a new leg takes the current binding's. Step 5 adds the proof.
+* **One version source.** `contracts/decisions.py` gains `SUPPORTED_LADDERS = (PROTECTION_LADDER_VERSION,)`. `ProtectionPolicy.__post_init__` checks membership in it instead of equality. `kernel/trail.py`'s `LADDER_VERSION` becomes `PROTECTION_LADDER_VERSION`, imported, so desires record the one constant.
+* **Runnable.** `protection.runnable(state_row) -> str | None`, over a `protection_state` row: `None` when the row is missing, its `policy` is null, or this code can run it. Otherwise the reason: `ladder_version_unknown` when its `ladder_version` is not in `SUPPORTED_LADDERS`, `policy_unloadable` when `ProtectionPolicy.from_resolved` refuses its policy.
+* **In the loop: isolate the ladder, keep everything else.** `_policy` (`protection.py:715`) returns, for a row that is not runnable, a **frozen policy**: `ProtectionPolicy(enabled=False, session_close=…, square_off_time=…)`, with `session_close` and `square_off_time` read from the recorded policy's JSON, or from the current binding when those two fields do not load either. `enabled=False` skips the trail (`protection.py:774`); the tick exits (`_tick_exit`) are skipped for it too, since they read the ladder's settings. The square-off, the exit sequence, the quantity rule and the basket upkeep run as before, at the desire's recorded level. `ladder_unrunnable` is escalated once for the position with `lifecycle.escalate(writer, pid, "ladder_unrunnable", principal=PROTECTION)`.
+* **At the advance: report, never refuse.** **Deviation (from PRF-PRT-12's "a release that cannot run `v1` is refused activation"):** in this kernel the release is the running code, and protection runs only in `OPERATING` (`coordinator.py:417-423`). Refusing the advance would stop the trail, square-off and basket upkeep of every position on every account, which is worse than isolating one leg. So the advance proceeds, `Recovery.report["unrunnable"]` lists each position and reason, and the loop isolates the leg as above. Refusing a release *before* it becomes the running code is the configuration slice's staging, still a stub; it is carried there.
+* **At a session open.** `Sessions`' continuity hook (`lifecycle.py:88`, today `lambda scope, binding: True`) runs only when the new session's binding differs from the scope's previous one (`lifecycle.py:153-158`). `bootstrap` composes it as `continuity=lambda scope, binding: protection.carried_runnable(writer, scope)`, with or without admission. `carried_runnable` is ledger-only: it is false when a `protection_state` row whose `position` row is on the scope's account and not `closed` is not runnable. The session open then records `SESSION_OPEN_FAILED` reason `continuity`, so no new entries on that account. Protection of existing positions is not affected.
+
+#### Positions after an advance (L6)
+
+* **Which book.** Once per account after each advance to `OPERATING`: the first observation cycle that is all of these.
+  * **Reconciled in full:** both its orderbook and tradebook passed `lifecycle.reconcile` in the same `drain` without an exception. So every fill the books show is in the ledger first. `ObservationLoop` records the cycle's `seq` as reconciled, and `reconciled(account) -> AccountObservation | None` returns the latest snapshot only if that is its cycle.
+  * **After the advance:** the positions book's `as_of` is after the advance's `RECOVERY_STAGE` event time.
+  * **Fresh:** step 4's per-book age rule.
+  * **Not known incomplete:** coverage `yes` or `unknown`, as step 4 reads it. A book with coverage `no` is passed over, and the next one is judged.
+  The memory is `Safety._position_checked: dict[str, int]`, account to the advance's sequence; a restart re-runs the check, as legacy does at every start. Fixture-observation worlds have no `reconciled` and are never checked.
+* **The comparison**, per strategy S that has an entry command admitted on the account in the account's current `OPEN` session (its `COMMAND_ADMITTED` request's `session_id`), or a position row on the account that is not `closed`. `kernel/safety.py` `position_divergence(account, snapshot) -> list[(strategy, instrument, excess)]`:
+  * **S's instruments ("touched")** are the plan-leg instruments of those entry commands, **in any state**, plus the instruments of S's positions that are not `closed`. A missed fill is therefore compared;
+  * **ours** is S's summed `owned_quantity` on the account and instrument; **others** is every other strategy's, on the same account;
+  * **the broker's** is the book's summed `net_quantity` for the instrument. A missing row is 0, as legacy reads a successful book;
+  * an instrument is **skipped** while S has a command on it in `ADMITTED`, `IN_FLIGHT`, `UNCERTAIN` or `WORKING` (legacy resolves `UNKNOWN` first; here step 4's recovery hold covers an unresolved entry);
+  * S **diverges** on an instrument when `ours != broker - others`; `excess = broker - others - ours`. A broker row on an instrument no strategy touched is not a divergence: foreign activity is reconciliation's (Q-016).
+* **Effect.** For each divergence, its own decision by `kernel:recovery`: `RECONCILIATION_ESCALATED(subject="<S>:<instrument>", reason="position_divergence", excess_quantity=excess, episode=safety.episode(writer, S, "recovery"))`, plus `hold_draft(writer, S, "recovery", principal=RECOVERY)` when it is not `None`. One decision per instrument, so an escalation already recorded (`LED-R09`) costs no other. Never corrected, as legacy.
+* **If the check raises** (anything but the four that stop the kernel, below), for each strategy it was judging: its own decision with `RECONCILIATION_ESCALATED(subject="<S>:position_check", reason="position_check_failed", episode=…)` and the recovery hold. The check counts as done for that advance. This is legacy's L7 (`:3198-3207`).
+* **Deviation (from legacy's startup-only check):** "startup" is each advance, so a restart that could not read the broker (Q-029 B) is checked at its first reconciled fresh book.
+
+#### Code that raised in reconciliation (L2, L4)
+
+* **Where.** In `ObservationLoop.drain` (`reconciliation.py:866-871`), each `lifecycle.reconcile(…, b[kind], …)` call.
+* **What stops the kernel, as today:** `WriterLost` (`kernel.coordinator`), `CommitFailed` (`kernel.ledger.store`), `LeaseLost` (`kernel.recovery`), `apsw.Error`, and `EvidenceUnpublished` (counted as today). These are never caught here.
+* **Anything else** is caught for that account and book kind. Then:
+  * the account's `ReadHealth.reconcile_failures` (a new field, apart from read `failures`) is incremented;
+  * for each strategy with an entry command admitted on the account in its current `OPEN` session, or a position row on it that is not `closed`, there is one decision: `RECONCILIATION_ESCALATED(subject="<S>:reconcile", reason="reconciliation_failed", episode=safety.episode(writer, S, "recovery"))` and the recovery hold (`hold_draft`, `kernel:recovery`);
+  * the drain goes on to the other book kind and the next account. The cycle is not marked reconciled, so the position check waits.
+* **After a release** while the error lasts, the next drain's escalation is refused (`LED-R09`, same episode) and the hold is engaged again by `hold_draft`, as legacy re-places it every pass.
+* **Deviation (from legacy's per-owner hold):** reconciliation here is per account, not per strategy, so every strategy active on the account is held.
+* **L7 in recovery.** An exception in `Recovery.run` still fails the composition: nothing runs, which is stricter than legacy's one held strategy. **Deviation**, kept. Legacy's L7 counterpart in the running kernel is the position check, above.
+
+#### The evaluation-cost baseline (PRF-PRT-10, class M)
+
+* **`scripts/measure_protection.py`** (new), a development tool, never shipped or run by the suite. It puts `tests/` on `sys.path` and reuses `conftest.py`'s builders (`build`, `admission_ports`, `open_admission_world`, `FixtureMarket`) to compose a loop world in a temporary directory. It opens N positions, labelled synthetic, with K closes each and one tick per position per pass, then runs P passes. It times:
+  * **evaluation:** `coordinator.protection.run_once()` per pass, timed by a wrapper;
+  * **the pass:** `run_pass` as a whole. The writer-queue delay of a returned send is bounded by two passes: one queued during a pass waits for that pass and the next (`coordinator.py:406-416`).
+
+  It reports p50, p95 and the maximum of each.
+* **Command line:**
+  * `--positions N --closes K --passes P`: the workload (defaults 20, 30, 50);
+  * `--baseline PATH`: default `tests/baselines/protection_eval.json`;
+  * `--write`: save the run as the baseline, with the workload, the machine (`platform.node()`, `platform.processor()`), Python's version, the commit, and `tolerance_pct`;
+  * `--check` (the default): compare evaluation p95 against the baseline's. It exits 1 beyond the tolerance, 0 within it, and 3 "not comparable" when the machine or the workload differs. A figure is never compared across machines.
+* **The values.** The workload and `tolerance_pct` (default 50) are measurement settings recorded in the baseline. They gate nothing in trading or in the suite; whoever writes a baseline sets them. **Deviation:** the spec's "recorded tick rates" need recorded sessions (TASK-S11-07), so the workload is synthetic until then.
+* **The pure part is tested.** `compare(baseline: dict, run: dict) -> int` is a function of two dicts. `tests/integration/test_protection_kernel.py` (new) tests it with injected figures (within, beyond, another machine, another workload), and that the committed baseline names its workload and machine. Timing is never asserted in the suite.
+
+### Regression and the existing tests
+
+* **Gaps.** `test_only_the_latest_close_is_cycled` (`test_protection_loop.py:212-224`) feeds several closes at once. It now records one `GAP_PEAK_RECORDED` in the desire's decision, and its existing assertions on the desire are unchanged; the build adds the gap assertion. Any other test that feeds several closes in one pass gains a record the same way, and the as-built record lists it.
+* **The position check** runs only on a reconciled loop cycle. Fixture-observation worlds are untouched. In loop worlds the simulated book's positions come from the same fills the ledger records, so they agree. A test that seeds the simulated book without the matching ledger fills would hold; the as-built record lists any.
+* **The continuity hook** returns true unless a leg is not runnable, which is never so in existing worlds.
+* **The reconciliation catch** changes nothing unless reconcile raises, which no existing test makes it do.
+
+### Files
+
+| File | Change |
+|---|---|
+| `src/autonomous_trading/kernel/protection.py` | Gap detection, the would-be stop, the record in the desire's decision; `runnable`, `carried_runnable`; the frozen policy and `ladder_unrunnable`; the tick-exit skip |
+| `src/autonomous_trading/kernel/trail.py` | `LADDER_VERSION` imported from `contracts/decisions.py` |
+| `src/autonomous_trading/contracts/decisions.py` | `SUPPORTED_LADDERS`; membership in `ProtectionPolicy` |
+| `src/autonomous_trading/kernel/recovery.py` | `report["unrunnable"]` |
+| `src/autonomous_trading/kernel/safety.py` | `position_divergence`; the position check's and the reconciliation failure's decisions; `_position_checked` |
+| `src/autonomous_trading/kernel/coordinator.py` | The position check after the latch evaluation in `run_pass` |
+| `src/autonomous_trading/kernel/reconciliation.py` | The caught exception and `ReadHealth.reconcile_failures`; the reconciled cycle and `reconciled(account)` |
+| `src/autonomous_trading/bootstrap.py` | The continuity hook composed |
+| `scripts/measure_protection.py`, `tests/baselines/protection_eval.json` | New: the measurement and its first baseline |
+| `tests/unit/test_protection_loop.py` | The gap cases; continuity and unrunnable legs; the gap assertion in `test_only_the_latest_close_is_cycled` |
+| `tests/unit/test_safety_matrix.py` | The position check; reconciliation failures |
+| `tests/recovery/test_release_continuity.py` | New: PRF-PRT-12 |
+| `tests/integration/test_protection_kernel.py` | New: the comparator and the baseline's fields |
+| Spec amendments | The protection spec: gap detection from closes (no `missing_minutes`, no day high until SLICE-08), the record in the desire's decision, `runnable`, the frozen policy, `ladder_unrunnable`, `gap_peak_failed`, PRF-PRT-12's refusal replaced by isolation. The sessions spec: the continuity hook composed. The execution-domain spec: `ReadHealth.reconcile_failures`, `position_divergence`, `reconciliation_failed`, `position_check_failed` |
+
+### Step 5 tests
+
+All values are labelled synthetic.
+
+* **The gap (PRF-PRT-02, F-P6):**
+  * three closes arriving at once with the middle one highest record one `GAP_PEAK_RECORDED` in the same decision as the desire. Its `would_be_stop` equals a hand-run of the loop above;
+  * the same with the middle one lowest records one with `would_be_stop` `None`;
+  * a first trail step over three closes records one (`gap_started_at` the first close's); over two, none;
+  * the live desire, its level and `ladder_state` are identical with and without the gap code (the gap code patched out);
+  * a patched `trail.step` raising inside the would-be stop leaves the record with `None` and escalates `gap_peak_failed` once; the live desire is recorded.
+* **Continuity (PRF-PRT-12):**
+  * a leg created under policy P1 keeps P1's ladder settings and `policy_version` after the binding changes to P2; a new position takes P2;
+  * with `SUPPORTED_LADDERS` patched to exclude the leg's version:
+    * the loop escalates `ladder_unrunnable` once and moves no stop on a rising close;
+    * at square-off time the leg's exit still runs;
+    * a second position on another instrument still trails;
+    * `report["unrunnable"]` names the leg after a restart, and the advance reaches `OPERATING`;
+    * a session open with a changed binding records `SESSION_OPEN_FAILED` `continuity`;
+  * once the position is `closed`, the session opens.
+* **Positions (L6):**
+  * a book agreeing with the ledger holds nothing;
+  * a simulated book showing 75 more than the strategy holds escalates `position_divergence` (excess 75) and holds S in one decision;
+  * a missed fill (an entry `WORKING` turned terminal, the book holding 75, the ledger none) holds S;
+  * two strategies on one instrument, the book their sum, hold neither;
+  * a broker row on an untouched instrument holds nothing;
+  * an instrument with a command `IN_FLIGHT` is skipped;
+  * a book with coverage `no` is passed over, and the next good one is judged;
+  * only the first judged book after an advance counts; a later disagreement holds nothing;
+  * after a release and a new advance, a disagreement holds again (a new episode);
+  * a patched `position_divergence` raising escalates `position_check_failed` and holds.
+* **Code that raised:**
+  * a patched `lifecycle.reconcile` raising on the orderbook holds each active strategy on the account once, escalates `reconciliation_failed`, still reconciles the tradebook, and goes on to the next account;
+  * after a release while it still raises, the hold returns at the next drain;
+  * a raised `WriterLost` or `CommitFailed` propagates.
+* **The baseline (PRF-PRT-10):** `compare` with injected figures returns 0, 1 and 3 as above; the committed baseline names its workload and machine.
+
+**Break checks** (applied and reverted as in step 4):
+
+| Change | Must fail |
+|---|---|
+| Apply the would-be stop to the live desire | the unchanged-desire case |
+| Commit the gap in a separate decision after the desire | the same-decision case |
+| Take the latest close on a tie, or step from the first unseen close | the hand-run would-be stop |
+| Record no gap when the peak does not exceed | the middle-lowest case |
+| Skip the whole subject when its leg is not runnable | the square-off case |
+| Refuse the advance on an unrunnable leg | the advance-reaches-`OPERATING` case |
+| Compare against the broker's total, not less the others | the two-strategies case |
+| Touch only instruments with a position row | the missed-fill case |
+| Judge a cycle that was not reconciled in full, or every book | the `IN_FLIGHT` and later-disagreement cases |
+| Catch `CommitFailed` in `drain` | the propagation case |
+| Compare across machines | the comparator's other-machine case |
 
 ## Completion conditions
 
