@@ -32,7 +32,7 @@ Status: **open owner decision** unless a row says answered. Each question is a g
 | [Q-026](#q-026) | The deep-OTM delta exit: legacy's live host never ran it. Keep it in the kernel, or not? | `scripts/run_framework_live.py` @445eb116 (no `premium_exit` call); [SLICE-06 step 2](../plan/slices/SLICE-06-protection-and-safety.md#step-2--the-protection-loop) | TASK-S06-01 (step 2's tick exits), step 3's exits | answered 2026-10-28 ([answers](owner-answers-2026-10-27.md)) |
 | [Q-027](#q-027) | Basket maintenance where the spec goes beyond legacy's live host (partial fills, partial or unfilled entries, failed cancels, unproven roles): spec or legacy? | `scripts/run_framework_live.py:4588-4687` @445eb116; [SLICE-06 step 3](../plan/slices/SLICE-06-protection-and-safety.md#step-3--basket-placement) | TASK-S06-01 (SLICE-06 step 3) | answered 2026-10-28 ([answers](owner-answers-2026-10-27.md)) |
 | [Q-028](#q-028) | The daily-loss latch: the whole account's P&L (legacy) or only the system's own positions (the spec)? | `scripts/run_framework_live.py:7983-7988` @445eb116; [SLICE-06 step 4](../plan/slices/SLICE-06-protection-and-safety.md#step-4--the-latch-safety-visibility-and-the-recovery-hold) | TASK-S06-04 | answered 2026-10-29 ([answers](owner-answers-2026-10-27.md)) |
-| [Q-029](#q-029) | A restart that cannot read the broker: hold every strategy until a person releases it (legacy), or let the stale-book refusal lift on its own? | `scripts/run_framework_live.py:3127-3169` @445eb116; [SLICE-06 step 4](../plan/slices/SLICE-06-protection-and-safety.md#step-4--the-latch-safety-visibility-and-the-recovery-hold) | TASK-S06-03 | open |
+| [Q-029](#q-029) | A restart that cannot read the broker: hold every strategy until a person releases it (legacy), or let the stale-book refusal lift on its own? | `scripts/run_framework_live.py:3127-3169` @445eb116; [SLICE-06 step 4](../plan/slices/SLICE-06-protection-and-safety.md#step-4--the-latch-safety-visibility-and-the-recovery-hold) | TASK-S06-03 | answered 2026-10-29 ([answers](owner-answers-2026-10-27.md)) |
 
 ---
 
@@ -650,3 +650,5 @@ Proof: tests/recovery/test_crash_boundaries.py; PRF-PRT-04.
 | Easy to undo? | Yes | Yes |
 
 **Recommendation: A, for now.** A person looking before trading resumes is the only check on positions until the system compares them itself. Once it does, B becomes the simpler and safe choice. Step 4 is written for A and marks each line B changes.
+
+**Answer (2026-10-29): option B.** No hold: entries wait while the broker cannot be read and resume on their own once it answers. Until the kernel compares positions (step 5), a position that disagrees with the records after such a restart is not noticed by the system.
