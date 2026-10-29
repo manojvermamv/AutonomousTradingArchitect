@@ -1,6 +1,6 @@
 # SLICE-06 — Protection and safety
 
-* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-06-review-2026-10-28)). Step 1 is built (OA_NEW `03bbbde` on `slice-06`; [Step 1 as built](#step-1-as-built)). Step 2 is built (OA_NEW `e27a436`; [Step 2 as built](#step-2-as-built); Q-024 and Q-025 option B, [Q-026](../../decisions/owner-questions.md#q-026) option A). Step 3 is built (OA_NEW `3e6d36a`, gaps closed in `84579d1`; [Step 3 as built](#step-3-as-built); [Q-027](../../decisions/owner-questions.md#q-027) option A). Step 4 is built (OA_NEW `50e667f`; [Step 4 as built](#step-4-as-built); [Q-028](../../decisions/owner-questions.md#q-028) option A, [Q-029](../../decisions/owner-questions.md#q-029) option B). Step 5 is deepened below and not yet built, as in SLICE-04, SLICE-05 and SLICE-07 (the delivery plan's depth rule).
+* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-06-review-2026-10-28)). Step 1 is built (OA_NEW `03bbbde` on `slice-06`; [Step 1 as built](#step-1-as-built)). Step 2 is built (OA_NEW `e27a436`; [Step 2 as built](#step-2-as-built); Q-024 and Q-025 option B, [Q-026](../../decisions/owner-questions.md#q-026) option A). Step 3 is built (OA_NEW `3e6d36a`, gaps closed in `84579d1`; [Step 3 as built](#step-3-as-built); [Q-027](../../decisions/owner-questions.md#q-027) option A). Step 4 is built (OA_NEW `50e667f`; [Step 4 as built](#step-4-as-built); [Q-028](../../decisions/owner-questions.md#q-028) option A, [Q-029](../../decisions/owner-questions.md#q-029) option B). Step 5 is built (OA_NEW `6b4fd7c`; [Step 5 as built](#step-5-as-built)). All five steps are built.
 * **Precedence:** the master README, then the ROADMAP, then this package. The authority is the [protection spec](../../design/protection-and-safety.md), with the [ledger spec](../../design/ledger-and-atomic-transaction.md) for the events and index tables and the [execution-domain spec](../../design/execution-domain-and-observations.md) for the observations protection reads. Every deviation is marked **Deviation**. No score, threshold or money value is set here: the ladder's parameters are the approved shipped values (POL-012), and every refusing setting is bound only to labelled synthetic or owner-answered values in tests.
 * **Phase:** master Phase 1 (ATA-01, POL-004…POL-006, POL-010…POL-015, A03-F5 kernel side, Combined-F6 protection part). Class S: the simulated broker only.
 * **Builds on:** [SLICE-07](SLICE-07-observations-reconciliation-domain.md) as built (fills, positions, observations, the OpenAlgo adapter's single orders). The branch `slice-06` is cut from `slice-07` (OA_NEW `1b42505`). SLICE-06 follows SLICE-07 because protection needs fills and observations (delivery plan).
@@ -1568,6 +1568,49 @@ All values are labelled synthetic.
 | Judge a cycle that was not reconciled in full, or every book | the `IN_FLIGHT` and later-disagreement cases |
 | Catch `CommitFailed` in `drain` | the propagation case |
 | Compare across machines | the comparator's other-machine case |
+
+### Step 5 as built
+
+**In plain words.** The last five pieces are built and tested. Price gaps are recorded, never applied. A position keeps its own trailing rules, and one this version cannot run has only its trailing set aside: its square-off still runs and every other position keeps full protection. After each restart the broker's positions are checked once against the records, after orders and trades are caught up. A crash in the checking code holds the strategies it was checking, while ledger failures still stop the system. A speed baseline is recorded. All 5 steps of the protection slice are now built.
+
+Commit `6b4fd7c` on `slice-06`, on top of `50e667f`. It changes 11 paths (847 lines added, 11 removed). The files match the step's table, except where the table below says otherwise.
+
+**Choices made while building:**
+
+| Topic | As built |
+|---|---|
+| One version source | `kernel/trail.py` keeps its own `LADDER_VERSION`: the ported ladder stays standard-library only, as step 1 built it. `test_the_ladder_version_has_one_source` pins it equal to `PROTECTION_LADDER_VERSION` and `SUPPORTED_LADDERS` |
+| "This session" | An entry belongs to the account's current session when its `command_identity.first_sequence` is at or after the `OPEN` session's `opened_sequence`, not by the request's `session_id`: the same set, one join fewer |
+| An action's instrument | An entry's plan leg; a close's or a protective command's position. A cancel or modify by order ID has none in the ledger, so a strategy with such a command unresolved has every instrument skipped, never compared on a guess |
+| Kernel-stopping errors | One helper, `protection._stops_the_kernel`: `apsw.Error`, `WriterLost`, `CommitFailed`, `LeaseLost`, `DesireRefused` |
+| Test files | The gap, continuity, position-check and failure tests are in `test_protection_loop.py`, beside the loop helpers they use, not in a new `tests/recovery/test_release_continuity.py` (T-21 stays unbuilt). The session hook is proved through `carried_runnable` and `Sessions.continuity` directly, not by opening a second day's session with a changed binding. The reconciliation-failure test uses one account, so "goes on to the next account" is shown only by the tradebook still being reconciled |
+| The measurement | The tool calls `world.fresh()` before each entry, so the fixture view's stamps stay within B1's bound, and drains dispatch with up to `4 × positions + 20` passes per timed pass, since one account claims one command per pass. Evaluation samples include the protection runs inside those drain passes |
+| The first baseline | `tests/baselines/protection_eval.json`: the development machine, workload 20 positions, 30 closes, 50 passes. Evaluation p50 320 ms, p95 646 ms; the pass p95 1,673 ms. **Not checked:** the EC2's figures |
+| Test runs | 849 passed, twice in a row after the last test change, then three more times. One run in between had 1 failure, not named because the output was cut; it did not recur in the next four runs. Most likely step 3's timing-sensitive send test (step 4 as built); **not checked** |
+
+**Tests** (with `pytest` in the slice's virtual environment on the development machine; no broker variables; nothing reached a deployment):
+
+| File | Cases |
+|---|---|
+| `test_protection_loop.py` (+16, 1 changed) | **Gaps:** a higher unseen peak with its hand-run would-be stop, in the desire's decision; no higher peak, no stop; a late first step (`rebuild`); two closes, no gap; the live desire identical with the gap code patched out; a failing would-be stop recorded `None` and escalated once; `test_only_the_latest_close_is_cycled` gains its gap. **Continuity:** a leg keeps P1 after the binding moves to P2, a new position takes P2; an unrunnable leg isolated (no move, escalated once, reported, the session hook false) while another position trails and its square-off still runs; one version source. **Positions:** compared less the others, an untouched row ignored; two strategies agreeing with their sum; a missed fill, and the unresolved command skipped; only the first judged book per advance, coverage `no` passed over, no re-hold after a release, a raising check held; a reopen with an empty book held. **Failures:** a raising reconcile holds and still reconciles the tradebook, holds again after a release; `CommitFailed` propagates |
+| `test_protection_kernel.py` (new, 2) | The comparator's 0, 1 and 3; the baseline's workload, machine and figures |
+
+**Break checks** (each applied with every anchor checked first and reverted byte for byte with an md5 check). One survived the first run: judging every book after an advance, because a second judgement in the same episode is refused as a duplicate escalation. The test now releases the hold and checks that no second hold follows. Then all 13 failed:
+
+| Change | Test that failed |
+|---|---|
+| Apply the would-be stop to the live desire | `test_only_the_latest_close_is_cycled` |
+| Commit the gap in a separate decision; step from the first unseen close | `test_a_gap_with_a_higher_unseen_peak_records_the_would_be_stop` |
+| Record no gap when the peak does not exceed | `test_a_gap_with_no_higher_peak_records_no_stop` |
+| Skip the whole subject when its leg is not runnable; trail an unrunnable leg | `test_an_unrunnable_leg_is_isolated_not_the_rest` |
+| Compare against the broker's total | `test_two_strategies_on_one_instrument_agree_with_their_sum` |
+| Touch only instruments with a position row; judge an unresolved instrument | `test_a_missed_fill_and_an_unresolved_command` |
+| Judge every book after an advance | `test_only_the_first_judged_book_after_an_advance_counts` |
+| Judge a cycle not reconciled in full | `test_a_reconcile_that_raises_holds_the_active_strategy` |
+| Catch `CommitFailed` in `drain` | `test_a_ledger_failure_in_reconcile_still_stops` |
+| Compare across machines | `test_the_comparison_within_beyond_and_not_comparable` |
+
+The text's "refuse the advance" check was not built: the step removed that refusal, and no code path remains to break.
 
 ## Completion conditions
 

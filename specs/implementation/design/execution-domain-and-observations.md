@@ -193,6 +193,7 @@ ObservationPort.funds(account) -> Observation              # one ObservedFunds i
 * The [simulated broker](#simulated-broker-adapterssimulated_brokerpy) implements both ports with these signatures; its observations cover the run so far.
 * The production composition binds `adapters.openalgo`; each simulation binds `adapters.simulated_broker`. No composition binds both (`README.md:800`).
 * Inside the kernel, admission and dispatch read `LatestObservations.latest(account)`, the observation loop's in-memory latest, and publish what they cite through `LatestObservations.cite` ([SLICE-07 step 3](../plan/slices/SLICE-07-observations-reconciliation-domain.md#decisions-2)).
+* **A cycle reconciled in full** (SLICE-06 step 5) is one whose orderbook and tradebook both passed `lifecycle.reconcile` in the same drain without an exception; `reconciled(account)` returns only such a snapshot. After each advance to `OPERATING`, the first such cycle with a fresh positions book not known incomplete is compared once with the ledger's positions (`kernel.safety.position_divergence`): a divergence escalates `position_divergence` and holds the strategy (`kernel:recovery`, reason `recovery`). An exception from `lifecycle.reconcile`, other than those that stop the kernel, is counted in `ReadHealth.reconcile_failures` and escalates `reconciliation_failed` with the recovery hold for each strategy active on the account; a raising position check escalates `position_check_failed` the same way.
 
 ### Domain attribution and combination
 
