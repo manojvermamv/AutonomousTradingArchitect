@@ -43,7 +43,7 @@
 | [06-architecture-fit-and-effort.md](06-architecture-fit-and-effort.md) | Which hybrid architecture fits first; development, restructuring and upkeep effort; terms | proposed (guidance) |
 | [legacy-divergence.md](legacy-divergence.md) | Where legacy code disagrees with accepted decisions | proposed (evidence) |
 | [traceability.md](traceability.md) | Requirement key → decision → module → spec → task → proof (generated) | proposed |
-| [design/](design/) | 6 full-depth specs, 7 stubs, 1 cross-cutting invariants file | proposed |
+| [design/](design/) | 7 full-depth specs, 6 stubs, 1 cross-cutting invariants file | proposed |
 | [plan/delivery-plan.md](plan/delivery-plan.md) | 14 slices inside the master phases, plus the task index | proposed |
 | [plan/slices/SLICE-01-disarmed-financial-core.md](plan/slices/SLICE-01-disarmed-financial-core.md) | First slice, prepared for execution | proposed |
 | [tests/test-strategy.md](tests/test-strategy.md) | Proof classes, A08 rules, fault injection, coverage map | proposed |
@@ -58,11 +58,11 @@
 * [dispatch-and-coordination](design/dispatch-and-coordination.md)
 * [execution-domain-and-observations](design/execution-domain-and-observations.md)
 * [protection-and-safety](design/protection-and-safety.md)
+* [market-data-and-canvas](design/market-data-and-canvas.md) (deepened at SLICE-08)
 * [cross-cutting-invariants](design/cross-cutting-invariants.md) (owns no module)
 
 **Specs.** Stubs (deepened when their slice starts):
 
-* [market-data-and-canvas](design/market-data-and-canvas.md)
 * [strategies-and-cognition](design/strategies-and-cognition.md)
 * [research-rl-custody-promotion](design/research-rl-custody-promotion.md)
 * [security-and-operator](design/security-and-operator.md)

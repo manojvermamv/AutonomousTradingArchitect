@@ -559,3 +559,31 @@ Fresh `egm:egm-design` and `egm:egm-implementation-readiness` reviews of [SLICE-
 | R-11, F-12 | Major / Minor | The script's command line, figure, world and timing; the test asserted timing; cross-machine baselines; queue delay understated | FIX: flags given; evaluation p95 compared; conftest builders reused; a pure `compare` tested; other machines refused; the delay bounded by two passes |
 | R-12 | Major | Regression left to the builder | FIX: `test_only_the_latest_close_is_cycled` named; the rules that keep the rest unchanged stated |
 | F-13 | Minor | Two ladder-version constants; exact match in `ProtectionPolicy` | FIX: one constant, imported by `trail.py`; membership in `SUPPORTED_LADDERS` |
+
+## SLICE-08 review (2026-10-29)
+
+Fresh `egm:egm-design` and `egm:egm-implementation-readiness` reviews of the deepened [market-data spec](../../design/market-data-and-canvas.md) and the new [SLICE-08 slice file](../../plan/slices/SLICE-08-market-data-and-views.md): the step split, and step 1 in depth. Design: 13 Major, 1 Minor (F-1…F-14). Readiness: 9 Major, 7 Minor (R-1…R-16). Both confirmed every "as legacy" citation, the strict late comparison, epoch-floored windows (a one-hour window at :30 IST), the fold, the session hours and Q-030's revision rule. Every finding was checked against the code and is resolved by FIX in the rewritten texts. The tick source for a held option (F-5) is an owner question, to be asked when step 5 is deepened.
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| F-1 | Major | Which bar a live view shows for a confirmed, unsealed window was unstated; lateness measured at the flush, not receipt, unmarked | FIX: a view shows a window only once sealed; prompt sealing; the decision pass waits for the seal (SLICE-09's bound); receipt-time lateness marked Deviation |
+| F-2 | Major | Lateness judged per window broke legacy's resampled higher timeframes | FIX: one-minute base windows only; `resample` ported from legacy's `_resample`; lateness on the base window |
+| F-3 | Major | The view identity named no store; separator and lag text ambiguous | FIX: `store_id` and schema version in the identity, refused on mismatch; a pipe separator no field may contain; one canonical lag text |
+| F-4 | Major | Protection's reads could not share or record one view | FIX: `MarketPort.resolve`, a `view_id` on `closes` and `latest_tick`, `market_view` on protection's events (step 5) |
+| F-5 | Major | `latest_tick`'s source unspecified | FIX: exact-at-two-decimals or refused; the source is an owner question at step 5 |
+| F-6 | Major | Legacy's live views drop stale prices (OD-16); the spec made it report-only | FIX: `stale: drop` per stream for the live strategy policy, `report` for the kernel's |
+| F-7 | Major | Two calendars; the view's `calendar_id` undefined | FIX: one `Calendar` with `calendar_id` `NSE-FO`; it implements the kernel's calendar port (step 5) |
+| F-8 | Major | Merge keys broke fold parity and CUJ-MKT-4; table incomplete | FIX: keys per stream (a receipt number for ticks); CUJ-MKT-4 corrected; `outdated` row; compared against every revision |
+| F-9 | Major | The port preceded the Greeks and PE-delta characterization; step 3 too large | FIX: six steps: views and quality (3), source and characterizations (4), port (5), Canvas (6) |
+| F-10 | Major | The day-high gap source under-designed | FIX: `InstrumentClose.high`, legacy's candidate and synthetic bar in `_gap_draft`, parity cases (step 5) |
+| F-11 | Major | Clock steps, version refusal and row 1236's incremental clause had no proof | FIX: PRF-MKT-06 clock step; PRF-MKT-04 refusals; PRF-MKT-09 fresh and restarted agree, no incremental path by design |
+| F-12, F-13 | Minor | `chains()` and the poll instant not pinned to legacy | FIX: the polled expiries with one `as_of` and legacy's fallback; the poll's start instant; pre-open polls kept |
+| F-14 | Minor | CP-M3 lost revision 2; `ticks_else_history` one-minute only; reference facts and corrections | FIX: each clarified |
+| R-1, R-9, R-10 | Major / Minor | `bars`' `revisions` argument, instruments, empty windows, `first_seq` | FIX: signature and rules stated |
+| R-2, R-14, R-15 | Major / Minor | `to_epoch_ms`'s error paths, `datetime` values, the `strptime` formats, infinity | FIX: ported in full; non-finite values a Deviation; formats listed; a strptime-only test case |
+| R-3 | Major | `sum()` rounds differently from Python 3.12 on | FIX: `+=` in order |
+| R-4 | Major | The golden generator underspecified | FIX: import, row shape, day, arrival draw, window keys, metadata |
+| R-5, R-6, R-8, R-11 | Major / Minor | Lag text, `late_max_secs` format, refusals, naive datetimes | FIX: regex, format, every refusal listed and tested |
+| R-7 | Major | A recorded clock's arrivals would be refused | FIX: `arrival_at` in `wall` or `recorded` |
+| R-12, R-13 | Minor | Spec and plan disagreed on `WindowDef` and window facts; the import check vague | FIX: one signature; `sealed_revision`; an `ast` check |
+| R-16 | Minor | No capture for `multioptiongreeks` or websocket ticks | FIX: proved on synthetic responses, capture carried to TASK-S07-05 (Deviation) |

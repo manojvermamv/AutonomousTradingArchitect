@@ -652,3 +652,35 @@ Proof: tests/recovery/test_crash_boundaries.py; PRF-PRT-04.
 **Recommendation: A, for now.** A person looking before trading resumes is the only check on positions until the system compares them itself. Once it does, B becomes the simpler and safe choice. Step 4 is written for A and marks each line B changes.
 
 **Answer (2026-10-29): option B.** No hold: entries wait while the broker cannot be read and resume on their own once it answers. Until the kernel compares positions (step 5), a position that disagrees with the records after such a restart is not noticed by the system.
+
+## Q-030
+
+**When a price for a minute arrives after that minute's bar was called final, does the bar stay as it was, or change for later decisions?**
+
+```text
+Requirement: one versioned window definition; partiality, closure, completeness and correction are separate facts (REQ-MKT-004, POL-019); corrections are revisions and old views stay reproducible (REQ-MKT-005).
+Owner: market.view (SLICE-08 step 1).
+Proof: PRF-MKT-01, PRF-MKT-05.
+```
+
+**In plain words.** A minute's bar counts as final 7 s after the minute ends (POL-019). The approved rule says a price arriving later "does not change the confirmed candle". Legacy counts such a price as late (`src/data/marketdata/ticks.py:148-157` @445eb116), but every later read folds every recorded price again (`_fold`, `:511-560`), so the earlier bar changes for every later decision that reads it as history. A decision already made is not revisited (`src/core/framework/runtime/runner.py:96-98`).
+
+**Why it matters.** It decides whether the bars a strategy reads stay as they were when called final, and whether a replay of a day sees what the live system saw. Late prices are rare: the measured delay is 0.2–6.5 s, p99 5.9 s (`src/core/framework/market.py:89-94`).
+
+**Options.**
+
+- **A — Recommended: a final bar stays final.** A late price is kept as a recorded correction (a new revision of that bar) that a view sees only when it asks for corrections (research). Live and replay see the same bars.
+- **B: legacy's behaviour.** Views resolved later fold the late price into the earlier bar.
+
+| Check | A | B |
+|---|---|---|
+| Effort now | About half a day in step 1: late prices stored as corrections | None extra |
+| Simpler substitute | B | It is the simpler one |
+| Extra work later | None | None, but replay can differ from live by a late price, unreported |
+| Lock-in | None: late prices are kept | None |
+| More than needed? | Slightly: late prices are rare | No |
+| Easy to undo? | Yes, a view rule | Yes |
+
+**Recommendation: A.** It is what POL-019 already says, and it makes replay equal live.
+
+**Answer (2026-10-29): option A.** A bar is final at its confirmation instant; a later price is a correction revision, visible only to views that include corrections.

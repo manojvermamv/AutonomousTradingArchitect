@@ -160,7 +160,7 @@ PlanRefusal(stage, reason)
 * `cause` values: `review_not_required`, `no_review`, `invalid`, `digest_mismatch`, `wrong_purpose`, `expired`, `lineage_mismatch`, `unavailable`, `timeout`, `abstain`, `pause_inactive`.
 * `deadline` is the command's dispatch deadline: origin = the time stage A started on the kernel clock, budget = `dispatch.deadline_ms.<verb>` ([dispatch](dispatch-and-coordination.md#policy-inputs)); every verb has one.
 * `PlanLeg.product` comes from the bound policy (POL-017). `Plan.account` is the request's account. `Plan.planner_version` records which implementation version produced the plan; it is evidence, not a selector.
-* `StableView`, `ChainSnapshot` and `ReferenceFacts` are the minimal market records of the [market-data spec](market-data-and-canvas.md#what-early-slices-need-now).
+* `StableView`, `ChainSnapshot` and `ReferenceFacts` are the minimal market records of the [market-data spec](market-data-and-canvas.md#records-and-identity-contractsmarketpy).
 * `PlanRef` (ledger spec) is the subset of `Plan` the coordinator and adapter need. An intent with `direction = abstain` never becomes an `EntryRequest`; the host records it as evidence. If one arrives, A1 refuses it.
 
 ### Review application (`kernel/policy.py`)

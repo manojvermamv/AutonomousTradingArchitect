@@ -31,7 +31,7 @@ SLICE-01 → 02 → 03 → 04 → 05 → 07 → 06, then 08 and 09 (in that orde
 | SLICE-05 dispatch, conflicts and scheduling | 1 | S | D13 revalidation, A03-F1/F2/F3, ATA-04; kill and hold events (POL-002, POL-003) | SLICE-04 | Q-001, Q-004, Q-011, Q-014 | PRF-DSP-01, PRF-DSP-03…08, PRF-DSP-10, PRF-DSP-11, PRF-LED-16, PRF-PRT-04 (kill and hold rows), PRF-PRT-11 |
 | SLICE-07 observations, reconciliation, domain, OpenAlgo adapter | 1/3 | S → R | D15, D16, ATA-06, A06-F2 decision | SLICE-05 | Q-006, Q-007, Q-008, Q-012, Q-016 | PRF-DOM-01…04, PRF-DOM-08, PRF-DOM-09, PRF-DSP-09, PRF-ADM-09, PRF-LED-11, PRF-LED-12 (redelivered fill); PRF-DOM-07 and PRF-DOM-10 on authorization |
 | SLICE-06 protection and safety | 1/3 | S | ATA-01, POL-004…POL-006, POL-010…POL-015, A03-F5 kernel side, Combined-F6 protection part | SLICE-05, SLICE-07 | Q-001, Q-002, Q-012, Q-013, Q-014, X-004 | PRF-PRT-01…10, PRF-PRT-12, PRF-PRT-13 |
-| SLICE-08 market data and views | 5 | S | A01-F1…F5, D08 | SLICE-03, SLICE-04 | POL-O04 | Stub deepened; proofs from `README.md:1234-1236`; PRF-ADM-07 (planner parity with real views) |
+| [SLICE-08](slices/SLICE-08-market-data-and-views.md) market data and views | 5 | S (step 4 on recorded inputs) | A01-F1…F5, D08, POL-019, POL-046 | SLICE-03, SLICE-04 | POL-O04 (kept at today's behaviour), Q-030 | PRF-MKT-01…09; PRF-ADM-07 with recorded sessions (TASK-S11-07), a Deviation recorded in the slice file |
 | SLICE-09 strategies and cognition | 5 | S | A05-F1…F5, Combined-F5, D09, D12 evidence | SLICE-04, SLICE-08 | none | Stub deepened; proofs from `README.md:1243` |
 | SLICE-10 security and operator | 2/5 | S | A06-F1…F5, Combined-F4 | SLICE-03 | Q-014 | Stub deepened; proofs from `README.md:1244` |
 | SLICE-11 packaging, release, supervision, isolation, backup and restore | 2/7 (rehearsal only) | S → P (rehearsal on a real backup) | D05, D06, A02-F1…F4, A04-F3/F5, A03-F4/F5, A09-F1…F4, D10; the observation mediator only without native read-only proof (A06-F2) | SLICE-02, SLICE-03, SLICE-06, SLICE-07, SLICE-10 | Q-005 (real rehearsal only), POL-O01 | Stub deepened; D10 rehearsal evidence; PRF-PRT-14; PRF-XC-02 (production composition); measured refusing values recorded (TASK-S11-07); PRF-DOM-06 when the mediator is built |
@@ -90,6 +90,12 @@ Task IDs are stable. SLICE-01 tasks are its file rows. Tasks of a stub slice are
 | TASK-S06-05 | 06 | Session-close exit and kill interaction | PRF-PRT-07 |
 | TASK-S06-06 | 06 | Safety-check visibility; protection classification on read | PRF-PRT-05, PRF-PRT-13 |
 | TASK-S06-07 | 06 | Release continuity of protected legs; evaluation-cost measurement | PRF-PRT-10, PRF-PRT-12 |
+| TASK-S08-01 | 08 | Calendar, window definition and facts; tick lifting; the fold, on-time rule, revisions and late counts (Q-030) | PRF-MKT-01 |
+| TASK-S08-02 | 08 | Market store, publication, the merge, coverage, the seal writer, the simulated source, reference facts and the recorder | PRF-MKT-02, PRF-MKT-03 |
+| TASK-S08-03 | 08 | View policies, identities, re-opening and corrections; quality and requirements | PRF-MKT-04, PRF-MKT-05, PRF-MKT-06 |
+| TASK-S08-04 | 08 | `StoreMarket`, the kernel's port over the store; premium closes and ticks; the carried gap sources | PRF-MKT-07 |
+| TASK-S08-05 | 08 | The OpenAlgo market source on captured responses; characterize the planner's Greeks and the PE delta sign | PRF-MKT-08 |
+| TASK-S08-06 | 08 | Canvas: confirmed swings, facts, annotations, history, budgets, schema, import guard | PRF-MKT-09 |
 | TASK-S11-01 | 11 | Installable artifact, entrypoints outside the checkout, `requirements.lock` | `README.md:1221` |
 | TASK-S11-02 | 11 | Settings resolver, immutability, bundle manifest | `README.md:1226-1227` |
 | TASK-S11-03 | 11 | Supervisor and protection-status reporting | `README.md:1240`; PRF-PRT-14 |
