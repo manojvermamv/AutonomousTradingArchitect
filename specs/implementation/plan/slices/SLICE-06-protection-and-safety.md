@@ -1,6 +1,6 @@
 # SLICE-06 — Protection and safety
 
-* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-06-review-2026-10-28)). Step 1 is built (OA_NEW `03bbbde` on `slice-06`; [Step 1 as built](#step-1-as-built)). Step 2 is built (OA_NEW `e27a436`; [Step 2 as built](#step-2-as-built); Q-024 and Q-025 option B, [Q-026](../../decisions/owner-questions.md#q-026) option A). Step 3 is built (OA_NEW `3e6d36a`, gaps closed in `84579d1`; [Step 3 as built](#step-3-as-built); [Q-027](../../decisions/owner-questions.md#q-027) option A). Steps 4–5 are scoped; each is deepened once the step before it is built, as in SLICE-04, SLICE-05 and SLICE-07 (the delivery plan's depth rule).
+* **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-06-review-2026-10-28)). Step 1 is built (OA_NEW `03bbbde` on `slice-06`; [Step 1 as built](#step-1-as-built)). Step 2 is built (OA_NEW `e27a436`; [Step 2 as built](#step-2-as-built); Q-024 and Q-025 option B, [Q-026](../../decisions/owner-questions.md#q-026) option A). Step 3 is built (OA_NEW `3e6d36a`, gaps closed in `84579d1`; [Step 3 as built](#step-3-as-built); [Q-027](../../decisions/owner-questions.md#q-027) option A). Step 4 is deepened below and waits on [Q-028](../../decisions/owner-questions.md#q-028) and [Q-029](../../decisions/owner-questions.md#q-029). Step 5 is scoped; it is deepened once the step before it is built, as in SLICE-04, SLICE-05 and SLICE-07 (the delivery plan's depth rule).
 * **Precedence:** the master README, then the ROADMAP, then this package. The authority is the [protection spec](../../design/protection-and-safety.md), with the [ledger spec](../../design/ledger-and-atomic-transaction.md) for the events and index tables and the [execution-domain spec](../../design/execution-domain-and-observations.md) for the observations protection reads. Every deviation is marked **Deviation**. No score, threshold or money value is set here: the ladder's parameters are the approved shipped values (POL-012), and every refusing setting is bound only to labelled synthetic or owner-answered values in tests.
 * **Phase:** master Phase 1 (ATA-01, POL-004…POL-006, POL-010…POL-015, A03-F5 kernel side, Combined-F6 protection part). Class S: the simulated broker only.
 * **Builds on:** [SLICE-07](SLICE-07-observations-reconciliation-domain.md) as built (fills, positions, observations, the OpenAlgo adapter's single orders). The branch `slice-06` is cut from `slice-07` (OA_NEW `1b42505`). SLICE-06 follows SLICE-07 because protection needs fills and observations (delivery plan).
@@ -26,7 +26,7 @@
 | 1 | The premium ladder ported from legacy (`kernel/trail.py`) with its golden cases; `ladder_state`; `ProtectionPolicy` on the bound policy; migration 006 with `protection_state` and the events `PROTECTION_DESIRED`, `GAP_PEAK_RECORDED` and `EXIT_STARTED`; the leg view, the derived `stop_on_fill` leg state and the on-read classification (this file, below). Nothing is sent | PRF-PRT-02 (ladder), PRF-PRT-13, PRF-PRT-01 (derived-state rows) |
 | 2 | The protection loop on the writer thread: triggers, `evaluate`, `stop_on_fill` placement on the first fill, trail modifies, one request at a time per leg, retries, orphans, the tick exits and the exit sequence, the session-close exit, kill and hold interaction, escalations once per subject; crash points CP-P1…CP-P4 | PRF-PRT-01 (`stop_on_fill`, shared rules), PRF-PRT-03 (CP-P), PRF-PRT-06, PRF-PRT-07, PRF-PRT-09 |
 | 3 | `basket_at_plan`: `basket_legs`, `PlanRef.protective_legs`, `ADM-R13`, the simulated broker's basket, the OpenAlgo basket call with the in-send validated join, `LEG_ASSIGNED`, the basket derived states, the quantity rule, the failure classes, `overclose` and `sibling_failed` holds by episode; CP-B1…CP-B6 | PRF-PRT-01 (basket), PRF-PRT-03 (CP-B), PRF-DOM-04 (basket clauses) |
-| 4 | The daily-loss latch (`session_pnl`, the budget settings, trip and unlock), `SAFETY_CHECK_STATE` and the inert check, the recovery hold trigger, and the permission matrix's remaining cells | PRF-PRT-04, PRF-PRT-05 |
+| 4 | The daily-loss latch (`session_pnl`, `RiskPolicy`, trip and unlock), `SAFETY_CHECK_STATE` and the inert check at admission and dispatch, the recovery hold trigger, and the permission matrix's remaining cells | PRF-PRT-04, PRF-PRT-05, PRF-DSP-04 (inert half) |
 | 5 | The gap peak (`GAP_PEAK_RECORDED` from a replay of the gap's bars), release continuity of a leg's ladder and policy versions, and the evaluation-cost baseline | PRF-PRT-02 (gap), PRF-PRT-10, PRF-PRT-12 |
 
 ## Step 1 — the ladder, protection state and the derived leg
@@ -1100,18 +1100,237 @@ Three more break checks, each applied and reverted with an md5 check, failed the
 | Let the entry's `COMPLETED` end a leg | `test_the_first_desire_and_both_legs_confirmed` |
 | (adapter) Roles from response order; read past a refused budget; a failed row with an ID accepted; two IDs for one role; duplicate IDs accepted | the matching `test_openalgo_contract.py` cases |
 
-## Step 4 — the latch and safety visibility (scoped)
+## Step 4 — the latch, safety visibility and the recovery hold
 
-* `session_pnl` and the budget settings;
-* `LOSS_LATCH_TRIPPED` and `LOSS_LATCH_UNLOCKED`;
-* `SAFETY_CHECK_STATE`, the inert check and PRF-DSP-04's inert half;
-* the recovery hold trigger;
-* the remaining matrix cells (F-P12, F-P14, F-P20);
-* POL-006: a replay keeps its own latch in its own ledger.
+**In plain words.** This step adds three safety brakes on new trades. None of them ever stops a stop-loss, a target or a square-off from working.
+
+1. **The daily-loss brake.** When the day's loss reaches the budget (₹3,600 for BuyerEdge, the owner's Q-002 answer), new entries stop for the rest of the session. Only a person with the `latch_unlock` permission can lift it, and must give a reason. If the loss is still past the budget at the next broker read, it trips again.
+2. **"I can't see the P&L" is never treated as "fine".** If the brake has not yet looked at a fresh broker position book this session, or the book has no P&L figure, new entries are refused. The system records that the check is blind (`SAFETY_CHECK_STATE`), and records again when the check can see.
+3. **The recovery hold.** While one of a strategy's entry orders cannot be accounted for, that strategy is held: no new entries. A person releases the hold; if the order is still unaccounted for, the hold comes straight back, as it did in the old system.
+
+Two choices are the owner's: **[Q-028](../../decisions/owner-questions.md#q-028)** (the brake counts the whole account's P&L, as the old system did, or only the trades the system made, as the spec says) and **[Q-029](../../decisions/owner-questions.md#q-029)** (when the broker cannot be read at a restart, hold until a person looks, as the old system did, or resume once the broker answers). The text is written for option A of both and marks every line the other answer changes. The build waits for both answers.
+
+The authorities are:
+
+* the protection spec's [Daily-loss latch](../../design/protection-and-safety.md#daily-loss-latch-kernelsafetypy), [Permission matrix](../../design/protection-and-safety.md#permission-matrix-kernelsafetypy), [Kill and holds](../../design/protection-and-safety.md#kill-and-holds-kernelsafetypy) and [Safety-check visibility](../../design/protection-and-safety.md#safety-check-visibility-kernelsafetypy) sections, F-P7, F-P12, F-P14 and F-P20, and PRF-PRT-04 and PRF-PRT-05;
+* the dispatch spec's [eligibility](../../design/dispatch-and-coordination.md#eligibility-and-scheduling) rule that an inert guarding check makes a command wait (PRF-DSP-04's inert half);
+* the sessions spec's kernel principals table;
+* the delivery plan's TASK-S06-03 (the hold rows and the legacy recovery-hold trigger), TASK-S06-04 (the latch and the deployed P&L fields) and the rest of TASK-S06-06 (safety-check visibility).
+
+The step builds on step 3 as built (OA_NEW `3e6d36a`, gaps closed in `84579d1`). Fresh EGM design and implementation-readiness reviewers reviewed it ([review](../../egm/plan/review.md#slice-06-step-4-review-2026-10-29)); their findings are resolved in the text below. **The rule for choices** is step 2's: where the live host and the spec differ, the text follows the host and says so, unless the spec states the difference on purpose. Each such line is marked **Deviation**, or with its owner question.
+
+### What legacy does
+
+All citations are at 445eb116. `RFL` is `scripts/run_framework_live.py` (read with `git show`); the rest is under `src/`.
+
+**The daily-loss latch** (`core/framework/execution/loss_latch.py`, `runtime/session_state.py`).
+
+* **One latch per strategy and IST trading day** (`path_for`, `loss_latch.py:96`; `today`, `:142-146`), each at that strategy's own budget (`effective_limits_for`, RFL `:7984`).
+* **Its P&L is the whole account's.** Each pass reads one account-wide `positionbook` (`broker_structure_state`, RFL `:312-353`, read at `:7919-7920`). The same rows go to every strategy's latch (`:7941`, `:7983-7988`). OpenAlgo's `positionbook` cannot be scoped to a strategy (upstream-findings, the `positionbook` row: "Sees **every** strategy's positions"). The protection spec's "as legacy does" for a sum over the strategy's own positions is therefore wrong; [Q-028](../../decisions/owner-questions.md#q-028) asks which to keep.
+* **The field.** Per row, the first present of `[pnl, unrealized_pnl, unrealised_pnl, m2m, mtm, profitandloss]` (`config/defaults.yaml:629` @445eb116, read with `git show`; `runtime/session_state.py:34-36`, `:171`). OpenAlgo rows carry `pnl`, so `pnl` is read. A row with none of the names counts as 0 (`_number`, `:22-31`).
+* **What `pnl` holds.** In the captured `analyze` responses of 2-4 August 2026 (`tests/fixtures/legacy-buyer-edge/openalgo/positionbook_2026080[2-4].json`), each row's `pnl` equals its `total_pnl_today`: the day's realised and open P&L of that instrument together. A flat row stays in the book with its realised figure. Summed, the book's `pnl` was within ₹3.90 of the trade book's cash flow on 17 August (upstream-findings PART 22). It is the day's "realised+MTM P&L" (`loss_latch.py:11-14`) and gross of charges: the book's P&L is price-derived, with no charge field (upstream-findings, the charge-source table). **Live mode is not checked**: that capture is TASK-S07-05, which needs the owner's authorization.
+* **A successful read is the whole book.** Legacy refuses a response that is not `success` or has malformed rows (RFL `:333-341`), and otherwise treats it as the account's complete book.
+* **When.** Every pass, for every strategy, whether or not anything was proposed (RFL `:7980-7996`). A failed read is no observation and cannot trip (`session_state.py:160-161`); the planner refuses entries on it instead (`:208-211`).
+* **Budget.** The smaller of `max_daily_loss_amount` and `max_daily_loss_pct` of capital; nothing to latch when neither is set (`loss_latch.py:167-177`). Capital is the reviewed available cash from the session's evidence (`session_state.py:39-47`, `:165-168`).
+* **Trip.** At or below −budget (`observe`, `:559-573`). An already-latched day keeps its first trip (`trip`, `:512-555`). A trip that cannot be written refuses entries (`:517-519`).
+* **Effect.** The planner refuses entries while latched: "Exits and protection are unaffected" (`core/framework/runtime/orchestrator.py:528-566`).
+* **Unlock.** A named person with a reason, only when latched; the next observation still at or below −budget trips it again (`unlock`, `:576-634`).
+* **Replay** keeps its own store and stamps each trip with the captured instant (`data/replay_engine/producer.py:822-856`).
+
+**Recovery holds** (`core/framework/execution/holds.py`, RFL).
+
+* **The rule.** A hold stops one strategy sending new orders; it keeps deciding and planning (`holds.py:1-12`). The gateway refuses a held strategy's submits (`runtime/execution_gateway/__init__.py:442-459`); cancels, closes and stop moves keep working (`execution/sender.py:294`).
+* **Sticky.** A second placement keeps the first `placed_at` (`holds.py:125-134`). A later clean check never lifts it (`pass_check`, `:137-154`). Only a person clears it (`authoring/capabilities/__init__.py:260-265`). No record at all counts as held (`engaged`, `:236-252`).
+* **Re-placed every pass.** The `UNKNOWN` reconciliation runs every pass (RFL `:7921-7926`), and places the hold again while an order stays unresolved (`:2921-2929`). A person who clears it while the order is unresolved sees it return at the next pass.
+* **Timed-out cancels, modifies and closes** are "Reported, never held" (RFL `:2959-2962`).
+* **The triggers**, every call of `holds.place` in RFL:
+
+| # | Where | Trigger |
+|---|---|---|
+| L1 | `:2881-2886` | The broker cannot be read while the strategy has an order in `UNKNOWN` |
+| L2 | `:2907-2908` | The `UNKNOWN` reconciliation raises |
+| L3 | `:2921-2929` | The `UNKNOWN` reconciliation leaves an order unresolved: no match, several matches, or not yet recorded |
+| L4 | `:2956-2957` | Protective reconciliation raises |
+| L5 | `:3141-3144` | Startup cannot read the broker |
+| L6 | `:3157-3169` | Startup finds orders that need a person, or positions that disagree with the records |
+| L7 | `:3203-3207` | Startup recovery raises |
+| L8 | `:4684-4687` | A protective cancel fails after a close (built in step 3 as `sibling_failed`) |
+| L9 | `:5654` | The broker closed more than ours (built in step 3 as `overclose`) |
+
+### Decisions
+
+#### The latch's scope
+
+* **One latch per session.** **Deviation (from legacy and the spec):** both keep one latch per strategy. The kernel binds one policy, and so one budget, per session (`BoundPolicy` through the session's `policy_binding_id`, `kernel/policy.py:76-78`); no budget is bound per strategy. So the latch belongs to the session, and a trip refuses every entry admitted in that session. The first release has one strategy on one account, which makes this identical to legacy. Per-strategy latches arrive with per-strategy policies.
+* **Session boundary.** Every row and event is keyed by `session_id`. A new session starts unlatched and not yet evaluated (AGENTS "Never let a stateful gate compare across a session boundary").
+
+#### The P&L input
+
+* **The adapter field.** `ObservedPosition` gains `day_pnl: str | None = None`, keyword-only, after `average_price`. **Deviation (from the spec):** `realized_pnl` and `mtm_pnl`, unused so far, are removed. The spec's "realised plus mark-to-market where the endpoint splits them" would count a flat row twice, since its `unrealized_pnl` repeats its realised figure (SLICE-07 step 4). Every positions content digest changes; `test_openalgo_contract.py:206`, which asserts the removed fields, is updated.
+* **OpenAlgo** (`adapters/openalgo.py` `_position`): `day_pnl` is the row's `pnl` when it is a finite exact JSON number, written as its exact decimal text, whatever its scale (`_pnl`, new). It is not `_money`: P&L is not a price and is never rounded, and `_money` refuses more than two decimals. Absent, or not a number: `None`.
+* **The simulated broker** gives each position row a `day_pnl`. `set_day_pnl(account, instrument, value)` sets it per instrument. A row with no set value reports `"0.00"`, labelled synthetic, so every existing world reads an available P&L. An instrument with a set value and no trades stays in the book at net 0, with `amount` and `margin` `None` (no last price). `set_positions_coverage(value)` overrides the positions endpoint's coverage alone, for the incomplete case.
+* **`session_pnl(observation, *, owned=None) -> SessionPnl | PnlUnavailable`** in `kernel/safety.py`, over one positions observation. `SessionPnl(pnl: str, observation_digest: str, as_of: str)`; `PnlUnavailable(reason: str)`, a new class (not `ports.Unavailable`).
+  * `PnlUnavailable("positions_incomplete")` when the coverage is `no`. **Deviation (from the spec's wording):** coverage `unknown` is accepted, as legacy accepts every successful read. OpenAlgo always reports `unknown` (`openalgo.py:682`), so requiring `yes` would leave the latch inert, and every entry refused, in production;
+  * `PnlUnavailable("pnl_field_missing")` when a counted row's `day_pnl` is `None`. **Deviation (from legacy):** legacy counts such a row as 0, a silent pass; the spec makes the check inert (F-P7, LD-03);
+  * otherwise `pnl` is the `Decimal` sum of the counted rows' `day_pnl`, written as a string. An empty book is `"0"`.
+  * **[Q-028 A]** Every row counts (`owned=None`). **[Q-028 B]** Only rows whose instrument is in `owned`: the instruments of every ledger position whose entry command belongs to this session, open or closed, so a realised loss still counts after its position closes.
+
+#### The budget
+
+* **`RiskPolicy(max_daily_loss_amount: str, max_daily_loss_pct: str | None = None, capital: str | None = None)`** in `contracts/decisions.py`, on `BoundPolicy.risk` (keyword, default `None`). `risk_policy_from(mapping)` parses it like `protection_policy_from`.
+  * `max_daily_loss_amount` is a decimal string above 0. A mapping without it refuses (`ValueError`): this is the spec's "an unbound budget refuses at load", and why `PRT-R09` stays unused.
+  * `max_daily_loss_pct` and `capital` are both set or both absent; one without the other refuses. Each is a decimal string above 0, the percent at most 100.
+* **`budget(risk: RiskPolicy) -> Decimal`** in `kernel/safety.py`: the amount, or the smaller of the amount and `capital × pct / 100` when both are set (legacy `budget()`), unrounded.
+* **Capital.** **Deviation (from legacy), as the spec states it:** capital is the bound `risk.capital`, not the reviewed available cash of the day's evidence. Flagged for the owner; no value is proposed.
+* **No setting.** The budget is policy, not a setting: `settings/` gains nothing. The first release's `"3600.00"` (Q-002) is bound by the production composition, not by code. Tests bind labelled synthetic values only.
+* **`risk=None`** makes the latch inert with reason `budget_unbound`: entries are refused with `PRT-R06`, never passed. The test helper `bound()` (`tests/conftest.py:301-306`) defaults `risk=RiskPolicy("1000000.00")`, labelled synthetic.
+
+#### Evaluation, trip and unlock
+
+* **Composition.** `Safety(writer, clock, authority, *, hold_automatic_actions, policies, latch: bool = True)`. `policies` is `admission.policies`, built before `Safety` (`bootstrap.py:122`). The test `build` passes `latch=False` unless a world asks, as step 3's `protection_loop`; with it off, `check` has no inert and no latch row, so every existing world runs as before. It is a composition argument, not a setting: the production composition always passes `True`, and a test proves `bootstrap`'s default composes it.
+* **`kernel:safety`** is a new built-in kernel principal (`kernel/authority.py`) with no grant actions, as `kernel:lifecycle`: its events are not action requests. It records `LOSS_LATCH_TRIPPED` and `SAFETY_CHECK_STATE`.
+* **When.** In `Coordinator.run_pass`, after the drain and after the `OPERATING` check (`coordinator.py:411-413`), before protection: `Safety.evaluate_latches(observations)`, with `observations` the dispatch port's `latest(account)` (the loop's snapshot, or the fixture's). For each account with an `OPEN` session, it evaluates the snapshot's positions observation when:
+  * the observation is fresh: its age is within `max_observation_age_secs`, admission check B1's rule (`observation_age`); and
+  * its digest differs from the last one evaluated for that session (kept in memory; after a restart one re-evaluation records nothing new, since both events are recorded only on change).
+
+  Admission never trips.
+* **One decision per evaluation**, holding whichever of these apply:
+  * `SAFETY_CHECK_STATE(check="latch", session_id, account, state="inert" | "active", reason)` when the state differs from the last recorded one for that session; `reason` is the inert reason, `""` when active;
+  * `LOSS_LATCH_TRIPPED(session_id, account, pnl, budget, observation_digest)` when `pnl ≤ −budget` and the session's latch is not tripped. **Deviation (from the spec's payload):** `session_id` and `account` replace `strategy`, by the scope above.
+* **Not yet evaluated.** Until the session's first `SAFETY_CHECK_STATE`, the latch check is inert with reason `not_evaluated`. The check reads this; nothing records it. So an entry can never pass a check that has not looked.
+* **Unlock.** `Safety.unlock_latch(auth, session_id, reason)`: a human principal holding `latch_unlock` on the session's account only (the Q-014 answer; not every bound account, unlike `_commit`), with a non-empty reason, only while tripped. It records `LOSS_LATCH_UNLOCKED(session_id, account, principal, reason)`. Otherwise it refuses as the other `Safety` commands do (`SES-R01`, `SES-R02`, the grant's refusal, `ADM-R01`, `LED-R09`). The next evaluation still at or below −budget trips again, with a new event.
+* **The fold.** The three events join `_SAFETY_KINDS`, the safety family and `safety_key` (`store.py:41`, `:54-61`), and the fold's safety branch (`projections.py:124-139`). `safety_state` rows (key `kind, scope, reason`; every column filled):
+
+| Event | `kind` | `scope` | `reason` | `state` | `principal` | `note` |
+|---|---|---|---|---|---|---|
+| `LOSS_LATCH_TRIPPED` | `latch` | the session ID | `""` | `tripped` | `kernel:safety` | the `pnl` |
+| `LOSS_LATCH_UNLOCKED` | `latch` | the session ID | `""` | `unlocked` | the principal's name | the reason |
+| `SAFETY_CHECK_STATE` | `check` | the session ID | `latch` | `inert` or `active` | `kernel:safety` | the inert reason, `""` when active |
+
+  The guards refuse a trip while tripped, an unlock while not tripped, and a check state equal to the current one (`LED-R09`). `events.schema.json` gains the three payloads: `session_id`, `pnl`, `budget`, `reason`, `state` and `check` strings; `account` in its `wire` array form; `principal` as every safety event's; `observation_digest` a 64-hex string.
+* **Replay** keeps its own latch in its own ledger (POL-006): a second ledger over the same inputs records its own events, and nothing reads across ledgers. The test builds two worlds.
+
+#### Admission and dispatch
+
+* **`Safety.check(facts, auth, *, stage="admission")`**. The latch rows apply to entries only; an entry's session is its account's `OPEN` session row (entries without one are refused earlier, by row 4 at dispatch and by the session check at admission). The order is the spec's:
+  * at admission (A4 and B:A4): inert (`PRT-R06`), kill (`PRT-R01`), hold (`PRT-R04`), latch (`PRT-R03`); the first that refuses gives the code;
+  * `stage="dispatch"` (row 5): kill, hold, latch. An inert check is not a refusal there.
+* **`Safety.inert(facts) -> str | None`**: the inert reason (`not_evaluated`, `budget_unbound`, or the recorded one), or `None`. `_revalidate` calls it **after row 5** (so after row 4: an entry whose session closed still gets its session refusal) and returns `"wait"` when it is not `None`. The worker sends the command once the check is active, or refuses it with `DSP-R01` when its deadline passes (PRF-DSP-04). `dispatch_inline`, which cannot wait, refuses with `PRT-R06`.
+* **Callers.** `protection.py:903` (`_blocked`) keeps the default stage; its actions are never entries, so nothing changes for it. The `SafetyPort` protocol (`ports.py:50`) gains `stage` and `inert`. `FixtureCheck` (`tests/conftest.py:443-452`) gains `inert()` returning `None`.
+
+#### The recovery hold
+
+* **Who.** `kernel:recovery`, which already holds `hold_engage`, engages `HOLD_ENGAGED(strategy, reason="recovery")` through `safety.hold_draft(writer, strategy, "recovery", principal=RECOVERY)`. `hold_draft` gains the `principal` keyword (default `kernel:protection`, as built). One hold per reason, released by a human principal one reason at a time, as built in SLICE-05. `kernel:recovery` gets no `hold_release`: legacy's recovery path never releases a hold (`pass_check`); the sessions spec's conditional is settled as "no".
+* **When: a sweep, as legacy's every-pass re-placement.** In `run_pass`, in `OPERATING`, after the latch evaluation: for each strategy S with an **entry** command in `UNCERTAIN` that carries a `RECONCILIATION_ESCALATED` with reason `untagged_timeout` or `unknown_domain_unresolved`, if S's `recovery` hold is not engaged, `kernel:recovery` records it in its own decision. S is the strategy in the command's `COMMAND_ADMITTED` payload; a command with none holds nothing. So a release while the entry stays unresolved is followed by a new hold at the next pass, as legacy. A crash between the escalation and the hold loses nothing: the next pass derives it again.
+* **The legacy triggers in the kernel:**
+
+| # | The kernel | Hold? |
+|---|---|---|
+| L3, L6 (orders) | An unresolved **entry**, by the sweep above | **Yes** |
+| L3 (basket roles) | `protective_roles_unassigned` | **No:** the owner chose option A of [Q-027](../../decisions/owner-questions.md#q-027) item 5 |
+| Timed-out cancel, modify or close | `unknown_domain_unresolved` on a non-entry | **No:** legacy reports these and never holds (RFL `:2959-2962`). Escalated only, as built |
+| L1, L5 (broker unreadable) | **[Q-029 A]** At each advance to `OPERATING`, routine (`Recovery.run`, `recovery.py:163`) and human (`advance`, `:356`), both through `_advance_record` (`:338`): for each of `authority.bound_accounts()`, `coordinator.observation_loop.read_once(account)`. A read that returns `()`, a failure or a budget skip, holds every strategy named by any `INTENT_SEEN` in the ledger, in the advance's decision (`_record` gains extra drafts). With no loop composed, nothing is read and nothing is held. **[Q-029 B]** No hold: admission check B1 refuses entries on a stale book (`ADM-R05`) and stops once the broker answers | **[Q-029]** |
+| L6 (positions disagree) | The kernel does not compare the position book with its own positions. **Gap**, carried to step 5's deepening | No |
+| L2, L4, L7 (code raised) | An exception other than `EvidenceUnpublished` propagates out of `drain`, and so out of `run_pass`; no hold is engaged. **Gap**, carried to step 5's deepening, with the kernel host's handling (SLICE-11) | No |
+| L8, L9 | Built in step 3 (`sibling_failed`, `overclose`) | Built |
+
+* **Legacy's "no record counts as held"** is the recovery stages: nothing dispatches before `OPERATING`. **Deviation (from legacy):** a strategy is not held merely because it is new.
+* **Effect.** As every hold: entries refused (`PRT-R04`); automatic cancels, modifies and closes per `safety.hold_automatic_actions` (first release `allowed`, Q-001).
+
+#### The matrix's remaining cells
+
+* **F-P12** (the position goes to zero under kill with its stop resting) and **F-P20** (a basket leg's cancel due under kill) are built in steps 2 and 3 (`orphan_under_kill`); this step adds their tests to `test_safety_matrix.py`. F-P14 is already proved (`test_protection_loop.py`).
+* **Delegated human principals.** Each human cell (kill's cancel and close, `kill_release`, `hold_release`, `latch_unlock`) runs for the owner, and for a delegated human principal with and without the grant.
+
+### Regression and the existing tests
+
+* `latch=False` in the test `build`, and `bound()`'s synthetic `RiskPolicy`, keep every existing world as it is.
+* The simulated broker's default `day_pnl` of `"0.00"` keeps every loop world's latch active when a world turns it on.
+* **Behaviour changes:** step 3's CP-B2 test (`test_cp_b2_a_timed_out_basket_is_resolved_per_leg`) now engages a `recovery` hold on `untagged_timeout`; its assertions are unaffected and it gains one for the hold. `test_openalgo_contract.py:206` asserts the new field.
+
+### Files
+
+| File | Change |
+|---|---|
+| `src/autonomous_trading/contracts/evidence.py` | `ObservedPosition.day_pnl`; `realized_pnl` and `mtm_pnl` removed |
+| `src/autonomous_trading/contracts/decisions.py` | `RiskPolicy`, `risk_policy_from`, `BoundPolicy.risk` |
+| `src/autonomous_trading/adapters/openalgo.py` | `_pnl`; `_position` reads `pnl` into `day_pnl` |
+| `src/autonomous_trading/adapters/simulated_broker.py` | `day_pnl` per row; `set_day_pnl`; flat rows for a set instrument; `set_positions_coverage` |
+| `src/autonomous_trading/kernel/safety.py` | `SessionPnl`, `PnlUnavailable`, `session_pnl`, `budget`, `evaluate_latches`, `unlock_latch`, `inert`; `check`'s `stage`, inert and latch rows; the constructor's `policies` and `latch`; `hold_draft`'s `principal` |
+| `src/autonomous_trading/kernel/ports.py` | `SafetyPort`'s `stage` and `inert` |
+| `src/autonomous_trading/kernel/authority.py` | `kernel:safety` |
+| `src/autonomous_trading/kernel/coordinator.py` | The latch evaluation and the recovery-hold sweep in `run_pass`; row 5's stage and the inert wait; `dispatch_inline`'s `PRT-R06` |
+| `src/autonomous_trading/kernel/admission.py` | A4 and B:A4 pass `stage="admission"` |
+| `src/autonomous_trading/kernel/recovery.py` | **[Q-029 A]** the read at the advance and its hold; `_record`'s extra drafts |
+| `src/autonomous_trading/kernel/ledger/projections.py`, `store.py`, `resources/events.schema.json` | The three events in `safety_state` and the safety family; their guards and payloads |
+| `src/autonomous_trading/bootstrap.py` | `Safety`'s `policies` and `latch` |
+| `tests/conftest.py` | `bound()`'s synthetic `RiskPolicy`; `build`'s `latch=False`; `FixtureCheck.inert`; a two-day calendar helper |
+| `tests/unit/test_safety_matrix.py` | The step's matrix and latch tests |
+| `tests/unit/test_protection_basket.py` | CP-B2's hold assertion |
+| `tests/integration/test_dispatch_revalidation.py` | The inert wait |
+| `tests/integration/test_openalgo_contract.py` | `pnl` into `day_pnl` |
+| `tests/recovery/test_crash_boundaries.py` | The recovery hold after a restart |
+| Spec amendments | The protection spec: the latch's scope (per session), its P&L basis per the Q-028 answer, the field, the coverage rule, the payloads, the capital source, the recovery-hold trigger table. The execution-domain spec: `day_pnl`. The sessions spec: `kernel:safety`; `kernel:recovery` without `hold_release` |
+
+### Step 4 tests
+
+All values are labelled synthetic. Every case runs under both the owner and a delegated human principal where a human acts.
+
+* **The latch (PRF-PRT-05):**
+  * a loss short of the budget does not trip; a loss equal to −budget trips (`≤`, legacy);
+  * the trip refuses an entry with `PRT-R03`, and refuses no cancel, modify or close;
+  * the latch keeps its first trip: a deeper loss records nothing new;
+  * an unlock without `latch_unlock`, without a reason, or while not tripped is refused; an unlock with them records `LOSS_LATCH_UNLOCKED`, and the next evaluation still at or below −budget trips again;
+  * **two sessions:** with a two-day calendar, a trip in one session does not refuse an entry after the session closes and the next one opens; the next session starts `not_evaluated`;
+  * the budget is the smaller of the amount and the percent of capital; a mapping with the amount missing, or with only one of percent and capital, refuses;
+  * a replay world's trip is not seen by a live world over the same inputs (POL-006);
+  * the same observation evaluated twice records nothing the second time;
+  * **[Q-028 A]** a loss on an instrument the system does not own trips the latch; **[Q-028 B]** it does not, and a realised loss on a closed position of the session still counts.
+* **Visibility (PRF-PRT-05, F-P7):**
+  * before the session's first evaluation, an entry is refused with `PRT-R06` (`not_evaluated`);
+  * a row without `day_pnl`: `SAFETY_CHECK_STATE` inert `pnl_field_missing`, and an entry refused with `PRT-R06`;
+  * positions coverage `no`: inert `positions_incomplete`; coverage `unknown`: active;
+  * the state is recorded once per change; the next good observation records `active`, and entries pass;
+  * `risk=None`: inert `budget_unbound`;
+  * the default composition has the latch on.
+* **The code order (PRF-PRT-04):** with every condition engaged at once, A4 gives `PRT-R06`, then `PRT-R01` once the check is active, then `PRT-R04` once kill is released, then `PRT-R03` once the hold is released. Dispatch gives `PRT-R01`, `PRT-R04`, `PRT-R03` in the same way, and waits on an inert check.
+* **Dispatch (PRF-DSP-04, inert half):** an entry admitted while active waits while the check turns inert; it is sent once the check is active again, or refused with `DSP-R01` when its deadline passes. `dispatch_inline` refuses it with `PRT-R06`.
+* **The recovery hold (PRF-PRT-04):**
+  * an entry's `untagged_timeout` holds its strategy at the next pass, once;
+  * a release while the entry stays `UNCERTAIN` is followed by a new hold at the next pass; after the entry is resolved, a release stays released;
+  * `protective_roles_unassigned`, and a timed-out modify's `unknown_domain_unresolved`, hold nothing;
+  * under the hold an entry is refused with `PRT-R04`, and the trail still moves the stop (Q-001);
+  * `kernel:recovery` cannot release a hold;
+  * after a restart (a child process exiting 86, as the crash tests), the hold is still engaged;
+  * **[Q-029 A]** a failed read at the advance, routine and human, holds every strategy seen; **[Q-029 B]** it holds none, and an entry is refused with `ADM-R05` until the book is fresh.
+* **Remaining cells:** F-P12 and F-P20 under kill escalate `orphan_under_kill` once and send nothing.
+* **The adapter:** a captured-shape `positionbook` row gives `day_pnl` equal to its `pnl`, including one with three decimals; a row without `pnl`, or with a non-number, gives `None`.
+
+**Break checks** (applied and reverted as in step 3):
+
+| Change | Must fail |
+|---|---|
+| Trip on `<` instead of `≤` | the equal-budget case |
+| Count a row without `day_pnl` as 0 | the `pnl_field_missing` case |
+| Require coverage `yes` | the `unknown` coverage case |
+| Treat `not_evaluated` as active | the not-yet-evaluated case |
+| Treat `risk=None` as active | the `budget_unbound` case |
+| Record a second trip while tripped | the first-trip case |
+| Key the latch by date, or keep it across sessions | the two-session case |
+| Let the latch refuse a close | the trip case's close |
+| Trip at admission | the not-yet-evaluated case (no trip is recorded by an admission) |
+| Drop the inert row at admission | the `PRT-R06` case |
+| Refuse instead of wait at dispatch when inert | the dispatch case |
+| Swap kill and hold at dispatch | the code-order case |
+| Record `SAFETY_CHECK_STATE` on every evaluation | the once-per-change case |
+| Hold on a non-entry's escalation | the timed-out modify case |
+| Engage the recovery hold only once, not every pass | the release-while-unresolved case |
+| Let `kernel:recovery` release a hold | the release case |
 
 ## Step 5 — gaps, continuity and cost (scoped)
 
 * `GAP_PEAK_RECORDED` from a replay of the gap's bars (POL-013);
+* the recovery-hold gaps step 4 carries: positions compared with the book (L6), and exceptions out of reconciliation (L2, L4, L7);
 * the release refusal while a leg's recorded ladder version lives (PRF-PRT-12);
 * the evaluation-cost baseline (PRF-PRT-10).
 

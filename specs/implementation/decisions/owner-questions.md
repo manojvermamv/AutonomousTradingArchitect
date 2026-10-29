@@ -31,6 +31,8 @@ Status: **open owner decision** unless a row says answered. Each question is a g
 | [Q-025](#q-025) | A refused or failed stop modify: does the ladder keep legacy's library rule (the move not taken) or the live host's (only the stop put back)? | `scripts/run_framework_live.py:5221-5278` @445eb116; [SLICE-06 step 1](../plan/slices/SLICE-06-protection-and-safety.md#step-1-as-built) | TASK-S06-01 (SLICE-06 step 2's trail loop) | answered 2026-10-28 ([answers](owner-answers-2026-10-27.md)) |
 | [Q-026](#q-026) | The deep-OTM delta exit: legacy's live host never ran it. Keep it in the kernel, or not? | `scripts/run_framework_live.py` @445eb116 (no `premium_exit` call); [SLICE-06 step 2](../plan/slices/SLICE-06-protection-and-safety.md#step-2--the-protection-loop) | TASK-S06-01 (step 2's tick exits), step 3's exits | answered 2026-10-28 ([answers](owner-answers-2026-10-27.md)) |
 | [Q-027](#q-027) | Basket maintenance where the spec goes beyond legacy's live host (partial fills, partial or unfilled entries, failed cancels, unproven roles): spec or legacy? | `scripts/run_framework_live.py:4588-4687` @445eb116; [SLICE-06 step 3](../plan/slices/SLICE-06-protection-and-safety.md#step-3--basket-placement) | TASK-S06-01 (SLICE-06 step 3) | answered 2026-10-28 ([answers](owner-answers-2026-10-27.md)) |
+| [Q-028](#q-028) | The daily-loss latch: the whole account's P&L (legacy) or only the system's own positions (the spec)? | `scripts/run_framework_live.py:7983-7988` @445eb116; [SLICE-06 step 4](../plan/slices/SLICE-06-protection-and-safety.md#step-4--the-latch-safety-visibility-and-the-recovery-hold) | TASK-S06-04 | open |
+| [Q-029](#q-029) | A restart that cannot read the broker: hold every strategy until a person releases it (legacy), or let the stale-book refusal lift on its own? | `scripts/run_framework_live.py:3127-3169` @445eb116; [SLICE-06 step 4](../plan/slices/SLICE-06-protection-and-safety.md#step-4--the-latch-safety-visibility-and-the-recovery-hold) | TASK-S06-03 | open |
 
 ---
 
@@ -580,3 +582,69 @@ Proof: tests/unit/test_protection_basket.py; PRF-PRT-01.
 Step 3 is written with option A and marks the five rows; their build waits on the answer. Nothing else in step 3 depends on it.
 
 **Answer (2026-10-28): option A.** The spec's five basket rules, as written in SLICE-06 step 3.
+
+---
+
+## Q-028
+
+**The daily-loss brake: count the whole account's P&L, or only the trades the system made?**
+
+```text
+Requirement: entries stop for the rest of the session once the day's loss reaches the budget (POL-004, POL-005, Q-002).
+Owner: kernel.safety (SLICE-06 step 4).
+Proof: tests/unit/test_safety_matrix.py; PRF-PRT-05.
+```
+
+**In plain words.** The brake adds up the day's profit and loss and stops new trades at a loss of ₹3,600. The question is which trades it adds up.
+
+**Why it matters.** The old system added up **every position on the account**, including trades it did not make, such as a manual trade. It fed that one total to each strategy's own brake (`scripts/run_framework_live.py:312-353`, `:7941`, `:7983-7988` @445eb116). OpenAlgo's position book cannot be split by strategy (upstream-findings, the `positionbook` row). The protection spec says the brake counts **only the system's own positions**, "as legacy does", but legacy does not. With one strategy on one account, as in the first release, both give the same number unless a trade the system did not make is on the account that day. Either way there is one brake per session (step 4, "The latch's scope").
+
+**Options.**
+
+- **A — Recommended: the whole account, as the old system did.** A manual trade's loss counts too, so the brake trips sooner.
+- **B: only the system's own trades, as the spec says.** The brake counts the rows for instruments the system traded this session, open or closed. A manual trade on the same instrument would be counted with them, since the book cannot tell them apart.
+
+| Check | A (whole account) | B (own trades) |
+|---|---|---|
+| Effort now | Less: sum every row | More: match rows to the session's positions |
+| Simpler substitute | It is the simpler one | A |
+| Extra work later | None now | None now |
+| Lock-in | None: switching is one rule | None |
+| More than needed? | No | Yes, for one strategy on one account |
+| Easy to undo? | Yes | Yes |
+
+Doing nothing is not an option: the spec and the old system disagree, so the build needs one answer.
+
+**Recommendation: A.** It protects the account's real money, it is what ran before, and it is simpler. Step 4 is written for A and marks each line B changes.
+
+---
+
+## Q-029
+
+**At a restart where the broker cannot be read: hold every strategy until a person looks, or resume once the broker answers?**
+
+```text
+Requirement: a strategy whose orders the system cannot account for sends no new entries until resolved (POL-003, TASK-S06-03).
+Owner: kernel.recovery (SLICE-06 step 4).
+Proof: tests/recovery/test_crash_boundaries.py; PRF-PRT-04.
+```
+
+**In plain words.** When the old system restarted and could not read the broker, it put every strategy on hold. A person then had to look and release each one by hand, even after the broker came back.
+
+**Why it matters.** At startup the old system did one extra check: it compared the broker's positions with its own records (`scripts/run_framework_live.py:3127-3169` @445eb116). If it could not read the broker then, that comparison never ran, so it held. Its order check ran at every pass after that (`:7918-7926`). The new system already refuses new entries while the broker cannot be read (`ADM-R05`), and it holds a strategy while one of its entry orders cannot be accounted for (step 4). But **it does not compare positions yet** (a gap recorded in step 4). So under B, a position that disagrees with the records after such a restart would not be noticed by the system.
+
+**Options.**
+
+- **A — Recommended: hold, as the old system did.** Each restart where the broker does not answer needs a person to look before trading resumes.
+- **B: no hold for this case.** New entries wait while the broker cannot be read and resume on their own once it answers.
+
+| Check | A (hold) | B (no hold) |
+|---|---|---|
+| Effort now | A read at each advance, and a hold | Nothing: already built |
+| Simpler substitute | B, once the system compares positions | It is the simpler one |
+| Extra work later | A release by hand after each such restart | None |
+| Lock-in | None | None |
+| More than needed? | No, while positions are not compared | Leaves the position gap open |
+| Easy to undo? | Yes | Yes |
+
+**Recommendation: A, for now.** A person looking before trading resumes is the only check on positions until the system compares them itself. Once it does, B becomes the simpler and safe choice. Step 4 is written for A and marks each line B changes.

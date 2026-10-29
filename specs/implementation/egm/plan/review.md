@@ -498,3 +498,38 @@ Fresh `egm:egm-design` and `egm:egm-implementation-readiness` reviews of [SLICE-
 | R-16 | Major | Crash points were unnamed | FIX: `CP-B1`, `CP-B3`, `CP-B5` call sites; CP-B2, CP-B4 and CP-B6 by state |
 | R-18…R-21 | Minor | Admission details, the simulated basket, break-check mapping, the helpers, Q-027 coverage | FIX: each specified; the Q-027 rows marked by item, and which tests build now |
 
+## SLICE-06 step 4 review (2026-10-29)
+
+Fresh `egm:egm-design` and `egm:egm-implementation-readiness` reviews of [SLICE-06 step 4](../../plan/slices/SLICE-06-protection-and-safety.md#step-4--the-latch-safety-visibility-and-the-recovery-hold): the daily-loss latch, safety visibility and the recovery hold. Design: 1 Blocker, 11 Major, 6 Minor (F-1…F-18). Readiness: 2 Blockers, 5 Major, 7 Minor (R-1…R-14). Every finding was checked against the code or the legacy export before it was taken, and each is resolved by FIX in the rewritten step. The design reviewer found that legacy keeps one latch per strategy fed with the whole account's P&L. The step now keys the latch by session, marked Deviation (the kernel binds one budget per session), and [Q-028](../../decisions/owner-questions.md#q-028) asks only what is summed. F-12's corrections changed [Q-029](../../decisions/owner-questions.md#q-029)'s recommendation from B to A: the kernel does not compare positions yet. Both questions are open.
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| F-1, R-2 | Blocker | The check row put the inert reason in the key, so an active row never replaced an inert one, and no row carried a session | FIX: rows keyed by the session ID, the inert reason in `note`; every column and the schema payloads given |
+| R-1, F-3 | Blocker / Major | `drain` returns reconcile results, not observations; staleness unhandled; the stage check unplaced | FIX: evaluate each pass from the dispatch port's `latest(account)`, fresh by B1's age rule, new digest only, after the `OPERATING` check |
+| F-2 | Major | A fresh book before the session's first evaluation let an entry pass unchecked | FIX: `not_evaluated` is inert until the session's first `SAFETY_CHECK_STATE` |
+| F-4 | Major | OpenAlgo positionbook coverage is always `unknown`: the latch would be inert, and every entry refused, in production | FIX: only coverage `no` is incomplete; `unknown` accepted as legacy accepts a successful read; marked Deviation; a test |
+| F-5 | Major | Episode-0 escalations never re-hold after a release; legacy re-places the hold every pass | FIX: the recovery hold is a sweep each pass while an entry stays unresolved |
+| F-6 | Major | L1 (broker unreadable) was mapped to an escalation that cannot occur without a read | FIX: L1 moved under Q-029 with L5 |
+| F-7 | Major | `unknown_domain_unresolved` on a cancel, modify or close would hold; legacy never holds these | FIX: entries only; a test that a timed-out modify holds nothing |
+| F-8 | Major | Legacy is per strategy over account P&L; option A changed the scope and gave no budget source | FIX: one latch per session, the session's bound policy as the budget, marked Deviation; Q-028 narrowed to the sum |
+| F-9 | Major | Q-028 B lines unmarked; B dropped realised losses once a position closed | FIX: B is now only the summing rule; it counts every position of the session, open or closed |
+| F-10 | Major | Capital from policy, not legacy's reviewed cash, unmarked | FIX: marked Deviation, as the spec states it; flagged for the owner, no value proposed |
+| F-11 | Major | "Stricter than a hold" for exceptions was unproven | FIX: stated as a gap carried to step 5, with SLICE-11's host handling |
+| F-12 | Major | Q-029 misread legacy (it re-read every pass) and assumed a slow broker every morning | FIX: the question rewritten; the positions gap named; recommendation A |
+| R-3 | Major | `Safety` had no policy, and `ActionFacts` no session | FIX: `Safety` takes `admission.policies`; an entry's session is its account's `OPEN` session |
+| R-4 | Major | The synthetic budget was put on `build`, which builds no policy | FIX: on `bound()`; `build` passes `latch=False` unless a world asks |
+| R-5 | Major | Callers missed: `protection._blocked`, `SafetyPort`, `FixtureCheck`, `dispatch_inline` | FIX: each named, with the default stage, `FixtureCheck.inert`, and `PRT-R06` inline |
+| R-6, F-13 | Major / Minor | `escalate` already has `extra`; RECONCILIATION_ESCALATED has no strategy | FIX: the sweep reads the strategy from `COMMAND_ADMITTED`; none means no hold |
+| R-7 | Major | Q-029 A's read: both advance paths, which loop, what a failed read looks like, which strategies | FIX: each specified; `read_once` returning `()` is a failed read; no loop means no read |
+| F-15 | Minor | Where the inert wait sits | FIX: after row 5, so after row 4's session refusal |
+| F-14 | Minor | `kernel:safety` and `kernel:recovery`'s `hold_release` belong in the sessions spec | FIX: both in the spec amendments; `hold_release` settled as no |
+| F-16 | Minor | CP-B2's behaviour changes | FIX: listed under regression |
+| F-17 | Minor | `_money` refuses more than two decimals | FIX: a separate exact `_pnl`, never rounded; a three-decimal test |
+| F-18 | Minor | `_number`'s line | FIX: `:22-31` |
+| R-8 | Minor | Flat simulated rows raise `KeyError`; coverage is one value for all endpoints | FIX: `amount` and `margin` `None`; `set_positions_coverage` |
+| R-9 | Minor | `day_pnl`'s form; the contract test; digests | FIX: keyword-only, default `None`; both noted |
+| R-10 | Minor | `Unavailable(reason)` collided with `ports.Unavailable`; `budget` unspecified | FIX: `PnlUnavailable`; `budget(risk) -> Decimal` |
+| R-11 | Minor | The unlock checked every bound account | FIX: the session's account only |
+| R-12 | Minor | The calendar has one day | FIX: a two-day calendar helper in `conftest.py` |
+| R-13 | Minor | Break checks missed `risk=None`, admission trips, dispatch order | FIX: rows added |
+| R-14 | Minor | Settings and schema coverage | FIX: no settings key, said explicitly; the schema payloads given |
