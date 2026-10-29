@@ -2,7 +2,7 @@
 
 * **Status:** proposed, non-normative. A record of what the read-only checker found, not a claim that the design is correct.
 * **Precedence:** master README, then ROADMAP, then the package. This file edits nothing.
-* **Run:** 2026-10-29, against the package at branch commit `ef32508` (this file is rebuilt in the commit after it), master pin `b9bb32c`, legacy pin `OA@445eb116`.
+* **Run:** 2026-10-29, against the package at branch commit `1e84ade` (this file is rebuilt in the commit after it), master pin `b9bb32c`, legacy pin `OA@445eb116`.
 
 ## Results against the hard targets
 
@@ -10,18 +10,18 @@
 |---|---|---|---|
 | J1 | 0 unresolved Blockers in every EGM report; every Major fixed, contested with evidence, or raised as Q/X | pass: every Blocker raised in stages 5–9 and the final zoom-out is resolved (FIX, or Q-013 for the protection-placement Blocker); every Major is FIX, CONTEST or a Q/X item | [egm/](../egm/README.md) review files |
 | J6 | SLICE-01 passes EGM stage 9 with 0 Blockers | pass: round 2 found 0 Blockers (readiness 0/16/20, codebase 0/11/12); all round-2 Majors fixed | [egm/plan/review.md](../egm/plan/review.md) |
-| J2 | Every full-depth key has decision, module, task and proof; stub keys name their acceptance row | pass: 87 full-depth keys, 56 stub keys, 0 incomplete rows, 0 undefined proofs | Checker output below; [traceability](../traceability.md) |
+| J2 | Every full-depth key has decision, module, task and proof; stub keys name their acceptance row | pass: 94 full-depth keys, 49 stub keys, 0 incomplete rows, 0 undefined proofs | Checker output below; [traceability](../traceability.md) |
 | J3 | 0 module references outside README §6 plus listed tree deltas; 0 modules specified twice | pass | Checker output below |
 | J4 | 0 broken relative links; 0 duplicate IDs | pass | Checker output below |
 | J5 | Every master citation falls inside the section holding the cited ID | pass | Checker output below |
-| J7 | Only `specs/implementation/` changes in ATA (plus the master `README.md`, edited on the owner's authorization of 2026-10-27 for X-001, X-003, X-006, X-007; master citations stay pinned to `b9bb32c`) | pass: 48 files changed since the branch base `b9bb32c`, 0 outside `specs/implementation/` other than the authorized master `README.md` (2); working tree has 0 changes outside it | `git diff --name-only b9bb32c..HEAD` and `git status --porcelain` below |
+| J7 | Only `specs/implementation/` changes in ATA (plus the master `README.md`, edited on the owner's authorization of 2026-10-27 for X-001, X-003, X-006, X-007; master citations stay pinned to `b9bb32c`) | pass: 49 files changed since the branch base `b9bb32c`, 0 outside `specs/implementation/` other than the authorized master `README.md` (2); working tree has 0 changes outside it | `git diff --name-only b9bb32c..HEAD` and `git status --porcelain` below |
 
 Passing J2–J5 shows only that the documents agree with each other and with the master. Correctness evidence comes from the zero-context EGM reviews (J1, J6), the owner's answers to the open questions, and, later, the executed proofs. No proof in this package is *executable* or *passing* yet: every one is *specified*.
 
 ## Checker output
 
 ```text
-files=46 tree_paths=176 deltas=39 full_keys=87 stub_keys=56
+files=47 tree_paths=176 deltas=46 full_keys=94 stub_keys=49
 J7 changed=0 outside_specs=0 []
 
 no problems
@@ -236,7 +236,7 @@ root = pathlib.Path(sys.argv[1])  # specs/implementation
 design = root / "design"
 FULL = ["ledger-and-atomic-transaction", "sessions-authority-lifecycle", "intent-to-admission",
         "dispatch-and-coordination", "execution-domain-and-observations", "protection-and-safety",
-        "cross-cutting-invariants"]
+        "cross-cutting-invariants", "market-data-and-canvas"]
 M = {  # key: (module, tasks, proofs)
     "REQ-LED-001": ("kernel/ledger/store.py, resources/migrations/001_initial.sql", "TASK-S01-14, TASK-S01-21", "PRF-LED-01, PRF-LED-02"),
     "REQ-LED-002": ("kernel/ledger/envelope.py", "TASK-S01-18", "PRF-LED-01, PRF-LED-15"),
@@ -325,6 +325,13 @@ M = {  # key: (module, tasks, proofs)
     "REQ-XC-006": ("scripts/safe_tests.py", "TASK-S01-28", "R: process rule"),
     "REQ-XC-007": ("kernel/ledger/export.py", "TASK-S02-03", "PRF-DOM-08"),
     "REQ-XC-008": ("adapters/unix_channel.py", "TASK-S11-02", "README.md:1225 (named proof written at SLICE-11)"),
+    "REQ-MKT-001": ("market/view.py", "TASK-S08-03, TASK-S08-04", "PRF-MKT-04, PRF-MKT-07"),
+    "REQ-MKT-002": ("market/ingest.py, market/store.py, market/sources.py", "TASK-S08-02, TASK-S08-05", "PRF-MKT-02, PRF-MKT-03, PRF-MKT-08"),
+    "REQ-MKT-003": ("market/quality.py", "TASK-S08-03", "PRF-MKT-06"),
+    "REQ-MKT-004": ("contracts/market.py, market/view.py", "TASK-S08-01", "PRF-MKT-01"),
+    "REQ-MKT-005": ("market/store.py, market/view.py", "TASK-S08-02, TASK-S08-03", "PRF-MKT-05"),
+    "REQ-MKT-006": ("market/canvas/*, resources/canvas.schema.json", "TASK-S08-06", "PRF-MKT-09"),
+    "REQ-MKT-007": ("market/store.py, market/ingest.py", "TASK-S08-02, TASK-S08-04", "PRF-MKT-07"),
 }
 STUB_SLICE = {"market-data-and-canvas": "SLICE-08", "strategies-and-cognition": "SLICE-09",
               "research-rl-custody-promotion": "SLICE-12", "security-and-operator": "SLICE-10",
