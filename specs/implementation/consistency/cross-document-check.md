@@ -2,7 +2,7 @@
 
 * **Status:** proposed, non-normative. A record of what the read-only checker found, not a claim that the design is correct.
 * **Precedence:** master README, then ROADMAP, then the package. This file edits nothing.
-* **Run:** 2026-10-30, against the package at branch commit `920a98c` (this file is rebuilt in the commit after it), master pin `b9bb32c`, legacy pin `OA@445eb116`.
+* **Run:** 2026-10-30, against the package at branch commit `7f98c6b` (this file is rebuilt in the commit after it), master pin `b9bb32c`, legacy pin `OA@445eb116`.
 
 ## Results against the hard targets
 
@@ -10,18 +10,18 @@
 |---|---|---|---|
 | J1 | 0 unresolved Blockers in every EGM report; every Major fixed, contested with evidence, or raised as Q/X | pass: every Blocker raised in stages 5–9 and the final zoom-out is resolved (FIX, or Q-013 for the protection-placement Blocker); every Major is FIX, CONTEST or a Q/X item | [egm/](../egm/README.md) review files |
 | J6 | SLICE-01 passes EGM stage 9 with 0 Blockers | pass: round 2 found 0 Blockers (readiness 0/16/20, codebase 0/11/12); all round-2 Majors fixed | [egm/plan/review.md](../egm/plan/review.md) |
-| J2 | Every full-depth key has decision, module, task and proof; stub keys name their acceptance row | pass: 152 full-depth keys, 10 stub keys, 0 incomplete rows, 0 undefined proofs | Checker output below; [traceability](../traceability.md) |
+| J2 | Every full-depth key has decision, module, task and proof; stub keys name their acceptance row | pass: 165 full-depth keys, 0 stub keys, 0 incomplete rows, 0 undefined proofs | Checker output below; [traceability](../traceability.md) |
 | J3 | 0 module references outside README §6 plus listed tree deltas; 0 modules specified twice | pass | Checker output below |
 | J4 | 0 broken relative links; 0 duplicate IDs | pass | Checker output below |
 | J5 | Every master citation falls inside the section holding the cited ID | pass | Checker output below |
-| J7 | Only `specs/implementation/` changes in ATA (plus the master `README.md`, edited on the owner's authorization of 2026-10-27 for X-001, X-003, X-006, X-007; master citations stay pinned to `b9bb32c`) | pass: 53 files changed since the branch base `b9bb32c`, 0 outside `specs/implementation/` other than the authorized master `README.md` (2); working tree has 0 changes outside it | `git diff --name-only b9bb32c..HEAD` and `git status --porcelain` below |
+| J7 | Only `specs/implementation/` changes in ATA (plus the master `README.md`, edited on the owner's authorization of 2026-10-27 for X-001, X-003, X-006, X-007; master citations stay pinned to `b9bb32c`) | pass: 55 files changed since the branch base `b9bb32c`, 0 outside `specs/implementation/` other than the authorized master `README.md` (2); working tree has 0 changes outside it | `git diff --name-only b9bb32c..HEAD` and `git status --porcelain` below |
 
 Passing J2–J5 shows only that the documents agree with each other and with the master. Correctness evidence comes from the zero-context EGM reviews (J1, J6), the owner's answers to the open questions, and, later, the executed proofs. No proof in this package is *executable* or *passing* yet: every one is *specified*.
 
 ## Checker output
 
 ```text
-files=51 tree_paths=176 deltas=86 full_keys=152 stub_keys=10
+files=53 tree_paths=176 deltas=92 full_keys=165 stub_keys=0
 J7 changed=0 outside_specs=0 []
 
 no problems
@@ -239,7 +239,8 @@ FULL = ["ledger-and-atomic-transaction", "sessions-authority-lifecycle", "intent
         "cross-cutting-invariants", "market-data-and-canvas",
         "strategies-and-cognition", "security-and-operator", "configuration-artifacts-release",
         "runtime-isolation-observability-deployment",
-        "research-rl-custody-promotion"]
+        "research-rl-custody-promotion",
+        "migration-recovery-rollback-continuity"]
 M = {  # key: (module, tasks, proofs)
     "REQ-LED-001": ("kernel/ledger/store.py, resources/migrations/001_initial.sql", "TASK-S01-14, TASK-S01-21", "PRF-LED-01, PRF-LED-02"),
     "REQ-LED-002": ("kernel/ledger/envelope.py", "TASK-S01-18", "PRF-LED-01, PRF-LED-15"),
@@ -393,6 +394,19 @@ M = {  # key: (module, tasks, proofs)
     "REQ-RES-014": ("research/*", "TASK-S12-04", "PRF-RES-09"),
     "REQ-RES-015": ("research/*", "TASK-S12-04", "PRF-RES-09"),
     "REQ-RES-016": ("research/*", "TASK-S12-01, TASK-S12-09", "PRF-RES-01, PRF-RES-03"),
+    "REQ-MIG-001": ("operations/deployment.py, operations/backup.py, operations/restore.py, adapters/compatibility.py", "TASK-S14-01, TASK-S14-04", "PRF-MIG-13, PRF-MIG-14"),
+    "REQ-MIG-002": ("operations/deployment.py, operations/backup.py, operations/restore.py, adapters/compatibility.py", "TASK-S14-01, TASK-S14-05", "PRF-MIG-13, PRF-MIG-14"),
+    "REQ-MIG-003": ("operations/deployment.py, operations/backup.py, operations/restore.py, adapters/compatibility.py", "TASK-S13-03", "PRF-MIG-09, PRF-LED-06"),
+    "REQ-MIG-004": ("operations/deployment.py, operations/backup.py, operations/restore.py, adapters/compatibility.py", "TASK-S13-05", "PRF-MIG-07"),
+    "REQ-MIG-005": ("operations/deployment.py, operations/backup.py, operations/restore.py, adapters/compatibility.py", "TASK-S13-01", "PRF-MIG-08"),
+    "REQ-MIG-006": ("operations/deployment.py, operations/backup.py, operations/restore.py, adapters/compatibility.py", "TASK-S11-05", "PRF-MIG-01, PRF-MIG-02"),
+    "REQ-MIG-007": ("operations/deployment.py, operations/backup.py, operations/restore.py, adapters/compatibility.py", "TASK-S11-05", "PRF-MIG-04, PRF-MIG-05"),
+    "REQ-MIG-008": ("operations/deployment.py, operations/backup.py, operations/restore.py, adapters/compatibility.py", "TASK-S14-02", "PRF-MIG-15, PRF-MIG-16"),
+    "REQ-MIG-009": ("operations/deployment.py, operations/backup.py, operations/restore.py, adapters/compatibility.py", "TASK-S11-05", "PRF-MIG-17"),
+    "REQ-MIG-010": ("operations/deployment.py, operations/backup.py, operations/restore.py, adapters/compatibility.py", "TASK-S13-04", "PRF-MIG-06"),
+    "REQ-MIG-011": ("operations/deployment.py, operations/backup.py, operations/restore.py, adapters/compatibility.py", "TASK-S13-02, TASK-S13-06, TASK-S13-08", "PRF-MIG-10, PRF-MIG-11, PRF-MIG-12"),
+    "REQ-MIG-012": ("operations/deployment.py, operations/backup.py, operations/restore.py, adapters/compatibility.py", "TASK-S11-05", "PRF-MIG-03"),
+    "REQ-MIG-013": ("adapters/lease_store.py", "TASK-S11-05", "PRF-MIG-03"),
 }
 STUB_SLICE = {"market-data-and-canvas": "SLICE-08", "strategies-and-cognition": "SLICE-09",
               "research-rl-custody-promotion": "SLICE-12", "security-and-operator": "SLICE-10",
