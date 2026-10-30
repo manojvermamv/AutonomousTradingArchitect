@@ -1,6 +1,6 @@
 # SLICE-08 — Market data and views
 
-* **Status:** proposed (2026-10-29); reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-08-review-2026-10-29)), whose findings are resolved in this text. Step 1 is deepened below and not yet built. Steps 2–6 are deepened in turn, each after the step before it is built, as in SLICE-04, SLICE-05, SLICE-06 and SLICE-07 (the delivery plan's depth rule).
+* **Status:** proposed (2026-10-29); reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-08-review-2026-10-29)), whose findings are resolved in this text. Step 1 is built (OA_NEW `484a1ec` on `slice-08`; [Step 1 as built](#step-1-as-built)). Steps 2–6 are deepened in turn, each after the step before it is built, as in SLICE-04, SLICE-05, SLICE-06 and SLICE-07 (the delivery plan's depth rule).
 * **Precedence:** the master README, then the ROADMAP, then this package. The authority is the [market-data spec](../../design/market-data-and-canvas.md). Every deviation is marked **Deviation**. No score, threshold or money value is set here: the confirmation lag is POL-019's approved 7 s, bound only in tests to labelled values.
 * **Phase:** master Phase 5 (A01-F1…F5, D08). Environment class S, except step 4's captured OpenAlgo responses (class R).
 * **Builds on:** SLICE-03 and SLICE-04 as built, and on SLICE-06 as built (the protection loop reads `closes` and `latest_tick`). The branch `slice-08` is cut from `agentic-desk` (OA_NEW `536f857`, SLICE-06 plus the repository's `AGENTS.md`).
@@ -185,6 +185,39 @@ No existing test or `tests/conftest.py` changes: step 1 adds pure code that noth
 * Every test above passes, twice in a row, with the whole suite.
 * Every break check fails a listed test, and every file is restored (md5).
 * `ast.parse` passes on every edited Python file.
+
+### Step 1 as built
+
+**In plain words.** The rules for time are built and tested: which minute a price belongs to, when a minute's bar is final, how a late price becomes a correction instead of changing the bar, and how 5-minute and longer bars are built from 1-minute ones. On 40 generated cases the new code builds exactly the bars the old code built.
+
+Commit `484a1ec` on `slice-08` (cut from `agentic-desk` at `536f857`), after a test-only commit `d713cb6` (below). It changes 7 paths. The files match the step's table.
+
+**Choices made while building:**
+
+| Topic | As built |
+|---|---|
+| `epoch_ms` on other types | A value that is not `None`, a bool, a `datetime`-like or a number is read through `str(value)`, as legacy's `to_epoch_ms` does, not refused as the text above said. That is legacy's rule (fork rule) |
+| Naive-datetime check | `market/view.py` uses `contracts/market.py`'s `_aware` for `resample`'s `now` |
+| The golden file | Generated with Python 3.14 from the legacy export at 445eb116 (`src/` only, enough for `src.data.marketdata.ticks`): 40 cases, 136 bars. Each tick has its own time in 85% of cases, in seconds, milliseconds or ISO form |
+| The flaky evidence tests | Two adapter tests that check what is recorded, not the deadline, ran under the 500 ms deadline on a live clock and failed twice in about 57 runs while helper agents loaded the machine. Commit `d713cb6` gives those two a 5 s deadline (`ROOMY_MS`); the deadline tests are unchanged. This is the timing-sensitive send test recorded in SLICE-06 step 4 as built |
+| Test runs | 941 passed, twice in a row, after the test-only commit |
+
+**Tests:** `tests/unit/test_market_windows.py`, 92 cases (40 of them legacy parity), every group of the table above.
+
+**Break checks** (anchors checked first, every file restored byte for byte, md5 verified): all 10 failed a test.
+
+| Change | Test that failed |
+|---|---|
+| `on_time` with `<` | Confirmation (2 tests) |
+| Revision 1 folds every tick | Confirmation; Q-030 (2 tests) |
+| Fold in event-time order | Legacy parity (39 cases) |
+| Volume with `sum()` | Fold; legacy parity (6 cases) |
+| Size fields with `volume` first | Lifting (the golden cases never carry two size fields, so parity does not catch it) |
+| `window_start` on the IST wall clock | Resampling (one-hour alignment) |
+| An exclusive close | Instants and calendar |
+| A naive time read as UTC | Lifting (`epoch_ms`) |
+| Lateness measured from the confirmation instant | Confirmation (2 tests) |
+| `resample` keeps the first close (replaces "judges lateness on the higher window", which no mutation of `resample` can express: it takes bars, not ticks) | Resampling |
 
 ## Step 2 — store, ingestion and publication (outline)
 
