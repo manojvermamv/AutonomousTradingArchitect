@@ -609,3 +609,77 @@ Fresh `egm:egm-design` and `egm:egm-implementation-readiness` reviews of [SLICE-
 | F-16, R-3 | Minor / Blocker | CP-M3 impossible as written; no seams or child branch | FIX: seams on store and loop, the points redefined, a child branch |
 | R-1 | Blocker | The reader had no read interface | FIX: the reads listed with signatures |
 | R-6, R-9, R-10, R-11, R-12 | Major / Nit | Loop record fields, the raising-commit test, DDL types, the settings pattern, an unused argument | FIX: each specified |
+
+## SLICE-09 design review (2026-10-30)
+
+A fresh `egm:egm-design` review of the deepened [strategies spec](../../design/strategies-and-cognition.md) and the new [SLICE-09 slice file](../../plan/slices/SLICE-09-strategies-and-cognition.md), written by a helper under the owner's [standing rules](../../decisions/owner-answers-2026-10-27.md#standing-rules-2026-10-30); steps are outlines, each deepened just before it is built (its readiness review then). 2 Critical, 4 Major, 7 Minor (F-1…F-12, one merged). The reviewer confirmed Fork calls 1, 3, 4, 7, 9, 10, 12–15 in legacy code. Every finding was checked against the code by the helper and resolved in the texts.
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| F-1 | Critical | One view per pass let a late-decided old window pass B1 with a fresh age and price from the newest chain | Fork call: one view per trigger window, cut off at its confirmation instant; CUJ-STR-5; PRF-STR-02/03 cases |
+| F-2 | Critical | The fresh-setup gate had no source: abstentions were host-only | Fork call: every decision recorded with the kernel (`record_decision`); `setup_fresh` derived by legacy's rule across restarts; REQ-STR-011, TASK-S09-09 |
+| F-3 | Major | Handoff covered only `ADM-R15` | Deviation 6 for the owner: busy, commit-failed and unknown outcomes retry the same key while the bar is within admission's view age; `LED-R02` terminal with an alert; CP-W5 |
+| F-4 | Major | Per-minute golden cases cannot prove a stateful scorer | Contiguous golden walks from a fresh engine, from session start and restart points; the clock an input |
+| F-5 | Major | No replay proof (Combined-F5) | PRF-STR-11, TASK-S09-10 |
+| F-6 | Major | When the review is requested was ambiguous | Fork call: every published intent is reviewed, whatever the admission answer |
+| F-7 | Minor | Invocation identity | `inv1:` plus a digest including the view policy; a valid command key |
+| F-8 | Minor | The sealed-bar decision was labelled legacy | Relabelled as the owner's Q-030 change |
+| F-9, F-10 | Minor | Registry rows; who creates them | Every live row carried (TASK-S09-08); rows written by the owner in the release binding; `ema_cross_spot`, `ai_ema_cross` not ported |
+| F-11 | Minor | Cross-slice carries | Five market reads carried into SLICE-08 step 3; a test-only strategy package |
+| F-12 | Minor | Master items unassigned | "Simple vs specialists" to SLICE-12; budgets; the host's principal and grant specified |
+
+## SLICE-10 design review (2026-10-30)
+
+A fresh `egm:egm-design` review of the deepened [security spec](../../design/security-and-operator.md) and the [SLICE-10 slice file](../../plan/slices/SLICE-10-security-and-operator.md), written by a helper under the owner's [standing rules](../../decisions/owner-answers-2026-10-27.md#standing-rules-2026-10-30). 3 Blocker, 7 Major, 3 Minor (F-1…F-13). The reviewer confirmed MCP stays read-only for orders, the console cannot lift kill or a hold, the typed confirmations and the owner API's reachability and CSRF rules. Every finding was checked and resolved by the helper.
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| F-1 | Blocker | The kill file could never engage kill | `kernel:safety` engages it (reason `kill_file`), holding only `kill_engage`; PRF-SEC-12 |
+| F-2 | Blocker | `at kill-switch off` always failed; `on` depended on the socket | Fork call: `on` writes the file first; `off` confirms, removes, releases |
+| F-3 | Major | Kill-input keys renamed | Fork call: legacy keys and alias kept; an empty path refuses a live composition (Deviation) |
+| F-4 | Blocker | The catalogue omitted legacy owner mutations | A table of every legacy mutation and its route (Fork calls); exit-advice application, step 7, PRF-SEC-13 |
+| F-5 | Major | The OS user alone made a CLI caller the owner | Per-unit users; humans use the operator's socket from a listed login uid (Deviation, owner item) |
+| F-6 | Major | The 120 s window counted typing time | Fork call: the request is minted at execute; expiry also refused at admission |
+| F-7 | Major | Replay and retry rules contradicted | Same nonce and digest returns the recorded result; retry identity on the principal; `SEC-R19` |
+| F-8 | Major | Restore continuity could resurrect a revoked grant | Journal first when reachable, else `journal: pending` with an alert; catch-up never a start gate |
+| F-9 | Major | Refused attempts and attribution lost | `OPERATOR_REQUEST_REFUSED`; `channel_identity`; legacy attribution kept |
+| F-10 | Major | Secret paths open | Fork call on the MCP proxy token; broker key never from the environment in live; kernel scrubbing |
+| F-11, F-12, F-13 | Minor | Sessions, step split, citations | Bound sessions, real legacy files; kill inputs and legacy routes their own steps; citations corrected |
+
+## SLICE-11 design review (2026-10-30)
+
+A fresh `egm:egm-design` review of the deepened [configuration spec](../../design/configuration-artifacts-release.md), [runtime spec](../../design/runtime-isolation-observability-deployment.md) and [SLICE-11 slice file](../../plan/slices/SLICE-11-packaging-release-supervision.md). 10 Major, 4 Minor (F-1…F-14). The reviewer confirmed the boundary check before every deploy, the 20 s poll, the authority's restart settings, the absence of a watchdog and the monitor's read path. Every finding was checked and resolved by the helper.
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| F-1 | Major | The release boundary checked once | Fork call: checked before the stop, after it and before the switch; `OLD_WRITER_GONE` |
+| F-2 | Major | The pass schedule not phase-locked | Fork call: legacy's `seconds_to_next_pass` ported (:07, :27, :47) |
+| F-3 | Major | Restart values from the wrong unit | Fork call: at-strategy's 60 s, 3 in 900 s; the no-trail gap stated (owner item) |
+| F-4 | Major | 4000 vs 3600 | Fork call: legacy's field-by-field merge kept, live daily loss ₹3,600; PRF-CFG-11 |
+| F-5 | Major | A release could be left half-switched | `UNITS_WRITTEN`, `MIGRATION_PENDING`, `KERNEL_STARTED`; restore stops the new set first; CP-R1…CP-R7 |
+| F-6 | Major | A04-F3's start order missing | Observers first, then market, then kernel; convergence per operation |
+| F-7 | Major | Credentials disagreed | Fork call: the market process keeps the OpenAlgo key; per-unit users and hardening; PRF-OPS-07 per unit |
+| F-8 | Major | Deployed supervision before the shadow | PRF-OPS-09 moved to SLICE-13 |
+| F-9 | Major | A hidden lease-store dependency | Fake lease store in tests; production refuses until `recovery.lease_store`; POL-O01 blocks step 10 |
+| F-10 | Major | A02-F1 had no key or proof | REQ-CFG-010, PRF-CFG-10, `CFG-R14` |
+| F-11 | Minor | A master gap recorded as a Deviation | Open, as an X item to raise |
+| F-12, F-13, F-14 | Minor | Entrypoints, the transition log, backup and kill order | Each fixed |
+
+## SLICE-12 design review (2026-10-30)
+
+A fresh `egm:egm-design` review of the deepened [research spec](../../design/research-rl-custody-promotion.md) and the [SLICE-12 slice file](../../plan/slices/SLICE-12-research-rl-custody-promotion.md). 3 Blocker, 9 Major, 1 Minor, 1 Nit (F-1…F-14). The reviewer confirmed the custody state machine, claim-burns-partition, the bar's `>=` comparisons, the approval-mode defaults and the enforce default. Every finding was checked and resolved by the helper.
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| F-1 | Blocker | Mid-session activation loosened the promotion gate | Fork call 11: an approval is used only by a session opened after it, on its date (owner item: approvals before the open) |
+| F-2 | Blocker | No trusted source for "model-driven" at admission | `requires_promotion` per candidate in `BINDING_AUTHORIZED`; BuyerEdge `false`, proved |
+| F-3 | Blocker | Inference configuration not enforced | Fork call 20: a model strategy's `CandidateId` covers prompt digest and model identity, as legacy's start check |
+| F-4 | Major | Approval was a claim in record bytes | `promotion_verify` is the approval act; the caller recorded; owner-only for the estimated track |
+| F-5 | Major | Restore could resurrect spent exam days | `not_initialized`, `restored_only`; `additive` stops both chains; `CUSTODY_WITNESSED` in the ledger |
+| F-6 | Major | The locked read's three stores | The access ledger and order ported; CP-R2…CP-R7; a consistency scan; Fork call 21 (no completion after a crash) |
+| F-7 | Major | The gate statistic not pinned | Wilson, `z` 1.96, clustered n, refuse when unmeasured; `promotion.directional.z` |
+| F-8 | Major | The enforce switch vs the master | Fork call 12 kept; X item to raise |
+| F-9 | Major | Metric disclosures not recorded | A disclosure log per evaluation over locked rows |
+| F-10 | Major | A07-F3 acceptance not exercisable | A test-only reject/delay/partial rule; `pending`, `terminated`, `truncated` |
+| F-11 | Major | Research imported the kernel | `bootstrap.py` composes an `EnginePort` |
+| F-12, F-13, F-14 | Minor / Nit | Dependencies, digest parity, CP-R4 | In-test principals; `legacy_digest`; a no-replace link close |

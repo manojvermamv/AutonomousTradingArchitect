@@ -32,10 +32,10 @@ SLICE-01 → 02 → 03 → 04 → 05 → 07 → 06, then 08 and 09 (in that orde
 | SLICE-07 observations, reconciliation, domain, OpenAlgo adapter | 1/3 | S → R | D15, D16, ATA-06, A06-F2 decision | SLICE-05 | Q-006, Q-007, Q-008, Q-012, Q-016 | PRF-DOM-01…04, PRF-DOM-08, PRF-DOM-09, PRF-DSP-09, PRF-ADM-09, PRF-LED-11, PRF-LED-12 (redelivered fill); PRF-DOM-07 and PRF-DOM-10 on authorization |
 | SLICE-06 protection and safety | 1/3 | S | ATA-01, POL-004…POL-006, POL-010…POL-015, A03-F5 kernel side, Combined-F6 protection part | SLICE-05, SLICE-07 | Q-001, Q-002, Q-012, Q-013, Q-014, X-004 | PRF-PRT-01…10, PRF-PRT-12, PRF-PRT-13 |
 | [SLICE-08](slices/SLICE-08-market-data-and-views.md) market data and views | 5 | S (step 4 on recorded inputs) | A01-F1…F5, D08, POL-019, POL-046 | SLICE-03, SLICE-04 | POL-O04 (kept at today's behaviour), Q-030 | PRF-MKT-01…09; PRF-ADM-07 with recorded sessions (TASK-S11-07), a Deviation recorded in the slice file |
-| SLICE-09 strategies and cognition | 5 | S | A05-F1…F5, Combined-F5, D09, D12 evidence | SLICE-04, SLICE-08 | none | Stub deepened; proofs from `README.md:1243` |
-| SLICE-10 security and operator | 2/5 | S | A06-F1…F5, Combined-F4 | SLICE-03 | Q-014 | Stub deepened; proofs from `README.md:1244` |
-| SLICE-11 packaging, release, supervision, isolation, backup and restore | 2/7 (rehearsal only) | S → P (rehearsal on a real backup) | D05, D06, A02-F1…F4, A04-F3/F5, A03-F4/F5, A09-F1…F4, D10; the observation mediator only without native read-only proof (A06-F2) | SLICE-02, SLICE-03, SLICE-06, SLICE-07, SLICE-10 | Q-005 (real rehearsal only), POL-O01 | Stub deepened; D10 rehearsal evidence; PRF-PRT-14; PRF-XC-02 (production composition); measured refusing values recorded (TASK-S11-07); PRF-DOM-06 when the mediator is built |
-| SLICE-12 research, RL, custody, promotion | 6 | S | A07-F1…F4, POL-038…POL-045 | SLICE-03 (binding) | none | Stub deepened; proofs from `README.md:1245`; PRF-DSP-12 (rule part) |
+| [SLICE-09](slices/SLICE-09-strategies-and-cognition.md) strategies and cognition | 5 | S (step 3 golden generated once from legacy; PRF-STR-10 recorded) | A05-F1…F5, Combined-F5, D09 (Python/process part), D12 evidence, POL-024, POL-028…POL-030, POL-032, POL-033, POL-037 | SLICE-03, SLICE-04, SLICE-05, SLICE-08 | Q-005; POL-035, POL-036 open | PRF-STR-01…09, PRF-STR-11; PRF-STR-10 with recorded sessions (TASK-S11-07), a Deviation recorded in the slice file |
+| [SLICE-10](slices/SLICE-10-security-and-operator.md) security and operator | 2/5 | S | A06-F1, A06-F3…F5, A06-F2 interface half, Combined-F4, A02-F1 (local channel), POL-002…POL-004 doors, POL-009, POL-028, POL-053 | SLICE-03; the human entry points of SLICE-04…07 as built | Q-014 | PRF-SEC-01…13; PRF-SEC-05 and the CLI-socket rows of PRF-SEC-06 from a Linux run |
+| [SLICE-11](slices/SLICE-11-packaging-release-supervision.md) packaging, release, supervision, isolation, backup and restore | 2/7 (rehearsal only) | S → R → P (steps 10–11 on the owner's word) | D05, D06, A02-F1…F4, A04-F3/F5, A03-F4/F5, A09-F1…F4, D10; the observation mediator only without native read-only proof (A06-F2) | SLICE-02, SLICE-03, SLICE-06, SLICE-07, SLICE-10 (SLICE-08, SLICE-09 by build order) | Q-005; POL-O01, POL-047, licence (refusing) | PRF-CFG-01…11; PRF-OPS-01…08 (PRF-OPS-09 in SLICE-13); PRF-PRT-14; PRF-PRT-06 (kernel frozen half); PRF-XC-02 (production composition); PRF-DOM-06 when the mediator is built; D10 rehearsal evidence; measured refusing values recorded and approved (TASK-S11-07) |
+| [SLICE-12](slices/SLICE-12-research-rl-custody-promotion.md) research, RL, custody, promotion | 6 | S (TASK-S12-09 second half on the owner's word) | A07-F1…F4, POL-038…POL-045, D06 (claim half) | SLICE-03 (binding); SLICE-07, SLICE-08, SLICE-09 (step 1, step 5), SLICE-10 (commands), SLICE-11 step 1 for named steps | POL-O03 (legacy statistic kept) | PRF-RES-01…14; PRF-DSP-12 (rule part) |
 | SLICE-13 disarmed shadow, compatibility projections, conversion method | 4 | D | D02 ownership in shadow, A10-F3, AUD-05/A04-F4 comparison, A02-F5 | SLICE-07, SLICE-11 | X-002 | Same-head comparison (`README.md:1199`); conversion method recorded; PRF-LED-06 |
 | SLICE-14 initial cutover | 7 | P | ATA-03, D10, A04-F2 cross-host, Combined-F6 | SLICE-01…SLICE-13 as the selected composition needs them (Q-005) | Q-005 | Owner-authorized cutover record; PRF-SES-07 |
 
@@ -96,6 +96,26 @@ Task IDs are stable. SLICE-01 tasks are its file rows. Tasks of a stub slice are
 | TASK-S08-04 | 08 | `StoreMarket`, the kernel's port over the store; premium closes and ticks; the carried gap sources | PRF-MKT-07 |
 | TASK-S08-05 | 08 | The OpenAlgo market source on captured responses; characterize the planner's Greeks and the PE delta sign | PRF-MKT-08 |
 | TASK-S08-06 | 08 | Canvas: confirmed swings, facts, annotations, history, budgets, schema, import guard | PRF-MKT-09 |
+| TASK-S09-01 | 09 | Registry: descriptors validated before code loads, `CandidateId` | PRF-STR-01 |
+| TASK-S09-02 | 09 | Strategy host: invocations, one view per trigger, handoff and recovery; EMA cross | PRF-STR-02, PRF-STR-03 |
+| TASK-S09-03 | 09 | BuyerEdge ported unchanged with contiguous golden walks from legacy | PRF-STR-04 |
+| TASK-S09-04 | 09 | Blueprints, runtime, typed assembly and tools | PRF-STR-05 |
+| TASK-S09-05 | 09 | Providers, run records and replay from recorded responses | PRF-STR-06 |
+| TASK-S09-06 | 09 | Review producer, model strategy, exit advice | PRF-STR-07, PRF-STR-08, PRF-STR-03 |
+| TASK-S09-07 | 09 | Capability boundary | PRF-STR-09 |
+| TASK-S09-08 | 09 | Characterizations: deployed `--poll` and BuyerEdge authority, every live registry row and the account, the bars the runner walks, the Greeks minute boundary | Evidence records |
+| TASK-S09-09 | 09 | The kernel's `record_decision` route and `setup_fresh` derived from it (legacy's rule, across restarts) | PRF-STR-02, PRF-STR-03 |
+| TASK-S09-10 | 09 | The replay composition | PRF-STR-11 |
+| TASK-S10-01 | 10 | Operator requests, confirmations and each door's caller identity | PRF-SEC-01, PRF-SEC-02 |
+| TASK-S10-02 | 10 | The kernel's binding check: `OPERATOR_REQUEST` in the same decision, replay and reuse refused, validity at admission and dispatch | PRF-SEC-03 |
+| TASK-S10-03 | 10 | Secrets from protected sources; identifiers recorded, never values; scrubbing | PRF-SEC-04 |
+| TASK-S10-04 | 10 | Kill inputs (file and flag) engaging kill as `kernel:safety` | PRF-SEC-12 |
+| TASK-S10-05 | 10 | The kernel's local socket for approved units; the operator's own socket for the CLI | PRF-SEC-05 |
+| TASK-S10-06 | 10 | Operator commands and the owner API, relaying to the kernel | PRF-SEC-06, PRF-SEC-07 |
+| TASK-S10-07 | 10 | Every legacy owner mutation routed; the exit-advice application | PRF-SEC-13 |
+| TASK-S10-08 | 10 | The MCP tools; read versus disclose | PRF-SEC-08, PRF-SEC-09 |
+| TASK-S10-09 | 10 | Restore continuity through the security journal | PRF-SEC-10 |
+| TASK-S10-10 | 10 | The legacy console moved into `operator_ui` | PRF-SEC-11 |
 | TASK-S11-01 | 11 | Installable artifact, entrypoints outside the checkout, `requirements.lock` | `README.md:1221` |
 | TASK-S11-02 | 11 | Settings resolver, immutability, bundle manifest | `README.md:1226-1227` |
 | TASK-S11-03 | 11 | Supervisor and protection-status reporting | `README.md:1240`; PRF-PRT-14 |
@@ -103,6 +123,20 @@ Task IDs are stable. SLICE-01 tasks are its file rows. Tasks of a stub slice are
 | TASK-S11-05 | 11 | Recovery manifest, backup and clean-host restore rehearsal; the send-lease store adapter | `README.md:1232`; D10 |
 | TASK-S11-06 | 11 | Observation mediator for non-kernel processes, only if TASK-S07-06 does not prove native read-only credentials | PRF-DOM-06 |
 | TASK-S11-07 | 11 | Measure each measured refusing value in the [register](../design/cross-cutting-invariants.md#refusing-parameter-pattern-req-xc-003) on recorded sessions (A09-F4); record the measurement with the release binding for the owner's approval | Measurement records |
+| TASK-S11-08 | 11 | Staged release transitions with the post-stop and pre-switch checks, activation boundary, rollback compatibility | PRF-CFG-03, PRF-CFG-05, PRF-CFG-08 |
+| TASK-S11-09 | 11 | Units rendered from the one participant contract, each with its own user and credentials | PRF-CFG-06, PRF-OPS-07 |
+| TASK-S11-10 | 11 | First-release and production compositions; boundary handshakes | PRF-CFG-01, PRF-CFG-04, PRF-CFG-07, PRF-CFG-10, PRF-XC-02 (production part) |
+| TASK-S11-11 | 11 | Telemetry | PRF-OPS-06 |
+| TASK-S11-12 | 11 | Production staging (owner's word) | PRF-CFG-09 |
+| TASK-S12-01 | 12 | Evidence scopes, bundles, the custody chain, restore reconciliation with the ledger witness | PRF-RES-01, PRF-RES-03, PRF-RES-02 |
+| TASK-S12-02 | 12 | Trials with attempt links, jobs, the research-job port, two worker profiles | PRF-RES-04, PRF-RES-05, PRF-RES-06, PRF-RES-02 |
+| TASK-S12-03 | 12 | Datasets, the locked three-store sequence, fit records, `CandidateBundle/v1`, freeze, `CandidateId` | PRF-RES-07, PRF-RES-08, PRF-RES-02 |
+| TASK-S12-04 | 12 | Fill model and replay through an injected engine port; evaluation, gate, lineage repair, metric disclosures | PRF-RES-09, PRF-RES-10, PRF-DSP-12 (rule part) |
+| TASK-S12-05 | 12 | RL environment tiers, reward, training, checkpoints, frozen inference | PRF-RES-11 |
+| TASK-S12-06 | 12 | Promotion record, bar, approval modes; the kernel's `promotion_verify` and admission check | PRF-RES-12, PRF-RES-02 |
+| TASK-S12-07 | 12 | Memory and reflection | PRF-RES-13 |
+| TASK-S12-08 | 12 | Capability boundary | PRF-RES-14 |
+| TASK-S12-09 | 12 | Legacy identity golden values; production metadata read on the owner's word | PRF-RES-08 (fixture) |
 | TASK-S13-01 | 13 | Compare upgrade versus import with actual mappings; record the choice and reason; confirm or replace the provisional schema | REQ-MIG-005; X-002 |
 | TASK-S13-02 | 13 | Disarmed shadow and same-head comparison | `README.md:1199` |
 | TASK-S13-03 | 13 | Generated JSONL projection with versioned format and consumer list | REQ-MIG-003; PRF-LED-06 |

@@ -43,7 +43,7 @@
 | [06-architecture-fit-and-effort.md](06-architecture-fit-and-effort.md) | Which hybrid architecture fits first; development, restructuring and upkeep effort; terms | proposed (guidance) |
 | [legacy-divergence.md](legacy-divergence.md) | Where legacy code disagrees with accepted decisions | proposed (evidence) |
 | [traceability.md](traceability.md) | Requirement key → decision → module → spec → task → proof (generated) | proposed |
-| [design/](design/) | 7 full-depth specs, 6 stubs, 1 cross-cutting invariants file | proposed |
+| [design/](design/) | 12 full-depth specs, 1 stub, 1 cross-cutting invariants file | proposed |
 | [plan/delivery-plan.md](plan/delivery-plan.md) | 14 slices inside the master phases, plus the task index | proposed |
 | [plan/slices/SLICE-01-disarmed-financial-core.md](plan/slices/SLICE-01-disarmed-financial-core.md) | First slice, prepared for execution | proposed |
 | [tests/test-strategy.md](tests/test-strategy.md) | Proof classes, A08 rules, fault injection, coverage map | proposed |
@@ -59,15 +59,15 @@
 * [execution-domain-and-observations](design/execution-domain-and-observations.md)
 * [protection-and-safety](design/protection-and-safety.md)
 * [market-data-and-canvas](design/market-data-and-canvas.md) (deepened at SLICE-08)
+* [strategies-and-cognition](design/strategies-and-cognition.md) (deepened at SLICE-09)
+* [security-and-operator](design/security-and-operator.md) (deepened at SLICE-10)
+* [configuration-artifacts-release](design/configuration-artifacts-release.md) (deepened at SLICE-11)
+* [runtime-isolation-observability-deployment](design/runtime-isolation-observability-deployment.md) (deepened at SLICE-11)
+* [research-rl-custody-promotion](design/research-rl-custody-promotion.md) (deepened at SLICE-12)
 * [cross-cutting-invariants](design/cross-cutting-invariants.md) (owns no module)
 
 **Specs.** Stubs (deepened when their slice starts):
 
-* [strategies-and-cognition](design/strategies-and-cognition.md)
-* [research-rl-custody-promotion](design/research-rl-custody-promotion.md)
-* [security-and-operator](design/security-and-operator.md)
-* [configuration-artifacts-release](design/configuration-artifacts-release.md)
-* [runtime-isolation-observability-deployment](design/runtime-isolation-observability-deployment.md)
 * [migration-recovery-rollback-continuity](design/migration-recovery-rollback-continuity.md)
 
 **Process records** (not on the reading path; they describe how the package was made):

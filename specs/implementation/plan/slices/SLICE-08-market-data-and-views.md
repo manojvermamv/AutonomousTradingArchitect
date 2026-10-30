@@ -384,9 +384,93 @@ Commit `42879dd` on `slice-08`, after a test-only commit `eb06786` (below). It c
 | Reference values compared as canonical text | Reference |
 | `as_of` ignoring `available_at` | Reference |
 
-## Step 3 — views and quality (outline)
+## Step 3 — views and quality
 
-Deepened after step 2 is built: the spec's [Stable views](../../design/market-data-and-canvas.md#stable-views-marketviewpy) and [Quality](../../design/market-data-and-canvas.md#quality-marketqualitypy). Test files: `tests/unit/test_market_view.py` (**T-44**), `tests/unit/test_market_quality.py` (**T-45**).
+The authorities are the spec's [Stable views](../../design/market-data-and-canvas.md#stable-views-marketviewpy) and [Quality](../../design/market-data-and-canvas.md#quality-marketqualitypy) sections. Step 3 builds the read side over step 2's store. Reads that need the chain payload's shape (a held contract's premium close and tick, `ChainSnapshot`) are step 5's, after step 4 characterizes the OpenAlgo chain.
+
+**In plain words.** A "view" is a fixed snapshot: which store, which settings, which moment, and how far the store had been written. Its name is enough to open exactly the same snapshot again, from any process, later. A view shows a minute's bar only once the minute is sealed. A strategy's view drops prices older than twice the poll interval, as today. The quality report says what is missing, stale, duplicated or late, and decides nothing.
+
+### Decisions
+
+#### View policies (`contracts/market.py`)
+
+* `ViewPolicy(name, version, availability, corrections, bars, join, max_age_secs, stale, calendar_version, wdef)`, frozen, every field required (D08: no defaults):
+  * `name` and `version` non-empty, without `|`;
+  * `availability` `arrival` or `event`; `corrections` `exclude` or `include`; `bars` `ticks`, `history` or `ticks_else_history`;
+  * `join`, `max_age_secs` and `stale`: tuples of `(stream, value)` pairs, sorted, one per stream of `spot`, `chain`, `greeks`, each exactly once: `join` `at_or_before` or `exact_minute`; `max_age_secs` a positive int or `None` (unbounded); `stale` `drop` or `report`, and `drop` requires a bound;
+  * `calendar_version` a key of `CALENDARS`; `wdef` a `WindowDef` with `interval_secs` 60.
+* `ViewPolicy.text`: the canonical JSON of its fields, so two equal policies are one text. Policies are bound per release by name (the configuration slice, SLICE-11); step 3's functions take a `Mapping[str, ViewPolicy]`.
+
+#### The identity (`market/view.py`)
+
+* `ViewId(store_id, store_schema, policy, policy_version, underlying, cutoff, head)`, frozen; `text` is `"mv1|" + "|".join(fields)`, with `store_schema` and `head` in decimal and `cutoff` as `utc`; `ViewId.parse(text)` splits on `|`, requires exactly eight parts and `mv1`, and raises `ValueError` otherwise. A field containing `|` refuses at construction.
+* `resolve(reader, policies, policy_name, underlying, cutoff: datetime) -> View`: `head = reader.head()` once, then the identity; nothing is written.
+* `reopen(reader, policies, text) -> View | Unavailable`: `Unavailable(reason)` with `reason` `malformed`, `version` (not `mv1`), `store` (another `store_id` or schema), `policy` (unknown name, or a bound policy whose `version` differs), or `ahead` (`head` above the reader's head). Same reads as the original view, by construction.
+
+#### What a view sees (`market/view.py`)
+
+* **A record is visible** when `seq <= head` and, under `availability` `arrival`, `arrival_at <= cutoff`; under `event`, `event_at <= cutoff` (a research view, labelled by its policy). Records of the latest revision per key only; a `conflicted` latest revision is returned with `conflict` set.
+* `View.read(stream, *, minute: datetime | None = None) -> Read | None` for `spot`, `chain` and `greeks`, the underlying's records: under `at_or_before`, the visible record with the greatest `event_at` (legacy's `scan_at`, `src/runtime/market_view.py:417-440`), ties to the higher `seq`; under `exact_minute`, the visible record whose `event_at`'s IST minute equals `minute`'s, the latest `seq` if several (legacy's `inputs_at`, `:848-860`). `Read(record, age_ms, stale)`: `age_ms` from `event_at` to the cutoff; `stale` when the bound is exceeded. Under `stale: drop` a stale read returns `None`, as legacy's live views (`:413-415`, `:433-435`); under `report` it returns the read with `stale` true.
+* `View.chains() -> tuple[MarketRecord, ...]`: the chain records with the same `event_at` as `read("chain")`'s, ordered by `payload["expiry"]` ascending.
+* `View.bars(instrument, *, interval_secs=60, lookback: int | None = None) -> tuple[Bar, ...]`, the instrument's bars on the cutoff's exchange date, oldest first:
+  * `ticks`: only windows with a seal at `seq <= head`; revision 1 under `exclude`, the highest sealed revision under `include`; folded with step 1's `bars` with every window's `through` and `revision` from its seal;
+  * `history`: the visible `history_bar` records of the date, one `Bar` each (`ticks` 1, `revision` the record's, `first_seq` = `last_seq` = its `seq`, prices `repr(float(...))` from the payload's `open`, `high`, `low`, `close`, `volume` 0.0 when absent), one-minute only;
+  * `ticks_else_history`: `ticks` if it gives any bar, else `history`, one-minute only, as legacy's `session_bars` (`src/data/marketdata/ticks.py:801-806`);
+  * `interval_secs` above 60: step 1's `resample` over the one-minute bars with `now` = the cutoff; `lookback` keeps the last N.
+* `View.final(instrument, window_start) -> bool`: the window's confirmation instant is at or before the watermark visible at `head`; a final window without a seal had no ticks.
+* `View.reference(kind, key) -> ReferenceFact | ReferenceMissing`: step 2's `reference_as_of` at the cutoff, bounded by `head`; it ignores `corrections`.
+
+#### Quality (`market/quality.py`)
+
+* `InputRequirement(consumer, consumer_version, fields_required, fields_optional, lookback_bars, interval_secs, partial_bars)`: `fields_*` tuples of `spot`, `chain`, `greeks`, `bars`; `lookback_bars` a non-negative int; `partial_bars` `allowed` or `excluded`. It describes the consumer and sets no threshold.
+* `assess(view, requirement, *, instrument) -> Assessment`, pure over the view:
+  * per field in `fields_required + fields_optional`: `FieldState(field, state, age_ms, source, revision)` with `state` `present`, `missing` (no visible record), `stale` (beyond the policy's bound, under `report`), `unavailable` (dropped as stale under `drop`), `zero` (the payload's `ltp` is 0) or `conflicted`;
+  * bars: `expected` the base windows of the date from the calendar's regular open to the earlier of the close and the last final window (watermark), `present` the bars the view shows, `gaps` the expected windows with no bar, `duplicates` the count of `duplicate` and `conflicted` tick records among them, `late` step 1's `late_counts` for the date, `warm` true when the last `lookback_bars` expected windows all have bars;
+  * `join_skew_ms` between the spot and chain reads' `event_at`, when both exist;
+  * `clock_steps`: the visible records of a source whose `arrival_at` is earlier than the previous record's by `seq`, a clock step on the market host (`README.md:1241`).
+* Nothing in `assess` refuses, waits or fills a value. The day's session timings (special and shortened days) reach `expected` in step 5 with the calendar port; until then `expected` uses the regular hours, and `Assessment.calendar` says `regular_hours`.
+
+### Tests
+
+`tests/unit/test_market_view.py` (**T-44**) and `tests/unit/test_market_quality.py` (**T-45**), over stores built with step 2's `MarketStore` under `tmp_path`, every value labelled synthetic.
+
+| Group | Cases |
+|---|---|
+| Policy | Every refusal (a missing stream, `drop` without a bound, a `|` in the name, an unknown calendar, a 300 s window); equal policies, one text |
+| Identity | `text` and `parse` round-trip; eight parts and `mv1` required; a field with `|` refused |
+| Reopen | Interleaved: a view resolved, records committed, the view reopened: the same reads (A01-F1); tied timestamps resolved by `seq`; another store, another schema, an unknown or re-versioned policy, a head ahead of the reader: each `Unavailable` with its reason |
+| Visibility | `arrival` hides a record that arrived after the cutoff though its event was before; `event` shows it; a record past `head` hidden |
+| Reads | `at_or_before` picks the newest by `event_at`; `exact_minute` the record of the asked minute, none for another; `drop` returns `None` past the bound and the read at it; `report` returns it with `stale`; `chains()` share one `event_at`, ordered by expiry |
+| Bars | Confirmed, unsealed: no bar; sealed: revision 1; with a correction sealed: `exclude` keeps revision 1, `include` shows revision 2 (Q-030); `history` and `ticks_else_history` as legacy; 5-minute bars resampled at the cutoff; `lookback` |
+| Final | A window final by watermark with no ticks; not final before it |
+| Reference | Through the view's head and cutoff |
+| Quality | Each field state; expected windows, gaps, duplicates, late counts and `warm` against hand counts; join skew; a clock step; the assessment refuses nothing |
+
+### Break checks
+
+| Change | Test that must fail |
+|---|---|
+| Visibility ignores `arrival_at` | Visibility |
+| Bars from unsealed windows | Bars |
+| `exclude` shows the latest revision | Bars |
+| `drop` returns the stale read | Reads |
+| `reopen` ignores `store_id` | Reopen |
+| Ties by `event_at` broken by the lower `seq` | Reopen |
+| `exact_minute` matches by UTC minute string of a different offset | Reads |
+| `warm` from a row count | Quality |
+
+### Files
+
+| File | Change |
+|---|---|
+| `src/autonomous_trading/contracts/market.py` | `ViewPolicy` |
+| `src/autonomous_trading/market/view.py` | `ViewId`, `Unavailable`, `Read`, `View`, `resolve`, `reopen` |
+| `src/autonomous_trading/market/quality.py` | New: `InputRequirement`, `FieldState`, `Assessment`, `assess` |
+| `tests/unit/test_market_view.py`, `tests/unit/test_market_quality.py` | New (T-44, T-45) |
+
+### Completion conditions (step 3)
+
+* Every test above passes, twice in a row, with the whole suite; every break check fails a listed test, and every file is restored (md5); `ast.parse` passes on every edited Python file.
 
 ## Step 4 — the OpenAlgo market source (outline)
 

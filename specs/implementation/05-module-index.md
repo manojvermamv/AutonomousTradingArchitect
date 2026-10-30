@@ -116,9 +116,49 @@ These are files the slices need that README §6 does not list (T-01…T-23). T-0
 | T-41 | `tests/fixtures/market/fold_golden.json` | SLICE-08 | Golden folds generated once from legacy's `_fold` ([SLICE-08 step 1](plan/slices/SLICE-08-market-data-and-views.md#tests)) |
 | T-42 | `scripts/gen_fold_parity.py` | SLICE-08 | The golden-fold generator, run once against a legacy checkout, never in the suite ([SLICE-08 step 1](plan/slices/SLICE-08-market-data-and-views.md#tests)) |
 | T-43 | `tests/unit/test_market_ingest.py` | SLICE-08 | The merge, coverage and publication ([SLICE-08 step 2](plan/slices/SLICE-08-market-data-and-views.md#step-2--store-ingestion-and-publication)) |
-| T-44 | `tests/unit/test_market_view.py` | SLICE-08 | Stable views and corrections ([SLICE-08 step 3](plan/slices/SLICE-08-market-data-and-views.md#step-3--views-and-quality-outline)) |
-| T-45 | `tests/unit/test_market_quality.py` | SLICE-08 | Quality against declared requirements ([SLICE-08 step 3](plan/slices/SLICE-08-market-data-and-views.md#step-3--views-and-quality-outline)) |
+| T-44 | `tests/unit/test_market_view.py` | SLICE-08 | Stable views and corrections ([SLICE-08 step 3](plan/slices/SLICE-08-market-data-and-views.md#step-3--views-and-quality)) |
+| T-45 | `tests/unit/test_market_quality.py` | SLICE-08 | Quality against declared requirements ([SLICE-08 step 3](plan/slices/SLICE-08-market-data-and-views.md#step-3--views-and-quality)) |
 | T-46 | `tests/integration/test_market_port.py` | SLICE-08 | The kernel's port over the store ([SLICE-08 step 5](plan/slices/SLICE-08-market-data-and-views.md#step-5--the-kernels-port-outline)) |
+| T-50 | `tests/unit/test_strategy_registry.py` | SLICE-09 | The registry (PRF-STR-01) ([SLICE-09](plan/slices/SLICE-09-strategies-and-cognition.md)) |
+| T-51 | `tests/unit/test_strategy_invocation.py` | SLICE-09 | Invocations, one view per trigger, handoff (PRF-STR-02) ([SLICE-09](plan/slices/SLICE-09-strategies-and-cognition.md)) |
+| T-52 | `tests/unit/test_buyer_edge_parity.py` | SLICE-09 | BuyerEdge parity walks (PRF-STR-04) ([SLICE-09](plan/slices/SLICE-09-strategies-and-cognition.md)) |
+| T-53 | `tests/fixtures/strategies/buyer_edge_golden.json` | SLICE-09 | Golden walks generated once from legacy ([SLICE-09](plan/slices/SLICE-09-strategies-and-cognition.md)) |
+| T-54 | `scripts/gen_buyer_edge_parity.py` | SLICE-09 | The golden generator, run once against a legacy checkout, never in the suite ([SLICE-09](plan/slices/SLICE-09-strategies-and-cognition.md)) |
+| T-55 | `tests/unit/test_cognition_assembly.py` | SLICE-09 | Typed team assembly (PRF-STR-05) ([SLICE-09](plan/slices/SLICE-09-strategies-and-cognition.md)) |
+| T-56 | `tests/unit/test_provider_records.py` | SLICE-09 | Provider and run records, replay (PRF-STR-06) ([SLICE-09](plan/slices/SLICE-09-strategies-and-cognition.md)) |
+| T-57 | `tests/integration/test_review_producer.py` | SLICE-09 | The review producer (PRF-STR-07) ([SLICE-09](plan/slices/SLICE-09-strategies-and-cognition.md)) |
+| T-58 | `tests/unit/test_model_strategy.py` | SLICE-09 | Model strategy proposals (PRF-STR-08) ([SLICE-09](plan/slices/SLICE-09-strategies-and-cognition.md)) |
+| T-59 | `deploy/systemd/at-strategy.service` | SLICE-11 | The strategy host's unit: README §6 has none; legacy's unit name ([SLICE-09](plan/slices/SLICE-09-strategies-and-cognition.md)) |
+| T-60 | `tests/unit/test_operator_authorization.py` | SLICE-10 | Requests and confirmations (PRF-SEC-01, -02) ([SLICE-10](plan/slices/SLICE-10-security-and-operator.md)) |
+| T-61 | `tests/unit/test_secret_references.py` | SLICE-10 | Secret references (PRF-SEC-04) ([SLICE-10](plan/slices/SLICE-10-security-and-operator.md)) |
+| T-62 | `tests/integration/test_unix_channel.py` | SLICE-10 | The local sockets, Linux only (PRF-SEC-05) ([SLICE-10](plan/slices/SLICE-10-security-and-operator.md)) |
+| T-63 | `tests/integration/test_operator_commands.py` | SLICE-10 | Operator commands end to end (PRF-SEC-06) ([SLICE-10](plan/slices/SLICE-10-security-and-operator.md)) |
+| T-64 | `tests/integration/test_owner_api.py` | SLICE-10 | The owner API (PRF-SEC-07) ([SLICE-10](plan/slices/SLICE-10-security-and-operator.md)) |
+| T-65 | `tests/integration/test_mcp_surface.py` | SLICE-10 | The MCP surface (PRF-SEC-08) ([SLICE-10](plan/slices/SLICE-10-security-and-operator.md)) |
+| T-66 | `tests/contracts/test_operator_ui_routes.py` | SLICE-10 | The operator UI's routes (PRF-SEC-11) ([SLICE-10](plan/slices/SLICE-10-security-and-operator.md)) |
+| T-67 | `src/autonomous_trading/resources/migrations/007_security.sql` | SLICE-10 | The `operator_request` table; the number is the next free one at build ([SLICE-10](plan/slices/SLICE-10-security-and-operator.md)) |
+| T-68 | `tests/integration/test_kill_inputs.py` | SLICE-10 | Kill inputs (PRF-SEC-12) ([SLICE-10](plan/slices/SLICE-10-security-and-operator.md)) |
+| T-69 | `tests/integration/test_operator_routes.py` | SLICE-10 | Legacy owner mutations (PRF-SEC-13) ([SLICE-10](plan/slices/SLICE-10-security-and-operator.md)) |
+| T-70 | `src/autonomous_trading/kernel/host.py` | SLICE-11 | The kernel host loop (carried from SLICE-05, -06, -07) ([SLICE-11](plan/slices/SLICE-11-packaging-release-supervision.md)) |
+| T-71 | `src/autonomous_trading/operations/observer.py` | SLICE-11 | The observation mediator, only if TASK-S07-06 proves no read-only credential ([SLICE-11](plan/slices/SLICE-11-packaging-release-supervision.md)) |
+| T-72 | `deploy/systemd/at-observer.service` | SLICE-11 | The mediator's unit, on the same condition ([SLICE-11](plan/slices/SLICE-11-packaging-release-supervision.md)) |
+| T-73 | `tests/unit/test_settings_resolver.py` | SLICE-11 | The settings resolver (PRF-CFG-02) ([SLICE-11](plan/slices/SLICE-11-packaging-release-supervision.md)) |
+| T-74 | `tests/recovery/test_release_activation.py` | SLICE-11 | Release transitions and crash points (PRF-CFG-03) ([SLICE-11](plan/slices/SLICE-11-packaging-release-supervision.md)) |
+| T-75 | `tests/integration/test_kernel_host.py` | SLICE-11 | The kernel host loop (PRF-OPS-01) ([SLICE-11](plan/slices/SLICE-11-packaging-release-supervision.md)) |
+| T-76 | `tests/integration/test_supervisor.py` | SLICE-11 | The supervisor (PRF-OPS-02, -03) ([SLICE-11](plan/slices/SLICE-11-packaging-release-supervision.md)) |
+| T-77 | `tests/contracts/test_rendered_units.py` | SLICE-11 | Rendered units (PRF-CFG-06, PRF-OPS-07) ([SLICE-11](plan/slices/SLICE-11-packaging-release-supervision.md)) |
+| T-78 | `tests/unit/test_telemetry.py` | SLICE-11 | Telemetry (PRF-OPS-06) ([SLICE-11](plan/slices/SLICE-11-packaging-release-supervision.md)) |
+| T-79 | `deploy/systemd/at.slice` | SLICE-11 | One parent slice for optional work ([SLICE-11](plan/slices/SLICE-11-packaging-release-supervision.md)) |
+| T-80 | `tests/unit/test_custody_ledger.py` | SLICE-12 | Custody (PRF-RES-01) ([SLICE-12](plan/slices/SLICE-12-research-rl-custody-promotion.md)) |
+| T-81 | `tests/unit/test_research_attempts.py` | SLICE-12 | Trials and attempts (PRF-RES-04, -05) ([SLICE-12](plan/slices/SLICE-12-research-rl-custody-promotion.md)) |
+| T-82 | `tests/unit/test_cognition_memory.py` | SLICE-12 | Memory and reflection (PRF-RES-13) ([SLICE-12](plan/slices/SLICE-12-research-rl-custody-promotion.md)) |
+| T-83 | `tests/integration/test_research_worker.py` | SLICE-12 | Research workers (PRF-RES-06) ([SLICE-12](plan/slices/SLICE-12-research-rl-custody-promotion.md)) |
+| T-84 | `tests/unit/test_dataset_fitting.py` | SLICE-12 | Datasets and fit records (PRF-RES-07) ([SLICE-12](plan/slices/SLICE-12-research-rl-custody-promotion.md)) |
+| T-85 | `tests/unit/test_candidate_freeze.py` | SLICE-12 | Candidate freeze and identity (PRF-RES-08) ([SLICE-12](plan/slices/SLICE-12-research-rl-custody-promotion.md)) |
+| T-86 | `tests/fixtures/research/legacy_identity_445eb116.json` | SLICE-12 | Legacy identity golden values ([SLICE-12](plan/slices/SLICE-12-research-rl-custody-promotion.md)) |
+| T-87 | `scripts/gen_research_parity.py` | SLICE-12 | The golden generator, run once against a legacy checkout ([SLICE-12](plan/slices/SLICE-12-research-rl-custody-promotion.md)) |
+| T-88 | `tests/unit/test_promotion_gate.py` | SLICE-12 | The directional gate and bar (PRF-RES-09) ([SLICE-12](plan/slices/SLICE-12-research-rl-custody-promotion.md)) |
+| T-89 | `tests/unit/test_rl_research.py` | SLICE-12 | RL research (PRF-RES-11) ([SLICE-12](plan/slices/SLICE-12-research-rl-custody-promotion.md)) |
 | T-34 | `src/autonomous_trading/resources/migrations/006_protection.sql` | SLICE-06 | The `protection_state` and `protection_gap` tables (as T-24) |
 | T-31 | `tests/fixtures/openalgo` | SLICE-07 | Byte-identical copies of the recorded OpenAlgo book and funds captures (2–4 August 2026) the adapter is proved against ([SLICE-07 step 4](plan/slices/SLICE-07-observations-reconciliation-domain.md#step-4--the-openalgo-adapter)) |
 | T-30 | `tests/unit/test_observation_loop.py` | SLICE-07 | The observation loop, publish-before-reference, the read budget and the simulated book ([SLICE-07 step 3](plan/slices/SLICE-07-observations-reconciliation-domain.md#step-3--the-observation-loop)) |
