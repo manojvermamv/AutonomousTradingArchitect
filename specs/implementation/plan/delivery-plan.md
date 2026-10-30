@@ -36,8 +36,8 @@ SLICE-01 → 02 → 03 → 04 → 05 → 07 → 06, then 08 and 09 (in that orde
 | [SLICE-10](slices/SLICE-10-security-and-operator.md) security and operator | 2/5 | S | A06-F1, A06-F3…F5, A06-F2 interface half, Combined-F4, A02-F1 (local channel), POL-002…POL-004 doors, POL-009, POL-028, POL-053 | SLICE-03; the human entry points of SLICE-04…07 as built | Q-014 | PRF-SEC-01…13; PRF-SEC-05 and the CLI-socket rows of PRF-SEC-06 from a Linux run |
 | [SLICE-11](slices/SLICE-11-packaging-release-supervision.md) packaging, release, supervision, isolation, backup and restore | 2/7 (rehearsal only) | S → R → P (steps 10–11 on the owner's word) | D05, D06, A02-F1…F4, A04-F3/F5, A03-F4/F5, A09-F1…F4, D10; the observation mediator only without native read-only proof (A06-F2) | SLICE-02, SLICE-03, SLICE-06, SLICE-07, SLICE-10 (SLICE-08, SLICE-09 by build order) | Q-005; POL-O01, POL-047, licence (refusing) | PRF-CFG-01…11; PRF-OPS-01…08 (PRF-OPS-09 in SLICE-13); PRF-PRT-14; PRF-PRT-06 (kernel frozen half); PRF-XC-02 (production composition); PRF-DOM-06 when the mediator is built; D10 rehearsal evidence; measured refusing values recorded and approved (TASK-S11-07) |
 | [SLICE-12](slices/SLICE-12-research-rl-custody-promotion.md) research, RL, custody, promotion | 6 | S (TASK-S12-09 second half on the owner's word) | A07-F1…F4, POL-038…POL-045, D06 (claim half) | SLICE-03 (binding); SLICE-07, SLICE-08, SLICE-09 (step 1, step 5), SLICE-10 (commands), SLICE-11 step 1 for named steps | POL-O03 (legacy statistic kept) | PRF-RES-01…14; PRF-DSP-12 (rule part) |
-| SLICE-13 disarmed shadow, compatibility projections, conversion method | 4 | D | D02 ownership in shadow, A10-F3, AUD-05/A04-F4 comparison, A02-F5 | SLICE-07, SLICE-11 | X-002 | Same-head comparison (`README.md:1199`); conversion method recorded; PRF-LED-06 |
-| SLICE-14 initial cutover | 7 | P | ATA-03, D10, A04-F2 cross-host, Combined-F6 | SLICE-01…SLICE-13 as the selected composition needs them (Q-005) | Q-005 | Owner-authorized cutover record; PRF-SES-07 |
+| [SLICE-13](slices/SLICE-13-disarmed-shadow-and-conversion.md) disarmed shadow, compatibility projections, conversion method | 4 | S → D | D02 ownership in shadow, A10-F3, AUD-05/A04-F4 comparison, A02-F5, Combined-F3 | SLICE-07, SLICE-08, SLICE-09, SLICE-11 | X-002 | PRF-MIG-06…12; PRF-LED-06; PRF-OPS-09 (owner's word if a key holder starts); conversion method recorded |
+| [SLICE-14](slices/SLICE-14-initial-cutover.md) initial cutover | 7 | S → P | ATA-03, D10, A04-F2 cross-host, Combined-F6 | SLICE-01…SLICE-13 as Q-005 needs; SLICE-11 steps 10–11; PRF-OPS-09 | Q-005, POL-O01, POL-047, licence | PRF-MIG-13, PRF-MIG-15; owner-authorized cutover record (PRF-MIG-14); PRF-SES-07 |
 
 ## Task index
 
@@ -140,7 +140,16 @@ Task IDs are stable. SLICE-01 tasks are its file rows. Tasks of a stub slice are
 | TASK-S13-01 | 13 | Compare upgrade versus import with actual mappings; record the choice and reason; confirm or replace the provisional schema | REQ-MIG-005; X-002 |
 | TASK-S13-02 | 13 | Disarmed shadow and same-head comparison | `README.md:1199` |
 | TASK-S13-03 | 13 | Generated JSONL projection with versioned format and consumer list | REQ-MIG-003; PRF-LED-06 |
+| TASK-S13-04 | 13 | Legacy readers and fixtures | PRF-MIG-06 |
+| TASK-S13-05 | 13 | The importer | PRF-MIG-07 |
+| TASK-S13-06 | 13 | The production shadow (pre-approved; no key, no broker socket) | PRF-MIG-12 |
+| TASK-S13-07 | 13 | The supervisor on the shadow ledger | PRF-OPS-09 |
+| TASK-S13-08 | 13 | The shadow copier and its lockdown | PRF-MIG-11 |
 | TASK-S14-01 | 14 | Flat-scope check (ATA-03), exclusive handoff, old-route retirement marker | REQ-MIG-001, REQ-MIG-002 |
+| TASK-S14-02 | 14 | Continuity of outstanding obligations across releases | PRF-MIG-15 |
+| TASK-S14-03 | 14 | The cutover rehearsal on the shadow's copies (owner's word) | Rehearsal record |
+| TASK-S14-04 | 14 | The production cutover (owner's word) | PRF-MIG-14, PRF-SES-07 |
+| TASK-S14-05 | 14 | The retirement record and repointed consumers (owner's word) | PRF-MIG-14 |
 
 ## First slice prepared for execution
 

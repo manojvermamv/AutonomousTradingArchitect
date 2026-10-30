@@ -159,6 +159,12 @@ These are files the slices need that README §6 does not list (T-01…T-23). T-0
 | T-87 | `scripts/gen_research_parity.py` | SLICE-12 | The golden generator, run once against a legacy checkout ([SLICE-12](plan/slices/SLICE-12-research-rl-custody-promotion.md)) |
 | T-88 | `tests/unit/test_promotion_gate.py` | SLICE-12 | The directional gate and bar (PRF-RES-09) ([SLICE-12](plan/slices/SLICE-12-research-rl-custody-promotion.md)) |
 | T-89 | `tests/unit/test_rl_research.py` | SLICE-12 | RL research (PRF-RES-11) ([SLICE-12](plan/slices/SLICE-12-research-rl-custody-promotion.md)) |
+| T-90 | `src/autonomous_trading/adapters/lease_store.py` | SLICE-11 | The off-host send-lease store adapter ([SLICE-13](plan/slices/SLICE-13-disarmed-shadow-and-conversion.md)) |
+| T-91 | `src/autonomous_trading/resources/migrations/008_import.sql` | SLICE-13 | The importer's accounting tables; the number is the next free one at build ([SLICE-13](plan/slices/SLICE-13-disarmed-shadow-and-conversion.md)) |
+| T-92 | `tests/recovery/test_recovery_set.py` | SLICE-11 | The recovery set and restore verification ([SLICE-13](plan/slices/SLICE-13-disarmed-shadow-and-conversion.md)) |
+| T-93 | `tests/fixtures/legacy_stores` | SLICE-13 | Small legacy store fixtures, generated once ([SLICE-13](plan/slices/SLICE-13-disarmed-shadow-and-conversion.md)) |
+| T-94 | `scripts/gen_legacy_fixtures.py` | SLICE-13 | The legacy fixture generator, run once against a legacy checkout ([SLICE-13](plan/slices/SLICE-13-disarmed-shadow-and-conversion.md)) |
+| T-95 | `tests/recovery/test_initial_cutover.py` | SLICE-14 | The cutover states, go-back and fence (PRF-MIG-13) ([SLICE-14](plan/slices/SLICE-14-initial-cutover.md)) |
 | T-34 | `src/autonomous_trading/resources/migrations/006_protection.sql` | SLICE-06 | The `protection_state` and `protection_gap` tables (as T-24) |
 | T-31 | `tests/fixtures/openalgo` | SLICE-07 | Byte-identical copies of the recorded OpenAlgo book and funds captures (2–4 August 2026) the adapter is proved against ([SLICE-07 step 4](plan/slices/SLICE-07-observations-reconciliation-domain.md#step-4--the-openalgo-adapter)) |
 | T-30 | `tests/unit/test_observation_loop.py` | SLICE-07 | The observation loop, publish-before-reference, the read budget and the simulated book ([SLICE-07 step 3](plan/slices/SLICE-07-observations-reconciliation-domain.md#step-3--the-observation-loop)) |

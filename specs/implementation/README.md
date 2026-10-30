@@ -43,7 +43,7 @@
 | [06-architecture-fit-and-effort.md](06-architecture-fit-and-effort.md) | Which hybrid architecture fits first; development, restructuring and upkeep effort; terms | proposed (guidance) |
 | [legacy-divergence.md](legacy-divergence.md) | Where legacy code disagrees with accepted decisions | proposed (evidence) |
 | [traceability.md](traceability.md) | Requirement key → decision → module → spec → task → proof (generated) | proposed |
-| [design/](design/) | 12 full-depth specs, 1 stub, 1 cross-cutting invariants file | proposed |
+| [design/](design/) | 13 full-depth specs, 1 cross-cutting invariants file | proposed |
 | [plan/delivery-plan.md](plan/delivery-plan.md) | 14 slices inside the master phases, plus the task index | proposed |
 | [plan/slices/SLICE-01-disarmed-financial-core.md](plan/slices/SLICE-01-disarmed-financial-core.md) | First slice, prepared for execution | proposed |
 | [tests/test-strategy.md](tests/test-strategy.md) | Proof classes, A08 rules, fault injection, coverage map | proposed |
@@ -64,11 +64,11 @@
 * [configuration-artifacts-release](design/configuration-artifacts-release.md) (deepened at SLICE-11)
 * [runtime-isolation-observability-deployment](design/runtime-isolation-observability-deployment.md) (deepened at SLICE-11)
 * [research-rl-custody-promotion](design/research-rl-custody-promotion.md) (deepened at SLICE-12)
+* [migration-recovery-rollback-continuity](design/migration-recovery-rollback-continuity.md) (deepened at SLICE-13 and SLICE-14)
 * [cross-cutting-invariants](design/cross-cutting-invariants.md) (owns no module)
 
 **Specs.** Stubs (deepened when their slice starts):
 
-* [migration-recovery-rollback-continuity](design/migration-recovery-rollback-continuity.md)
 
 **Process records** (not on the reading path; they describe how the package was made):
 

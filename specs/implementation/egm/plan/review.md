@@ -702,3 +702,19 @@ A fresh `egm:egm-design` review of [SLICE-08 step 3](../../plan/slices/SLICE-08-
 | F-12 | Major | Every read scanned the whole store | Four bounded reads and a per-view cache |
 | F-13 | Major | No spot fallback | Fork call: legacy's chain-poll join when the spot is dropped as stale |
 | F-15, F-16, F-17 | Nit / Major | Reopen reasons, edge cases, thin tests | Precise reasons (`gone` not built: nothing is deleted yet); durations; 15:30 expected; the missing tests added |
+
+## SLICE-13 and SLICE-14 design review (2026-10-30)
+
+A fresh `egm:egm-design` review of the deepened [migration spec](../../design/migration-recovery-rollback-continuity.md) and the [SLICE-13](../../plan/slices/SLICE-13-disarmed-shadow-and-conversion.md) and [SLICE-14](../../plan/slices/SLICE-14-initial-cutover.md) slice files. 2 Blocker, 12 Major (F-1…F-14). The reviewer confirmed the legacy claims it could read and found no route from the shadow to the production order path. Every finding was checked and resolved by the helper, with the owner's 2026-10-30 answer (no hard gate on shadow days; the rehearsal on copies needs the owner's word).
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| F-1 | Blocker | Going back could leave two writers | `continue-legacy` masks every target unit, unlinks its key files, releases the lease `abnormal`; the kernel refuses every advance after `ROLLBACK_CONTINUATION` |
+| F-2 | Blocker | A restore could bring the old route back | An off-host `RouteRetirement` at the first claim; `continue-legacy` refuses after it, after a restore marker or gap, or without the anchors; CP-X6 |
+| F-3, F-4, F-5 | Major | The observer's key, the fence's check, the fence's enforcement | `OBSERVER_READY` and re-keying; `KEY_PROBED` (or "attested, not probed"); the kernel-side fence a step 1 completion condition |
+| F-6 | Major | The copier could reach the broker key | The copier's lockdown; it refuses to start unless enforced; the rest runs as `at-shadow` |
+| F-7 | Major | The comparison could approve its own differences | Approved differences from owner answers only, each with a condition and expected values |
+| F-8 | Major | Required checks before cutover missing | PRF-OPS-09 in `CUTOVER_STAGED`; `BACKUP_ANCHORED` before any advance |
+| F-9, F-10 | Major | Post-restore restarts; retries after a failed cutover | Superseded heads skipped; `FAILED_AFTER_ROTATION`, the old ledger set aside, the legacy restart the owner's action |
+| F-11, F-12 | Major | Carried safety state; retained legacy tools | The kill flag, torn holds as held, pauses carried; retained tools keyless or through the observation route |
+| F-13, F-14 | Major | Step order; the rehearsal's approval | The copier built in SLICE-13 step 2; SLICE-14 step 3 on the owner's word, with its isolation specified |
