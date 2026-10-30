@@ -718,3 +718,22 @@ A fresh `egm:egm-design` review of the deepened [migration spec](../../design/mi
 | F-9, F-10 | Major | Post-restore restarts; retries after a failed cutover | Superseded heads skipped; `FAILED_AFTER_ROTATION`, the old ledger set aside, the legacy restart the owner's action |
 | F-11, F-12 | Major | Carried safety state; retained legacy tools | The kill flag, torn holds as held, pauses carried; retained tools keyless or through the observation route |
 | F-13, F-14 | Major | Step order; the rehearsal's approval | The copier built in SLICE-13 step 2; SLICE-14 step 3 on the owner's word, with its isolation specified |
+
+## SLICE-10 step 1 reviews (2026-10-30)
+
+Fresh `egm:egm-design` (F-1…F-11) and `egm:egm-implementation-readiness` (R-1…R-12) reviews of [SLICE-10 step 1](../../plan/slices/SLICE-10-security-and-operator.md#step-1--requests-confirmations-and-principals), before any code. Each finding was checked against the cited code first; all were resolved in the text, then built (`726ff6e` on `slice-10`; 1,134 tests twice; 33 of 33 break checks).
+
+| # | Finding (short) | Resolution |
+|---|---|---|
+| F-1 | `prepare` and `execute` trusted a `Session` object | Both take `(session_id, caller, csrf)` and run `session()`; a hand-built `Session` mints nothing |
+| F-2 | The kernel used the request's own lifetime | `validity` refuses any window other than the kernel's bound lifetime (`"lifetime"`) |
+| F-3 | No clock domain on the request's instants | `Timestamp`s; a domain mismatch is `"domain"`; step 2 uses `effective_now` |
+| F-4 | `latch_unlock` named no strategy | `args["strategy"]`, equal to the typed name; step 2 checks it against the session's binding |
+| F-5 | A case variant of a delegate's proxy identity became the owner | Case-folded lookups, the provider's verified e-mail claim; "unmapped is owner" stays a Fork call |
+| F-6 | `CliEvidence.unit` undefined | The system `.service` unit holding the pid; login scopes and `user@` refused at construction |
+| F-7 | Nonce too short; retries not flagged | `[A-Za-z0-9_-]{22,64}` full match, `token_urlsafe(16)`; step 2's reply flags `replayed` |
+| F-8 | Step 2's carries unstated | Listed under "What later steps take from step 1" |
+| F-9 | An empty answer never matching changes kill and unlock confirmation | Kept, marked **Deviation — for owner review** |
+| F-10 | Session lifetime on the wall clock | On `clock.elapsed()` |
+| F-11 | Unbounded challenges and remembered requests; one client could drop another's sessions | One challenge per session; pruned after twice the lifetime; caps per channel identity and client label |
+| R-1…R-12 | Exact rules for uids, targets, `named`, check order, "live", UTC parsing, `DoorRule`, the Minting case, `OPERATIONS`, proxy accounts, the catalogue wording | All applied; the five hash values are computed and asserted |
