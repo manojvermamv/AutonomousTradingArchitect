@@ -77,7 +77,7 @@ The owner's fork rule keeps legacy's live behaviour wherever a choice touches en
 * **The supervisor gets its one right through polkit,** not sudo: its unit runs with `NoNewPrivileges`.
 * **Host loss raises no alert:** no off-host participant exists; tied to POL-047.
 
-**Open, not a deviation:** the kernel does not ingest the supervisor's outage observations in the first release, against A03-F4's "Kernel ingestion deduplicates observations" (`README.md:922`). The package coordinator raises it as a proposed master correction (X item); until the master's owner decides, it stays an open gap.
+**Open, not a deviation:** the kernel does not ingest the supervisor's outage observations in the first release, against A03-F4's "Kernel ingestion deduplicates observations" (`README.md:922`). Raised as [X-008](../../consistency/master-contradictions.md#x-008); until the master's owner decides, it stays an open gap.
 
 ## What legacy does
 

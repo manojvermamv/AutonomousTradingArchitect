@@ -11,6 +11,8 @@ Status: **proposed** findings for the master documents' owner. The master README
 | [X-005](#x-005) | ATA-05 "policy contracts" as a session-scope dimension | TASK-S03-02 (session key and its unique index) | accepted 2026-10-27 ([answers](../decisions/owner-answers-2026-10-27.md)) |
 | [X-006](#x-006) | The policy inventory's classifications are staged, not accepted | none now; any spec citing an unaccepted row before acceptance | accepted 2026-10-27 ([answers](../decisions/owner-answers-2026-10-27.md)) |
 | [X-007](#x-007) | README §6 names no module for the durable evidence store | TASK-S02-03 (module placement only) | accepted 2026-10-27 ([answers](../decisions/owner-answers-2026-10-27.md)) |
+| [X-008](#x-008) | A03-F4 kernel ingestion of the supervisor's outage observations is not built in the first release | none (SLICE-11 records it as an open gap) | proposed 2026-10-30 |
+| [X-009](#x-009) | The kept `promotion.enforce` switch against "a candidate cannot bypass its applicable promotion rules" | none (the owner kept it, set to true, 2026-10-30) | proposed 2026-10-30 |
 
 ---
 
@@ -138,3 +140,37 @@ See [POL-002, POL-004, POL-041, POL-047](../02-policy-inventory.md).
 **Package handling.** The [ledger spec](../design/ledger-and-atomic-transaction.md#evidence-references-req-led-014) specifies the store's contract and places it in tree delta T-23, `kernel/ledger/evidence_store.py` ([module index](../05-module-index.md)), until the owner places it.
 
 **Smallest correction (for the master's owner).** Add `kernel/ledger/evidence_store.py` (or another path) to §6.
+
+---
+
+## X-008
+
+**Kind:** a master requirement the first release does not build.
+
+**Evidence.**
+- A03-F4 ends: "Kernel ingestion deduplicates observations and commits accepted transitions through D15–D16" (`README.md:922`), for the supervisor's outage observations.
+- The [runtime spec](../design/runtime-isolation-observability-deployment.md) and [SLICE-11](../plan/slices/SLICE-11-packaging-release-supervision.md) build the supervisor's read model, its assessments and their durable publication, but no kernel route that ingests them. After a restart the kernel's own observation loop reads the same books again, including the day's tradebook, and reconciles from them.
+
+**Effect if left.** An effect seen only by the supervisor during an outage, and gone from the books before the kernel restarts, reaches the ledger only as non-authoritative evidence. Legacy has no such route either (its monitor only reports).
+
+**Package handling.** Recorded as an open gap in SLICE-11, not a Deviation. The supervisor's evidence is kept, indexed and published (Combined-F2), so ingestion can be added later without changing what it stored.
+
+**Smallest correction (for the master's owner).** Mark kernel ingestion of supervisor observations as a later phase, or name the slice that must build it.
+
+---
+
+## X-009
+
+**Kind:** a legacy switch kept under the owner's fork rule that a master rule forbids.
+
+**Evidence.**
+- The first-release row says "a candidate cannot bypass its applicable promotion rules" (`README.md:1172`).
+- Legacy has `advisor.promotion.enforce` (`config/defaults.yaml:766` @445eb116); when false, `may_promote` returns allowed (`promotion.py:477-478`).
+- On 2026-10-30 the owner chose "the old system's rules" for promotion; the package keeps `promotion.enforce`, set to true ([answers](../decisions/owner-answers-2026-10-27.md), "Combined answers, slices 09–14"; [SLICE-12](../plan/slices/SLICE-12-research-rl-custody-promotion.md)).
+
+**Effect if left.** An operator who sets the switch to false lets an unpromoted candidate reach admission. The binding check of SLICE-03 still applies.
+
+**Package handling.** Kept, defaulting to true; every change of it is a recorded configuration change.
+
+**Smallest correction (for the master's owner).** Accept the switch as an owner-held exception to `README.md:1172`, or remove it from the first release.
+
