@@ -35,6 +35,9 @@
 | Q-028 | Option A (2026-10-29): the daily-loss latch sums the `pnl` of every row of the account's position book, including trades the system did not make, as legacy's live host (`scripts/run_framework_live.py:7983-7988`). Option B (only the session's own positions, as the spec wrote) is recorded | rule in SLICE-06 step 4; budget from `risk.max_daily_loss_amount` (Q-002) |
 | Q-029 | Option B (2026-10-29): a restart that cannot read the broker engages no recovery hold; admission check B1 refuses entries on a stale book (`ADM-R05`) and stops once the broker answers. Legacy's hold (`scripts/run_framework_live.py:3141-3144`, option A) is recorded. The recommendation was A while the kernel does not compare positions; the owner accepted that gap until step 5 | rule in SLICE-06 step 4; no setting |
 | Q-030 | Option A (2026-10-29): a bar holds the prices that arrived by its confirmation instant (POL-019); a later price is kept as a correction revision, seen only by a view that includes corrections. Legacy's refold at every read (`src/data/marketdata/ticks.py:511-560`, option B) is recorded | rule in SLICE-08 step 1; the lag is `market.bar_confirm_lag_secs` (POL-019) |
+| Q-022 | Option B with C's upstream report (2026-10-30): legacy's hashed identity for a trade with no trade ID; a report to OpenAlgo drafted for the owner to post | rule in the OpenAlgo adapter; replaced when trade IDs arrive |
+| Q-023 | Option C (2026-10-30): contracts first (TASK-S07-05), human `attempt_resolve` for closes, cancels and modifies otherwise | rule in SLICE-07's reconciliation, built with the adapter's composition |
+| Q-031 | Option A (2026-10-30): `latest_tick` for a held option comes from the chain poll's `ltp` and delta | rule in SLICE-08 step 5 |
 
 ## Master corrections
 
@@ -51,3 +54,14 @@
 ## What follows from these answers
 
 The specs still name each setting as a refusing parameter; that is unchanged and intended (Q-015). The values above are what the first release binds. The spec sections that described only one option of an answered question (for example protection placement, Q-013) are deepened in their slice files using the chosen value.
+
+## Standing rules (2026-10-30)
+
+The owner answered four combined questions so the remaining slices can be built without stopping (the recommended option each time):
+
+| Topic | Answer | What it means |
+|---|---|---|
+| Run mode | Design every remaining slice now; write each step's exact detail just before it is built | One session, up to three helper agents at a time; every step keeps the cycle: deepen, two fresh EGM reviews, fix, build, the suite twice, break checks, "as built" record |
+| Fork rule | The old live system wins on money | A fork touching entries, exits, stops, sizes, limits or thresholds keeps legacy's live behaviour at 445eb116; a spec-only improvement to money is listed, not made. Every such call is logged in the slice file as **Fork call** for the owner's review. Owner-only items (licence, backup destination, RTO, POL-035, POL-036) stay open behind refusing settings |
+| Live-readiness package | A: works live like today | Q-022 B with an upstream report drafted (not posted); Q-023 C; Q-031 A; POL-O04: every start-time behaviour stays today's (OD-AS-2…OD-AS-13 unanswered) |
+| Boundary | Read-only steps pre-approved | Allowed without asking: reading recorded market days on the EC2 into an isolated copy; read-only OpenAlgo captures with no order (TASK-S07-05 reads); the disarmed shadow (SLICE-13). Still asked first: any order, the real restore rehearsal, any deploy, the cutover (SLICE-14), and posting anything outside the repository |

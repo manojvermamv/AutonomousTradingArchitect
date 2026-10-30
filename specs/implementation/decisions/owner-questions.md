@@ -445,6 +445,8 @@ Legacy instead gives such a row a hashed identity, `anonymous-evidence:v1:<sha25
 
 Nothing runs live before this is answered: the adapter is not composed until it is.
 
+**Answer (2026-10-30): option B, with C's upstream report.** The live adapter gives a trade with no trade ID legacy's hashed identity (`anonymous-evidence:v1:<sha256>:<occurrence>`, `src/contract/fills.py:90-109,319-330` @445eb116), so live closes work as they do today; the double-count risk is recorded. A report asking OpenAlgo to pass the broker's trade ID through is drafted for the owner to post; the identity is replaced once it does. Part of the owner's [live-readiness package](owner-answers-2026-10-27.md#standing-rules-2026-10-30).
+
 ## Q-023
 
 **How is a timed-out close, cancel or modify resolved when no book can prove its absence?**
@@ -470,6 +472,8 @@ Such an action stays `UNCERTAIN`. Conflict row 2 then holds every later close, a
 - **C:** both: B for the common case, and A for what the contracts cannot cover.
 
 Nothing runs live before this is answered: the adapter is not composed until it is.
+
+**Answer (2026-10-30): option C.** The adapter is composed once TASK-S07-05 binds contracts that make absence usable for the consumed books; anything they cannot cover is resolved by a human through `attempt_resolve`, extended to closes, cancels and modifies. Part of the owner's [live-readiness package](owner-answers-2026-10-27.md#standing-rules-2026-10-30).
 
 ## Q-024
 
@@ -684,3 +688,22 @@ Proof: PRF-MKT-01, PRF-MKT-05.
 **Recommendation: A.** It is what POL-019 already says, and it makes replay equal live.
 
 **Answer (2026-10-29): option A.** A bar is final at its confirmation instant; a later price is a correction revision, visible only to views that include corrections.
+
+## Q-031
+
+**Which price feed drives `latest_tick` for a held option?**
+
+```text
+Requirement: protection's target and deep-OTM tick exits read the held contract's latest tick (SLICE-06 step 2; Q-026).
+Owner: market.view (SLICE-08 step 5).
+Proof: PRF-MKT-07.
+```
+
+**In plain words.** Legacy's live host ran no tick exit, and its recorder captured index ticks, not held options (`scripts/run_framework_live.py:5065-5066` @445eb116). The two candidate feeds are the 60 s chain poll's own `ltp` and delta, or a live tick stream for the held contracts with delta from the newest chain poll.
+
+**Options.**
+
+- **A — Recommended: the chain poll.** Delta comes from the chain anyway, and under `basket_at_plan` (Q-013) the target rests at the broker, so the tick exit is a backstop.
+- **B: a live tick stream** for held contracts: exits within seconds, a new subscription in the market process.
+
+**Answer (2026-10-30): option A.** Part of the owner's [live-readiness package](owner-answers-2026-10-27.md#standing-rules-2026-10-30).

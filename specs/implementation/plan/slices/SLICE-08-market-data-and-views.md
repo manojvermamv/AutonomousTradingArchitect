@@ -4,7 +4,7 @@
 * **Precedence:** the master README, then the ROADMAP, then this package. The authority is the [market-data spec](../../design/market-data-and-canvas.md). Every deviation is marked **Deviation**. No score, threshold or money value is set here: the confirmation lag is POL-019's approved 7 s, bound only in tests to labelled values.
 * **Phase:** master Phase 5 (A01-F1…F5, D08). Environment class S, except step 4's captured OpenAlgo responses (class R).
 * **Builds on:** SLICE-03 and SLICE-04 as built, and on SLICE-06 as built (the protection loop reads `closes` and `latest_tick`). The branch `slice-08` is cut from `agentic-desk` (OA_NEW `536f857`, SLICE-06 plus the repository's `AGENTS.md`).
-* **Owner answers applied:** [Q-030](../../decisions/owner-questions.md#q-030) option A (a bar is final at its confirmation instant; a later tick is a correction revision). POL-O04 (OD-AS-2…OD-AS-13) stays open: every start-time behaviour stays today's (the spec's non-goals). One owner question is due when step 5 is deepened: which stream feeds `latest_tick` for a held option (the spec's [kernel port](../../design/market-data-and-canvas.md#the-kernels-market-port-marketviewpy) section).
+* **Owner answers applied:** [Q-030](../../decisions/owner-questions.md#q-030) option A (a bar is final at its confirmation instant; a later tick is a correction revision). POL-O04 (OD-AS-2…OD-AS-13) stays open: every start-time behaviour stays today's (the spec's non-goals). [Q-031](../../decisions/owner-questions.md#q-031) option A (`latest_tick` for a held option from the chain poll). The owner's [standing rules](../../decisions/owner-answers-2026-10-27.md#standing-rules-2026-10-30) apply: a fork touching money keeps legacy's live behaviour and is logged here as **Fork call**.
 * **Tasks and proofs:**
   * **Step 1:** TASK-S08-01 (PRF-MKT-01).
   * **Step 2:** TASK-S08-02 (PRF-MKT-02, PRF-MKT-03).
@@ -30,7 +30,7 @@
 | 2 | The market store (records, seals, coverage, head, `store_id`) and publication; the merge; the simulated source; the live loop's poll, record and seal, driven by a recorded clock; the reference facts store and recorder; `market.bar_confirm_lag_secs` and `market.poll_interval_secs` bound in the market composition; CP-M1…CP-M3 | PRF-MKT-02, PRF-MKT-03 |
 | 3 | View policies and identities, re-opening, sealed-only bars, corrections, `stale: drop` and `report`, the reads; quality and requirements | PRF-MKT-04, PRF-MKT-05, PRF-MKT-06 |
 | 4 | Two characterizations first (which Greeks the legacy planner's chain rows carry; the sign of PE deltas in the captured chains); then the OpenAlgo market source in `adapters/openalgo.py`: `quotes` with the history repair, `expiry`, `optionchain`, `multioptiongreeks`, `history`, websocket ticks | PRF-MKT-08 |
-| 5 | `StoreMarket`, the kernel's market and calendar ports over the store, composed in `bootstrap`; `resolve` and one view per protection pass, recorded on protection's events; premium closes with their day high; the tick source as the owner answers; the gap sources (`missing_minutes`, the day high, the feed-gap fact) | PRF-MKT-07 |
+| 5 | `StoreMarket`, the kernel's market and calendar ports over the store, composed in `bootstrap`; `resolve` and one view per protection pass, recorded on protection's events; premium closes with their day high; `latest_tick` from the chain poll (Q-031 A); the gap sources (`missing_minutes`, the day high, the feed-gap fact) | PRF-MKT-07 |
 | 6 | Canvas: `view(as_of)`, confirmed swings, facts, annotations, history and supersession, budgets; `resources/canvas.schema.json`; the import guard | PRF-MKT-09 |
 
 The characterizations come before the port (step 4 before step 5) because the planner's strike selection reads delta, and the port must carry the Greeks the planner read.
@@ -200,7 +200,7 @@ Deepened after step 3 is built. First, two characterizations against legacy at 4
 
 ## Step 5 — the kernel's port (outline)
 
-Deepened after step 4 is built: the spec's [kernel port](../../design/market-data-and-canvas.md#the-kernels-market-port-marketviewpy). It replaces the fixture port in `bootstrap` for compositions that name a market store, and keeps it for those that do not. The kernel change: `MarketPort.resolve`, a `view_id` argument on `closes` and `latest_tick`, and `market_view` on `PROTECTION_DESIRED` and `GAP_PEAK_RECORDED`. The carried SLICE-06 gap sources land here, the day high with parity cases generated from legacy. The tick source is the owner question named above, asked when this step is deepened. Test file: `tests/integration/test_market_port.py` (**T-46**).
+Deepened after step 4 is built: the spec's [kernel port](../../design/market-data-and-canvas.md#the-kernels-market-port-marketviewpy). It replaces the fixture port in `bootstrap` for compositions that name a market store, and keeps it for those that do not. The kernel change: `MarketPort.resolve`, a `view_id` argument on `closes` and `latest_tick`, and `market_view` on `PROTECTION_DESIRED` and `GAP_PEAK_RECORDED`. The carried SLICE-06 gap sources land here, the day high with parity cases generated from legacy. The tick source is the chain poll (Q-031 A). Test file: `tests/integration/test_market_port.py` (**T-46**).
 
 ## Step 6 — Canvas (outline)
 
