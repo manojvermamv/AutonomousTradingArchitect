@@ -8,7 +8,7 @@
 * **Tasks and proofs:**
   * **Step 1:** TASK-S09-01 (PRF-STR-01).
   * **Step 2:** TASK-S09-02 and TASK-S09-09 (PRF-STR-02; PRF-STR-03 rows CP-W1…CP-W5).
-  * **Step 3:** TASK-S09-08 (characterizations), then TASK-S09-03 (PRF-STR-04).
+  * **Step 3:** TASK-S09-08 and TASK-S09-11 (characterizations; the MCP Risk Guard's ₹5,000 `daily_loss_limit` backstop is carried unchanged if live strategy orders pass it), then TASK-S09-03 (PRF-STR-04).
   * **Step 4:** TASK-S09-04 (PRF-STR-05).
   * **Step 5:** TASK-S09-05 (PRF-STR-06).
   * **Step 6:** TASK-S09-06 (PRF-STR-07, PRF-STR-08; PRF-STR-03 rows CP-C1, CP-C2).

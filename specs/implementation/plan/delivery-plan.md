@@ -105,6 +105,7 @@ Task IDs are stable. SLICE-01 tasks are its file rows. Tasks of a stub slice are
 | TASK-S09-07 | 09 | Capability boundary | PRF-STR-09 |
 | TASK-S09-08 | 09 | Characterizations: deployed `--poll` and BuyerEdge authority, every live registry row and the account, the bars the runner walks, the Greeks minute boundary | Evidence records |
 | TASK-S09-09 | 09 | The kernel's `record_decision` route and `setup_fresh` derived from it (legacy's rule, across restarts) | PRF-STR-02, PRF-STR-03 |
+| TASK-S09-11 | 09 | Characterize whether legacy's live strategy orders pass the MCP Risk Guard, whose `daily_loss_limit` (₹5,000 at `config/profiles/enforcing.yaml:104` @445eb116, checked at `src/interfaces/mcp/core/riskguard.py:637-681`, refusing when daily P&L is unavailable) is a backstop above the latch (₹3,600, Q-002); if they do, carry it into the kernel's checks unchanged (fork rule, 2026-10-30) | Evidence record; a PRF-PRT-05 row if carried |
 | TASK-S09-10 | 09 | The replay composition | PRF-STR-11 |
 | TASK-S10-01 | 10 | Operator requests, confirmations and each door's caller identity | PRF-SEC-01, PRF-SEC-02 |
 | TASK-S10-02 | 10 | The kernel's binding check: `OPERATOR_REQUEST` in the same decision, replay and reuse refused, validity at admission and dispatch | PRF-SEC-03 |
