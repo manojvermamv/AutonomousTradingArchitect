@@ -1,6 +1,6 @@
 # SLICE-08 — Market data and views
 
-* **Status:** proposed (2026-10-29); reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-08-review-2026-10-29)), whose findings are resolved in this text. Step 1 is built (OA_NEW `484a1ec` on `slice-08`; [Step 1 as built](#step-1-as-built)). Step 2 is built (OA_NEW `42879dd`; [Step 2 as built](#step-2-as-built)). Steps 2–6 are deepened in turn, each after the step before it is built, as in SLICE-04, SLICE-05, SLICE-06 and SLICE-07 (the delivery plan's depth rule).
+* **Status:** proposed (2026-10-29); reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-08-review-2026-10-29)), whose findings are resolved in this text. Step 1 is built (OA_NEW `484a1ec` on `slice-08`; [Step 1 as built](#step-1-as-built)). Step 2 is built (OA_NEW `42879dd`; [Step 2 as built](#step-2-as-built)). Step 3 is built (OA_NEW `fb8f2bb`; [Step 3 as built](#step-3-as-built)). Steps 2–6 are deepened in turn, each after the step before it is built, as in SLICE-04, SLICE-05, SLICE-06 and SLICE-07 (the delivery plan's depth rule).
 * **Precedence:** the master README, then the ROADMAP, then this package. The authority is the [market-data spec](../../design/market-data-and-canvas.md). Every deviation is marked **Deviation**. No score, threshold or money value is set here: the confirmation lag is POL-019's approved 7 s, bound only in tests to labelled values.
 * **Phase:** master Phase 5 (A01-F1…F5, D08). Environment class S, except step 4's captured OpenAlgo responses (class R).
 * **Builds on:** SLICE-03 and SLICE-04 as built, and on SLICE-06 as built (the protection loop reads `closes` and `latest_tick`). The branch `slice-08` is cut from `agentic-desk` (OA_NEW `536f857`, SLICE-06 plus the repository's `AGENTS.md`).
@@ -17,7 +17,7 @@
 
 **Excluded, and where each part arrives:**
 
-* **SLICE-09:** strategies' input requirements and what they do with an unmet one; the decision pass's wait for a window's seal and its bound; the `exact_minute` join's consumer (BuyerEdge's scoring).
+* **SLICE-09:** strategies' input requirements and what they do with an unmet one; the decision pass's wait for a window's seal and its bound; the consumers of the `exact_minute` join and of the five reads step 3 builds for SLICE-09 (BuyerEdge's scoring).
 * **SLICE-11:** the market process's service unit, supervision and retention.
 * **PRF-ADM-07 (Deviation from the delivery plan's SLICE-08 row):** planner parity over recorded days (`scripts/compare_parity.py`, class P) needs recorded sessions, captured with TASK-S11-07. It runs then, before any live use, as PRF-PRT-08 does. Step 5's port parity (PRF-MKT-07) is its unit-level stand-in, and step 4 checks the PE delta sign at the source (SLICE-04 step 3's carried check).
 * **Canvas beyond confirmed swings,** and its renderer: later Canvas work.
@@ -386,91 +386,161 @@ Commit `42879dd` on `slice-08`, after a test-only commit `eb06786` (below). It c
 
 ## Step 3 — views and quality
 
-The authorities are the spec's [Stable views](../../design/market-data-and-canvas.md#stable-views-marketviewpy) and [Quality](../../design/market-data-and-canvas.md#quality-marketqualitypy) sections. Step 3 builds the read side over step 2's store. Reads that need the chain payload's shape (a held contract's premium close and tick, `ChainSnapshot`) are step 5's, after step 4 characterizes the OpenAlgo chain.
+The authorities are the spec's [Stable views](../../design/market-data-and-canvas.md#stable-views-marketviewpy) and [Quality](../../design/market-data-and-canvas.md#quality-marketqualitypy) sections. Step 3 builds the read side over step 2's store, including the five market reads SLICE-09 carried here. Reads that need the chain payload's shape (a held contract's premium close and tick, `ChainSnapshot`, `as_stable_view`) are step 5's, after step 4 characterizes the OpenAlgo chain. A design review of the first build found lookahead, revision and legacy-parity defects (F-1…F-17); this text is the reworked design, and the code matches it.
 
-**In plain words.** A "view" is a fixed snapshot: which store, which settings, which moment, and how far the store had been written. Its name is enough to open exactly the same snapshot again, from any process, later. A view shows a minute's bar only once the minute is sealed. A strategy's view drops prices older than twice the poll interval, as today. The quality report says what is missing, stale, duplicated or late, and decides nothing.
+**In plain words.** A "view" is a fixed snapshot: which store, which settings (and their exact content), which moment, and how far the store had been written. Its name is enough to open exactly the same snapshot again, from any process, later. A view never shows anything from after its moment: not a minute that was not yet final, not a correction made from a late price, not a price that arrived later. It reads one trading day, as today's system does, and picks prices by today's rules. The quality report says what is missing, stale, conflicting or late, and decides nothing.
 
 ### Decisions
 
 #### View policies (`contracts/market.py`)
 
 * `ViewPolicy(name, version, availability, corrections, bars, join, max_age_secs, stale, calendar_version, wdef)`, frozen, every field required (D08: no defaults):
-  * `name` and `version` non-empty, without `|`;
+  * `name` and `version` non-empty, without `|`; `name` also without `@` (the identity writes `name@version`);
   * `availability` `arrival` or `event`; `corrections` `exclude` or `include`; `bars` `ticks`, `history` or `ticks_else_history`;
-  * `join`, `max_age_secs` and `stale`: tuples of `(stream, value)` pairs, sorted, one per stream of `spot`, `chain`, `greeks`, each exactly once: `join` `at_or_before` or `exact_minute`; `max_age_secs` a positive int or `None` (unbounded); `stale` `drop` or `report`, and `drop` requires a bound;
+  * `join`, `max_age_secs` and `stale`: tuples of `(stream, value)` pairs, one per stream, sorted `chain`, `greeks`, `spot`: `join` `at_or_before` or `exact_minute`; `max_age_secs` a positive int or `None` (unbounded); `stale` `drop` or `report`, and `drop` requires a bound;
   * `calendar_version` a key of `CALENDARS`; `wdef` a `WindowDef` with `interval_secs` 60.
-* `ViewPolicy.text`: the canonical JSON of its fields, so two equal policies are one text. Policies are bound per release by name (the configuration slice, SLICE-11); step 3's functions take a `Mapping[str, ViewPolicy]`.
+* `ViewPolicy.text`: the canonical JSON of its fields, so two equal policies are one text. `policy_digest(policy)` (`market/view.py`): the SHA-256 hex of that text. Policies are bound per release by name (SLICE-11); step 3's functions take a `Mapping[str, ViewPolicy]`.
 
 #### The identity (`market/view.py`)
 
-* `ViewId(store_id, store_schema, policy, policy_version, underlying, cutoff, head)`, frozen; `text` is `"mv1|" + "|".join(fields)`, with `store_schema` and `head` in decimal and `cutoff` as `utc`; `ViewId.parse(text)` splits on `|`, requires exactly eight parts and `mv1`, and raises `ValueError` otherwise. A field containing `|` refuses at construction.
-* `resolve(reader, policies, policy_name, underlying, cutoff: datetime) -> View`: `head = reader.head()` once, then the identity; nothing is written.
-* `reopen(reader, policies, text) -> View | Unavailable`: `Unavailable(reason)` with `reason` `malformed`, `version` (not `mv1`), `store` (another `store_id` or schema), `policy` (unknown name, or a bound policy whose `version` differs), or `ahead` (`head` above the reader's head). Same reads as the original view, by construction.
+* `ViewId(store_id, store_schema, policy, policy_version, policy_digest, underlying, cutoff, head)`, frozen. `text` is `mv1|{store_id}|{store_schema}|{policy}@{policy_version}|{policy_digest}|{underlying}|{cutoff}|{head}`: eight `|`-separated parts. **Deviation (from the spec's seven-part identity):** the policy's digest is the fifth part, so a name and version re-bound to other content cannot reopen an old view under other rules (F-3). Construction refuses a text field that is empty or contains `|`, a `policy` containing `@`, a digest that is not 64 lower-case hex digits, a negative or bool int, and a `cutoff` that is not its own `utc` text. `ViewId.parse(text)` requires eight parts, `mv1`, `store_schema` and `head` in decimal without leading zeros, and `@` in the fourth part; it raises `ValueError` otherwise.
+* `resolve(reader, policies, policy_name, underlying, cutoff: datetime) -> View`: `cutoff` aware; the bound policy's `name` equals its key; `head = reader.head()` once; nothing is written. **The cutoff may be earlier than the resolution instant** (SLICE-09 read 1, one view per trigger): every read below is bounded by the cutoff as well as by `head`, so a view resolved after later commits shows nothing from after its cutoff (F-1, F-8).
+* `reopen(reader, policies, text) -> View | Unavailable`, `Unavailable(reason)`, checked in this order:
 
-#### What a view sees (`market/view.py`)
+  | Reason | When |
+  |---|---|
+  | `version` | the first part is `mv` and digits, other than `mv1` |
+  | `malformed` | anything else `parse` refuses, including an eight-part text with a bad cutoff, or a non-string |
+  | `store_id`, `store_schema` | the reader's store differs |
+  | `policy_unknown` | no policy bound under the name |
+  | `policy_version` | the bound policy's version differs |
+  | `policy_changed` | same name and version, another digest |
+  | `ahead` | `head` above the reader's head |
 
-* **A record is visible** when `seq <= head` and, under `availability` `arrival`, `arrival_at <= cutoff`; under `event`, `event_at <= cutoff` (a research view, labelled by its policy). Records of the latest revision per key only; a `conflicted` latest revision is returned with `conflict` set.
-* `View.read(stream, *, minute: datetime | None = None) -> Read | None` for `spot`, `chain` and `greeks`, the underlying's records: under `at_or_before`, the visible record with the greatest `event_at` (legacy's `scan_at`, `src/runtime/market_view.py:417-440`), ties to the higher `seq`; under `exact_minute`, the visible record whose `event_at`'s IST minute equals `minute`'s, the latest `seq` if several (legacy's `inputs_at`, `:848-860`). `Read(record, age_ms, stale)`: `age_ms` from `event_at` to the cutoff; `stale` when the bound is exceeded. Under `stale: drop` a stale read returns `None`, as legacy's live views (`:413-415`, `:433-435`); under `report` it returns the read with `stale` true.
-* `View.chains() -> tuple[MarketRecord, ...]`: the chain records with the same `event_at` as `read("chain")`'s, ordered by `payload["expiry"]` ascending.
-* `View.bars(instrument, *, interval_secs=60, lookback: int | None = None) -> tuple[Bar, ...]`, the instrument's bars on the cutoff's exchange date, oldest first:
-  * `ticks`: only windows with a seal at `seq <= head`; revision 1 under `exclude`, the highest sealed revision under `include`; folded with step 1's `bars` with every window's `through` and `revision` from its seal;
-  * `history`: the visible `history_bar` records of the date, one `Bar` each (`ticks` 1, `revision` the record's, `first_seq` = `last_seq` = its `seq`, prices `repr(float(...))` from the payload's `open`, `high`, `low`, `close`, `volume` 0.0 when absent), one-minute only;
-  * `ticks_else_history`: `ticks` if it gives any bar, else `history`, one-minute only, as legacy's `session_bars` (`src/data/marketdata/ticks.py:801-806`);
-  * `interval_secs` above 60: step 1's `resample` over the one-minute bars with `now` = the cutoff; `lookback` keeps the last N.
-* `View.final(instrument, window_start) -> bool`: the window's confirmation instant is at or before the watermark visible at `head`; a final window without a seal had no ticks.
-* `View.reference(kind, key) -> ReferenceFact | ReferenceMissing`: step 2's `reference_as_of` at the cutoff, bounded by `head`; it ignores `corrections`.
+  **Not built:** a `gone` reason. Records are never deleted in this slice, so retention loss cannot occur; SLICE-11's retention adds the check with the deletion.
+
+#### What a view sees (`market/view.py`, `market/store.py`)
+
+* **A row is visible** when `seq <= head`, its `event_at` falls on the cutoff's exchange date and is at or before the cutoff, and it was seen by the cutoff: `arrival_at <= cutoff` under `arrival`, `event_at <= cutoff` under `event` (a research view, labelled by its policy). Reads use the latest visible revision of each `(source, key)`; a conflicted one keeps its flag. **One exchange date (F-4b), as legacy:** every legacy reader opens one day's file per stream (`src/data/marketdata/store.py:583`), so a view at 09:15:30 does not see the previous day's 15:29 spot.
+* **Bounded reads (F-12).** `_Reads` gains four read-only queries, no schema or write change: `heads_between(stream, instrument, *, through, since, until) -> list[RecordHead]` (rows without payloads, `since <= event_at < until` as text), `records_at(seqs) -> list[MarketRecord]`, `tick_records(instrument, *, through, first_window, last_window) -> list[MarketRecord]` (every revision, on the `(stream, instrument, window_start)` index) and `seals_between(instrument, *, through, first_window, last_window) -> list[Seal]`. `window_start` is written by the store with `utc`, so window bounds compare exactly as text. `event_at` is the source's text, so the view passes whole dates a day wider on each side (any ISO text of an instant on a date sorts between the day before and the day after) and filters by instant. A view chooses from payload-less rows and parses only what it returns (one chain poll, not the day's chains), and caches each read for its life. Measured on a synthetic store of two full days (21,057 rows; 20 ticks, one spot, one 30-strike chain and four Greeks per minute): a view at 15:31:07 reads its 376 bars, chain, spot and Greeks in 0.46 s and assesses in 0.11 s, independent of other days.
+* `View.anchor -> datetime`: the newest base window whose confirmation instant is at or before the cutoff, `window_start(cutoff − 60 s − lag, 60)`; at 10:42:07 with a 7 s lag, 10:41.
+
+#### The joins (`market/view.py`)
+
+* `View.pick(stream, *, minute=None, usable=True) -> tuple[MarketRecord, ...]`, for `spot`, `chain` and `greeks` of the underlying: the record (for the chain, every record of one poll) the stream's join picks, before the age rule. Under `exact_minute`, `minute` defaults to `anchor` and is compared as the calendar's local `YYYY-MM-DDTHH:MM`; under `at_or_before` a `minute` raises `ValueError`. Every rule below is legacy's, at 445eb116:
+
+  | Stream | `at_or_before` | `exact_minute` |
+  |---|---|---|
+  | `spot` | the newest **usable** record (F-4a): a value is the first of `ltp`, `last_price`, `close` that is an int or float and truthy (`src/data/marketdata/scans.py:213-221`; a bool `true` passes there as 1.0, kept). Ties by instant go to the **higher value** (F-4c): legacy sorts the day's marks by `(instant, value)` (`scans.py:224`), keeps that order (`src/runtime/market_view.py:260`) and takes the last at or before the bar (`bisect_right`, `:410`); then the higher `seq` | the newest usable record of the minute; no legacy reader (no shipped policy binds it), so the Greeks rule |
+  | `chain` | the newest poll (`scan_at`, `market_view.py:417-435`) and all its records | **the oldest poll of the minute and all its records** (F-5): `inputs_at` (`market_view.py:848-860`) takes the first stamp `snapshot_matching` accepts in sorted order, with every record of it (`store.py:1106-1134`). This corrects the earlier text's "the latest `seq`" |
+  | `greeks` | the newest record, ties to the higher `seq` | the newest record of the minute, ties to the higher `seq`: `greeks_at` (`scans.py:316-331`) with the stamp at the minute's end |
+
+  A poll's records are ordered by parsed expiry, nearest first (F-6): legacy's spellings in its order (`src/interfaces/mcp/core/marketpull.py:69-83`; the stored form is `%d%b%y`, `06NOV26`, `:58`), an unparsed expiry after them by its text, then `seq`. `usable=False` skips the spot value filter (quality's zero check).
+* `View.read(stream, *, minute=None) -> Read | None`: the pick, then the age rule. `Read(record, age_ms, stale, via)`: `age_ms` is `cutoff − event_at` floored to the millisecond and only reported; `stale` is judged on durations, `cutoff − event_at > timedelta(seconds=max_age_secs)`, legacy's `asked - observed <= limit` in seconds (`market_view.py:437-440`) (F-16). Under `stale: drop` a stale read returns `None`, as legacy's live views (`:413-415`, `:433-435`; bounds `live_freshness_bounds`, `:931-943`); under `report` it returns the read with `stale` true. `via` is the stream that answered.
+* `View.chain(*, minute=None) -> Read | None`: `read("chain")`, the poll's nearest-expiry record. `View.chains(*, minute=None) -> tuple[MarketRecord, ...]`: every record of that poll, nearest expiry first; empty when nothing is picked or the poll is dropped as stale.
+* `View.spot() -> Read | None` (**Fork call, legacy kept, F-13**): `read("spot")`; when that is `None` and both the spot and chain joins are `at_or_before`, legacy's chain-scan spot (`src/runtime/providers/shipped.py:112-115`): the scan's `spot` is the newest usable spot at or before **the chosen chain poll's instant**, within the spot bound measured from that poll (`scans.py:427`, `:227-261`), not the chain payload's own spot. It is returned with `via` `chain` and `stale` judged at the cutoff, and `drop` does not remove it, as legacy filled it. So it answers only when the spot at the cutoff was dropped as stale but was within the bound of the chain poll; with no usable spot at all, the chain's join has none either. The rule is a `View` method, not `market/providers.py`'s registry: one rule, one consumer.
+* **The five SLICE-09 reads (F-14):**
+
+  | # | SLICE-09's need | Read |
+  |---|---|---|
+  | 1 | a cutoff earlier than the resolution instant | `resolve(reader, policies, name, underlying, cutoff)` (above) |
+  | 2 | the `exact_minute` chain anchored at the newest confirmed window | `View.chain()` and `View.chains()` under a policy whose chain join is `exact_minute`: the anchor minute's oldest poll |
+  | 3 | the spot records through the cutoff | `View.spot_series() -> tuple[MarketRecord, ...]`: every visible spot record of the date, oldest first, ties by `seq`, unfiltered, as legacy's `spot_frame` reads the day (`market_view.py:956-993`) |
+  | 4 | the chain poll of one exact minute | `View.chains(minute=m)` |
+  | 5 | the day's Greeks through the cutoff | `View.greeks_day() -> dict[tuple[str, object, str], tuple[MarketRecord, ...]]`, keyed `(local minute, strike, side)` with the payload's `strike` and `option_type` upper-cased, each oldest first, as `greeks_by_minute` (`scans.py:269-309`); and `View.greeks_at(stamp, strike, side) -> MarketRecord | None`, legacy's `greeks_at`: in the stamp's minute, the newest at or before the stamp, ties to the later, `None` for a minute without its own batch |
+
+#### Bars (`market/view.py`)
+
+* `View.bars(instrument, *, interval_secs=60, lookback=None) -> tuple[Bar, ...]`, the instrument's bars on the cutoff's exchange date, oldest first. `interval_secs` a positive whole number of minutes and `lookback` `None` or an int ≥ 0, a bool refused (else `ValueError`).
+  * `ticks`: windows of the date **whose confirmation instant is at or before the cutoff** and with a revision-1 seal at `seq <= head` (F-1). Under `exclude`, revision 1; under `include`, **the highest sealed revision whose every tick the view sees** (by its availability), else revision 1. A correction made from a tick that arrived after the cutoff is never shown; one made from ticks that arrived by the cutoff but were committed later is shown, since they were available. **Each window's ticks are read as its seal saw them** (F-2): the latest revision of each tick key with `seq <=` that seal's `through_seq`, the store's `ticks(..., through=through_seq, window=w)`. So a tick record revised after the seal leaves revision 1 unchanged. Folded by step 1's `bars` with every shown window's revision and `through_seq`.
+  * `history` (F-7): legacy's `spot_minute_bars` (`src/data/marketdata/ticks.py:723-775`) over the `history_bar` stream: a record without `close` skipped (`:744-746`); `open`, `high`, `low` default to `close` (`:753-754`); `volume` `or 0.0` (`:755`); shown once `cutoff >= start + 60 s`, no lag (`:756`); ordered by instant, ties by `seq`; `revision` the record's, `first_seq` = `last_seq` = its `seq`, `late_ticks` 0. One-minute only: another interval raises `ValueError`. **Deviation:** `ticks` is 1, not legacy's 0 (`:759`), because `Bar` requires at least 1; and a present but null `open`, `high` or `low` reads as `close`, where legacy carried the null (a `Bar` has no null price).
+  * `ticks_else_history`: legacy's `session_bars` (`ticks.py:801-806`): the tick bars if any; else, at one minute only, the history bars; above one minute, the resampled tick bars or nothing.
+  * `interval_secs` above 60: step 1's `resample` over the one-minute bars with `now` the cutoff; `lookback` keeps the last N (0 gives none).
+* `View.final(instrument, window) -> bool`: the window's confirmation instant is at or before the earlier of the watermark visible at `head` and the cutoff (F-8); a final window without a seal had no ticks.
+* `View.reference(kind, key) -> ReferenceFact | ReferenceMissing`: step 2's `reference_as_of` at the cutoff, bounded by `head`; a fact available after the cutoff is not yet available. It ignores `corrections`.
 
 #### Quality (`market/quality.py`)
 
-* `InputRequirement(consumer, consumer_version, fields_required, fields_optional, lookback_bars, interval_secs, partial_bars)`: `fields_*` tuples of `spot`, `chain`, `greeks`, `bars`; `lookback_bars` a non-negative int; `partial_bars` `allowed` or `excluded`. It describes the consumer and sets no threshold.
-* `assess(view, requirement, *, instrument) -> Assessment`, pure over the view:
-  * per field in `fields_required + fields_optional`: `FieldState(field, state, age_ms, source, revision)` with `state` `present`, `missing` (no visible record), `stale` (beyond the policy's bound, under `report`), `unavailable` (dropped as stale under `drop`), `zero` (the payload's `ltp` is 0) or `conflicted`;
-  * bars: `expected` the base windows of the date from the calendar's regular open to the earlier of the close and the last final window (watermark), `present` the bars the view shows, `gaps` the expected windows with no bar, `duplicates` the count of `duplicate` and `conflicted` tick records among them, `late` step 1's `late_counts` for the date, `warm` true when the last `lookback_bars` expected windows all have bars;
-  * `join_skew_ms` between the spot and chain reads' `event_at`, when both exist;
-  * `clock_steps`: the visible records of a source whose `arrival_at` is earlier than the previous record's by `seq`, a clock step on the market host (`README.md:1241`).
+* `InputRequirement(consumer, consumer_version, fields_required, fields_optional, lookback_bars, interval_secs, session_reset, partial_bars)`: `fields_*` tuples of distinct `spot`, `chain`, `greeks`, `bars`, none in both; `lookback_bars` an int ≥ 0; `interval_secs` whole minutes; `partial_bars` `allowed` or `excluded`. It describes the consumer and sets no threshold.
+  * **Deviation (F-10):** `session_reset` must be `True`. Legacy warms up per session: the runner builds one day's tape and skips `bar_index < warmup` (`src/core/framework/runtime/runner.py:86-102`). A lookback across sessions is not built.
+  * **Deviation (F-10):** `partial_bars` is validated and changes nothing. A view never shows a partial bar (only sealed windows, and higher windows only after their own end plus the lag), so `excluded` always holds and `allowed` adds nothing.
+* `assess(view, requirement, *, instrument, minute=None) -> Assessment`, pure over the view; `minute` anchors exact-minute fields, defaulting to the view's anchor (F-9):
+  * **fields**, per field in `fields_required + fields_optional` other than `bars`: `FieldState(field, state, age_ms, source, revision, zero)`, the first that applies: `missing` (the join picks nothing); `zero` (the picked record has no usable value and its first price field present, of `ltp`, `last_price`, `close`, is a number equal to 0; a bool is not, F-16); `unavailable` (`read` gives `None`: dropped as stale, or no usable spot); `conflicted`; `stale`; `present`. `zero` is `unknown` for a zero state, else `None`. **Deviation (not yet built):** legacy's `genuine` and `substituted` classes (`src/data/marketdata/evidence.py:80-86`) need the source's support evidence, which step 4's source records; a bare zero is `unknown` there too;
+  * **bars**, at the requirement's `interval_secs`: `expected` the windows from the calendar's regular open to its close, both inclusive (`Calendar.in_regular_hours`; 376 one-minute windows on a full day, 15:30 included, F-16), final by the earlier of the watermark and the cutoff (a higher window at its own end plus the lag); `present` those the view shows; `gaps` the expected ones it does not; `warm` true when the last `lookback_bars` expected windows all have bars (true at 0). Legacy's own note counts 375 bars on a history-only day (`ticks.py:784-790`), so such a day reports 15:30 as a gap;
+  * `conflicted` (replaces `duplicates`, F-11: the store never keeps a duplicate, it only counts one at commit): conflicted tick rows seen by the cutoff in the expected one-minute windows;
+  * `late`: step 1's `late_counts` over the latest revision of each tick key seen by the cutoff, for the date (F-11);
+  * `join_skew_ms` between the spot and chain reads' `event_at`, both read with the anchor minute where exact;
+  * `clock_steps`: rows seen by the cutoff whose `arrival_at` is earlier than the previous row's of the same `(source, stream)` in commit order, a clock step on the market host (`README.md:1241`) (F-11; a chain stamped before the previous spot is not a step);
+  * `Assessment(fields, interval_secs, expected, present, gaps, conflicted, late, warm, join_skew_ms, clock_steps, calendar)`.
 * Nothing in `assess` refuses, waits or fills a value. The day's session timings (special and shortened days) reach `expected` in step 5 with the calendar port; until then `expected` uses the regular hours, and `Assessment.calendar` says `regular_hours`.
 
 ### Tests
 
-`tests/unit/test_market_view.py` (**T-44**) and `tests/unit/test_market_quality.py` (**T-45**), over stores built with step 2's `MarketStore` under `tmp_path`, every value labelled synthetic.
+`tests/unit/test_market_view.py` (**T-44**, 33 cases) and `tests/unit/test_market_quality.py` (**T-45**, 17 cases), over stores built with step 2's `MarketStore` under `tmp_path`, every value labelled synthetic, every expectation written by hand from the rules above (A08-F3).
 
 | Group | Cases |
 |---|---|
-| Policy | Every refusal (a missing stream, `drop` without a bound, a `|` in the name, an unknown calendar, a 300 s window); equal policies, one text |
-| Identity | `text` and `parse` round-trip; eight parts and `mv1` required; a field with `|` refused |
-| Reopen | Interleaved: a view resolved, records committed, the view reopened: the same reads (A01-F1); tied timestamps resolved by `seq`; another store, another schema, an unknown or re-versioned policy, a head ahead of the reader: each `Unavailable` with its reason |
-| Visibility | `arrival` hides a record that arrived after the cutoff though its event was before; `event` shows it; a record past `head` hidden |
-| Reads | `at_or_before` picks the newest by `event_at`; `exact_minute` the record of the asked minute, none for another; `drop` returns `None` past the bound and the read at it; `report` returns it with `stale`; `chains()` share one `event_at`, ordered by expiry |
-| Bars | Confirmed, unsealed: no bar; sealed: revision 1; with a correction sealed: `exclude` keeps revision 1, `include` shows revision 2 (Q-030); `history` and `ticks_else_history` as legacy; 5-minute bars resampled at the cutoff; `lookback` |
-| Final | A window final by watermark with no ticks; not final before it |
-| Reference | Through the view's head and cutoff |
-| Quality | Each field state; expected windows, gaps, duplicates, late counts and `warm` against hand counts; join skew; a clock step; the assessment refuses nothing |
+| Policy and identity | Every refusal (a missing stream, `drop` without a bound, `|` or `@` in the name, an unknown calendar, a 300 s window, an unknown availability or stale mode); equal policies, one text; the identity's text written out by hand, `parse` round-trips, refusals (`mv2`, nine parts, `head` `042`, no `@`, a `|` or `@` in the policy, a 63-digit digest, a non-canonical or `+05:30` cutoff, a negative head); the digest is the SHA-256 of the policy text |
+| Reopen | A live and an include view resolved, then a newer spot, a third revision of a sealed window, a watermark and a reference revision committed: reopened through a `MarketReader`, both reproduce the spot, the chain poll, the bars (revision 1 and revision 2 by hand), `final`, the reference and the Greeks index. A fresh view at the same cutoff shows the newer reference (known before the cutoff, committed later) and the same bars (the third revision arrived after the cutoff). Every `Unavailable` reason, including an eight-part text with a bad cutoff (`malformed`) and a re-bound policy (`policy_changed`) |
+| Visibility | `arrival` hides a record that arrived after the cutoff, `event` shows it; a record past `head` hidden; Monday 15:29 spot, chain, Greeks and a sealed tick bar invisible to a Tuesday 09:15:30 view (every read empty), visible to Monday's |
+| Joins | Spot: `ltp` 0 with a `close` read through `close`, an all-zero and a text value skipped, the series unfiltered; a tied instant to the higher value, then to the higher `seq`; `true` read as legacy. Staleness: 120 s kept, 120.0005 s dropped with `age_ms` 120,000, reported under `report`. A minute under `at_or_before` refused. Exact minute: two polls in 10:41 (10:41:00.2 with `06NOV26` and `13NOV26`, 10:41:30): the anchor 10:41 at 10:42:07 gives the first poll, both expiries, age 66,800 ms; an explicit minute; none for a minute without a poll; at 10:42:06.999999 the anchor is 10:40. Expiries `27NOV26`, `02DEC26`, `06NOV26` ordered `06NOV26`, `27NOV26`, `02DEC26`. Greeks: the index by hand (a lower-case side upper-cased, one arriving after the cutoff absent), `greeks_at` before, within and after the minute's batches, a minute without its own batch unpriced, the exact read the minute's newest. Fallback: a spot dropped at 150 s answered through the chain poll (`via` `chain`, stale, 150,000 ms); a spot 121 s before the newest poll not; no spot stream, no fallback |
+| Bars | Confirmed but unsealed: none; sealed: revision 1; a late tick's correction: `exclude` keeps revision 1, `include` shows revision 2 (Q-030). Lookahead: after later commits, a view at 10:42:20 shows only 10:41 (10:42 confirms at 10:43:07); `include` shows revision 1 at 10:42:29.999999 and revision 2 at 10:42:30, when the late tick arrived; `final` bounded by the cutoff. A tick record revised after its seal: revision 1 keeps the first price, `include` shows revision 2 with the revised price. History: the defaults and the null close by hand, a forming bar not shown at 10:03:59.999999 and shown at 10:04, five-minute history refused, `ticks_else_history` above one minute empty, a tick bar replaces history. Five-minute bars resampled at the cutoff; `lookback` 2 and 0; a negative or bool `lookback` and a 90 s interval refused. `final` by watermark. Reference through `head`, and a fact available after the cutoff `not_yet_available` |
+| Quality | Requirement refusals (an unknown or repeated field, a field in both, a negative or bool lookback, a 90 s interval, `session_reset` false or `1`, an unknown `partial_bars`). Field states: present, conflicted (revision 2) and missing with ages; stale; unavailable under `drop`; a zero spot `zero` `unknown`; an `ltp` `false` not zero (the older spot answers). Windows: 5 expected, 3 present, the gaps, `warm` at 3, 2 and 0, one late tick at 30 s while a later-arriving one is not counted. Counts by hand: one conflicted row in an expected window (one outside the hours not counted); two late among the latest seen revisions, worst 70 s. The close: 376 expected at 15:31:07, 375 a microsecond earlier. Five-minute requirement: 2 expected, 2 present, warm, while the one-minute one is not. Join skew; a chain stamped before the previous spot is no clock step, a spot stamped backwards is one, a row arriving after the cutoff unseen. Exact-minute spot and chain read at the anchor without a minute, and at an explicit minute. Nothing refuses |
 
 ### Break checks
 
+Each is applied with every anchor checked first, run against the two test files, and restored byte for byte with an md5 check. Each must fail a test.
+
 | Change | Test that must fail |
 |---|---|
-| Visibility ignores `arrival_at` | Visibility |
+| F-1: bars from windows confirmed after the cutoff | Bars (lookahead) |
+| F-1: `include` without the tick visibility check | Bars (lookahead); Reopen |
+| F-2: each window's ticks as of `head`, not its seal | Bars (revised tick); Quality (counts) |
+| F-3: `reopen` ignores the digest | Reopen |
+| F-4a: spot without the usable filter | Joins (spot); Quality (field states) |
+| F-4b: reads not limited to the date | Visibility (date) |
+| F-4c: spot ties by `seq` only | Joins (ties) |
+| F-5: the exact-minute chain takes the newest poll | Joins (exact minute) |
+| F-5: `greeks_at` ignores the stamp; takes the oldest | Joins (Greeks) |
+| F-6: expiries sorted as text | Joins (expiry order) |
+| F-7: a forming history bar shown; history resampled; history fallback above one minute | Bars (history) |
+| F-8: `final` by the watermark alone | Bars (lookahead) |
+| F-9: quality reads the spot without its minute | Quality (exact minute) |
+| F-11: counts include ticks seen after the cutoff; clock steps across streams; conflicted rows outside the expected windows | Quality |
+| F-12: the SQL date bound a day too narrow; the SQL ignores `head` | Many; Visibility (past head) |
+| F-13: the fallback's bound measured from the cutoff | Joins (fallback) |
+| F-16: staleness on floored milliseconds; 15:30 not expected | Joins (staleness); Quality (close) |
+| Visibility ignores `arrival_at` | Visibility; Reopen; Bars; Joins (Greeks) |
 | Bars from unsealed windows | Bars |
-| `exclude` shows the latest revision | Bars |
-| `drop` returns the stale read | Reads |
+| `exclude` shows the latest revision | Bars; Reopen |
+| `drop` returns the stale read | Joins; Quality |
 | `reopen` ignores `store_id` | Reopen |
-| Ties by `event_at` broken by the lower `seq` | Reopen |
-| `exact_minute` matches by UTC minute string of a different offset | Reads |
+| The exact minute by the instant's own offset (UTC) | Joins; Quality (exact minute) |
 | `warm` from a row count | Quality |
 
 ### Files
 
 | File | Change |
 |---|---|
-| `src/autonomous_trading/contracts/market.py` | `ViewPolicy` |
-| `src/autonomous_trading/market/view.py` | `ViewId`, `Unavailable`, `Read`, `View`, `resolve`, `reopen` |
+| `src/autonomous_trading/contracts/market.py` | `VIEW_STREAMS`, `ViewPolicy` |
+| `src/autonomous_trading/market/view.py` | `policy_digest`, `ViewId`, `Unavailable`, `Read`, `TickRow`, `View`, `resolve`, `reopen` |
+| `src/autonomous_trading/market/store.py` | `RecordHead`; `_Reads.heads_between`, `records_at`, `tick_records`, `seals_between` (reads only) |
 | `src/autonomous_trading/market/quality.py` | New: `InputRequirement`, `FieldState`, `Assessment`, `assess` |
 | `tests/unit/test_market_view.py`, `tests/unit/test_market_quality.py` | New (T-44, T-45) |
 
 ### Completion conditions (step 3)
 
 * Every test above passes, twice in a row, with the whole suite; every break check fails a listed test, and every file is restored (md5); `ast.parse` passes on every edited Python file.
+
+### Step 3 as built
+
+**In plain words.** The snapshots are built and tested: a snapshot opened again later reads exactly what it read the first time, never shows anything from after its moment, and picks prices by today's rules. All 1,020 automatic checks pass, twice in a row.
+
+Commit `fb8f2bb` on `slice-08`, on top of `42879dd`. The code was first written before its review, against the package's order; the review's findings were then resolved in text and code ([review](../../egm/plan/review.md#slice-08-step-3-review-2026-10-30)). The 31 break mutations were re-run independently: 31 of 31 failed a test, every file restored (md5). The files match the step's table.
+
+* **Tests:** 50 (33 in `test_market_view.py`, 17 in `test_market_quality.py`). The whole suite: 1,020 passed, twice in a row.
+* **Break checks:** all 31 mutations failed a test (24 for the findings; seven of the first build's eight re-anchored, the eighth, ties to the lower `seq`, now F-4c's); every file restored, md5 verified.
+* **Timing:** the bounded reads measured above: 0.46 s for a full day's reads and 0.11 s for the assessment, on a 21,057-row synthetic store.
 
 ## Step 4 — the OpenAlgo market source (outline)
 

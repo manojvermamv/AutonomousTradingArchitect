@@ -683,3 +683,22 @@ A fresh `egm:egm-design` review of the deepened [research spec](../../design/res
 | F-10 | Major | A07-F3 acceptance not exercisable | A test-only reject/delay/partial rule; `pending`, `terminated`, `truncated` |
 | F-11 | Major | Research imported the kernel | `bootstrap.py` composes an `EnginePort` |
 | F-12, F-13, F-14 | Minor / Nit | Dependencies, digest parity, CP-R4 | In-test principals; `legacy_digest`; a no-replace link close |
+
+## SLICE-08 step 3 review (2026-10-30)
+
+A fresh `egm:egm-design` review of [SLICE-08 step 3](../../plan/slices/SLICE-08-market-data-and-views.md#step-3--views-and-quality), text **and code**: the code had been written before this review, against the package's usual order, and the review found what that order exists to catch. 3 Blocker, 12 Major, 2 Nit (F-1…F-17). An implementer reworked text and code; 1,020 tests passed twice and 31 break mutations each failed a test.
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| F-1 | Blocker | Bars and corrections past the cutoff (lookahead) | Only windows confirmed by the cutoff; under `include`, the highest revision whose ticks all arrived by it |
+| F-2 | Blocker | Revision 1 changed when a tick record was revised after its seal | Each window read as its seal saw it (`seq <= through_seq`) |
+| F-14 | Blocker | SLICE-09's five reads missing | `chain`, `chains(minute)`, `spot_series`, `greeks_day`, `greeks_at`, with a cutoff earlier than resolution |
+| F-3 | Major | Reopen not reproducible under a re-bound policy | A policy digest in the identity (`policy_changed`) |
+| F-4 | Major | Selection not legacy's | Fork calls: the usable-spot filter, one exchange date, ties by value then sequence |
+| F-5, F-6 | Major | Exact-minute rules and expiry order not legacy's | The oldest poll's records for the chain; `greeks_at`; expiries parsed in legacy's format |
+| F-7 | Major | History bars not legacy's | Confirmation, one-minute only, legacy's defaults (Deviation: `ticks` 1) |
+| F-8, F-9 | Major | `final` past the cutoff; quality under exact-minute | `min(watermark, cutoff)`; an anchor minute |
+| F-10, F-11 | Major | Requirement fields unused; counts wrong | `interval_secs` used (Deviations for `session_reset`, `partial_bars`, zero classes); counts by visibility, `conflicted`, steps per stream |
+| F-12 | Major | Every read scanned the whole store | Four bounded reads and a per-view cache |
+| F-13 | Major | No spot fallback | Fork call: legacy's chain-poll join when the spot is dropped as stale |
+| F-15, F-16, F-17 | Nit / Major | Reopen reasons, edge cases, thin tests | Precise reasons (`gone` not built: nothing is deleted yet); durations; 15:30 expected; the missing tests added |

@@ -65,3 +65,14 @@ The owner answered four combined questions so the remaining slices can be built 
 | Fork rule | The old live system wins on money | A fork touching entries, exits, stops, sizes, limits or thresholds keeps legacy's live behaviour at 445eb116; a spec-only improvement to money is listed, not made. Every such call is logged in the slice file as **Fork call** for the owner's review. Owner-only items (licence, backup destination, RTO, POL-035, POL-036) stay open behind refusing settings |
 | Live-readiness package | A: works live like today | Q-022 B with an upstream report drafted (not posted); Q-023 C; Q-031 A; POL-O04: every start-time behaviour stays today's (OD-AS-2…OD-AS-13 unanswered) |
 | Boundary | Read-only steps pre-approved | Allowed without asking: reading recorded market days on the EC2 into an isolated copy; read-only OpenAlgo captures with no order (TASK-S07-05 reads); the disarmed shadow (SLICE-13). Still asked first: any order, the real restore rehearsal, any deploy, the cutover (SLICE-14), and posting anything outside the repository |
+
+## Combined answers, slices 09–14 (2026-10-30)
+
+The owner answered four more combined questions after every remaining slice was designed:
+
+| Topic | Answer | What it means |
+|---|---|---|
+| Production blockers | Decide later | The licence, the backup destination (POL-O01) and the restore target and failover authority (POL-047) stay open behind refusing settings. They block only production staging (SLICE-11 step 10), the real restore rehearsal (step 11) and the cutover (SLICE-14); every other step is built and proved first |
+| Stricter behaviours | Accept all four | Deleting the kill file no longer releases kill alone; `at kill-switch off` confirms, removes and releases (SLICE-10). Only listed login users are the owner on the command line (SLICE-10). A busy refusal is retried with the same key while the trigger's bar is within admission's view age, then abandoned (SLICE-09 Deviation 6). The post-crash no-trail gap (restart delay plus the remaining lease) is accepted (SLICE-11 Fork call 3) |
+| Promotion | The old system's rules | An approval is used only by a session opened after it, so in practice before that date's open; a revocation also applies from the next session; approval is owner-only; `promotion.enforce` stays, set to true; the gate keeps today's statistic (POL-O03 unanswered) (SLICE-12) |
+| Shadow before cutover | No hard gate on days | One or two clean end-to-end shadow days are enough; nothing in the code counts days or refuses on them (SLICE-13, SLICE-14). Reading a copy of the production research records and a cutover rehearsal on the shadow's copies were not approved by this answer: each is asked first |
