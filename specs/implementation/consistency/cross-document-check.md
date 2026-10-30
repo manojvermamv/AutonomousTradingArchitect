@@ -2,7 +2,7 @@
 
 * **Status:** proposed, non-normative. A record of what the read-only checker found, not a claim that the design is correct.
 * **Precedence:** master README, then ROADMAP, then the package. This file edits nothing.
-* **Run:** 2026-10-29, against the package at branch commit `1e84ade` (this file is rebuilt in the commit after it), master pin `b9bb32c`, legacy pin `OA@445eb116`.
+* **Run:** 2026-10-30, against the package at branch commit `920a98c` (this file is rebuilt in the commit after it), master pin `b9bb32c`, legacy pin `OA@445eb116`.
 
 ## Results against the hard targets
 
@@ -10,18 +10,18 @@
 |---|---|---|---|
 | J1 | 0 unresolved Blockers in every EGM report; every Major fixed, contested with evidence, or raised as Q/X | pass: every Blocker raised in stages 5–9 and the final zoom-out is resolved (FIX, or Q-013 for the protection-placement Blocker); every Major is FIX, CONTEST or a Q/X item | [egm/](../egm/README.md) review files |
 | J6 | SLICE-01 passes EGM stage 9 with 0 Blockers | pass: round 2 found 0 Blockers (readiness 0/16/20, codebase 0/11/12); all round-2 Majors fixed | [egm/plan/review.md](../egm/plan/review.md) |
-| J2 | Every full-depth key has decision, module, task and proof; stub keys name their acceptance row | pass: 94 full-depth keys, 49 stub keys, 0 incomplete rows, 0 undefined proofs | Checker output below; [traceability](../traceability.md) |
+| J2 | Every full-depth key has decision, module, task and proof; stub keys name their acceptance row | pass: 152 full-depth keys, 10 stub keys, 0 incomplete rows, 0 undefined proofs | Checker output below; [traceability](../traceability.md) |
 | J3 | 0 module references outside README §6 plus listed tree deltas; 0 modules specified twice | pass | Checker output below |
 | J4 | 0 broken relative links; 0 duplicate IDs | pass | Checker output below |
 | J5 | Every master citation falls inside the section holding the cited ID | pass | Checker output below |
-| J7 | Only `specs/implementation/` changes in ATA (plus the master `README.md`, edited on the owner's authorization of 2026-10-27 for X-001, X-003, X-006, X-007; master citations stay pinned to `b9bb32c`) | pass: 49 files changed since the branch base `b9bb32c`, 0 outside `specs/implementation/` other than the authorized master `README.md` (2); working tree has 0 changes outside it | `git diff --name-only b9bb32c..HEAD` and `git status --porcelain` below |
+| J7 | Only `specs/implementation/` changes in ATA (plus the master `README.md`, edited on the owner's authorization of 2026-10-27 for X-001, X-003, X-006, X-007; master citations stay pinned to `b9bb32c`) | pass: 53 files changed since the branch base `b9bb32c`, 0 outside `specs/implementation/` other than the authorized master `README.md` (2); working tree has 0 changes outside it | `git diff --name-only b9bb32c..HEAD` and `git status --porcelain` below |
 
 Passing J2–J5 shows only that the documents agree with each other and with the master. Correctness evidence comes from the zero-context EGM reviews (J1, J6), the owner's answers to the open questions, and, later, the executed proofs. No proof in this package is *executable* or *passing* yet: every one is *specified*.
 
 ## Checker output
 
 ```text
-files=47 tree_paths=176 deltas=46 full_keys=94 stub_keys=49
+files=51 tree_paths=176 deltas=86 full_keys=152 stub_keys=10
 J7 changed=0 outside_specs=0 []
 
 no problems
@@ -236,7 +236,10 @@ root = pathlib.Path(sys.argv[1])  # specs/implementation
 design = root / "design"
 FULL = ["ledger-and-atomic-transaction", "sessions-authority-lifecycle", "intent-to-admission",
         "dispatch-and-coordination", "execution-domain-and-observations", "protection-and-safety",
-        "cross-cutting-invariants", "market-data-and-canvas"]
+        "cross-cutting-invariants", "market-data-and-canvas",
+        "strategies-and-cognition", "security-and-operator", "configuration-artifacts-release",
+        "runtime-isolation-observability-deployment",
+        "research-rl-custody-promotion"]
 M = {  # key: (module, tasks, proofs)
     "REQ-LED-001": ("kernel/ledger/store.py, resources/migrations/001_initial.sql", "TASK-S01-14, TASK-S01-21", "PRF-LED-01, PRF-LED-02"),
     "REQ-LED-002": ("kernel/ledger/envelope.py", "TASK-S01-18", "PRF-LED-01, PRF-LED-15"),
@@ -332,6 +335,64 @@ M = {  # key: (module, tasks, proofs)
     "REQ-MKT-005": ("market/store.py, market/view.py", "TASK-S08-02, TASK-S08-03", "PRF-MKT-05"),
     "REQ-MKT-006": ("market/canvas/*, resources/canvas.schema.json", "TASK-S08-06", "PRF-MKT-09"),
     "REQ-MKT-007": ("market/store.py, market/ingest.py", "TASK-S08-02, TASK-S08-04", "PRF-MKT-07"),
+    "REQ-STR-001": ("strategies/registry.py", "TASK-S09-01", "PRF-STR-01"),
+    "REQ-STR-002": ("strategies/worker.py", "TASK-S09-02", "PRF-STR-02, PRF-STR-03"),
+    "REQ-STR-003": ("cognition/review.py, strategies/model_strategy.py", "TASK-S09-06", "PRF-STR-07, PRF-STR-08"),
+    "REQ-STR-004": ("cognition/runtime.py, cognition/blueprint.py", "TASK-S09-04", "PRF-STR-05"),
+    "REQ-STR-005": ("cognition/providers.py, cognition/records.py", "TASK-S09-05", "PRF-STR-06"),
+    "REQ-STR-006": ("cognition/tools.py", "TASK-S09-07", "PRF-STR-09"),
+    "REQ-STR-007": ("strategies/buyer_edge.py", "TASK-S09-03", "PRF-STR-04"),
+    "REQ-STR-008": ("cognition/providers.py", "TASK-S09-05", "PRF-STR-06"),
+    "REQ-STR-009": ("strategies/worker.py", "TASK-S09-02", "PRF-STR-02"),
+    "REQ-STR-010": ("cognition/advice.py", "TASK-S09-06", "PRF-STR-07"),
+    "REQ-STR-011": ("strategies/worker.py, kernel/policy.py", "TASK-S09-09", "PRF-STR-02, PRF-STR-03"),
+    "REQ-SEC-001": ("interfaces/*, settings/secrets.py, adapters/unix_channel.py", "TASK-S10-01", "PRF-SEC-01"),
+    "REQ-SEC-002": ("interfaces/*, settings/secrets.py, adapters/unix_channel.py", "TASK-S10-01, TASK-S10-02", "PRF-SEC-02, PRF-SEC-03"),
+    "REQ-SEC-003": ("kernel/authority.py", "TASK-S10-02", "PRF-SEC-03"),
+    "REQ-SEC-004": ("settings/secrets.py", "TASK-S10-03", "PRF-SEC-04"),
+    "REQ-SEC-005": ("interfaces/*", "TASK-S10-08", "PRF-SEC-08"),
+    "REQ-SEC-006": ("interfaces/*", "TASK-S10-08", "PRF-SEC-08"),
+    "REQ-SEC-007": ("adapters/unix_channel.py", "TASK-S10-05", "PRF-SEC-05"),
+    "REQ-SEC-008": ("kernel/authority.py", "TASK-S10-09", "PRF-SEC-10"),
+    "REQ-SEC-009": ("interfaces/*", "TASK-S10-04, TASK-S10-06, TASK-S10-07", "PRF-SEC-06, PRF-SEC-12, PRF-SEC-13"),
+    "REQ-SEC-010": ("interfaces/*", "TASK-S10-08", "PRF-SEC-09"),
+    "REQ-SEC-011": ("interfaces/*, cognition/advice.py", "TASK-S10-07", "PRF-SEC-13"),
+    "REQ-CFG-001": ("pyproject.toml, resources/*", "TASK-S11-01", "PRF-CFG-01"),
+    "REQ-CFG-002": ("settings/*", "TASK-S11-09", "PRF-CFG-06"),
+    "REQ-CFG-003": ("settings/*", "TASK-S11-02", "PRF-CFG-02"),
+    "REQ-CFG-004": ("settings/*", "TASK-S11-02", "PRF-CFG-02"),
+    "REQ-CFG-005": ("bootstrap.py, resources/*", "TASK-S11-02", "PRF-CFG-04"),
+    "REQ-CFG-006": ("operations/deployment.py", "TASK-S11-08", "PRF-CFG-03, PRF-CFG-05"),
+    "REQ-CFG-007": ("bootstrap.py", "TASK-S11-10", "PRF-CFG-07"),
+    "REQ-CFG-008": ("operations/deployment.py", "TASK-S11-12", "PRF-CFG-09"),
+    "REQ-CFG-009": ("operations/deployment.py, kernel/admission.py", "TASK-S11-08", "PRF-CFG-08, PRF-CFG-11"),
+    "REQ-CFG-010": ("bootstrap.py, adapters/unix_channel.py", "TASK-S11-02, TASK-S11-10", "PRF-CFG-10"),
+    "REQ-OPS-001": ("operations/supervisor.py", "TASK-S11-03", "PRF-OPS-02"),
+    "REQ-OPS-002": ("operations/supervisor.py", "TASK-S11-03", "PRF-OPS-02, PRF-OPS-03"),
+    "REQ-OPS-003": ("operations/isolation.py", "TASK-S11-04", "PRF-OPS-04"),
+    "REQ-OPS-004": ("operations/isolation.py", "TASK-S11-04", "PRF-OPS-05"),
+    "REQ-OPS-005": ("operations/supervisor.py", "TASK-S11-07", "PRF-OPS-08"),
+    "REQ-OPS-006": ("deploy/*", "TASK-S11-04", "PRF-OPS-04"),
+    "REQ-OPS-007": ("operations/supervisor.py", "TASK-S11-11", "PRF-OPS-06"),
+    "REQ-OPS-008": ("scripts/safe_tests.py", "TASK-S11-04", "PRF-OPS-05"),
+    "REQ-OPS-009": ("kernel/host.py", "TASK-S11-03", "PRF-OPS-01"),
+    "REQ-OPS-010": ("deploy/*", "TASK-S11-09", "PRF-OPS-07"),
+    "REQ-RES-001": ("research/*", "TASK-S12-03", "PRF-RES-07"),
+    "REQ-RES-002": ("research/*", "TASK-S12-02", "PRF-RES-04, PRF-RES-05"),
+    "REQ-RES-003": ("research/*", "TASK-S12-05", "PRF-RES-11"),
+    "REQ-RES-004": ("research/*, kernel/authority.py", "TASK-S12-06", "PRF-RES-12"),
+    "REQ-RES-005": ("research/*", "TASK-S12-01, TASK-S12-03", "PRF-RES-01, PRF-RES-02"),
+    "REQ-RES-006": ("research/*", "TASK-S12-04", "PRF-RES-09"),
+    "REQ-RES-007": ("research/*", "TASK-S12-04, TASK-S12-06", "PRF-RES-09, PRF-RES-12"),
+    "REQ-RES-008": ("research/*", "TASK-S12-05", "PRF-RES-11"),
+    "REQ-RES-009": ("research/*", "TASK-S12-03", "PRF-RES-08"),
+    "REQ-RES-010": ("research/*", "TASK-S12-01", "PRF-RES-03"),
+    "REQ-RES-011": ("cognition/memory.py, cognition/reflection.py", "TASK-S12-07", "PRF-RES-13"),
+    "REQ-RES-012": ("research/*", "TASK-S12-02", "PRF-RES-06"),
+    "REQ-RES-013": ("research/*", "TASK-S12-04", "PRF-RES-10"),
+    "REQ-RES-014": ("research/*", "TASK-S12-04", "PRF-RES-09"),
+    "REQ-RES-015": ("research/*", "TASK-S12-04", "PRF-RES-09"),
+    "REQ-RES-016": ("research/*", "TASK-S12-01, TASK-S12-09", "PRF-RES-01, PRF-RES-03"),
 }
 STUB_SLICE = {"market-data-and-canvas": "SLICE-08", "strategies-and-cognition": "SLICE-09",
               "research-rl-custody-promotion": "SLICE-12", "security-and-operator": "SLICE-10",
