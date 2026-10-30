@@ -587,3 +587,25 @@ Fresh `egm:egm-design` and `egm:egm-implementation-readiness` reviews of the dee
 | R-7 | Major | A recorded clock's arrivals would be refused | FIX: `arrival_at` in `wall` or `recorded` |
 | R-12, R-13 | Minor | Spec and plan disagreed on `WindowDef` and window facts; the import check vague | FIX: one signature; `sealed_revision`; an `ast` check |
 | R-16 | Minor | No capture for `multioptiongreeks` or websocket ticks | FIX: proved on synthetic responses, capture carried to TASK-S07-05 (Deviation) |
+
+## SLICE-08 step 2 review (2026-10-30)
+
+Fresh `egm:egm-design` and `egm:egm-implementation-readiness` reviews of [SLICE-08 step 2](../../plan/slices/SLICE-08-market-data-and-views.md#step-2--store-ingestion-and-publication), the store, ingestion and publication. Design: 1 Critical, 10 Major, 5 Minor (F-1…F-16). Readiness: 3 Blocker, 8 Major, 1 Nit (R-1…R-12). Both confirmed the head design (one sequence, one transaction) meets Combined-F2. Every finding was checked against the code and resolved by FIX in the rewritten step; two are fork calls that keep legacy's timing.
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| F-1, R-2 | Critical / Blocker | Revision 1 held every on-time tick only under an unstated drain rule; a straggler could change it; seal rules double-fired | FIX: a tick committed into a sealed window, on time or late, makes the next revision; `bars` takes revision 1's `through_seq`; the drain rule stated; seal rules rewritten |
+| F-2, R-5 | Major | `when` was the minute's start; legacy's is the poll's actual instant, which B1's ages read | FIX (fork call): the actual instant |
+| F-3 | Major | The 15:30 poll differed from legacy's strict skip | FIX (fork call): `local.time() <= close` to the microsecond |
+| F-4, F-5 | Major | A restart could repoll a minute or reuse tick keys | FIX: the polled minute rebuilt from coverage; a `uuid4` connection id per start and reconnect |
+| F-6 | Major | One bad record could lose a batch | FIX: the source drops unwritable ticks; the loop drops unwritable payloads with coverage; a raising commit keeps the ticks |
+| F-7, F-8 | Major | Quiet windows never final; sealing cadence unstated | FIX: per-instrument watermarks; `next_wake` and running past the close |
+| F-9 | Major | A process stop left no coverage | FIX: `process_stopped` coverage when a loop opens |
+| F-10 | Major | The market package imported the ledger writer module | FIX: `WriterLock` moved to `runtime.py`; Deviation marked; boundary test |
+| F-11, R-7, R-8 | Major | Reference normalisation, equality and ordering not legacy's | FIX: legacy's normalisation, `==` on decoded values, instants, first-stored ties; parity cases |
+| F-12, R-4 | Minor / Major | Merge table gaps | FIX: first match wins; equal or missing orders conflict; same-batch inserts count |
+| F-13, F-14 | Minor | Tick time recorded twice; coverage source mismatched | FIX: `tick_record` lifts once and the store checks; coverage uses the records' source |
+| F-15 | Minor | Per-instrument streams and cadence | Carried to step 4 with the OpenAlgo source |
+| F-16, R-3 | Minor / Blocker | CP-M3 impossible as written; no seams or child branch | FIX: seams on store and loop, the points redefined, a child branch |
+| R-1 | Blocker | The reader had no read interface | FIX: the reads listed with signatures |
+| R-6, R-9, R-10, R-11, R-12 | Major / Nit | Loop record fields, the raising-commit test, DDL types, the settings pattern, an unused argument | FIX: each specified |

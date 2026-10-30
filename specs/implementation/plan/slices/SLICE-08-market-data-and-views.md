@@ -1,6 +1,6 @@
 # SLICE-08 — Market data and views
 
-* **Status:** proposed (2026-10-29); reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-08-review-2026-10-29)), whose findings are resolved in this text. Step 1 is built (OA_NEW `484a1ec` on `slice-08`; [Step 1 as built](#step-1-as-built)). Steps 2–6 are deepened in turn, each after the step before it is built, as in SLICE-04, SLICE-05, SLICE-06 and SLICE-07 (the delivery plan's depth rule).
+* **Status:** proposed (2026-10-29); reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-08-review-2026-10-29)), whose findings are resolved in this text. Step 1 is built (OA_NEW `484a1ec` on `slice-08`; [Step 1 as built](#step-1-as-built)). Step 2 is built (OA_NEW `42879dd`; [Step 2 as built](#step-2-as-built)). Steps 2–6 are deepened in turn, each after the step before it is built, as in SLICE-04, SLICE-05, SLICE-06 and SLICE-07 (the delivery plan's depth rule).
 * **Precedence:** the master README, then the ROADMAP, then this package. The authority is the [market-data spec](../../design/market-data-and-canvas.md). Every deviation is marked **Deviation**. No score, threshold or money value is set here: the confirmation lag is POL-019's approved 7 s, bound only in tests to labelled values.
 * **Phase:** master Phase 5 (A01-F1…F5, D08). Environment class S, except step 4's captured OpenAlgo responses (class R).
 * **Builds on:** SLICE-03 and SLICE-04 as built, and on SLICE-06 as built (the protection loop reads `closes` and `latest_tick`). The branch `slice-08` is cut from `agentic-desk` (OA_NEW `536f857`, SLICE-06 plus the repository's `AGENTS.md`).
@@ -219,9 +219,170 @@ Commit `484a1ec` on `slice-08` (cut from `agentic-desk` at `536f857`), after a t
 | Lateness measured from the confirmation instant | Confirmation (2 tests) |
 | `resample` keeps the first close (replaces "judges lateness on the higher window", which no mutation of `resample` can express: it takes bars, not ticks) | Resampling |
 
-## Step 2 — store, ingestion and publication (outline)
+## Step 2 — store, ingestion and publication
 
-Deepened after step 1 is built. The store's tables (with `store_id` and the schema version), the merge table, coverage, the seal writer, the poll loop over a recorded clock and the simulated source, the reference facts store and the recorder's fact list are as the spec's [Store and publication](../../design/market-data-and-canvas.md#store-and-publication-marketstorepy) and [Ingestion and merge](../../design/market-data-and-canvas.md#ingestion-and-merge-marketingestpy) sections. The crash points are CP-M1…CP-M3, proved by killing a real process (`tests/recovery/test_crash_boundaries.py`). Test file: `tests/unit/test_market_ingest.py` (tree delta **T-43**).
+The authorities are the spec's [Store and publication](../../design/market-data-and-canvas.md#store-and-publication-marketstorepy) and [Ingestion and merge](../../design/market-data-and-canvas.md#ingestion-and-merge-marketingestpy) sections. Step 2 builds the market process's write side and a read-only reader. Views (step 3) and OpenAlgo (step 4) are not here: the only source is the simulated one. Fresh design and readiness reviewers reviewed this step ([review](../../egm/plan/review.md#slice-08-step-2-review-2026-10-30)); their findings are resolved below.
+
+**In plain words.** The market process gets its own database, separate from the trading ledger. It writes prices in batches, each batch all-or-nothing, and seals each minute once it is final; after that, any price for that minute is kept only as a correction. Anyone else opens the database read-only. A crash at any moment leaves either the whole batch or none of it.
+
+### Decisions
+
+#### A shared storage module (`kernel/ledger/runtime.py`)
+
+* The ledger's writer lock moves, unchanged, from `kernel/ledger/store.py` (`_WriterLock`) into `kernel/ledger/runtime.py` as `WriterLock`; `store.py` imports it under its old name. So the market package imports from the kernel only `kernel/ledger/runtime.py` (`connect`, `WriterLock`) and `kernel/ledger/envelope.py` (`canonical`). **Deviation (from step 1's "the market package imports contracts only"):** those two modules are the storage layer, not financial logic. A test pins it: no `market` module imports any other `autonomous_trading.kernel` module.
+
+#### Records (`contracts/market.py`, built)
+
+* `IncomingRecord(stream, instrument, source, key, event_at, arrival_at, payload, origin, source_order=None)`, `MarketRecord(record, revision, seq, conflict)`, `CoverageEntry(source, stream, instrument, status, scope_from, scope_to, detail=None)` and `ReferenceFact`, as built: `payload` a `dict` (the store checks at commit that canonical JSON can write it), `status` `covered` or `interrupted`, and `ReferenceFact` normalising as legacy (`src/data/reference/store.py:65-126`): the key stripped and upper-cased, dates cut to their first ten characters, `available_at` read from epoch milliseconds, a `datetime` or an ISO string with an offset, `effective_to` optional, `revision` from 0.
+* **Keys, per stream.** A tick: `f"{connection}:{receipt}"`, with `connection` a `uuid4` hex made at each process start and each reconnect, and `receipt` a counter from 1 on that connection, so keys never repeat across restarts. A quote or a Greeks batch: `utc(when)`; a chain: `f"{expiry}@{utc(when)}"`; a history bar: its window start as `utc`. Step 2's ticks get their keys from the simulated source; step 4's source makes them.
+* **A tick's times come from its payload.** `tick_record(instrument, raw, *, source, key, arrival_at) -> IncomingRecord` in `market/ingest.py` lifts the raw tick (step 1's `lift_tick`) and sets `event_at` from it, so the stored `event_at` and the lifted one cannot differ. The store refuses (`ValueError`, inside the commit) a tick record whose `event_at` differs from its lifted one.
+
+#### The store (`market/store.py`)
+
+* **Opening.** `MarketStore.open(path, clock, *, fault_point=None) -> MarketStore | Refusal` takes the `WriterLock` (else `Refusal("MKT-R01", "writer_lock_held", None, "open")`) and `connect(path, writer=True)`. A file is new when `sqlite_master` has no `store_meta`; then, in one transaction, every table below, `store_meta(uuid4().hex, 1, clock.now().utc_iso)` and `head(1, 0)`. An existing file whose `store_meta.schema` is not `STORE_SCHEMA = 1` gives `Refusal("MKT-R02", "schema_unsupported", None, "open")`. `MarketReader.open(path)` connects read-only and raises `ValueError("MKT-R02 ...")` on the same check.
+* **Tables.** Every column is `NOT NULL` except those named nullable; instants are stored as `utc_iso` text, payloads and values as canonical JSON:
+  * `store_meta(store_id TEXT, schema INTEGER, created_at TEXT)`;
+  * `head(id INTEGER PRIMARY KEY CHECK (id = 1), seq INTEGER)`;
+  * `record(seq INTEGER PRIMARY KEY, stream TEXT, instrument TEXT, source TEXT, key TEXT, revision INTEGER, event_at TEXT, arrival_at TEXT, arrival_domain TEXT, origin TEXT, conflict INTEGER, source_order INTEGER nullable, window_start TEXT nullable, payload TEXT)`, unique on `(stream, instrument, source, key, revision)`, indexed on `(stream, instrument, window_start)`. `window_start` is set for ticks only, from the lifted event time;
+  * `seal(seq INTEGER PRIMARY KEY, instrument TEXT, interval_secs INTEGER, window_start TEXT, revision INTEGER, through_seq INTEGER, tick_count INTEGER, late_count INTEGER)`, unique on `(instrument, interval_secs, window_start, revision)`;
+  * `watermark(seq INTEGER PRIMARY KEY, instrument TEXT, sealed_through TEXT)`: every base window of the instrument whose confirmation instant is at or before `sealed_through` is final, with or without ticks;
+  * `coverage(seq INTEGER PRIMARY KEY, source TEXT, stream TEXT, instrument TEXT, status TEXT CHECK (status IN ('covered','interrupted')), scope_from TEXT, scope_to TEXT, first_seq INTEGER nullable, last_seq INTEGER nullable, detail TEXT nullable)`;
+  * `reference_fact(seq INTEGER PRIMARY KEY, kind TEXT, key TEXT, value TEXT, effective_from TEXT, effective_to TEXT nullable, available_at TEXT, source TEXT, revision INTEGER)`, unique on `(kind, key, effective_from, revision, available_at)`.
+* **One sequence for every row.** Each row of a commit takes the next sequence after `head`; `head` moves to the last one in the same transaction. A reader bound to `through` reads only rows with `seq <= through`, so a commit is visible whole or not at all (Combined-F2).
+* **The reads**, on `MarketStore` and `MarketReader` alike, each one `SELECT` (so one read transaction), rows with `seq <= through`, ascending `seq`: `head() -> int` (re-read each call); `records(stream, instrument, *, through) -> list[MarketRecord]`; `ticks(instrument, *, through, window=None) -> list[TickRecord]`, the latest revision of each tick key, lifted with `seq` the stored row's; `seals(instrument, *, through) -> list[Seal]`; `watermark(instrument, *, through) -> str | None`, the latest `sealed_through`; `coverage(*, through) -> list[dict]`; `reference_as_of(kind, key, decision_at, *, through=None)` (below). `Seal` is a frozen record of the table's columns. `store_id` and `schema` are properties.
+
+#### The merge and the commit (`market/store.py`)
+
+* `MarketStore.commit(records, *, coverage=(), now: datetime, wdef: WindowDef, instruments: Sequence[str] = ()) -> CommitResult`, one `BEGIN IMMEDIATE` transaction; any exception inside it rolls back and is re-raised:
+  1. **Each record, in the order given**, against every stored revision of its `(stream, instrument, source, key)`, this commit's earlier inserts included. The rows are tried top to bottom, and the first that matches applies:
+
+     | Stored | Incoming | Result |
+     |---|---|---|
+     | none | | `inserted`, revision 1 |
+     | a revision with equal canonical payload | | `duplicate`: counted, not stored |
+     | the latest revision has a `source_order`, and so has the incoming | `source_order` below the latest's | `outdated`: counted, not stored |
+     | the same | `source_order` above the latest's | `revised`: revision max + 1 |
+     | anything else (equal orders, or either order missing) | | `conflicted`: revision max + 1, `conflict` 1 |
+
+  2. **Coverage rows** in the order given; `first_seq` and `last_seq` are the lowest and highest `seq` this commit gave records with the entry's source, stream and instrument, else null. A coverage entry's `source` is the records' `source` string.
+  3. **Seals.** For every instrument with a tick window and no revision-1 seal whose confirmation instant is at or before `now`: revision 1 over its on-time ticks (step 1's `on_time`) committed so far; `through_seq` the highest of their `seq`, or 0 if none; `tick_count` the priced ones; `late_count` 0. Then, once per window: if any stored tick of a sealed window has `seq` above its latest seal's `through_seq`, the next revision over every stored tick of the window, with `through_seq` the highest `seq`, `tick_count` the priced ticks and `late_count` the priced late ones. Such a tick may be late, or **on time but committed after the seal**: either way it is a correction, so a sealed revision never changes (Q-030). Seals are written in order of instrument, window and revision.
+  4. **Watermarks:** for each name in `instruments`, a row `sealed_through = utc(now)`.
+  5. `head` moves to the last sequence used.
+
+  `CommitResult(inserted, duplicate, outdated, revised, conflicted, seals, head)`.
+* **Revision 1 in a view (amends step 1).** `bars(..., through=..., revisions=...)` now accepts revision 1: it folds the window's on-time ticks with `seq <= through`. Step 3's views always pass every window's sealed `through_seq`, so a straggler committed after a seal never enters revision 1. Step 1's test "revision 1 in `revisions` refused" becomes "revision 1 folds on-time ticks up to `through`".
+
+#### Reference facts (`market/store.py`)
+
+* `MarketStore.record_reference(facts) -> list[ReferenceFact]` is legacy's `merge` (`src/data/reference/openalgo_recorder.py:145-161`), in its own transaction with `head`. For each fact in order, the held facts with the same `(kind, key, effective_from)`, this call's earlier additions included: if any, the latest by `(reference_instant(available_at), revision)` (the first inserted on a tie, as `max`) is compared with Python `==` on the decoded value (so `75 == 75.0`, as legacy); equal is not added; different is added as revision `max + 1`. With none held, the fact is stored with its own revision. Lot size gates quantity, so the fork rule keeps legacy's merge, which compares only with the latest.
+* `reference_as_of(kind, key, decision_at: Timestamp, *, through=None) -> ReferenceFact | ReferenceMissing`, legacy's `as_of` (`src/data/reference/store.py:190-206`): the key stripped and upper-cased; facts in force on `decision_at`'s IST date and with `available_at <= decision_at`, ordered as instants; the latest by `(available_at, revision)`, the first stored on a tie; otherwise `ReferenceMissing` `no_fact`, `not_yet_available` (one is in force but not yet known) or `not_in_force`. `through` defaults to the reader's `head()`.
+
+#### Sources and the loop (`market/sources.py`, `market/ingest.py`)
+
+* `MarketSource`, a `Protocol`: `identity: str`; `source_of(stream) -> str`, the `source` its records carry; `poll(stream, instrument) -> list[dict]`, the payloads of one fetch, raising on a failed fetch; `drain_ticks() -> list[IncomingRecord]`, every tick received and stamped since the last drain, in receipt order. A source **stamps a tick's `arrival_at` with the loop's clock and queues it in one step under one lock**, and never raises from `drain_ticks`; a raw tick canonical JSON cannot write is counted and dropped by the source.
+* `SimulatedSource(identity="simulated")`: `responses[(stream, instrument)]` a list the test fills, each a list of payloads or an exception, consumed one per poll; `ticks` a list the test fills and `drain_ticks` empties; `source_of(stream)` is `identity`.
+* `MarketLoop(store, source, clock, *, instruments, wdef, calendar, poll_streams=("spot", "chain"), fault_point=None)`:
+  * **On construction**, from the store: the minute already polled, if the latest `covered` or `interrupted` coverage row's `scope_from` falls in the current IST minute; and, for each `(source_of(stream), stream, instrument)` with a coverage row, an `interrupted` row from its last `scope_to` to now with detail `process_stopped`, written in one commit, so a stop is attributable (CUJ-MKT-3).
+  * `run_once() -> CommitResult`: `now = instant(clock.now())`, `local = calendar.local(now)`. **A poll is due** when `local.weekday()` is in `calendar.weekdays`, `local.time() >= 09:00`, `local.time() <= close` with seconds and microseconds compared, as legacy's skip `when.time() > close` (`marketpull.py:888-890`), and this minute is not yet polled. The minute is marked before the polls. 09:00 is legacy's cron line (`src/interfaces/mcp/core/scheduler.py:174-215`), kept by the fork rule.
+  * **Each poll**: `when = clock.now()` at the poll's start, **the actual instant as legacy's `when`** (`marketpull.py:835`), not the minute's start; for each instrument and stream, `source.poll(stream, instrument)`. Each payload becomes `IncomingRecord(stream, instrument, source_of(stream), key, Timestamp(utc(when), "exchange"), Timestamp(when.utc_iso, when.domain), payload, "simulated" or "live")`, with the key per stream (a chain's from `payload["expiry"]`; a missing one is recorded as `interrupted` with detail `KeyError`). A raise records `CoverageEntry(source_of(stream), stream, instrument, "interrupted", when, clock.now(), type(exc).__name__)`, and the loop goes on; a return records `covered` from `when` to `clock.now()`.
+  * Then `drain_ticks()`, then `now = instant(clock.now())` again, so every tick stamped by the drain is at or before the sealing instant; a tick stamped between the drain and that read is a straggler, sealed as a correction (above).
+  * Records whose payload canonical JSON cannot write are dropped, each counted with an `interrupted` coverage row (detail `payload_not_json`).
+  * One `store.commit(records, coverage=..., now=now, wdef=wdef, instruments=instruments)`. If the commit raises, the drained ticks are kept and offered again first at the next run; the exception propagates (the store is failing).
+  * `next_wake() -> datetime`: the earliest of the next minute's start while polls are due today and the next confirmation instant of a window with ticks not yet sealed. The host calls `run_once` at each, and keeps calling it after the close until the last window is sealed (15:30's at 15:31:07 with a 7 s lag). The host itself is SLICE-11's.
+  * **Per-instrument streams and cadence** (legacy polls chains only for live instruments, on `chain_interval_secs`, `marketpull.py:106-107`, `:416-430`) are step 4's, with the OpenAlgo source.
+* **Settings.** `Settings` gains `bar_confirm_lag_secs: str | None` (POL-019, approved 7) and `market_store_path: str | None`; `defaults.yaml` `market.bar_confirm_lag_secs: null` and `market.store_path: null`. The lag is read as `_ADMISSION`'s rows are, with a new kind `lag`: an int is taken as its decimal text, a string must fully match step 1's canonical pattern, anything else raises `SettingsError`; environment `AT_BAR_CONFIRM_LAG_SECS`. `market_store_path` is read as `ledger_path` is, with `AT_MARKET_STORE_PATH`. `ingest.compose(settings, clock, source, *, instruments) -> MarketLoop` uses `calendar("nse-fo/v1")` and `WindowDef(60, lag)`, and raises `SettingsError` while `bar_confirm_lag_secs`, `poll_interval_secs` or `market_store_path` is unbound, while `poll_interval_secs` is not 60 (the loop polls on the minute, as legacy), or with the open's refusal code.
+
+### Tests
+
+`tests/unit/test_market_ingest.py` (tree delta **T-43**), every value labelled synthetic, every store under `tmp_path`; the crash points in `tests/recovery/test_crash_boundaries.py`.
+
+| Group | Cases |
+|---|---|
+| Open | A new store: `store_meta` with a 32-hex `store_id`, schema 1, head 0; reopening keeps them; a second writer refused `MKT-R01`; a file with schema 2 refused `MKT-R02` by the writer and the reader; the reader cannot write |
+| Merge | Each row: inserted, duplicate (also of an older revision), outdated, revised, conflicted (equal orders; a missing order), revision numbers and flags; an earlier insert in the same batch counts as stored; a history bar and a tick for one window are two records |
+| Publication | A reader at `through` = H sees nothing committed after H; one commit's records, coverage, seals, watermarks and head appear together; a commit whose record payload was set to NaN after construction leaves head and every table unchanged; a tick whose `event_at` differs from its lifted one refused |
+| Coverage | `covered` and `interrupted` rows with their scopes, `first_seq` and `last_seq`; an interrupted poll followed by a good one; a loop constructed over a store whose last coverage ended earlier writes `process_stopped` |
+| Seals | Revision 1 at the confirmation instant, not a microsecond before; on-time ticks only; a late tick after the seal makes revision 2 over all with `late_count` 1, a second one revision 3; an on-time straggler committed after the seal makes revision 2 and revision 1 is unchanged; a window with only late ticks gets revision 1 with `tick_count` 0 and then revision 2; an empty commit after a restart seals a confirmed window (CP-M3); two instruments sealed apart; watermarks for named instruments |
+| Loop | Polls at 09:00:00 IST and not at 08:59:59.999999; at 15:30:00 and not at 15:30:00.000001; not on a Saturday; one poll per minute however often `run_once` runs; a new loop in the same minute does not poll again; `when` is the poll's actual instant; a chain without `expiry` recorded `interrupted`; a failed poll records `interrupted` and the others still commit; drained ticks in the same commit; a raising commit keeps the ticks for the next run; `next_wake` at the minute's start and at a confirmation instant |
+| Reference | Legacy's merge: unchanged not re-added; changed is `max + 1`; A (0), B (1), A again is revision 2; `75` then `75.0` not re-added; `as_of`'s three reasons, its choice by instant across offsets and by revision; a key matched stripped and upper-cased; facts read through the reader's head |
+| Settings | The two keys: default `None` from `defaults.yaml`, bound by environment; `7` read as `"7"`; `"7.0"` refused; `compose` refuses each unbound setting, a poll interval other than 60, and a held writer lock |
+| Boundary | No `market` module imports an `autonomous_trading.kernel` module other than `kernel.ledger.runtime` and `kernel.ledger.envelope` |
+
+**Crash points.** `MarketStore(fault_point="CP-M2")` and `MarketLoop(fault_point="CP-M1" | "CP-M3")` call `os._exit(86)` at the point, as `coordinator.FaultPlan` does. `tests/recovery/test_crash_boundaries.py`'s child entry gains a branch for a `CP-M` point that composes a simulated loop over the given store and runs it.
+
+| Point | Where the child exits | After reopening |
+|---|---|---|
+| CP-M1 | In `run_once`, after the polls and the drain, before `commit` | Nothing of the poll is stored; a new loop in a later minute polls and commits once |
+| CP-M2 | In `commit`, after the records' inserts, before the coverage rows | No row of the batch is visible; head is unchanged |
+| CP-M3 | In `run_once`, after a commit at the confirmation instant minus one microsecond that stored on-time ticks | A commit at the confirmation instant plus one second, with one late tick, writes revision 1 over the on-time ticks and revision 2 over all |
+
+### Break checks
+
+| Change | Test that must fail |
+|---|---|
+| A duplicate compared with the latest revision only | Merge |
+| Equal orders `revised` | Merge |
+| `head` moved before the records are inserted, in a second transaction | Publication; CP-M2 |
+| Seal at `confirm_at < now` instead of `<=` | Seals |
+| Revision 1 sealed over every tick | Seals |
+| A straggler folded into revision 1 (`bars` without the `seq` bound) | Seals |
+| `when` set to the minute's start | Loop |
+| A poll at 15:30:00.000001 | Loop |
+| Reference merge against every revision | Reference |
+| Reference values compared as canonical text | Reference |
+| `as_of` ignoring `available_at` | Reference |
+
+### Files
+
+| File | Change |
+|---|---|
+| `src/autonomous_trading/kernel/ledger/runtime.py`, `kernel/ledger/store.py` | `WriterLock` moved, unchanged |
+| `src/autonomous_trading/contracts/market.py` | Built: `IncomingRecord`, `MarketRecord`, `CoverageEntry`, `ReferenceFact`, `reference_instant` |
+| `src/autonomous_trading/market/store.py` | New: `STORE_SCHEMA`, `MarketStore`, `MarketReader`, `Seal`, `CommitResult` |
+| `src/autonomous_trading/market/sources.py` | New: `MarketSource`, `SimulatedSource` |
+| `src/autonomous_trading/market/ingest.py` | `tick_record`, `MarketLoop`, `compose` |
+| `src/autonomous_trading/market/view.py` | `bars` accepts revision 1 in `through` |
+| `src/autonomous_trading/settings/schema.py`, `settings/loader.py`, `resources/defaults.yaml` | The two settings |
+| `tests/unit/test_market_ingest.py` | New (T-43) |
+| `tests/unit/test_market_windows.py` | The revision-1 case amended |
+| `tests/recovery/test_crash_boundaries.py` | CP-M1…CP-M3 |
+
+### Completion conditions (step 2)
+
+* Every test above passes, twice in a row, with the whole suite; every break check fails a listed test, and every file is restored (md5); `ast.parse` passes on every edited Python file.
+
+### Step 2 as built
+
+**In plain words.** The market process's database is built and tested: prices are stored in all-or-nothing batches, each minute is sealed once final, and a late or straggling price only ever adds a correction. A crash at each of the three named moments leaves the store whole. All of today's 970 automatic checks pass, twice in a row.
+
+Commit `42879dd` on `slice-08`, after a test-only commit `eb06786` (below). It changes 13 paths (1,326 lines added, 51 removed). The files match the step's table.
+
+**Choices made while building:**
+
+| Topic | As built |
+|---|---|
+| The lag setting | Read through a new `_MARKET` row tuple beside `_ADMISSION`, because `bootstrap` requires every `_ADMISSION` row for an admission composition: the first build put the lag there and 304 tests refused to compose. The text's "read as `_ADMISSION`'s rows are" holds; only the market composition requires it |
+| Unsealed windows | The seal query uses the `(stream, instrument, window_start)` index; a correction revision is found by "a stored tick beyond the latest seal's `through_seq`", plus, at revision 1, any stored tick that is not on time (a late tick committed before the seal) |
+| `next_wake` | Returns the earliest candidate even when it is already past (a window confirmed but unsealed), so the host runs at once |
+| The flaky adapter tests | Seventeen adapter tests with no timing in them now build the adapter with the 5 s `ROOMY_MS`; the tests that script a hang, drip, sleep or slow reply, or measure the deadline, keep 500 ms. `test_the_key_never_leaves` had failed 1 run in 12 while helper agents loaded the machine (commit `eb06786`) |
+
+**Tests:** `tests/unit/test_market_ingest.py`, 25 cases; `tests/recovery/test_crash_boundaries.py`, 3 cases (CP-M1…CP-M3, each a killed child process); `tests/unit/test_market_windows.py`, one case added (93). 970 passed, twice in a row.
+
+**Break checks** (anchors checked first, every file restored byte for byte, md5 verified): all 11 failed a test.
+
+| Change | Test that failed |
+|---|---|
+| A duplicate compared with the latest revision only | Merge |
+| Equal orders `revised` | Merge |
+| Records committed apart from `head` | CP-M2 |
+| Seal at `<` | Seals (4 tests) |
+| Revision 1 sealed over every tick | Seals; CP-M3 |
+| A straggler folded into revision 1 | Seals; the step 1 revision-1 case |
+| `when` at the minute's start | Loop |
+| A poll at 15:30:00.000001 | Loop |
+| Reference merge against every revision | Reference |
+| Reference values compared as canonical text | Reference |
+| `as_of` ignoring `available_at` | Reference |
 
 ## Step 3 — views and quality (outline)
 

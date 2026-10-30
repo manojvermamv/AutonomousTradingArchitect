@@ -115,7 +115,7 @@ These are files the slices need that README §6 does not list (T-01…T-23). T-0
 | T-40 | `tests/unit/test_market_windows.py` | SLICE-08 | Calendar, windows, tick lifting and the fold, with POL-019 and Q-030 ([SLICE-08 step 1](plan/slices/SLICE-08-market-data-and-views.md#step-1--calendar-windows-and-bars)) |
 | T-41 | `tests/fixtures/market/fold_golden.json` | SLICE-08 | Golden folds generated once from legacy's `_fold` ([SLICE-08 step 1](plan/slices/SLICE-08-market-data-and-views.md#tests)) |
 | T-42 | `scripts/gen_fold_parity.py` | SLICE-08 | The golden-fold generator, run once against a legacy checkout, never in the suite ([SLICE-08 step 1](plan/slices/SLICE-08-market-data-and-views.md#tests)) |
-| T-43 | `tests/unit/test_market_ingest.py` | SLICE-08 | The merge, coverage and publication ([SLICE-08 step 2](plan/slices/SLICE-08-market-data-and-views.md#step-2--store-ingestion-and-publication-outline)) |
+| T-43 | `tests/unit/test_market_ingest.py` | SLICE-08 | The merge, coverage and publication ([SLICE-08 step 2](plan/slices/SLICE-08-market-data-and-views.md#step-2--store-ingestion-and-publication)) |
 | T-44 | `tests/unit/test_market_view.py` | SLICE-08 | Stable views and corrections ([SLICE-08 step 3](plan/slices/SLICE-08-market-data-and-views.md#step-3--views-and-quality-outline)) |
 | T-45 | `tests/unit/test_market_quality.py` | SLICE-08 | Quality against declared requirements ([SLICE-08 step 3](plan/slices/SLICE-08-market-data-and-views.md#step-3--views-and-quality-outline)) |
 | T-46 | `tests/integration/test_market_port.py` | SLICE-08 | The kernel's port over the store ([SLICE-08 step 5](plan/slices/SLICE-08-market-data-and-views.md#step-5--the-kernels-port-outline)) |
