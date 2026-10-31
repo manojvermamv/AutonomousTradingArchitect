@@ -737,3 +737,22 @@ Fresh `egm:egm-design` (F-1…F-11) and `egm:egm-implementation-readiness` (R-1�
 | F-10 | Session lifetime on the wall clock | On `clock.elapsed()` |
 | F-11 | Unbounded challenges and remembered requests; one client could drop another's sessions | One challenge per session; pruned after twice the lifetime; caps per channel identity and client label |
 | R-1…R-12 | Exact rules for uids, targets, `named`, check order, "live", UTC parsing, `DoorRule`, the Minting case, `OPERATIONS`, proxy accounts, the catalogue wording | All applied; the five hash values are computed and asserted |
+
+## SLICE-08 step 4 reviews (2026-10-30)
+
+Fresh `egm:egm-design` (F-1…F-13) and `egm:egm-implementation-readiness` (R-1…R-17) reviews of [SLICE-08 step 4](../../plan/slices/SLICE-08-market-data-and-views.md#step-4--the-openalgo-market-source), before any code. Each finding was checked against the cited code first; all were resolved in the text, then built (`e070d01` on `slice-08`; 1,063 passed and 1 skipped, twice; 28 of 28 break checks).
+
+| # | Sev (as marked) | Finding (short) | Resolution |
+|---|---|---|---|
+| F-1 | Major | A NaN or infinity lost a whole poll legacy kept | Fork call: non-finite values become null, their paths listed in `nonfinite`, then legacy's repair |
+| F-2 | Major | A Greeks row without a symbol dropped the minute's Greeks | Only that row skipped and counted in the coverage detail |
+| F-3 | — | Greeks ordered before the chain borrowed a minute | Refused in `streams` and `poll_streams` |
+| F-4, F-6 | — | Step 5's needs | Cadence skips are `covered` rows with detail `not_due`; hand-off notes; step 5 needs a `gap` status |
+| F-5 | — | Stop rows for sources an instrument does not poll | Only each instrument's own streams |
+| F-7 | — | Polled records' arrival instant | Deviation: the fetch's return instant; admission's ages read event time (`kernel/admission.py:662-663`), unchanged |
+| F-8 = R-1, F-9 | — | The response size limit fixed at import; buffer copies | The limit passed per call; bytearray buffers; the 64 MiB master cap labelled unmeasured |
+| F-10 | — | Market reads shared the order timeout | `market.http_timeout_ms`, refusing; a whole-poll bound stated |
+| F-11 | — | The instruments GET carries the key in the URL | Kept (legacy's recorder does the same, and no POST or header form can be checked yet); owner-visible Deviation |
+| F-12 = R-8 | — | C-1 could keep sending after a failure | Stops on any failure; about :30 past a minute; counts as specified |
+| F-13 | — | `bar_time` not legacy's | Ported literally, with a test |
+| R-2…R-17 | — | Exact bodies, fixture table, synthetic shapes, deadlines, error texts, fakes | All applied |
