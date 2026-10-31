@@ -1,6 +1,6 @@
 # SLICE-08 — Market data and views
 
-* **Status:** proposed (2026-10-29); reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-08-review-2026-10-29)), whose findings are resolved in this text. Step 1 is built (OA_NEW `484a1ec` on `slice-08`; [Step 1 as built](#step-1-as-built)). Step 2 is built (OA_NEW `42879dd`; [Step 2 as built](#step-2-as-built)). Step 3 is built (OA_NEW `fb8f2bb`; [Step 3 as built](#step-3-as-built)). Step 4 is built (OA_NEW `e070d01`; [Step 4 as built](#step-4-as-built)); its C-1 capture is pending. Step 5 is built (OA_NEW `7ebee6c` and `4ecc799`; [Step 5 as built](#step-5-as-built)). Steps 2–6 are deepened in turn, each after the step before it is built, as in SLICE-04, SLICE-05, SLICE-06 and SLICE-07 (the delivery plan's depth rule).
+* **Status:** proposed (2026-10-29); reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-08-review-2026-10-29)), whose findings are resolved in this text. Step 1 is built (OA_NEW `484a1ec` on `slice-08`; [Step 1 as built](#step-1-as-built)). Step 2 is built (OA_NEW `42879dd`; [Step 2 as built](#step-2-as-built)). Step 3 is built (OA_NEW `fb8f2bb`; [Step 3 as built](#step-3-as-built)). Step 4 is built (OA_NEW `e070d01`; [Step 4 as built](#step-4-as-built)); its C-1 capture is pending. Step 5 is built (OA_NEW `7ebee6c` and `4ecc799`; [Step 5 as built](#step-5-as-built)). Step 6 is built (OA_NEW `53b7d97`; [Step 6 as built](#step-6-as-built)), so every step of this slice is built. Steps 2–6 are deepened in turn, each after the step before it is built, as in SLICE-04, SLICE-05, SLICE-06 and SLICE-07 (the delivery plan's depth rule).
 * **Precedence:** the master README, then the ROADMAP, then this package. The authority is the [market-data spec](../../design/market-data-and-canvas.md). Every deviation is marked **Deviation**. No score, threshold or money value is set here: the confirmation lag is POL-019's approved 7 s, bound only in tests to labelled values.
 * **Phase:** master Phase 5 (A01-F1…F5, D08). Environment class S, except step 4's captured OpenAlgo responses (class R).
 * **Builds on:** SLICE-03 and SLICE-04 as built, and on SLICE-06 as built (the protection loop reads `closes` and `latest_tick`). The branch `slice-08` is cut from `agentic-desk` (OA_NEW `536f857`, SLICE-06 plus the repository's `AGENTS.md`).
@@ -1157,9 +1157,297 @@ Commits `7ebee6c` and `4ecc799` on `slice-08`, on top of `c2cca11`. `4ecc799` ca
 
 **Open:** none in this step. C-1 stays open from step 4. SLICE-11 binds `market.store_path`, `market.views.protection`, the recorder's every-minute schedule until the day's timing is stored, and the writer's start before the kernel's.
 
-## Step 6 — Canvas (outline)
+## Step 6 — Canvas
 
-Deepened after step 5 is built: the spec's [Canvas](../../design/market-data-and-canvas.md#canvas-marketcanvas) section, with confirmed swings as the only algorithm, `resources/canvas.schema.json`, and the import guard.
+<a id="step-6--canvas-outline"></a>The authorities are the spec's [Canvas](../../design/market-data-and-canvas.md#canvas-marketcanvas) section and the master's Canvas rows: the fact, tools and annotation layers (`README.md:816-818`), the pivot rule (`README.md:821`), A01-F5 (`README.md:831`), inspection only (`README.md:833`) and the acceptance row (`README.md:1236`). Step 6 is TASK-S08-06 (PRF-MKT-09). It builds the `market/canvas/` package over step 3's views as built (OA_NEW `4ecc799` on `slice-08`): `view(as_of)`, one algorithm (confirmed swings), facts, annotations, history with supersession, per-caller budgets, `resources/canvas.schema.json`, and the import guard. It changes no existing module: `market/view.py`, `market/store.py`, `market/quality.py`, `contracts/market.py`, the kernel, `bootstrap.py` and the settings are read, never edited. No money path is touched, so this step has no Fork call.
+
+**In plain words.** Canvas is a drawing board for looking at the market, never for trading. It marks the turning points of a price chart: a high with lower highs on each side, or a low with higher lows on each side. A turning point counts only once enough later bars are final, so a mark never appears early and never moves afterwards. When a corrected price changes a mark, the new mark is linked to the old one, and the old one still shows in the old snapshot. People and agents can attach notes to a mark, but a note can never change it. Each caller has limits on how much it may read and compute. Nothing in the trading side can read Canvas, and a test proves it. How many bars on each side count, and which chart intervals may be asked for, are settings the owner binds; this text sets no value.
+
+### Decisions
+
+#### What legacy has
+
+Nothing to port. Legacy has no Canvas (the reuse row, `README.md:1160`; the spec's Reuse evidence). A search of the legacy `src/` at 445eb116 for `swing`, `pivot`, `fractal` and `zigzag` finds only `src/core/framework/selection/strikes.py:33` (the strike selector's `DELTA_PIVOT`, a delta, not a price turn) and `src/interfaces/mcp/core/evidence.py:327` (`oscillation`, a screen over filed parameter proposals). So no rule below has a legacy behaviour to keep, and no difference from legacy is a Deviation; the Deviations at the end are from the spec's text.
+
+#### The package (`market/canvas/`)
+
+| Module | Holds |
+|---|---|
+| `market/canvas/facts.py` | `ALGORITHM = "confirmed_swings"`, `ALGORITHM_VERSION = "1"`; `fact_identity`, `fact_id`, `inputs_digest`; `canvas_fields()`, the schema's `kinds` map loaded with `importlib.resources`, as `kernel/ledger/store.py` loads its events schema; `check(kind, payload)`, `validate_payload` from `kernel/ledger/envelope.py` over it |
+| `market/canvas/algorithms.py` | `swings`, `provisional` (pure) and `confirmed_swings(view, instrument, interval_secs, k)` (the reads, finality, instants and quality) |
+| `market/canvas/history.py` | `CanvasHistory`: the history store, recording and supersession |
+| `market/canvas/annotations.py` | `annotation(...)`: an annotation's checks, identity and versions |
+| `market/canvas/tools.py` | `Canvas`, `CanvasSettings`, `CanvasBudget`, `CanvasUnbound`; the six tools |
+
+Plus the package's empty `__init__.py`. Canvas imports only `contracts`, `market.view`, `market.store` (`MarketReader` only), `market.quality`, and the two kernel storage modules the market package already may (`kernel/ledger/runtime.py`, `kernel/ledger/envelope.py`), so T-43's existing market-package guard (`test_the_market_package_imports_only_the_storage_layer_of_the_kernel`) covers it unchanged.
+
+#### Signatures (review R-5)
+
+* `CanvasBudget(rows: int, timeframes: int, cpu_ms: int, bytes: int)`, frozen, slots.
+* `CanvasSettings(swing_k: int | None, intervals_secs: tuple[int, ...] | None, budgets: Mapping[str, CanvasBudget])`, frozen, slots, fields in that order. `budgets` is copied at construction into a `types.MappingProxyType` over a `dict`; a key that is not a non-empty string, or a value that is not a `CanvasBudget`, raises `ValueError`.
+* `Canvas(market_path, history: CanvasHistory, policies: Mapping[str, ViewPolicy], settings: CanvasSettings, clock, *, cpu_ns=time.thread_time_ns)`.
+* `Run`, frozen, slots, the return of `confirmed_swings(view, instrument: str, interval_secs: int, k: int) -> Run`: `facts: tuple[dict, ...]` (`FACT` payloads), `candidates: tuple[dict, ...]` (`CANDIDATE` payloads), `bars: int`, `unfinal_bars: int`, `rows: int` (the bars it read, base bars included), `quality: dict`, `scope: str`, `vmap: dict[str, int]` (below). It raises `ValueError` where `view.bars` does; it never returns a `Refusal`.
+* `fact_identity(*, k: int, store_id: str, instrument: str, interval_secs: int, window: str, calendar_version: str, origin: str, kind: str, anchor_at: str, inputs: list) -> dict`; `fact_id(identity: dict) -> str`; `inputs_digest(inputs: list) -> str`.
+* `CanvasHistory`:
+  * `open(path, clock) -> CanvasHistory | Refusal` (classmethod): refuses `CNV-R01` and `CNV-R02`; any other exception releases the lock and is raised;
+  * `record(view_id: str, runs: Sequence[Run]) -> None`: one `BEGIN IMMEDIATE` transaction for every run of one call (facts, then supersessions, run by run); any exception rolls back and is raised;
+  * `append_annotation(payload: dict) -> None`: one transaction; raises on failure;
+  * reads, each raising on a store error and never refusing: `fact(fact_id: str) -> dict | None` (`STORED_FACT`), `superseded_by(fact_id: str) -> dict | None`, `supersedes(fact_id: str) -> list[dict]`, `facts_of(instrument: str, interval_secs: int | None) -> list[dict]`, `supersessions_of(fact_ids: Sequence[str]) -> list[dict]`, `annotations_of(fact_ids: Sequence[str]) -> list[dict]`, `latest_annotation(annotation_id: str) -> dict | None`, all in `seq` order;
+  * `close() -> None`: closes the connection and releases the lock.
+* `annotation(history: CanvasHistory, *, view_id: str, fact_ids: tuple[str, ...], author_kind: str, author_id: str, role: str, claim: str, confidence: str | None, annotation_id: str | None, created_at: str) -> dict | Refusal`: the `ANNOTATION` payload, or `CNV-R11`, `CNV-R12` or `CNV-R13`. It reads history and writes nothing; `annotate` writes the payload with `append_annotation` after its budget steps.
+* `view(...) -> str | Refusal`: the identity text, never a payload.
+
+#### Settings (`tools.py`)
+
+Canvas takes every value from its caller's composition; nothing has a default (D08 (`README.md:230`)). SLICE-11 binds them when it composes the optional Canvas participant (the configuration spec's composition table); this step adds nothing to `settings/loader.py` or `resources/defaults.yaml`, as step 5 left `market.views` to SLICE-11.
+
+| Setting | Meaning | Value |
+|---|---|---|
+| `canvas.swings.k` | Bars on each side of a confirmed swing | Refusing: `CanvasSettings(swing_k=None)` raises `CanvasUnbound("canvas.swings.k")`; an int below 1 or a bool raises `ValueError` |
+| `canvas.swings.intervals_secs` | The intervals a caller may ask for | Refusing: `None` or `()` raises `CanvasUnbound("canvas.swings.intervals_secs")`; each a positive whole number of minutes (`interval % 60 == 0`), not a bool, distinct, else `ValueError` |
+| `canvas.budgets.<caller>` | `CanvasBudget(rows, timeframes, cpu_ms, bytes)` per caller | Refusing per caller: a call by a caller with no budget is refused `CNV-R03`; each field an int of at least 1, not a bool, else `ValueError` |
+| `canvas.history_path` | The history store's file | Refusing: the composition opens `CanvasHistory.open(path, clock)` |
+
+`CanvasUnbound` is a `ValueError` subclass whose message is the key; SLICE-11's composition turns it into `RefusingParameterUnbound(key)`. The view policies are the bound `market.views.<name>` mapping (the same object `StoreMarket` takes). **The synthetic test values** are labelled where they are bound: `k` 2 (1 in the multi-timeframe group), intervals `(60, 300)`, the lag `"7"` (`WindowDef(60, "7")`, as T-44 labels it), and the budgets of the Budgets group.
+
+`Canvas(market_path, history, policies, settings, clock, *, cpu_ns=time.thread_time_ns)`. It keeps exactly those six attributes and nothing else: no cache and no state between calls (the spec's "recomputes from scratch; no incremental path"). Each tool call opens `MarketReader.open(market_path)` once and closes it before returning; an exception of type `OSError`, `UnsafeRuntime`, `apsw.Error` or `ValueError` (which covers `StoreNotUpgraded` and `MKT-R02`) from the open, or `OSError`, `UnsafeRuntime` or `apsw.Error` from a read, is refused `CNV-R07` with the exception's text. Every tool's first argument is `caller: str`. An argument of the wrong type (`instrument` not a non-empty string, `as_of` naive) raises `ValueError`: that is the calling interface's bug, not a market state.
+
+#### The tools (`tools.py`)
+
+Every tool runs the checks it has in this order and returns a `Refusal(code, message, None, tool)` (the `contracts.execution` record `market/store.py` already returns) at the first that fails; a refused call writes nothing.
+
+1. The caller's budget exists (`CNV-R03`).
+2. `compare_timeframes`: the number of distinct intervals is at most `timeframes` (`CNV-R09` `timeframes`); each interval is in `intervals_secs` (`CNV-R08`).
+3. The reader opens (`CNV-R07`); the view reopens with step 3's `reopen(reader, policies, view_id)`, an `Unavailable(reason)` refused `CNV-R06` with the reason; its policy's `bars` is `ticks` or `history` (`CNV-R05`).
+4. The reads; the rows read so far exceed `rows` (`CNV-R09` `rows`), checked after each `confirmed_swings` run (the runs' `rows` summed) and, for `history`, on the facts it would return. `history` refuses at `rows`; it never truncates.
+5. The computation; then `cpu_ns()` is read the second time and `(second - first) > cpu_ms * 1_000_000` refuses (`CNV-R09` `cpu`). `cpu_ns()` is read exactly twice per call: first on entry, second here.
+6. The response; `len(canonical(response).encode("utf-8")) > bytes` refuses (`CNV-R09` `bytes`), `canonical` from `kernel/ledger/envelope.py`.
+7. `check` of the response and of every nested payload against the schema: each `OVERLAY` in `TIMEFRAMES`, each `FACT` and `CANDIDATE` in an `OVERLAY`, the `STORED_FACT` and `SUPERSESSION` in `INSPECTION`, each `STORED_FACT`, `SUPERSESSION` and `ANNOTATION` in `HISTORY` and `INSPECTION`. Every array in a payload is a `list` (the schema's `array` matches `list` only, `kernel/ledger/envelope.py`), never a tuple. A failure raises `PayloadInvalid`: a bug, never a refusal.
+8. The history write, one transaction; then the response is returned.
+
+Which steps apply: `view` runs 1, 3 (open, and the policy checks in its row below) and none of 4–8. `compute_overlay` and `compare_timeframes` run 1–8. `inspect_fact` runs 1, 5, 6, 7. `history` runs 1, 4, 5, 6, 7. `annotate` runs 1, 3 (open and reopen `view_id`), the annotation checks, 5, 6, 7, then its write.
+
+| Tool | Does |
+|---|---|
+| `view(caller, policy, underlying, as_of)` | Step 3's `resolve(reader, policies, policy, underlying, as_of).id.text`. Refused: `as_of` later than `instant(clock.now())` (`CNV-R10`); a policy not bound (`CNV-R04`); a `ticks_else_history` policy (`CNV-R05`). Writes nothing |
+| `compute_overlay(caller, view_id, instrument, interval_secs)` | One `confirmed_swings` run; records its facts and supersessions; returns an `OVERLAY` |
+| `compare_timeframes(caller, view_id, instrument, intervals)` | One run per distinct interval, ascending, over the one view; records them in one transaction; returns `TIMEFRAMES` |
+| `inspect_fact(caller, fact_id)` | The stored fact, the supersession naming it as old (or `null`), those naming it as new, and every annotation version naming it, in history order. Unknown: `CNV-R11`. Reads history only |
+| `annotate(caller, *, view_id, fact_ids, author_kind, author_id, role, claim, confidence, annotation_id=None)` | Annotations, below. Opens the reader only to reopen `view_id` |
+| `history(caller, instrument, *, interval_secs=None)` | Every stored fact of `instrument` (and that interval when given), in record order; the supersessions whose old fact is among them; every annotation version naming any of them. `rows` bounds the facts returned. Reads history only |
+
+`rows` counts the bars returned by every `View.bars` read the call makes (the base bars a run above 60 s reads for its `base` lists included), and for `history` the facts it would return. The quality assessment's own reads, tick rows and history records are not rows; `cpu_ms` and `bytes` bound them.
+
+#### Confirmed swings (`algorithms.py`)
+
+* **The pure rule.** `swings(highs, lows, k) -> tuple[tuple[str, int], ...]` over `Decimal` sequences of one length `n`: for each `i` with `k <= i <= n - 1 - k`, `("swing_high", i)` when `highs[i - j] < highs[i]` and `highs[i + j] < highs[i]` for every `j` in `1..k`, and `("swing_low", i)` when `lows[i - j] > lows[i]` and `lows[i + j] > lows[i]` likewise. Strict: an equal neighbour makes no swing, so a plateau has none (the master's "k bars on each side with lower highs"). One bar may be both. Ordered by `(i, kind)`. `provisional(highs, lows, k)`: for each `i` with `k <= i` and `n - 1 - i < k`, the same left test and the right test over the `n - 1 - i` bars that exist, as `(kind, i, n - 1 - i)`. `k` not an int of at least 1, or a bool, raises `ValueError`.
+* **The series.** `bars = view.bars(instrument, interval_secs=interval)`: the cutoff's exchange date only (step 3), so a swing never spans a day. A `ValueError` from it (a `history` policy and an interval above 60) is refused `CNV-R08`. Prices compare as `Decimal(bar.high)`, `Decimal(bar.low)`; the stored strings are `repr` of the float, so the order is the float's.
+* **Finality (the pivot rule, `README.md:821`).** The origin is the policy's `bars` (`ticks` or `history`). For `ticks`, a bar is final when `view.final(instrument, start + interval - 60 s)`: its last base window's confirmation instant is at or before both the watermark at the view's head and the cutoff, so every base window in it is sealed and committed. Step 3's `resample` returns a higher window once the cutoff passes its end plus the lag even if its last base window is not yet sealed; this check is what keeps that partial bar out. The series is the longest prefix of final bars; the bars after it are counted as `unfinal_bars` and not read further. For `history`, every returned bar is final (step 3: history bars are final when written).
+* **Base windows (review R-3).** Step 3's `resample` keeps only the highest base revision of a higher bar (`market/view.py`), so two corrections in different minutes of one bar would look alike. For an interval above 60 s, every run reads `view.bars(instrument)` once (counted as rows) and gives each bar of its series `base`, the `[base_start, revision]` list of the base bars whose start lies in `[start, start + interval)`, oldest first. For 60 s a bar's base is itself. `Run.vmap` is `{base_start: revision}` over every base window of the final series.
+* **A confirmed fact** is each `swings` result over the final series: the swing's `anchor_at` is `utc` of bar `i`'s start and its `price` bar `i`'s `high` (a swing high) or `low` (a swing low), as stored. **A provisional candidate** is each `provisional` result: `CANDIDATE{kind, anchor_at, price, right_bars, status: "provisional"}`. It has no ID, is never recorded and is never superseded: the master's "at the anchor it is provisional".
+* **`confirmed_at`**, the k-th right bar's own confirmation instant: for `ticks`, `start(bars[i + k]) + interval + lag` (the window's `confirm_at`, as `resample` confirms); for `history`, `start(bars[i + k]) + 60 s` (step 3's history rule, no lag).
+* **`available_at`**, when the application could know the fact: `max(confirmed_at, A)`.
+  * `ticks`: when every input revision is 1, `A` is `confirmed_at` and nothing more is read: a revision-1 bar holds only ticks that arrived by its confirmation instant, which is at or before `confirmed_at`. Otherwise `A` is the latest `arrival_at` among `view.tick_rows(instrument)` rows of every base window inside the input bars whose `seq` is at most that base window's bar's `last_seq` (base bars from `view.bars(instrument)`, counted as rows; a run above 60 s has already read them). Commit order is arrival order, and a received tick's key is its receipt number, which never repeats (the spec's Records and identity), so these are exactly the ticks the input bars' values hold. A late tick without a price makes a new revision with the same values; its `seq` is above `last_seq`, so it does not move `available_at`, though the new revision is a new fact.
+  * `history`: `A` is the latest `arrival_at` of the input bars' records (`view.records("history_bar", instrument)` by `seq`, a history bar's `first_seq`).
+* **Quality (A01-F3 (`README.md:827`)).** Each run declares `InputRequirement("canvas.confirmed_swings", ALGORITHM_VERSION, ("bars",), (), 2 * k + 1, interval, True, "excluded")` and reports step 3's `assess(view, requirement, instrument=instrument)` as `quality{expected, present, gaps, conflicted, late_ticks, warm}`: `expected` and `present` the counts, `gaps` the gap windows' texts, `late_ticks` the sum of the assessment's late counts for `instrument`. It reports; it never refuses.
+
+#### Facts and identity (`facts.py`)
+
+* **The identity**, `fact_identity`: `{algorithm, algorithm_version, parameters: {"k": k}, store_id, instrument, interval_secs, window, calendar_version, origin, kind, anchor_at, inputs}`, with `window` the text of `WindowDef(interval, policy.wdef.confirm_lag_secs)` (`"60s/epoch/lag7"` in the tests) and `inputs` the `2k + 1` bars `i - k … i + k` as `[start, revision, high, low]` for 60 s, and as `[start, revision, high, low, base]` above 60 s (`base` as above), so a fact's identity names every base revision it read. A fact's base windows are its inputs' starts and revisions for 60 s, and the union of its inputs' `base` lists above. `fact_id = "cf1:" + digest(identity)`; `inputs_digest = digest(inputs)`, `digest` from `kernel/ledger/envelope.py`. The view is not in the identity: the same inputs in a later view are the same fact, so nothing repaints, and a corrected input revision is a new fact.
+* **A fact as returned**, `FACT`: the identity's fields, `fact_id`, `inputs_digest`, `price`, `units: "price"`, `confirmed_at`, `available_at`, and the asking view's `view_id` and its policy's `availability` (`event` labels a research view, D08 (`README.md:808`)). **As stored**, `STORED_FACT`: the same without `view_id` and `availability`, with `first_view` (the view that first recorded it) and `recorded_at`.
+
+#### History and supersession (`history.py`)
+
+* **The store.** One SQLite file, apart from the market store and the ledger, opened through `connect` and `WriterLock` from `kernel/ledger/runtime.py` exactly as `MarketStore.open` opens its file: a second writer is refused `CNV-R01` (`writer_lock_held`); a new file is created at schema 1 in one `BEGIN IMMEDIATE`; any schema but 1 is refused `CNV-R02` (`schema_unsupported`). Tables: `canvas_meta(history_id, schema, created_at)`, `history_id` a UUID hex written once; `fact(seq INTEGER PRIMARY KEY, fact_id TEXT UNIQUE, scope TEXT, instrument TEXT, interval_secs INTEGER, content TEXT, first_view TEXT, recorded_at TEXT)`; `supersession(seq INTEGER PRIMARY KEY, old_fact_id TEXT UNIQUE, new_fact_id TEXT, view_id TEXT, recorded_at TEXT)`; `annotation(seq INTEGER PRIMARY KEY, annotation_id TEXT, version INTEGER, content TEXT, recorded_at TEXT, UNIQUE (annotation_id, version))`. `content` is `canonical` JSON. `scope` is `canonical` of the identity without `kind`, `anchor_at` and `inputs`. No statement ever updates or deletes a row: history only appends.
+* **Recording one run in view `V`**, inside the call's one transaction, `recorded_at` the Canvas clock:
+  1. each confirmed fact whose `fact_id` is not stored is inserted, in `(anchor_at, kind)` order, with `first_view` `V`;
+  2. each stored fact of the run's `scope` with no supersession row (a live fact) `F`, in `seq` order, is judged. `Vmap` is the run's `vmap`, `{base_start: revision}` over the base windows of `V`'s final series. `V` can judge `F` only when every base window of `F` is in `Vmap` with a revision at least `F`'s; otherwise `F` is left alone (an older or narrower view never supersedes a newer fact). `V` supersedes `F` when the base windows of `Vmap` from `F`'s first base window to its last differ from `F`'s base windows, or any of their revisions differs. Then one row `(F, G, V)` is written, `G` the run's confirmed fact with `F`'s `kind` and `anchor_at`, or `null` when there is none (the swing is withdrawn).
+* So a live view (`corrections: exclude`) never supersedes anything: it shows revision 1 only (Q-030). The old fact stays in history and in every old view's recomputation (A01-F5 (`README.md:831`)); `superseded_by` appears only in `inspect_fact` and `history`.
+
+#### Annotations (`annotations.py`)
+
+* **Checks**, each refused `CNV-R12` naming the field: `author_kind` one of `agent`, `human`, `run`; `author_id`, `role` and `claim` non-empty strings; `confidence` `None` or a finite decimal string between `"0"` and `"1"` inclusive; `fact_ids` a non-empty tuple of distinct strings. Every fact ID must be stored (`CNV-R11`); `view_id` must reopen (`CNV-R06`).
+* **A new annotation** (`annotation_id=None`): `annotation_id = "ca1:" + digest({view_id, fact_ids, author_kind, author_id, role, claim, confidence, created_at})`, `version` 1, `supersedes` `null`, `created_at` the Canvas clock. **A new version** names a stored `annotation_id` (else `CNV-R13`): `version` the latest plus 1, `supersedes` the latest version.
+* **An annotation cannot change a fact**: it is written to its own table in its own transaction, and no tool takes a fact's content as input (the master's annotation row, `README.md:818`).
+
+#### The schema (`resources/canvas.schema.json`)
+
+The repository's own field-map format (`"format": "autonomous_trading.payload_fields/1"`, `"kinds": {…}`), the format `resources/events.schema.json` uses, checked by `validate_payload`; no JSON Schema library is added. `resources/*.json` is already package data, so `pyproject.toml` does not change.
+
+| Kind | Fields |
+|---|---|
+| `FACT` | `fact_id`, `algorithm`, `algorithm_version`, `store_id`, `instrument`, `window`, `calendar_version`, `origin`, `kind`, `anchor_at`, `price`, `units`, `confirmed_at`, `available_at`, `inputs_digest`, `view_id`, `availability`: string; `parameters`: object; `interval_secs`: integer; `inputs`: array |
+| `STORED_FACT` | `FACT` without `view_id` and `availability`; `first_view`, `recorded_at`: string |
+| `CANDIDATE` | `kind`, `anchor_at`, `price`, `status`: string; `right_bars`: integer |
+| `OVERLAY` | `tool`, `view_id`, `availability`, `instrument`, `algorithm`, `algorithm_version`: string; `parameters`, `quality`: object; `interval_secs`, `bars`, `unfinal_bars`: integer; `facts`, `provisional`: array |
+| `TIMEFRAMES` | `tool`, `view_id`, `instrument`: string; `timeframes`: array of `OVERLAY` |
+| `SUPERSESSION` | `old_fact_id`, `view_id`, `recorded_at`: string; `new_fact_id`: string or null |
+| `ANNOTATION` | `annotation_id`, `author_kind`, `author_id`, `role`, `view_id`, `claim`, `created_at`: string; `confidence`: string or null; `version`: integer; `supersedes`: integer or null; `fact_ids`: array |
+| `INSPECTION` | `tool`: string; `fact`: object (`STORED_FACT`); `superseded_by`: object (`SUPERSESSION`) or null; `supersedes`, `annotations`: array |
+| `HISTORY` | `tool`, `instrument`: string; `interval_secs`: integer or null; `facts`, `supersessions`, `annotations`: array |
+
+#### The import guard
+
+* **Inspection only (`README.md:833`).** The test holds an explicit allowlist, `CANVAS_IMPORTERS = ()`, empty at this step. No module of `src/autonomous_trading` outside `market/canvas/` and the allowlist imports `autonomous_trading.market.canvas` or a module under it, by `import`, by `from … import`, or as `from autonomous_trading.market import canvas`. No module under `src/autonomous_trading` uses a relative import (none does today), so a name check cannot be evaded. SLICE-09 adds `cognition/tools.py` and SLICE-11 adds `bootstrap.py`, each its one module, by a reviewed change to this guard. A module under `kernel/` or `strategies/`, and `kernel/protection.py` and `kernel/admission.py` by name, may never be added: the test asserts that no allowlist entry starts with `kernel/` or `strategies/`. The kernel half is also guarded by T-40's `test_no_kernel_module_imports_the_market_package`. So no fact can become an entry, exit or stop input without changing this guard (the master: a new frozen candidate and governed evaluation).
+* **No string reaches Canvas.** No string constant (`ast.Constant` of type `str`) in a module outside `market/canvas/` and the allowlist contains `market.canvas` or `canvas.history_path`, so Canvas cannot be loaded by `importlib` or bound by a setting name from elsewhere. None does today.
+* **Canvas never writes the market store.** No module under `market/canvas/` names `MarketStore`.
+* **History only appends.** No string constant in `history.py` or `annotations.py` contains `UPDATE` or `DELETE`, ignoring case.
+
+#### Refusals
+
+| Code | Message | When |
+|---|---|---|
+| `CNV-R01` | `writer_lock_held` | A second history writer |
+| `CNV-R02` | `schema_unsupported` | A history file of another schema |
+| `CNV-R03` | `budget_unbound` | The caller has no budget |
+| `CNV-R04` | `policy_unknown` | `view` names a policy not bound |
+| `CNV-R05` | `bars_rule` | The policy's `bars` is `ticks_else_history` |
+| `CNV-R06` | the `Unavailable` reason | The view does not reopen |
+| `CNV-R07` | the exception's text | The market store cannot be opened or read |
+| `CNV-R08` | `interval_not_allowed` | An interval outside `canvas.swings.intervals_secs`, or one the policy cannot serve |
+| `CNV-R09` | `rows`, `timeframes`, `cpu` or `bytes` | A budget exceeded |
+| `CNV-R10` | `as_of_future` | `view` asked for a cutoff after the Canvas clock |
+| `CNV-R11` | `fact_unknown` | A fact ID not in history |
+| `CNV-R12` | the field's name | An annotation field fails its check |
+| `CNV-R13` | `annotation_unknown` | A new version of an annotation not in history |
+
+#### Deviations (from the spec's Canvas section)
+
+* **`superseded_by` is history, not a fact field.** The spec lists it among a fact's fields; here a computed fact never changes after it is recorded, and supersession is its own appended row, read by `inspect_fact` and `history`. A field filled in later would change an old view's overlay, which is the repaint PRF-MKT-09 forbids.
+* **The view is not part of a fact's identity.** The spec says a fact carries the view identity; the returned fact names the asking view and the stored fact its `first_view`, but the ID is over the inputs, so the same swing in two views is one fact.
+* **`ticks_else_history` is refused.** Under it a day's series switches from history bars to tick bars when the first tick bar seals (step 3, `bars`), so a fact on history bars would vanish from later views with no correction: a repaint.
+* **Three settings beyond `canvas.budgets.<caller>`** (the spec's Policy inputs): `canvas.swings.k`, `canvas.swings.intervals_secs` and `canvas.history_path`, all refusing, because no swing parameter is chosen here.
+
+### Tests
+
+`tests/unit/test_canvas_causality.py` (README §6, `README.md:1104`). Every price, `k`, interval, lag and budget is labelled synthetic; every expectation is computed by hand from the rules above; every instant is IST on 2026-11-02 (a Monday), written with `utc()`. Helpers repeat T-44's (`ist`, `SetClock`, `policy`, `tick`, `commit`, `history`), since one test module does not import another's. Stores and histories live under `tmp_path`. Unless a group says otherwise: `SYN = "NIFTY-SYN"`; policies `live` (T-44's `policy()`), `include` (`corrections="include"`), `h` (`bars="history"`) and `e` (`bars="ticks_else_history"`); `Canvas(path, CanvasHistory.open(hpath, SetClock(ist(10, 30))), POLICIES, CanvasSettings(swing_k=2, intervals_secs=(60, 300), budgets={"synthetic-agent": CanvasBudget(1000, 2, 60_000, 1_000_000)}), SetClock(ist(10, 30)))`.
+
+**The minute pattern.** Minute `m` (receipt `m`, 0 to 14) with price `p`: `commit([tick(m, 10:m:10, 10:m:11, p)], now=10:m:11)`, then `commit((), now=10:(m+1):07, instruments=[SYN])`, which seals minute `m` and writes the watermark. Each bar is one tick, so its open, high, low and close are `p`.
+
+**Series A** (10:00 to 10:09): `100.0, 102.0, 105.0, 103.0, 101.0, 104.0, 107.0, 106.0, 104.0, 108.0`. With `k = 2`: swing high at 10:02 (`105.0`), swing low at 10:04 (`101.0`), swing high at 10:06 (`107.0`).
+
+**Series B** (10:00 to 10:14): series A then `106.0, 105.0, 103.0, 104.0, 102.0`. Its five-minute bars: 10:00 high `105.0` low `100.0`; 10:05 high `108.0` low `104.0`; 10:10 high `106.0` low `102.0`.
+
+| Group | Cases |
+|---|---|
+| Swings (pure) | Series A's ten values as highs and lows, `k = 2`: `swings` gives `("swing_high", 2)`, `("swing_low", 4)`, `("swing_high", 6)`; `provisional` gives `("swing_low", 8, 1)`, `("swing_high", 9, 0)`. A plateau `100.0, 105.0, 105.0, 100.0` as highs and lows, `k = 1`: no swing; provisional `("swing_low", 3, 0)`. A valley `105.0, 100.0, 100.0, 105.0` as highs and lows, `k = 1`: `swings` gives `()`; `provisional` gives `("swing_high", 3, 0)`. An outside bar, highs `101.0, 103.0, 102.0` and lows `99.0, 97.0, 98.0`, `k = 1`: `("swing_high", 1)`, `("swing_low", 1)`. A short series `100.0, 102.0, 105.0, 103.0` as highs and lows, `k = 2`: no swing. `k` 0, `True` and `"2"` raise `ValueError` |
+| Availability | The minute pattern for series A's 10:00 to 10:03, then only 10:04's tick commit (the watermark is 10:04:07). A `live` view at 10:05:07, resolved before the 10:05:07 commit: `bars` 4 (10:04 not sealed), `facts` `[]`, `provisional` the swing high at 10:02 with `right_bars` 1. After the 10:05:07 commit: at 10:05:06.999999 the same; at 10:05:07 `facts` is the swing high at 10:02, `price` `"105.0"`, `confirmed_at` and `available_at` 10:05:07, `inputs` 10:00 to 10:04 each `[start, 1, p, p]`, `fact_id` the `"cf1:"` SHA-256 of the identity written in the test with `hashlib` and `json.dumps(sort_keys=True, separators=(",", ":"), ensure_ascii=False)`; `provisional` the swing low at 10:04 with `right_bars` 0. The pre-seal view reopened afterwards still has no fact |
+| Causality | A store with series A to 10:04 and the 10:05:07 commit; the `live` view at 10:05:07 and its overlay `O`. Then the minutes 10:05 to 10:09 committed with `110.0, 90.0, 111.0, 89.0, 112.0`, and a late tick into 10:04 (receipt 100, event 10:04:50, arrival 10:05:30, `99.0`, committed at 10:05:30). The view reopened by its text gives `O` byte for byte (`canonical`); a view resolved now at the same cutoff gives facts with the same `fact_id`s, its `view_id` differing only in `head`; an `include` view at 10:05:07 gives the same facts (the late tick arrived after its cutoff) |
+| Series A in full | All ten minutes and the 10:10:07 commit. `live` at 10:09:07: `facts` the three swings with `confirmed_at` 10:05:07, 10:07:07 and 10:09:07; `provisional` the swing low at 10:08 (`right_bars` 0); `bars` 9, `unfinal_bars` 0; `quality` `expected` 54 (09:15 to 10:08), `present` 9, `gaps` the 45 windows 09:15 to 09:59, `conflicted` 0, `late_ticks` 0, `warm` true. At 10:10:07: `provisional` the swing low at 10:08 (`right_bars` 1) and the swing high at 10:09 (`right_bars` 0) |
+| Corrections (PRF-MKT-09) | Series A in full plus a late tick into 10:03 (receipt 101, event 10:03:50, arrival 10:07:30, `106.0`, committed at 10:07:30): the 10:03 bar's revision 2 is open `103.0`, high `106.0`, low `103.0`, close `106.0`. `live` at 10:09:07 records F1 (high at 10:02), F2 (low at 10:04), F3 (high at 10:06). `include` at 10:09:07: `facts` G1, the high at 10:03 (`"106.0"`, inputs 10:01 to 10:05 with revisions 1, 1, 2, 1, 1, `confirmed_at` 10:06:07, `available_at` 10:07:30); G2, the low at 10:04 (`"101.0"`, inputs 10:02 to 10:06 with revisions 1, 2, 1, 1, 1, `confirmed_at` 10:07:07, `available_at` 10:07:30); and F3 with F3's own `fact_id`; `quality.late_ticks` 1. It records G1 and G2 and two supersessions: F1 to `null` and F2 to G2, each naming the `include` view. The `live` view reopened gives its first overlay byte for byte and records nothing. An `include` view at 10:07:29.999999 gives F1 and F2 (the late tick not yet seen) and records nothing: its revisions are lower than G1's and G2's, and it cannot see F3's 10:07 and 10:08 inputs. `history("synthetic-agent", SYN, interval_secs=60)`: facts F1, F2, F3, G1, G2 in that order, `first_view` the `live` view for the first three; supersessions F1 to `null`, F2 to G2. `inspect_fact("synthetic-agent", F2)`: `superseded_by` the F2-to-G2 row; `supersedes` `[]` |
+| Restart | The Corrections store. One `Canvas` computes the `include` overlay at 10:09:07; its history is closed, reopened with `CanvasHistory.open`, and a new `Canvas` computes the same view text: the two responses are equal byte for byte, and history still holds 3 facts and 0 supersessions. `vars(canvas)` keys are exactly `market_path`, `history`, `policies`, `settings`, `clock`, `cpu_ns`: no incremental path exists, so the acceptance row's incremental clause is empty by design |
+| Multi-timeframe | Series B with `swing_k=1` and the commits through 10:15:07. `compare_timeframes(…, (300, 60))` at 10:15:07 gives the timeframes 60 then 300. 60: highs at 10:02, 10:06, 10:09 and 10:13, lows at 10:04, 10:08 and 10:12; provisional the low at 10:14 (`right_bars` 0). 300: the high at 10:05 (`"108.0"`, inputs `[10:00, 1, "105.0", "100.0", B0]`, `[10:05, 1, "108.0", "104.0", B1]`, `[10:10, 1, "106.0", "102.0", B2]`, with `B0` `[[10:00, 1], [10:01, 1], [10:02, 1], [10:03, 1], [10:04, 1]]`, `B1` the minutes 10:05 to 10:09 and `B2` the minutes 10:10 to 10:14 in the same form, each at revision 1; `confirmed_at` and `available_at` 10:15:07, `window` `"300s/epoch/lag7"`); provisional the low at 10:10 (`right_bars` 0). At 10:15:06.999999: 60 has the six swings through the low at 10:12 and the provisional high at 10:13; 300 has no fact (the 10:10 bar is not yet confirmed) and the provisional high at 10:05: the minutes are final while their five-minute bar is not (`README.md:821`). Resolved at 10:15:07 before the 10:15:07 commit (watermark 10:14:07): 60 has `bars` 14; 300 has `bars` 2, `unfinal_bars` 1 (the 10:10 bar built from four minutes) and no fact |
+| History origin | History bars at 10:00 to 10:04 with closes `100.0, 102.0, 105.0, 103.0, 101.0`, each arriving at its start + 61 s (T-44's `history` helper). `h` at 10:05:01: the high at 10:02, `origin` `"history"`, `confirmed_at` 10:05:00 (no lag), `available_at` 10:05:01 (the 10:04 record's arrival); provisional the low at 10:04. At 10:05:00.999999: no fact, provisional the high at 10:02 (`right_bars` 1). `compute_overlay(…, 300)` under `h`: `CNV-R08`. A view under `e`: `CNV-R05` from `compute_overlay` and from `view` |
+| Tools | `view("synthetic-agent", "live", SYN, ist(10, 9, 7))` parses with `ViewId.parse` to policy `live`, underlying `SYN`, cutoff `utc(ist(10, 9, 7))` and the store's head. `as_of` 10:30:00.000001: `CNV-R10`. Policy `nope`: `CNV-R04`. A missing market file: `CNV-R07`. Caller `other`: `CNV-R03`. `compute_overlay` with interval 120: `CNV-R08`; with `"v-1"`: `CNV-R06` `malformed` |
+| Budgets | Series A in full, the `live` view at 10:09:07, interval 60 (9 bars read). `rows` 9 passes, 8 refuses `rows`. `compare_timeframes` with `timeframes` 1 and `(60, 300)` refuses `timeframes`. A fake `cpu_ns` giving 0 then 2,000,001 with `cpu_ms` 2 refuses `cpu`; 0 then 2,000,000 passes. `bytes` equal to the response's size `S` (measured on a second history) passes; `S - 1` refuses `bytes`. After every refusal the history has no row |
+| Annotations | On the Corrections history, `annotate(…, fact_ids=(F2,), author_kind="agent", author_id="synthetic-agent-1", role="reviewer", claim="synthetic claim", confidence="0.6")`: `version` 1, `supersedes` `null`, `created_at` 10:30, `annotation_id` `"ca1:"` + the SHA-256 written in the test; every `fact` row is byte-equal before and after. Again with that `annotation_id` and claim `"synthetic claim 2"`: `version` 2, `supersedes` 1. `inspect_fact(F2)` lists both. Refused: `author_kind` `"bot"`, `confidence` `"1.5"`, `"-0.1"` and `"nan"`, `claim` `""` (`CNV-R12`); an unknown fact (`CNV-R11`); an unknown `annotation_id` (`CNV-R13`); view `"v-1"` (`CNV-R06`) |
+| Settings and history store | `swing_k=None` and `intervals_secs=None` raise `CanvasUnbound` naming their keys; `swing_k` 0 and `True`, an interval 90, and a budget field 0 raise `ValueError`. A second `CanvasHistory.open` on one file: `CNV-R01`; a file with schema 2: `CNV-R02`; reopening keeps `history_id` |
+| Schema | `canvas_fields()` holds the nine kinds; a `FACT` missing `available_at` raises `PayloadInvalid`, and so does a `FACT` whose `inputs` is a tuple; every response of the other groups passed `check`, every nested `OVERLAY` and `STORED_FACT` included |
+| Boundary (PRF-MKT-09) | The four import-guard checks above (`CANVAS_IMPORTERS` empty and free of `kernel/` and `strategies/` entries), each an `ast` walk over the source tree as T-40's and T-43's guards walk theirs |
+
+**Changed existing tests:** none. T-40's kernel guard and T-43's market-package guard cover `market/canvas/` as they stand.
+
+### Break checks
+
+Each is applied with its anchor checked first (exactly one occurrence, the exact text recorded in the as-built table), one at a time, run against `test_canvas_causality.py` and `test_market_windows.py`, and restored byte for byte with an md5 check.
+
+| Change | Anchor | Test that must fail |
+|---|---|---|
+| A swing high on an equal neighbour: the right-hand high comparison `<` becomes `<=` | `algorithms.py`, `swings`: the right-hand high comparison | Swings (plateau) |
+| A swing low on an equal neighbour: the left-hand low comparison `>` becomes `>=` | `algorithms.py`, `swings`: the left-hand low comparison | Swings |
+| A provisional swing confirmed: the confirmed range runs to `n - 1` | `algorithms.py`, `swings`: the range's upper bound | Swings; Availability |
+| Finality ignored: the prefix-of-final-bars filter removed | `algorithms.py`, `confirmed_swings`: the `view.final` filter | Multi-timeframe (before the commit) |
+| `confirmed_at` from the anchor bar instead of the k-th right bar | `algorithms.py`, `confirmed_swings`: the `bars[i + k]` index | Availability; Series A in full |
+| A tick fact confirmed without the lag | `algorithms.py`, `confirmed_swings`: the tick branch's `+ lag` | Availability |
+| A history fact confirmed with the lag | `algorithms.py`, `confirmed_swings`: the history branch | History origin |
+| `available_at` always `confirmed_at` | `algorithms.py`, `confirmed_swings`: the late-arrival read | Corrections |
+| The fact ID without input revisions | `facts.py`, `fact_identity`: the `inputs` entry | Corrections; Availability (`fact_id`) |
+| A 300 s input without its `base` list | `algorithms.py`, `confirmed_swings`: the `base` entry | Multi-timeframe (inputs) |
+| A view with lower revisions supersedes | `history.py`, `record`: the "revision at least `F`'s" test | Corrections (the 10:07:29.999999 view) |
+| Supersession with unchanged inputs | `history.py`, `record`: the "windows or revisions differ" test | Corrections (F3 stays live) |
+| The successor matched on `kind` only | `history.py`, `record`: the successor match | Corrections (F1 to `null`) |
+| Provisional candidates recorded | `tools.py`: the history write's fact list | Restart (3 facts); Corrections |
+| The overlay carries `superseded_by` from history | `tools.py`: the overlay's fact payload | Causality; Corrections (the `live` view reopened) |
+| History written before the bytes check | `tools.py`: the order of the bytes check and the write | Budgets |
+| CPU refused at equality: `>` becomes `>=` | `tools.py`: the CPU comparison | Budgets |
+| A future `as_of` accepted | `tools.py`, `view`: the `as_of` check | Tools |
+| `ticks_else_history` accepted | `tools.py`: the bars-rule check | History origin |
+| An annotation naming an unknown fact accepted | `annotations.py`: the stored-fact check | Annotations |
+| `from autonomous_trading.market.canvas import tools` added | `kernel/protection.py`: after its last import line | Boundary; `test_no_kernel_module_imports_the_market_package` |
+| The same import added (the composition importing Canvas, no import cycle) | `bootstrap.py`: after its last import line | Boundary |
+| Canvas opens the writer: `MarketReader.open` becomes `MarketStore.open` | `tools.py`: the reader open | Boundary |
+
+### Files
+
+| File | Change |
+|---|---|
+| `src/autonomous_trading/market/canvas/facts.py` | New: the constants, the identity and digests, the schema loader and `check` |
+| `src/autonomous_trading/market/canvas/algorithms.py` | New: `swings`, `provisional`, `confirmed_swings` |
+| `src/autonomous_trading/market/canvas/history.py` | New: `CanvasHistory` |
+| `src/autonomous_trading/market/canvas/annotations.py` | New: `annotation` |
+| `src/autonomous_trading/market/canvas/tools.py` | New: `Canvas`, `CanvasSettings`, `CanvasBudget`, `CanvasUnbound` |
+| the package's `__init__.py` | New, empty |
+| `src/autonomous_trading/resources/canvas.schema.json` | New: the nine kinds |
+| `tests/unit/test_canvas_causality.py` | New (PRF-MKT-09) |
+
+**No new tree delta:** every file is in README §6 (`README.md:985`, `:999-1004`, `:1104`); the `__init__.py` is the package marker. No ledger migration, no market-store schema change, no settings change; SLICE-11 binds the four Canvas settings when it composes the optional participant, and SLICE-09's role tools (`cognition/tools.py`) are Canvas's first callers.
+
+### Completion conditions (step 6)
+
+* Every test above passes, twice in a row, with the whole suite; every break check fails a listed test, and every file is restored (md5); `ast.parse` passes on every new Python file and `json.loads` on `canvas.schema.json`.
+* `git diff --stat` against the `slice-08` head at the start of step 6 names only the files above: no kernel, admission, protection, bootstrap or settings module changes.
+* PRF-MKT-09's clauses each pass a group: a swing unavailable until its k-th right bar is final (Availability, Multi-timeframe, History origin); later bars leave earlier views unchanged (Causality); a corrected bar supersedes the fact in the new view only (Corrections); a fresh and a restarted computation agree, with no incremental path (Restart); no `kernel` module imports Canvas, and nothing outside Canvas does (Boundary).
+
+### Step 6 as built
+
+**In plain words.** Canvas now exists as an inspection tool. It marks confirmed turning points, links a corrected mark to the one it replaces, takes notes that cannot change a mark, and keeps each caller within its limits. A test proves nothing on the trading side imports it. All 1,306 automatic checks pass.
+
+Commit `53b7d97` on `slice-08`, on top of `cb439ce` (the `slice-08` head at the start of step 6, after SLICE-10 step 2). It adds the 8 files of the step's table (1,315 lines) and changes no existing file. Not pushed.
+
+**Choices made while building:**
+
+| Topic | As built |
+|---|---|
+| The history attribute | `Canvas` keeps its `CanvasHistory` as `history_store`, not `history`: an instance attribute named `history` would hide the `history` tool. Restart's `vars(canvas)` check names `history_store` |
+| Scope | `facts.py` gains `scope_of(identity)`, the canonical identity without `kind`, `anchor_at` and `inputs`, so the run and the history share one rule |
+| Swing comparisons | `swings` writes each test as one chained comparison (`highs[i - j] < highs[i] > highs[i + j]`, `lows[i - j] > lows[i] < lows[i + j]`), and `provisional` uses its own loops, so each break-check anchor occurs once |
+| One-minute availability | For 60 s, a fact's base bars are its input bars, so `available_at` reads no extra bars |
+| Nested overlays | Each `OVERLAY` inside `TIMEFRAMES` carries `tool: "compute_overlay"` |
+| The schema map | `canvas_fields()` loads the schema once per process into a module constant; `Canvas` itself keeps no state |
+| An unknown origin | `confirmed_swings` raises `ValueError` for a policy outside `ticks` and `history`; the tools refuse it as `CNV-R05` before any run |
+| Commit order in the tests | The Causality and Corrections late ticks are committed between their minute's tick commit and its seal commit, so commit instants never go backwards |
+
+**Tests:** `tests/unit/test_canvas_causality.py`, 18 cases, one per group (Boundary has five). Every group passed on its first run. The four market test files (T-40, T-43, T-44, T-45): 177 passed. The whole suite once after the last edit: 1,306 passed, 1 skipped (`test_pe_delta_sign_at_the_source`, waiting for C-1), in 144.3 s. `ast.parse` passes on the 6 Python files, and `json.loads` on `canvas.schema.json`.
+
+**Break checks** (`s08f_breaks.py`: anchors checked first, one at a time, run against `test_canvas_causality.py` and `test_market_windows.py`, every file restored byte for byte, md5 verified): all 23 failed a test on the first run.
+
+| Change | Test that failed |
+|---|---|
+| A swing high on an equal right neighbour | Swings |
+| A swing low on an equal left neighbour | Swings |
+| The confirmed range runs to `n - 1` | Swings, Availability, Causality, Series A in full and 7 more |
+| Finality filter removed | Multi-timeframe |
+| `confirmed_at` from the anchor bar | Availability, Series A in full, Corrections, Multi-timeframe, History origin |
+| A tick fact confirmed without the lag | Availability, Series A in full, Corrections, Multi-timeframe |
+| A history fact confirmed with the lag | History origin |
+| `available_at` always `confirmed_at` | Corrections; History origin |
+| The fact ID without input revisions | Availability, Causality, Series A in full, Corrections and 6 more |
+| A 300 s input without its `base` list | Multi-timeframe |
+| A view with lower revisions supersedes | Corrections |
+| Supersession with unchanged inputs | Corrections; Restart; Budgets |
+| The successor matched on `kind` only | Corrections |
+| Provisional candidates recorded | Every group that records facts (10 tests) |
+| The overlay carries `superseded_by` | Every group that returns facts (10 tests) |
+| History written before the bytes check | Budgets |
+| CPU refused at equality | Budgets |
+| A future `as_of` accepted | Tools |
+| `ticks_else_history` accepted | History origin |
+| An annotation naming an unknown fact accepted | Annotations |
+| `kernel/protection.py` imports Canvas | Boundary; `test_no_kernel_module_imports_the_market_package` |
+| `bootstrap.py` imports Canvas | Boundary |
+| Canvas opens the market writer | Boundary and every group that opens the store (12 tests) |
+
+**Open:** none in this step. C-1 stays open from step 4. SLICE-11 binds the four Canvas settings and composes the optional participant; SLICE-09 adds `cognition/tools.py` to the import guard's allowlist by a reviewed change.
 
 ## Completion conditions
 

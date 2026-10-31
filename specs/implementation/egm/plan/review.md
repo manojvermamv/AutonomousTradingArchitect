@@ -783,3 +783,15 @@ Fresh `egm:egm-design` (F-1…F-9) and `egm:egm-implementation-readiness` (R-1�
 | F-5 | Major | The latch strategy check could refuse a legitimate unlock | A confirmation only, never a refusal |
 | F-6…F-9 | Minor | Refusal scan, `command_key`, the `replace` bypass, rework | A keyed table; action admission only; an AST guard; two commits |
 | R-1…R-11 | Blocker/Major/Minor | Test worlds, unbound crash, break-check anchors, crash children, settings tests, signatures | All applied |
+
+## SLICE-08 step 6 review (2026-10-31)
+
+One fresh combined design and readiness review (the owner's leaner routine, 2026-10-31) of [SLICE-08 step 6](../../plan/slices/SLICE-08-market-data-and-views.md#step-6--canvas), before any code. 6 Major, 3 Minor (R-1…R-9); the swing arithmetic was re-checked by hand and held. All resolved in the text, then built (`53b7d97`; 1,306 passed, 1 skipped; 23 of 23 break checks).
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| R-1, R-2 | Major | Two break checks could not fail | An equal-low valley case; supersession on any differing revision |
+| R-3 | Major | Corrections in a higher bar's other minutes were never superseded | Inputs above 60 s carry their minutes' revisions |
+| R-4 | Major | The import guard forbade Canvas's planned callers and missed dynamic imports | An explicit allowlist, empty now; a string-constant check; never the kernel, strategies, protection or admission |
+| R-5, R-6 | Major | Signatures left open; an unmeetable completion condition | Every signature stated; the condition against the step's starting head |
+| R-7…R-9 | Minor | Receipts, nested schema checks, inexact calls | Applied |
