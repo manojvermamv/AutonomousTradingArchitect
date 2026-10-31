@@ -795,3 +795,14 @@ One fresh combined design and readiness review (the owner's leaner routine, 2026
 | R-4 | Major | The import guard forbade Canvas's planned callers and missed dynamic imports | An explicit allowlist, empty now; a string-constant check; never the kernel, strategies, protection or admission |
 | R-5, R-6 | Major | Signatures left open; an unmeetable completion condition | Every signature stated; the condition against the step's starting head |
 | R-7…R-9 | Minor | Receipts, nested schema checks, inexact calls | Applied |
+
+## SLICE-10 step 3 review (2026-10-31)
+
+One fresh combined design and readiness review of [SLICE-10 step 3](../../plan/slices/SLICE-10-security-and-operator.md#step-3--secrets), before any code. 2 Blocker, 5 Major, 3 Minor (R-1…R-10). All resolved in the text, then built (`ba2face`; 1,321 passed, 2 skipped; 28 of 28 break checks, and the two POSIX checks on Linux).
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| R-1, R-2 | Blocker | File permissions, owner and an environment-sourced key refused a start legacy traded through | Warnings recorded on `CREDENTIAL_BOUND`, never refusals |
+| R-3…R-6 | Major | Break checks that could not fail | Distinct synthetic values, offsets and cases |
+| R-7 | Major | The instruments GET carries the key in its URL | Fork call with the residual exposure named; SLICE-11 stops query strings in OpenAlgo's access log |
+| R-8…R-10 | Minor | Traceback context, legacy's `env_path`, the SHA mutation's anchor | `from None`; `env_path` ported; anchored in `Secrets.bound()` |

@@ -52,7 +52,7 @@ Who may trade, the kill rules and the limits stay as today.
 |---|---|---|
 | 1 | `OperatorRequest` (with `epoch` and `channel_identity`) and `argument_digest` (`contracts/identity.py`). In `interfaces/authorization.py`: the channel table, the identity map, relay rules, sessions bound to identity, kernel epoch, lifetime and cap; nonces and retry identity; the confirmation table with `prepare` and `execute`, the request minted at `execute`. Pure and in memory | PRF-SEC-01, PRF-SEC-02 |
 | 2 | The kernel's binding check (`kernel/authority.py`): `Authenticated.request` and `via`, `authority.bind` in every human entry point. Its refusals: `SEC-R04`, `-R07` (admission and dispatch), `-R08`, `-R09`, `-R10`, `-R19`, `-R20`. `OPERATOR_REQUEST` and its index table (migration, tree delta **T-67**); bounded `OPERATOR_REQUEST_REFUSED`; the `kernel:safety` kill-input exemption. The disarmed authentication table in `bootstrap.py` is replaced by step 1's | PRF-SEC-03 |
-| 3 | `settings/secrets.py`: references, protected sources, the live refusal of `env` for broker credentials, per-service scope, `Secret`, child environments, `scrub` and `redact`. `CREDENTIAL_BOUND`; `scrub` on the kernel's evidence and log writes; secret references in `config/live.example.yaml` | PRF-SEC-04 |
+| 3 | `settings/secrets.py`: references, protected sources, the live `env_source` warning for broker credentials, per-service scope, `Secret`, child environments, `scrub` and `redact`. `CREDENTIAL_BOUND`; `scrub` on the kernel's evidence and log writes; secret references in `config/live.example.yaml` | PRF-SEC-04 |
 | 4 | Kill inputs, on every platform. The kernel reads `risk_guard.kill_switch` and `risk_guard.kill_switch_file` (alias `MCP_KILL_SWITCH_FILE`) before each claim, on each wake and before `OPERATING`, and `kernel:safety` records `KILL_ENGAGED`. `SEC-R16`; the live refusal of an empty path; `at kill-switch on`, `off` and `status` in `interfaces/cli.py`, with the file written first | PRF-SEC-12 |
 | 5 | `adapters/unix_channel.py`: the kernel socket, attestation of service and relay peers (main pid of an approved unit, its own uid, process identity), the exact contract version and release digest, framing, the epoch on every reply | PRF-SEC-05 |
 | 6 | The operator process (`interfaces/api.py`, `deploy/systemd/at-operator.service`): the owner API (reachability, origin, per-session CSRF, nonce, body cap), the CLI socket (mapped login users only), the relay. The catalogue's routes and `at` commands in `interfaces/cli.py`, the latch's strategy-to-session mapping, reads, alerts and the event stream | PRF-SEC-06, PRF-SEC-07 |
@@ -162,7 +162,7 @@ Each **Fork call** keeps legacy's live behaviour because it touches who may trad
 * **Deviation — replay.** A CSRF token per session and identity, a nonce per mutation, and sessions dropped at a kernel epoch change, replace one token per process (`security.py:13`; `write.ts:41-45`).
 * **Deviation — binding for every privileged operation,** with consumption recorded in the ledger. Legacy binds only cancel and close, and keeps used IDs in memory (`owner_command.py:60-62`).
 * **Deviation — value scrubbing** of every resolved secret, in disclosures and in the kernel's own evidence and logs. Legacy scrubs by key or field name only (`safety.py:12-18`; OA_NEW `adapters/openalgo.py:414`, `:468`).
-* **Deviation — broker credential source.** A live composition refuses the broker key from the environment; files or systemd credentials only (`openalgo/server.py:52-54`). MCP static tokens move from configuration to secrets (`security.py:278`).
+* **Deviation — broker credential source.** A live composition takes the broker key from files or systemd credentials. From the environment it is still accepted, as legacy read it (`openalgo/server.py:52-54`), with the warning `env_source` recorded in `CREDENTIAL_BOUND` (step 3); it never refuses. MCP static tokens move from configuration to secrets (`security.py:278`).
 * **Deviation — exact versions.** The kernel socket checks an exact contract version string and the release digest. Legacy checks protocol `1` and a principal name (`service.py:228-236`; A02-F1).
 * **Deviation — separate processes.** The owner API runs in the operator process, not on the MCP gateway (`gateway.py:201-234`).
 * **New (no legacy equivalent):** the security journal and restore continuity (Combined-F4); delegated human principals (Q-014).
@@ -1059,18 +1059,315 @@ Built on `slice-08` at `4ecc799` (SLICE-08 step 5), in `OA_NEW`, as two commits.
 | An `Authenticated` copied with a borrowed request | `test_authenticated_never_replaced` |
 | An `Authenticated` built outside the allowed files | `test_decisions_built_only_by_the_kernel` |
 
-## Step 3 — secrets (outline)
+## Step 3 — secrets
 
-Deepened after step 2 is built. Authority: the spec's [Secrets](../../design/security-and-operator.md#secrets-settingssecretspy).
+<a id="step-3--secrets-outline"></a>
 
-* **Builds:**
-  * `settings/secrets.py`;
-  * the live refusal of `env` for broker credentials;
-  * `CREDENTIAL_BOUND` once per credential per epoch by `kernel:recovery`;
-  * `scrub` on every evidence record, log line and error the kernel adapter writes (a contribution to the execution-domain spec's adapter);
-  * secret references in `config/live.example.yaml` (names only, no value).
-* **Tests:** `tests/unit/test_secret_references.py` (tree delta **T-61**). A labelled synthetic secret value, echoed back by a fake broker response and error, and a byte scan of the ledger, evidence store, logs and a backup set for it. The secret guards (`gitleaks`, the hygiene test) stay on.
-* **Done when:** PRF-SEC-04 passes; no test or document holds a real secret.
+The authorities are the spec's [Secrets](../../design/security-and-operator.md#secrets-settingssecretspy) section, its [refusal codes](../../design/security-and-operator.md#refusal-codes) (`SEC-R18`), its [event catalogue](../../design/security-and-operator.md#event-catalogue) (`CREDENTIAL_BOUND`), F-SEC6 in its [failure modes](../../design/security-and-operator.md#failure-modes-and-crash-points), and A06-F3 (`README.md:867`). Step 3 adds one module, one ledger event kind with no index table, the adapter's use of a `Secret`, and one example file. It adds no socket, door or process. No live composition exists before SLICE-11, so every live path here is reached by tests calling `resolve` with `live=True`. It builds on step 2 as built (`cb439ce` on `slice-08`). Every `OA_NEW` citation below is at `cb439ce`; every legacy citation is at 445eb116. No real secret or `.env` file was opened to write this step.
+
+**In plain words.** This step decides where the broker key and other passwords come from, and keeps them out of everything the system itself writes. On the live server the broker key should come from a protected file. An environment variable, which every child process inherits, or a file other users can read, still works as today, and the start records a warning. The key is used exactly as today: the same text, trimmed of spaces as today, with no new check of its form. The system refuses to start only when the settings that point to the key are broken: no reference, or a missing or empty file. Once running, nothing re-reads the key and nothing about it can stop trading. Every record, error and log line is cleaned of the key, even when OpenAlgo echoes it back. Child processes never get it, as today. Each start writes into the ledger which key version it uses, never the key itself. Replacing the key means a restart, and a restart never resends an order.
+
+### Decisions
+
+#### Where loading may refuse (the boundary)
+
+Loading a secret refuses (`SEC-R18`) **only at process start, and only on a malformed configuration**. Nothing in this step reads, judges or refuses the key's value beyond "empty after trimming". There is no check of its length, form, expiry or age, and no call to OpenAlgo to validate it. Nothing refuses after start. Every refusal names its reason and the reference, never the value.
+
+| Reason | Fires when | Why it is a malformed configuration |
+|---|---|---|
+| `no_reference` | The process's scope (below) names a credential that no reference names | The live configuration does not say where the key is |
+| `malformed_reference` | A reference fails its own rules (below), or two references name one credential | The reference cannot be followed |
+| `no_credentials_directory` | A `credential` source with `CREDENTIALS_DIRECTORY` unset or not absolute | The systemd unit loads no credential |
+| `missing` | The file, credential or environment name does not exist | The reference points nowhere |
+| `unreadable` | Opening raises any other `OSError` | The process cannot read what the reference names |
+| `not_regular` | The opened descriptor is not a regular file | The reference names a directory or device |
+| `oversize` | More than `MAX_SECRET_BYTES = 65_536` bytes, a fixed memory bound (not a policy value) | No credential is that long |
+| `not_utf8` | The bytes do not decode as strict UTF-8 | The reference names a binary file |
+| `empty` | The text is empty after legacy's `strip()` | There is no key |
+
+**Warnings, never refusals.** Three conditions under which legacy traded are accepted and recorded. `resolve` adds a `(key, reason)` pair to `Secrets.warnings` for each, and `CREDENTIAL_BOUND` carries them (below). None refuses, at start or after.
+
+| Warning | Raised when |
+|---|---|
+| `env_source` | `live=True` and a broker credential's source is `env` |
+| `permissions` | POSIX only: the file's mode has any group or other bit (`st_mode & 0o077`) |
+| `owner` | POSIX only: the file's owner is not the process's effective uid |
+
+* **Deviation — for owner review: a malformed secret configuration refuses the start.** Legacy started with no key and every send then failed at OpenAlgo (`is_configured`, `src/interfaces/mcp/core/openalgo.py:79-80`). The target refuses the start on the refusal table, so a broken reference is found at start, not at the first order. Every refusal row is a case in which legacy could not trade either: no key, or no readable text.
+* **Fork call (legacy's key sources keep trading).** Legacy read the key from the environment or configuration, readable by anyone with access (`src/interfaces/mcp/core/openalgo.py:75-76`; `src/interfaces/mcp/domains/openalgo/server.py:52-54`). The target keeps trading in those cases and records `env_source`, `permissions` or `owner` as a warning. **This departs from the spec's F-SEC6** ("refuses to start"): no session may gate real trading. A correctly installed key (SLICE-11 writes it `0600`, owned by the unit's user) raises no warning.
+* **Fork call (the key as legacy reads it).** The value is the source's text with legacy's `str.strip()` applied (`src/interfaces/mcp/core/openalgo.py:76`; `src/interfaces/mcp/domains/openalgo/server.py:53`), and nothing else. The bytes sent to OpenAlgo are therefore exactly legacy's for the same key. A file ending in a newline works, as an environment value did.
+* **On Windows** (`os.name != "posix"`) the `permissions` and `owner` warnings are not checked, because the platform has no such bits. Live runs only on the Linux host.
+
+#### References (`settings/secrets.py`)
+
+`settings/secrets.py` imports from `autonomous_trading` only `settings.loader` (for `SettingsError`). It imports no `kernel`, `adapters` or `interfaces` module, and reads no global: references and the environment are arguments (D08).
+
+* `SOURCES = ("credential", "file", "env")`.
+* `SecretRef(service, name, source, locator, version)`, frozen, with slots. Construction raises `ValueError` when:
+  * `service` or `name` is not a full match of `[a-z][a-z0-9_]{0,63}`;
+  * `source` is not in `SOURCES`;
+  * the `locator` does not fit its source:
+    * `file`: an absolute path (`os.path.isabs`);
+    * `credential`: a full match of `[A-Za-z0-9._-]{1,255}`, not `.` or `..`;
+    * `env`: a full match of `[A-Za-z_][A-Za-z0-9_]{0,127}`;
+  * `version` is neither `None` nor a full match of `[A-Za-z0-9._-]{1,64}`.
+
+  `key` is `"<service>/<name>"`. `identifier` is `"<service>/<name>@<version>"`, with `unversioned` for `None`: the spec's form. The version is the operator's label for the installed key (CUJ-SEC-5's `v3`, `v4`). It is never derived from the value or a hash of it.
+* `parse_references(section) -> tuple[SecretRef, ...]` reads a profile's `secrets` section: `{service: {name: {"source", "locator", "version"}}}`. `None` or `{}` gives `()`. Any other shape, a missing or extra key, or a `SecretRef` `ValueError` raises `SecretUnresolvable` with reason `malformed_reference`, naming `service/name` (or `secrets` for the outer shape). The result is sorted by `(service, name)`. SLICE-11's live profile loader calls it. `settings/loader.py` and `Settings` do not change in this step.
+* `SecretUnresolvable(SettingsError)` has `code = "SEC-R18"`, `label = "secret_unresolvable"`, `where` (the reference's `key`, or `secrets`) and `reason` (the table's vocabulary). Its message is `"SEC-R18 secret_unresolvable: <where>: <reason>"`. A refusal raised after the bytes were read (`oversize`, `not_utf8`, `empty`) still carries no byte of them. **Every `SecretUnresolvable` is raised `from None`.** A `UnicodeDecodeError` holds the bytes it failed on (`.object`), and an `OSError` holds the path. Chaining either as `__cause__` or `__context__` would put them into a traceback.
+
+#### `Secret` and `Secrets` (`settings/secrets.py`)
+
+* `Secret(ref, value)`, frozen: `__slots__ = ("_ref", "_value")` and a `__setattr__` that raises. Construction raises `ValueError` unless `ref` is a `SecretRef` and `value` is a non-empty `str`.
+  * Properties `ref`, `key`, `identifier` and `source`. `reveal() -> str` returns the value.
+  * `__repr__`, `__str__` and `__format__` (any spec) return `"Secret(<identifier>)"`, so an f-string, `%` formatting or `logging` never shows the value.
+  * `__reduce__` and `__reduce_ex__` raise `TypeError`, so `pickle` refuses it. `json.dumps` and the ledger's `canonical` refuse it as they refuse any object (`NotJsonData` names only the type, `kernel/ledger/envelope.py:46`). `__copy__` and `__deepcopy__` return `self`.
+  * `__eq__` and `__hash__` are identity (the defaults), so no comparison runs over the value.
+* `Secrets(items)`: an immutable `Mapping[str, Secret]` keyed by `key`. A repeated key raises `ValueError`. `__repr__` is `"Secrets(<identifier>, …)"`, in key order. `Secrets(items, warnings=())` also holds `warnings: tuple[tuple[str, str], ...]`, each a `(key, reason)` pair whose key it holds and whose reason is `env_source`, `permissions` or `owner`; anything else raises `ValueError`. Its methods are below: `scrub`, `redact`, `bound` and `log_filter`.
+* `Secret(` is built in `src/` only in `settings/secrets.py`, and `.reveal(` is called in `src/` only there and in `adapters/openalgo.py`. A guard in the step's test file enforces both (below). Tests build a `Secret` directly, with a labelled synthetic value.
+
+#### Scope and `resolve` (`settings/secrets.py`)
+
+* `BROKER_CREDENTIALS = frozenset({("openalgo", "api_key")})`.
+* `SCOPES: Mapping[str, frozenset[tuple[str, str]]]`, each process's credentials:
+  * `"kernel"`: `{("openalgo", "api_key")}`, the spec's scope;
+  * `"market"`: `{("openalgo", "api_key")}`;
+  * `"operator"`: empty, "none of the broker's" (the spec).
+
+  Step 8 adds `"mcp"` (its static tokens) and `"console"` (the shared console token).
+* **Fork call (the market process holds the broker key for its reads).** Legacy's market poller reads OpenAlgo with the broker key, through the same client (`src/interfaces/mcp/core/marketpull.py:816-833`; `src/interfaces/mcp/core/openalgo.py:75-76`). SLICE-08's market source takes it (`adapters/openalgo.py:946-953`). The spec's scope list does not name the market process; the row keeps legacy. A native read-only credential stays A06-F2's listed improvement, after endpoint proof.
+* `resolve(refs, scope, *, live, environ) -> Secrets`, all arguments required (`live` a bool, `environ` a `Mapping[str, str]`). The composition passes `SCOPES[<process>]` and `os.environ`. It runs once, at process start: the composition calls it once and holds the result. For each scope entry, in sorted order:
+  1. Exactly one reference has that `(service, name)`: none is `no_reference`, more than one `malformed_reference`. A reference outside the scope is **never opened, read or checked**.
+  2. `live` and the entry is in `BROKER_CREDENTIALS` and the source is `env`: the warning `env_source`, and resolution continues. `env` is accepted for every secret, with no warning outside this case.
+  3. Read the source:
+     * `env`: `environ[locator]`; absent is `missing`.
+     * `file`: the locator path.
+     * `credential`: `environ["CREDENTIALS_DIRECTORY"]` joined with the locator. Unset or not absolute is `no_credentials_directory`.
+
+     A file or credential is opened with `os.open(path, os.O_RDONLY | getattr(os, "O_BINARY", 0))`. Symlinks are followed: the checks are made on the opened descriptor, which is the file actually read. `FileNotFoundError` is `missing`; another `OSError` is `unreadable`. Then `os.fstat` on the descriptor: not `S_ISREG` is `not_regular`. On POSIX, `st_mode & 0o077` adds the warning `permissions`, and `st_uid != os.geteuid()` adds the warning `owner`; resolution continues either way. At most `MAX_SECRET_BYTES + 1` bytes are read, and the descriptor is closed in a `finally`. Python descriptors are not inherited by children (PEP 446).
+  4. Decode as strict UTF-8 (`not_utf8`), apply `strip()`, and refuse an empty result (`empty`).
+  5. Build `Secret(ref, value)`.
+
+  It returns `Secrets(secrets, warnings)`, with the warnings in scope order, each entry's warnings in the order above. `resolve` never writes, never changes `environ` or `os.environ`, and keeps no copy of the value outside the `Secret`. **Nothing re-reads while running:** no other function opens a source, and `reveal` returns the value held.
+
+#### Scrubbing and redaction (`settings/secrets.py`)
+
+* `Secrets.scrub(value)` returns a new value with every form of every held secret replaced by `***`. That is the marker the built adapter already uses (`adapters/openalgo.py:321`), so no existing expectation changes.
+  * **Forms**, for each value `v`: `v`; `json.dumps(v)[1:-1]` and `json.dumps(v, ensure_ascii=False)[1:-1]` (the key inside JSON text); `urllib.parse.quote_plus(v)` and `urllib.parse.quote(v, safe="")` (the key in a query, as the instrument read sends it, `adapters/openalgo.py:1268`). Distinct, non-empty forms are replaced longest first (ties in code-point order), so a form that contains another is replaced whole.
+  * **Walk:** a `str` is replaced in; a `dict` is rebuilt with its keys and values scrubbed; a `list` stays a `list` and a `tuple` a `tuple`, each scrubbed item by item; anything else is returned unchanged (a `Decimal` stays exact).
+  * Every held value is scrubbed whatever its length. **Deviation:** legacy's telemetry scrubbed only environment values of at least 8 characters (`src/runtime/telemetry.py:54-58`).
+* `Secrets.redact(value)` is legacy's agent-edge redaction after scrubbing: `_legacy_redact(self.scrub(value))`. `_legacy_redact`, `SECRET_KEYS`, `_is_secret`, `REDACTED = "[redacted]"`, `MAX_STRING = 4_096`, `MAX_DEPTH = 12` and `MAX_KEYS = 200` are copied from `src/contract/safety.py:59-135`, with that provenance in the module. Scrubbing runs first, so `MAX_STRING`'s truncation can never leave a prefix of a value. Step 8 uses `redact` for every disclosure; the owner's own doors read unredacted except secret values (the spec).
+* `Secrets.log_filter() -> logging.Filter`. A `ScrubFilter` whose `filter(record)`:
+  * sets `record.msg = self.scrub(record.getMessage())` and `record.args = ()`;
+  * when `record.exc_info` is set, sets `record.exc_text` to the scrubbed `logging.Formatter().formatException(record.exc_info)`, then `record.exc_info = None`;
+  * scrubs `record.stack_info` when set;
+  * returns `True`.
+
+  The kernel writes no log line at `cb439ce` (no `logging`, `print` or `sys.stderr` in `src/`). SLICE-11 attaches this filter to every handler a process composes.
+
+#### Children (`settings/secrets.py`)
+
+`child_environment(parent_env, allowed, *, refs, resolved) -> dict[str, str]` builds a child's environment:
+
+1. It keeps a name when it is in `BASE_ENV` or in `allowed`, or starts with `"PYTHON"` or `"LC_"`. `BASE_ENV` and the prefixes are copied from legacy's `_BASE_ENV` and `_BASE_PREFIXES` (`src/runtime/strategy_host/process.py:80-91`), with that provenance. Legacy's pass-through of configuration overrides (`process.py:132-138`) is not copied: a target child takes its configuration as arguments (SLICE-09).
+2. It then **pops**, even when listed in `allowed`:
+   * every name `n` with `env_path(n) == BROKER_KEY_PATH`, as legacy's `withhold_broker_key` does (`src/config/__init__.py:226`). `BROKER_KEY_PATH = "openalgo.auth.api_key"` (`:215`). `env_path` is ported from `src/config/__init__.py:197-210`, with its alias table cut to the key's one alias, `{"OPENALGO_API_KEY": "openalgo.auth.api_key"}` (`:76`). `AT__` names map by dropping the prefix, lower-casing and turning `__` into `.`; `MCP_` names containing `__` map the same way; any other name maps to `None`. So `OPENALGO_API_KEY`, `MCP_OPENALGO__AUTH__API_KEY` and `AT__` in any letter case (`AT__openalgo__auth__api_key` included) are popped, where legacy's fixed `BROKER_KEY_ENV` (`src/tier1/recovery.py:72-73`) would miss the case variants;
+   * every `env` locator in `refs`;
+   * every name whose value contains any form of any value in `resolved`.
+3. It sets `BROKER_KEY_MASK = "AT__OPENALGO__AUTH__API_KEY"` to `""`, legacy's mask (`src/config/__init__.py:216`, `:228`).
+
+* **Fork call (children never hold the broker key).** A spawned child gets the allow-list, loses the key's names by a `pop`, not an omission, and carries the mask, as legacy (`src/runtime/strategy_host/process.py:326-329`; `src/config/__init__.py:219-229`). Who can send orders does not change.
+* **Deviation (stricter):** step 2's pop by value also removes a secret held under a name nobody listed. Legacy removed by name only.
+
+#### The adapter (`adapters/openalgo.py`)
+
+The adapter is where a secret value and outside text meet. The spec's "every evidence record, log line and error the kernel writes passes `scrub`" is met here, before any digest is taken.
+
+* `_Http.__init__(base_url, api_key, secrets=None)` (`adapters/openalgo.py:306-317`):
+  1. It keeps the URL checks first.
+  2. A non-`Secret` `api_key` raises `TypeError("api_key must be a Secret")`.
+  3. `secrets` defaults to `Secrets((api_key,))`; a given `secrets` whose `get(api_key.key)` is not `api_key` raises `ValueError`.
+  4. `self.key = api_key.reveal()`: the adapter's one `reveal`, held privately as today.
+  5. `scrub` (`:319-326`) becomes `return self._secrets.scrub(value)`.
+* `OpenAlgoAdapter(base_url, api_key, account, clock, evidence, *, http_timeout_ms, exchange, read_budget=None, secrets=None)` and `OpenAlgoMarketSource(base_url, api_key, clock, *, …, secrets=None)` pass both to `_Http`. The market source's `str` check (`:951-952`) becomes the `Secret` `TypeError`. SLICE-11 passes the process's resolved `Secrets`, so every secret the process holds is scrubbed, not only the key.
+* **Every parsed response is scrubbed before it is mapped.** `body = self._scrub(_parse_exact(text))` in `_send` (`:462`), `_send_basket` (`:516`) and `_read` (`:720`). An order ID, symbol or message echoing a secret therefore reaches no `LegResult`, observation item, ledger event or evidence as the value; it arrives as `***`. The market source's `_parse` already scrubs (`:1050`).
+* **Scrub before truncation.** `{"text": self._scrub(text[:4096])}` (`:466`, `:520`) becomes `{"text": self._scrub(text)[:4096]}`. Truncating first could leave a prefix of a key that straddles byte 4,096.
+* **Correction to the slice-level "value scrubbing" Deviation.** It cites `adapters/openalgo.py:414` and `:468` as dropping the key by field name only. At `cb439ce` the adapter already scrubs the key by value (`:319-326`, applied at `:463`, `:466`, `:517`, `:520`, `:592`, `:609`, `:628`, `:669`, `:714`, `:721`, `:763`). It drops the request field by name (`:451`, `:505`). What it does not do is scrub the exact parse it maps (`:462`, `:516`, `:720`), scrub before truncating (`:466`, `:520`), or cover any secret but the key. Step 3 adds those three.
+* **Fork call (the instrument master's key in the URL).** The master is read by a GET whose query carries `apikey`, legacy's form (`adapters/openalgo.py:334-338`, `:1268`). It stays: OpenAlgo's endpoint takes the key there. **Leftover risk:** an access log on the OpenAlgo host or a proxy can record query strings, and so the key. That is outside this system's writes, so step 3 cannot scrub it. The SLICE-11 hand-off below stops OpenAlgo's access log from recording query strings.
+* **Rejected: scrubbing inside `EvidenceStore.publish`.** It would change content after the adapter stamped its digest, and `kernel/reconciliation.py:834-835` would then refuse the citation. A leak would become a refused entry, which gates trading. The adapter scrubs before the digest instead, and the byte scans (Tests) prove nothing else writes a value.
+
+#### `CREDENTIAL_BOUND` (`kernel/recovery.py`, ledger)
+
+* `Recovery(…, credentials=())` gains one keyword: a tuple of `(identifier, source, warnings)` triples. Each identifier and source is a non-empty `str`, the source in `("credential", "file", "env")`, and the identifiers are distinct. `warnings` is a tuple of reasons from `("env_source", "permissions", "owner")`. Anything else raises `ValueError`. `kernel/` imports nothing from `settings.secrets`: the composition passes plain triples.
+* `run()` (`kernel/recovery.py:136-169`) calls `self._bind_credentials()` right after `self._bind_release()` (`:151`), in `RECOVERY_WRITING` and before `coordinator.recover()`. With credentials, it commits **one** decision of kind `CREDENTIAL_BOUND` by `kernel:recovery` through `_record` (`:104-109`). The decision holds one `CREDENTIAL_BOUND` event per credential, in identifier order, with payload exactly `{"identifier": …, "source": …, "warnings": [reason, …]}` (an empty list when there is none). With none, it writes nothing, so `FRESH` and every kind list stay as they are. `run` runs once per composition, so once per credential per epoch.
+* The payload never holds the value, a hash of it, its length or its locator. **Fork call (a key replacement never gates a start or a send):** no routine check reads `CREDENTIAL_BOUND` (`routine_failures`, `kernel/recovery.py:232-268`). A key replaced between epochs neither declines the routine advance nor resends anything. A command left `UNCERTAIN` stays uncertain and is reconciled (CUJ-SEC-5; `README.md:867`), as legacy's restart resent nothing.
+* `resources/events.schema.json` gains `"CREDENTIAL_BOUND": {"identifier": "string", "source": "string", "warnings": "array"}`. `kernel/ledger/store.py`'s `_FAMILY` (`:32-47`) gains `"CREDENTIAL_BOUND": "recovery"`. `kernel/ledger/projections.py`'s `_NO_ROWS` (`:17-18`) gains it: no index table, as the catalogue says. No migration.
+* `compose_simulation(…, credentials: Secrets | None = None)` (`bootstrap.py:123-132`) passes `credentials=credentials.bound() if credentials is not None else ()` to `Recovery` (`:256-259`). It is the simulation's stand-in for SLICE-11's kernel composition; the simulation itself holds no key.
+* `Secrets.bound() -> tuple[tuple[str, str, tuple[str, ...]], ...]` is `(identifier, source, reasons)` for each held secret, in identifier order, with `reasons` that secret's warnings in their order.
+
+#### `config/live.example.yaml`
+
+The file is in the target tree (`README.md:963`). Step 3 creates it holding only a header comment and the `secrets` section. SLICE-11 step 7 adds the rest of the production profile.
+
+```yaml
+# Secret references only. No value is ever written here (SLICE-10 step 3).
+secrets:
+  openalgo:
+    api_key:
+      source: credential        # systemd LoadCredential; `file` is also accepted; `env` works, with the warning env_source
+      locator: openalgo-api-key
+      version: null             # the operator's label for the installed key, for example v3
+```
+
+#### The secret guards
+
+At `cb439ce`, `OA_NEW` has neither `gitleaks` nor a hygiene test: no `.pre-commit-config.yaml`, and no test that scans for secrets (checked with `git ls-tree`). They are repository files for SLICE-11 ([configuration spec](../../design/configuration-artifacts-release.md#repository-files)). This step keeps them unneeded for itself: **no test holds a literal secret value**. Each synthetic value is made at run time (Tests), so no source file holds one.
+
+#### Fork calls and deviations in this step
+
+* **Fork calls**, each named where it applies above:
+  * the key as legacy reads it (stripped, nothing checked);
+  * legacy's key sources keep trading (`env_source`, `permissions` and `owner` are warnings);
+  * the market process holds the broker key for its reads;
+  * children never hold the broker key;
+  * the instrument master's key in the URL;
+  * a key replacement never gates a start or a send.
+* **Deviations:**
+  * a malformed secret configuration refuses the start, for owner review;
+  * scrubbing covers every held secret and its JSON and URL forms, at every length, before truncation and before the adapter maps a response;
+  * a child loses a secret by value as well as by name;
+  * `CREDENTIAL_BOUND` is new.
+* No score, threshold or money value is set. `MAX_SECRET_BYTES` is a memory bound.
+
+#### What later steps take from step 3
+
+* **Step 6:** the operator process resolves `SCOPES["operator"]` (nothing). It builds any child's environment with `child_environment`.
+* **Step 8:** adds the `mcp` and `console` scope rows and moves the MCP static tokens from configuration to references (the slice-level Deviation). It uses `Secrets.redact` for every disclosure, and `child_environment` for PRF-SEC-09's check.
+* **SLICE-09:** the worker host builds each worker's environment with `child_environment`.
+* **SLICE-11:**
+  * composes the kernel and market processes with `resolve(parse_references(profile["secrets"]), SCOPES[…], live=True, environ=os.environ)`;
+  * passes the result as `credentials=` (kernel) and as the adapters' `api_key` and `secrets`;
+  * attaches `log_filter()` to every handler;
+  * routes `sys.excepthook` and `threading.excepthook` through that filtered logger, so an uncaught traceback is scrubbed too;
+  * stops OpenAlgo's access log from recording query strings (the instrument master's key);
+  * installs the key `0600`, owned by the unit's user;
+  * completes `config/live.example.yaml`.
+
+### Tests
+
+`tests/unit/test_secret_references.py` (tree delta **T-61**) holds PRF-SEC-04. It uses the `simulation` fixture and `RecordedClock` at `START`.
+
+**Synthetic values, never literals.** Each test draws `SYNTH = "SYNTHETIC-SECRET-" + uuid.uuid4().hex`, and the Scrub group also `ODD = 'SYNTHETIC-SECRET "é" ' + uuid.uuid4().hex`. Every byte scan looks for the value's UTF-8 bytes, its two JSON forms, its `quote_plus` form, and the hex SHA-256 of its UTF-8 bytes.
+
+**Platform.** Cases marked POSIX (`skipif(os.name != "posix")`) run where the slice header says Linux-only tests run, and count only from there. Every other case runs on Windows and Linux.
+
+A test file is written with `Path.write_bytes`, then (POSIX) `os.chmod(path, 0o600)` unless the case says otherwise.
+
+| Group | Cases |
+|---|---|
+| References | `parse_references` of the example file's `secrets` (`yaml.safe_load`) gives exactly `(SecretRef("openalgo", "api_key", "credential", "openalgo-api-key", None),)`, with identifier `openalgo/api_key@unversioned`. Every leaf of that file under `secrets` is one of `source`, `locator`, `version`. Each of these raises `SecretUnresolvable` (`malformed_reference`, `where` named): source `vault`; a relative `file` locator `keys/k`; `credential` locators `a/b` and `..`; `env` locator `1X`; version `v 3`; service `OpenAlgo`; an extra key `value`; a missing `version`; a list as the section. `None` gives `()` |
+| Sources | `file` with `SYNTH + "\n"` resolves to `SYNTH` (legacy's strip), identifier `openalgo/api_key@v3`. `env` (`environ={"SYNTH_KEY": " " + SYNTH}`, not live) resolves to `SYNTH`. `credential` with `environ={"CREDENTIALS_DIRECTORY": str(tmp_path)}` and the file `openalgo-api-key` resolves. Refusals with their reason: a missing file (`missing`); an absent env name (`missing`); `credential` with no `CREDENTIALS_DIRECTORY` and with `"rel"` (`no_credentials_directory`); the file holding `" \n\t"` (`empty`); 65,537 bytes (`oversize`); `b"\xff"` (`not_utf8`); a directory (`not_regular` on POSIX, `unreadable` on Windows). In each refusal the message and `repr` hold none of the value's forms, `__cause__` is `None` and `__suppress_context__` is `True` (`not_utf8` with `b"\xff" + SYNTH.encode()` included). POSIX: modes `0o640`, `0o604` and `0o610` each resolve to `SYNTH` with `warnings == (("openalgo/api_key", "permissions"),)`. `0o600` and `0o400` resolve with no warning. With `os.geteuid` monkeypatched to return the real uid plus 1, it resolves with `(("openalgo/api_key", "owner"),)`; with `0o640` as well, with `permissions` then `owner`. A symlink to a `0o600` file resolves with no warning |
+| Live | The broker key from `env` with `live=True` resolves to `SYNTH` with `warnings == (("openalgo/api_key", "env_source"),)`; with `live=False` it resolves with no warning. From `file` with `live=True`: no warning. A non-broker secret, scope `frozenset({("synthetic", "token")})`, from `env` with `live=True`: no warning |
+| Scope | References for `openalgo/api_key` (a `file` that exists) and `mcp/tokens` (a `file` that does not). `resolve(…, SCOPES["kernel"], …)` holds exactly `openalgo/api_key` and raises nothing for the missing `mcp` file. `resolve(…, SCOPES["operator"], …)` is empty, also when the `openalgo` file is missing. `SCOPES["kernel"]` with no `openalgo` reference: `no_reference`. Two references for `openalgo/api_key`: `malformed_reference`. The market scope equals the kernel's. With `os.open` wrapped to record paths, a `kernel` resolve opens exactly one path |
+| Never written | For `Secret` and `Secrets`: `repr`, `str`, `f"{s}"`, `f"{s:>40}"`, `"%s" % s` and `logging`'s `%s` show `Secret(openalgo/api_key@v3)` and no form of the value. `json.dumps(s)` and `pickle.dumps(s)` raise `TypeError`; `canonical({"k": s})` raises `NotJsonData` naming `$.k: Secret`, with no form of the value. `copy.deepcopy(s) is s`. Setting an attribute raises. `Secret(ref, "")` raises `ValueError` |
+| Scrub | `Secrets` holding `SYNTH`: a `str`, a `dict` with the value as key and as value at depth 5, a `list` and a `tuple` keep their types, with every occurrence replaced by `***`. A `Decimal("10.05")` is returned equal. Holding `ODD`: each of its four forms inside a string is replaced. Two secrets `A = "SYNTHETIC-" + h` and `B = A + "-LONGER"`, one `h`, in `"x " + B + " y"`: the result is `"x *** y"` (shortest first would leave `"x ***-LONGER y"`). An empty `Secrets` returns its input unchanged |
+| Redact | `{"api_key": "plain", "note": "uses " + SYNTH, "nested": [{"Authorization": "x"}]}` gives `{"api_key": "[redacted]", "note": "uses ***", "nested": [{"Authorization": "[redacted]"}]}`. A 5,000-character string of `x` with `SYNTH` (49 characters) at offset 4,080 gives no prefix of `SYNTH` of 8 or more characters, and ends exactly with `… [truncated, 4954 chars]` (5,000 − 49 + 3) |
+| Children | `OLD = "SYNTHETIC-OLD-" + uuid4().hex`, a value no reference resolves. Parent: `PATH`, `HOME`, `LC_ALL`, `PYTHONPATH`; `OPENALGO_API_KEY`, `AT__OPENALGO__AUTH__API_KEY`, `AT__openalgo__auth__api_key` and `MCP_OPENALGO__AUTH__API_KEY`, each `OLD`, so only the name rule can remove them; `SYNTH_TOKEN` (the locator of an `env` reference); `ALLOWED_X = "v=" + SYNTH`; and `RANDOM_NAME`. With `allowed={"OPENALGO_API_KEY", "MCP_OPENALGO__AUTH__API_KEY", "ALLOWED_X", "SYNTH_TOKEN"}` and `resolved` holding `SYNTH`, the result is exactly `PATH`, `HOME`, `LC_ALL` and `PYTHONPATH` with their values, plus `AT__OPENALGO__AUTH__API_KEY = ""`. The parent mapping is unchanged |
+| Adapter | The module is imported in a fixture and popped after, as `tests/integration/test_openalgo_contract.py`'s `oa`. `_getaddrinfo` is monkeypatched to one loopback address, and `_open_connection` to return, at each call, one end of a new `socket.socketpair()` whose other end already holds the next scripted response with a `Content-Length` (a basket's in-send orderbook read is the next call). `OTHER = "SYNTHETIC-OTHER-" + uuid4().hex`, and `secrets` holds the key and `Secret(SecretRef("synthetic", "token", "env", "SYNTH_TOKEN", None), OTHER)`. The adapter is built with `secrets["openalgo/api_key"]` and `secrets=secrets`; requests and tickets are built as that file's cancel, close and basket cases build theirs. A cancel `k-s1` of `o-1`, ticket strategy `buyer_edge`, answered 400 `{"status": "error", "message": "bad key " + SYNTH}`: `rejected`, reason `bad key ***`. The same cancel answered 400 `{"status": "error", "message": "bad token " + OTHER}`: `rejected`, reason `bad token ***`. The first cancel answered 502 with a 5,000-byte non-JSON body holding `SYNTH` at offset 4,080: `ambiguous` (`http_502`), and its evidence's `response.text` holds no 8-character prefix of `SYNTH`. A close `k-x1` answered 200 `{"status": "success", "orderid": SYNTH}`: `acknowledged` with `broker_order_id == "***"`. A basket entry with one stop leg answered 200 with `results` rows naming `SYNTH` and `S1` and an in-send orderbook naming neither: `SYNTH` appears in no `LegResult` and the unassigned IDs are exactly `("***", "S1")`. An orderbook answered with rows `{"orderid": SYNTH, "symbol": "NIFTY-SIM-CE", …}` and `{"orderid": "o-9", "symbol": SYNTH, …}`: items with `broker_order_id == "***"` and `symbol == "***"`; `content_digest(observation.content) == observation.digest`, and publishing that content returns that digest. A `str` key raises `TypeError` for both classes. `secrets` lacking the key raises `ValueError` |
+| Bytes | `SYNTH + "\n"` in a `file` reference, version `v3`, resolved with `live=True`. `comp = simulation([], credentials=secrets)`. The Adapter group's exchanges are driven with `evidence=comp.evidence`, and the observation published. A `logging.FileHandler` at `tmp_path / "kernel.log"` with `secrets.log_filter()` logs `log.error("echo %s", SYNTH)` and, inside `except`, `log.exception("failed")` for `RuntimeError(SYNTH)`. `comp.recovery.shutdown(True)`. The backup set: an `apsw` backup of the ledger to `tmp_path / "backup" / "ledger.sqlite"`, and `shutil.copytree` of the evidence directory beside it. No file under the ledger's directory, the log file or the backup directory holds any scanned form. Non-vacuous: `***` is in the evidence store and in the log file, and the ledger holds one `CREDENTIAL_BOUND` |
+| Bound | In that composition: one `CREDENTIAL_BOUND`, by `kernel:recovery`, with payload exactly `{"identifier": "openalgo/api_key@v3", "source": "file", "warnings": []}`. A composition whose key came from `env` with `live=True` records `"warnings": ["env_source"]`, and still advances routinely when the other checks hold. Its sequence is after this epoch's `RELEASE_BOUND` and before its first `RECOVERY_STAGE`. A second composition on the same ledger adds exactly one more, with the second epoch's `epoch_id`. `simulation([])` writes none: its kinds equal `FRESH` |
+| Replacement (CUJ-SEC-5) | Epoch 1 composes with `v3` and `[{"result": "timeout"}]`. The fixture entry is submitted through `comp.coordinator._submit_admitted` (as `tests/contracts/test_capabilities.py:80`): its command is `UNCERTAIN` and its attempt `AMBIGUOUS` (as `tests/recovery/test_crash_boundaries.py:269`). Shut down. The file is rewritten with a second synthetic value, and the reference's version set to `v4`. With `resolve` wrapped to count calls, epoch 2 composes on the same ledger with `[]`. Its `CREDENTIAL_BOUND` names `openalgo/api_key@v4`; the command is still `UNCERTAIN`; after `run_pass()` twice, `broker.calls == []`; `resolve` was called once. **No re-read:** the epoch-1 `Secret` still reveals the first value after its file was rewritten and then deleted |
+| Boundary | Parsed with `ast` over `src/autonomous_trading`. A call named `Secret` appears only in `settings/secrets.py`; an attribute call `reveal` only in `settings/secrets.py` and `adapters/openalgo.py`. No `kernel/` module imports `autonomous_trading.settings.secrets`. `settings/secrets.py` imports from `autonomous_trading` only `settings.loader` |
+
+`tests/integration/test_openalgo_contract.py` changes in its three constructor sites only (`:173`, `:756`, `:827`). Each passes `KEY_SECRET = Secret(SecretRef("openalgo", "api_key", "env", "SYNTHETIC_OPENALGO_KEY", None), KEY)` (an `env` locator, because a `file` locator's absoluteness differs by platform), with `KEY` its existing labelled synthetic value. Every expected byte string (`:331`, `:840`, `:1209`, …) and every `***` expectation (`:1285`-`:1299`) stays as it is.
+
+### Break checks
+
+Each mutation is applied after its anchor is checked present exactly once, run against the listed test file, and restored byte for byte with an md5 check. Each must fail a test.
+
+| Change | Anchor | Test that must fail |
+|---|---|---|
+| The `env_source` warning not raised | `resolve`'s `live` and `BROKER_CREDENTIALS` test | Live |
+| The `permissions` warning not raised | `resolve`'s `st_mode & 0o077` | Sources (POSIX) |
+| The `owner` warning not raised | `resolve`'s `st_uid != os.geteuid()` | Sources (POSIX) |
+| A `SecretUnresolvable` chained (`from None` removed) | `resolve`'s `raise … from None` on `not_utf8` | Sources (`__suppress_context__`) |
+| References outside the scope read | `resolve`'s scope filter | Scope |
+| No `strip()` | `resolve`'s `strip()` | Sources (`SYNTH + "\n"`) |
+| `strip()` replaced by `strip("\n")` | the same | Sources (the `env` value with a leading space) |
+| `reveal` re-reads its source | `Secret.reveal` | Replacement (the deleted file) |
+| `Secret.__repr__` shows the value | `Secret.__repr__` | Never written |
+| `Secret` picklable (both methods removed) | `Secret.__reduce__` and `Secret.__reduce_ex__` | Never written |
+| `__format__` removed | `Secret.__format__` | Never written (`f"{s:>40}"` raises `TypeError`) |
+| Only the raw form scrubbed | `Secrets.scrub`'s forms | Scrub (`ODD`) |
+| Forms replaced shortest first | `Secrets.scrub`'s sort | Scrub (the two overlapping secrets) |
+| `redact` truncates before scrubbing | `Secrets.redact`'s order | Redact |
+| The log filter keeps `record.args` | `ScrubFilter.filter`'s `record.args = ()` | Bytes (the log file) |
+| The log filter ignores `exc_info` | `ScrubFilter.filter`'s `exc_info` branch | Bytes (the log file) |
+| The broker names not popped | `child_environment`'s `env_path(n) == BROKER_KEY_PATH` loop | Children |
+| A fixed name list in place of `env_path` | the same loop, over legacy's three upper-case names | Children (`AT__openalgo__auth__api_key`) |
+| The mask not set | `child_environment`'s `BROKER_KEY_MASK` | Children |
+| The removal by value dropped | `child_environment`'s `resolved` test | Children (`ALLOWED_X`) |
+| The adapter truncates before scrubbing | `adapters/openalgo.py`, `_send`'s `{"text": …}` | Adapter (the 502 body); Bytes |
+| A single send maps the unscrubbed parse | `_send`'s `self._scrub(_parse_exact(text))` | Adapter (the close's acknowledged ID) |
+| A basket maps the unscrubbed parse | `_send_basket`'s `self._scrub(_parse_exact(text))` | Adapter (the basket's unassigned ID) |
+| The read maps the unscrubbed parse | `_read`'s `self._scrub(_parse_exact(text))` | Adapter (the orderbook items); Bytes |
+| The adapter accepts a `str` key | `_Http.__init__`'s `isinstance(api_key, Secret)` | Adapter |
+| The adapter scrubs only its key | `_Http.scrub`'s `self._secrets.scrub` | Adapter (`bad token ***`) |
+| `CREDENTIAL_BOUND` carries the value's SHA-256 | `Secrets.bound()`'s triple | Bound; Bytes |
+| `CREDENTIAL_BOUND` recorded after the routine advance | `run()`'s `_bind_credentials()` call | Bound |
+| A `Secret` built outside its module | a `Secret(` call added to `bootstrap.py` | Boundary |
+| `reveal` called in the kernel | a `.reveal()` call added to `kernel/recovery.py` | Boundary |
+
+A cancel never returns the response's ID (`_classify`, `adapters/openalgo.py:619-622`, `:630`), so the cancel cases cannot catch an unscrubbed parse. The close and the basket cases in the Adapter group exist for the two parse rows.
+
+### Files
+
+| File | Change |
+|---|---|
+| `src/autonomous_trading/settings/secrets.py` | New: `SOURCES`, `SecretRef`, `parse_references`, `SecretUnresolvable`, `Secret`, `Secrets` (`scrub`, `redact`, `bound`, `log_filter`), `ScrubFilter`, `BROKER_CREDENTIALS`, `SCOPES`, `MAX_SECRET_BYTES`, `resolve`, `BASE_ENV`, `env_path`, `BROKER_KEY_PATH`, `BROKER_KEY_MASK`, `child_environment`, legacy's redaction copied |
+| `src/autonomous_trading/adapters/openalgo.py` | `_Http` takes a `Secret` and `secrets`; both classes' `secrets`; the market source's `TypeError`; parses scrubbed before mapping; scrub before truncation |
+| `src/autonomous_trading/kernel/recovery.py` | `credentials`, `_bind_credentials`, its call in `run` |
+| `src/autonomous_trading/kernel/ledger/store.py` | `_FAMILY` |
+| `src/autonomous_trading/kernel/ledger/projections.py` | `_NO_ROWS` |
+| `src/autonomous_trading/resources/events.schema.json` | `CREDENTIAL_BOUND` |
+| `src/autonomous_trading/bootstrap.py` | `compose_simulation`'s `credentials` |
+| `config/live.example.yaml` | New: the header and `secrets` only |
+| `tests/unit/test_secret_references.py` | New (T-61) |
+| `tests/integration/test_openalgo_contract.py` | The three constructors take `KEY_SECRET` |
+
+No new tree delta. `settings/secrets.py` and `config/live.example.yaml` are in the target tree, and the test file is T-61.
+
+### Completion conditions (step 3)
+
+* Every test passes twice in a row with the whole suite, on Windows and on Linux. The POSIX cases count only from the Linux run.
+* Every break check fails a listed test, and every file is restored (md5). `ast.parse` passes on every edited Python file, `json.loads` on `resources/events.schema.json`, and `yaml.safe_load` on `config/live.example.yaml`.
+* `git diff --name-only` names exactly the files in the table above, in one commit.
+* No file in the commit holds a secret value: the synthetic values exist only at run time.
+* The build starts on the coordinator's word, and every cited line is re-read on the head the build starts from.
+* PRF-SEC-04 passes. Every earlier test passes with no expectation changed beyond the three constructor sites.
+* The spec's Secrets section and this file record step 3 "as built", with any Deviation or Fork call found while building.
+
+### Step 3 as built
+
+**In plain words.** Keys and passwords now come from references read once at start. The broker key is used exactly as today, and the cases in which today's system traded are recorded as warnings, never refusals. The key reaches no record, error, log or backup the system writes, even when OpenAlgo echoes it, and no child process. All 1,321 automatic checks pass.
+
+Commit `ba2face` on `slice-08`, after `53b7d97` (SLICE-08 step 6), which touched none of the cited files. It changes exactly the ten files in the step's table (+1,043 −30). Nothing is pushed.
+
+**Choices made while building:**
+
+| Topic | As built |
+|---|---|
+| Children test | `allowed` also names `AT__openalgo__auth__api_key`. Without it the allow-list drops that name anyway, so "a fixed name list in place of `env_path`" could not fail |
+| Replacement test | The simulation without admission ports composes no dispatch, so `run_pass()` is not called. `broker.calls == []` after recovery's `coordinator.recover()`. No re-read is also proven by recording `os.open`: epoch 2 never opens the key's path |
+| Adapter test | `ObservedOrder`'s field is `instrument`, not `symbol`. The basket uses the fixture plan with one stop leg and an empty in-send orderbook |
+| No credentials | `kinds(simulation([])) == FRESH` |
+| Contract test | Besides its three constructors, it imports `Secret` and `SecretRef` and defines `KEY_SECRET` beside `KEY` |
+| Module extras | `WARNINGS`, `MARKER`, `Secrets.contains_secret` (used by `child_environment`), and `Secret.__delattr__` |
+| Break anchors | "The adapter scrubs only its key" mutates `_Http.__init__`'s `self._secrets = secrets`. "The log filter keeps `record.args`" mutates the filter to scrub only the format and keep the arguments: removing `args = ()` alone makes `logging` fail to stderr, which no file check sees. "The adapter accepts a `str` key" wraps the string in a `Secret` |
+
+**Tests:** `tests/unit/test_secret_references.py`, 16 test functions. On Windows, 15 passed and 1 skipped (the POSIX case). On Linux, all 16 passed: a throwaway worktree off the EC2's `~/OA_NEW`, with `~/at-dev`'s venv through `safe_pytest.py`, removed afterwards. The whole suite on Windows, once after the last edit: **1,321 passed, 2 skipped**, in 169.2 s. `ast.parse` passes on the eight edited Python files, `json.loads` on the event schema, and `yaml.safe_load` on the example.
+
+**Break checks** (`s10c_breaks.py` in the session scratchpad; anchors checked first, one mutation at a time, every file restored byte for byte, md5 verified). On Windows 28 of 28 failed a listed test. The two POSIX rows (`permissions` and `owner` not raised) ran on Linux: 2 of 2 failed `test_sources_warn_never_refuse`.
 
 ## Step 4 — kill inputs (outline)
 
