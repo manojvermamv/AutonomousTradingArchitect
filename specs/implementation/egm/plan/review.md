@@ -756,3 +756,17 @@ Fresh `egm:egm-design` (F-1…F-13) and `egm:egm-implementation-readiness` (R-1�
 | F-12 = R-8 | — | C-1 could keep sending after a failure | Stops on any failure; about :30 past a minute; counts as specified |
 | F-13 | — | `bar_time` not legacy's | Ported literally, with a test |
 | R-2…R-17 | — | Exact bodies, fixture table, synthetic shapes, deadlines, error texts, fakes | All applied |
+
+## SLICE-08 step 5 reviews (2026-10-31)
+
+Fresh `egm:egm-design` (F-1…F-12) and `egm:egm-implementation-readiness` (R-1…R-14) reviews of [SLICE-08 step 5](../../plan/slices/SLICE-08-market-data-and-views.md#step-5--the-kernels-port), before any code. All resolved in the text, then built (`7ebee6c`, `4ecc799`; 1,245 passed, 1 skipped; 35 of 35 break checks).
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| F-1 | Blocker | An unreadable store cancelled square-off | Fork call: square-off's offset from the static calendar, never the store |
+| F-2 = R-2 | Blocker | Missing or wrong-mode stores raised uncaught errors | Read as unreadable and retried; a bad configuration refused at composition |
+| F-3 = R-1 | Blocker | Basket positions never trailed | `_Subject.underlying` set on both paths; a basket test |
+| F-4…F-7, F-9 | Major | Deviations that changed stops, trails or entries | Fork calls: unreadable close holds and escalates once; day high from every poll; prices and tick size as received; passed expiries left out; the calendar fact retried each minute |
+| F-8 | Major | An unreadable store bypassed the through-market guard | New levels held, one `market_unreadable` escalation per outage; placed stops untouched |
+| F-10…F-12 | Minor | Labels, shared reader, upgrade order | Relabelled; one lock; SLICE-11 starts the writer first |
+| R-3…R-14 | Major/Minor | Expressions, test world, literals, generator, anchors | All applied |

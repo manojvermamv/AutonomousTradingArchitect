@@ -1,6 +1,6 @@
 # SLICE-08 — Market data and views
 
-* **Status:** proposed (2026-10-29); reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-08-review-2026-10-29)), whose findings are resolved in this text. Step 1 is built (OA_NEW `484a1ec` on `slice-08`; [Step 1 as built](#step-1-as-built)). Step 2 is built (OA_NEW `42879dd`; [Step 2 as built](#step-2-as-built)). Step 3 is built (OA_NEW `fb8f2bb`; [Step 3 as built](#step-3-as-built)). Step 4 is built (OA_NEW `e070d01`; [Step 4 as built](#step-4-as-built)); its C-1 capture is pending. Steps 2–6 are deepened in turn, each after the step before it is built, as in SLICE-04, SLICE-05, SLICE-06 and SLICE-07 (the delivery plan's depth rule).
+* **Status:** proposed (2026-10-29); reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-08-review-2026-10-29)), whose findings are resolved in this text. Step 1 is built (OA_NEW `484a1ec` on `slice-08`; [Step 1 as built](#step-1-as-built)). Step 2 is built (OA_NEW `42879dd`; [Step 2 as built](#step-2-as-built)). Step 3 is built (OA_NEW `fb8f2bb`; [Step 3 as built](#step-3-as-built)). Step 4 is built (OA_NEW `e070d01`; [Step 4 as built](#step-4-as-built)); its C-1 capture is pending. Step 5 is built (OA_NEW `7ebee6c` and `4ecc799`; [Step 5 as built](#step-5-as-built)). Steps 2–6 are deepened in turn, each after the step before it is built, as in SLICE-04, SLICE-05, SLICE-06 and SLICE-07 (the delivery plan's depth rule).
 * **Precedence:** the master README, then the ROADMAP, then this package. The authority is the [market-data spec](../../design/market-data-and-canvas.md). Every deviation is marked **Deviation**. No score, threshold or money value is set here: the confirmation lag is POL-019's approved 7 s, bound only in tests to labelled values.
 * **Phase:** master Phase 5 (A01-F1…F5, D08). Environment class S, except step 4's captured OpenAlgo responses (class R).
 * **Builds on:** SLICE-03 and SLICE-04 as built, and on SLICE-06 as built (the protection loop reads `closes` and `latest_tick`). The branch `slice-08` is cut from `agentic-desk` (OA_NEW `536f857`, SLICE-06 plus the repository's `AGENTS.md`).
@@ -818,9 +818,344 @@ Commit `e070d01` on `slice-08`, on top of `fb8f2bb`. It changes 22 paths (24,318
 
 **Open:** C-1 and `test_pe_delta_sign_at_the_source` (the owner's coordinator runs C-1).
 
-## Step 5 — the kernel's port (outline)
+## Step 5 — the kernel's port
 
-Deepened after step 4 is built: the spec's [kernel port](../../design/market-data-and-canvas.md#the-kernels-market-port-marketviewpy). It replaces the fixture port in `bootstrap` for compositions that name a market store, and keeps it for those that do not. The kernel change: `MarketPort.resolve`, a `view_id` argument on `closes` and `latest_tick`, and `market_view` on `PROTECTION_DESIRED` and `GAP_PEAK_RECORDED`. The carried SLICE-06 gap sources land here, the day high with parity cases generated from legacy. The tick source is the chain poll (Q-031 A). Test file: `tests/integration/test_market_port.py` (**T-46**).
+<a id="step-5--the-kernels-port-outline"></a>The authorities are the spec's [kernel port](../../design/market-data-and-canvas.md#the-kernels-market-port-marketviewpy) section, its [Ingestion and merge](../../design/market-data-and-canvas.md#ingestion-and-merge-marketingestpy) feed-gap rule, the protection spec's gap record as SLICE-06 step 5 built it, and legacy's live host at 445eb116. Step 5 is TASK-S08-04 (PRF-MKT-07). It builds `StoreMarket`, the kernel's market and calendar ports over the store, composes it in `bootstrap` for a composition that names a market store, gives protection one view per pass, ports the two gap sources SLICE-06 carried (`missing_minutes` and the day high), and adds the store's `gap` coverage status that step 4 carried. It builds on step 4 as built (OA_NEW `c2cca11` on `slice-08`, which merges SLICE-10 step 1 into `e070d01`). Fresh design and readiness reviewers reviewed this step ([review](../../egm/plan/review.md)); their findings (F-1…F-12, R-1…R-14) are resolved below, each checked against the code first. Every legacy citation is at 445eb116; `MP` is `src/interfaces/mcp/core/marketpull.py`, `S` is `src/data/marketdata/scans.py`, `RFL` is as above.
+
+**In plain words.** The new system now reads real stored prices instead of test fixtures, through the same doors the entry checks and the protection loop already use. Each protection pass takes one snapshot of the market and records its name on every decision it makes, so any stop move can be replayed later with exactly the prices it saw. The option's minute-by-minute prices come from the stored option chain, as today, and a price that cannot be read stops that position's trail for the pass, as today. Two ways of spotting a missed price peak that today's system has are added back: a hole of more than two minutes between prices, and the option's day high rising across the hole. These are still recorded only, never acted on. If the price store cannot be read, no stop is moved to a new level, the outage is reported once, and the end-of-day square-off still runs. The trading calendar comes from the recorded exchange timings, retried every minute until today's is stored. No trading rule, threshold or money value changes.
+
+### Decisions
+
+#### Who calls the ports today (checked on `c2cca11`, so none is missed)
+
+| Read | Callers in `src/` | Fixture data written by tests and tools |
+|---|---|---|
+| `MarketPort.closes` | `kernel/protection.py:860` (`ProtectionLoop._trail`), reached for a basket from `:525` (`_basket_desire`); declared `kernel/ports.py:105` | `FixtureMarket.closes`, `tests/conftest.py:541`; rows set in `tests/unit/test_protection_loop.py:106`, `:163`, `:232`, `tests/unit/test_protection_basket.py:285-286`, `tests/recovery/test_crash_boundaries.py:349-350`, `scripts/measure_protection.py:103-104`, `:121` |
+| `MarketPort.latest_tick` | `kernel/protection.py:1132` (`_tick_exit`), reached for a basket from `:466`; declared `kernel/ports.py:109` | `FixtureMarket.latest_tick`, `tests/conftest.py:544`; ticks set in `tests/unit/test_protection_loop.py:445`, `tests/recovery/test_crash_boundaries.py:342`, `scripts/measure_protection.py:122` |
+| The closes' result (`sj.latest_close`) | `kernel/protection.py:976` (`_stop_requests`) and `:576` (`_basket_leg`), the through-market guard | — |
+| `view`, `chain`, `chains`, `reference_facts` | `kernel/admission.py:742`, `:759`, `:763`, `:771` (`EntryAdmission.admit`) | `AdmissionWorld.fresh`, `tests/conftest.py:583-585`, and the admission tests |
+| The fixture port itself | Built only in `admission_ports`, `tests/conftest.py:614`; passed on by `bootstrap.py:161` and the two doors | Every admission world |
+| `Calendar.today`, `trading_day` | `kernel/lifecycle.py:136`, `:144` (`Sessions`); `kernel/protection.py:1161` (`_square_off`) | `FakeCalendar`, `tests/conftest.py:83` |
+
+#### Records (`contracts/market.py`, `kernel/ports.py`)
+
+* `TradingDay`, `Holiday` and the calendar's `Unavailable` move unchanged from `kernel/ports.py:20-36` into `contracts/market.py`, the last renamed `DayUnavailable` (step 3's `market/view.py` already has an `Unavailable(reason)`). `kernel/ports.py` imports the three and binds `Unavailable = DayUnavailable`, so every existing import and `isinstance` check is unchanged. Reason: `StoreMarket` returns them, and no `market` module may import the kernel beyond the storage layer (step 2's boundary test).
+* `PriceUnreadable(instrument: str, field: str, at: Timestamp)`, frozen, `field` `ltp` or `high` (else `ValueError`): a stored price `float` cannot read (F-4).
+* `COVERAGE_STATUSES = ("covered", "interrupted", "gap")`; `CoverageEntry.status` must be one of them.
+* **`OptionQuote` (Fork call, F-6):** `ltp`, `bid`, `ask` and `tick_size` become finite decimal strings (`_finite`), as `oi`, `volume`, `delta` and `gamma` are. Legacy's `_num` passes any finite number (`S:100-104`) and the planner turns quotes back into floats (`kernel/selection.py:20-35`), so a price is carried as the float's exact decimal text, never rounded. No test pinned the old rule; SLICE-04's planner tests pass unchanged.
+* `InstrumentClose` is unchanged: the day high is its own read (F-5, below), which supersedes the spec's `InstrumentClose.high` (and R-3).
+
+#### The kernel's port (`kernel/ports.py`)
+
+`MarketPort` becomes, with `view`, `chain` and `chains` unchanged:
+
+* `resolve(policy: str) -> str | None`: one view identity at the port's clock; `None` when the store cannot be read.
+* `closes(view_id: str | None, instrument: str, since: str, *, underlying: str | None) -> tuple[InstrumentClose, ...] | PriceUnreadable`, oldest first.
+* `highs(view_id: str | None, instrument: str, frm: str, to: str, *, underlying: str | None) -> tuple[str, ...] | PriceUnreadable`: the leg's day-high readings on every poll with `frm <= ts <= to` (F-5).
+* `latest_tick(view_id: str | None, instrument: str, *, underlying: str | None) -> Tick | None`.
+* `reference_facts(underlying, decision_at, *, view_id: str | None = None)`: `view_id`, when the caller has one, bounds the read by that view's head (F-11). Admission passes `intent.view_id` (`kernel/admission.py:771`).
+
+**Deviation (from the spec's `closes(view_id, instrument, since)`):** the reads also take the position's underlying. One pass view spans every underlying (below), and a held contract's chain is stored under its underlying. The kernel passes the entry's own `underlying` from its `COMMAND_ADMITTED` payload; nothing is parsed out of a symbol.
+
+#### `StoreMarket` (`market/view.py`)
+
+`StoreMarket(store_path, policies: Mapping[str, ViewPolicy], clock)`. Construction raises `ValueError` when a key differs from its policy's `name`, and opens the reader once (below). It never writes.
+
+* **Threads (F-11).** Admission runs on its callers' threads and the protection loop on the writer thread, and both read one instance. Every public method holds one `threading.RLock` for its whole read: the reader, its lazy reopening and both caches.
+* **The reader (F-2, F-12).** Opened lazily with `MarketReader.open(store_path)` and kept. `_UNREADABLE = (OSError, UnsafeRuntime, apsw.Error)` (`FileNotFoundError` is an `OSError`, `kernel/ledger/runtime.py:77-78`; `UnsafeRuntime`, `:85-87`). Opening that raises one of them, or `StoreNotUpgraded` (below), leaves the store unreadable; a read that raises one of them closes and drops the reader. The call then gives its "unreadable" answer, and the next call opens again. Any other `ValueError` from opening (`MKT-R02`, a schema this code does not know) is a configuration error: it is raised at construction, so `bootstrap` refuses the composition with `SettingsError`, and if a store is replaced under a running kernel it is raised from the read, never retried silently.
+* **The caches.** Views reopened since the last `resolve`, by `(view text, underlying)` (`None` for an entry view), so one pass parses a day's chain once per underlying; `resolve` empties it. For its whole life, each chain record's legs by `seq`, as `(symbol, raw strike, side, raw ltp, raw high)`, rows in `rows_of` order and `ce` before `pe` (a stored record never changes); entries of another exchange date than the new pass view's are dropped at each `resolve`. The reads use `View.heads(stream, instrument)`, a new public form of step 3's `_latest`, and load only the sequences not yet cached.
+* **A view for an underlying:** `reopen(reader, policies, text)`; `Unavailable` (or a non-string) gives `None`. An identity whose `underlying` is `*` gives `View(reader, policy, dataclasses.replace(identity, underlying=underlying))`; one naming that underlying gives itself; one naming another gives `None`. An entry read (`view`, `chain`, `chains`, `chain_evidence`) gives `None` for a `*` identity.
+
+**`resolve(policy)`** (unreadable: `None`): `resolve(reader, policies, policy, "*", instant(clock.now())).id.text`, step 3's function with the underlying `*`. A policy name not bound raises `KeyError` (`bootstrap` checks it). **Deviation (from the spec's identity, which names one underlying):** the pass view names `*`. Its store, schema, policy, digest, cutoff and head fix the population of every underlying, so each derived view reads exactly what the recorded text reopens. `*` is never an underlying.
+
+**`view(view_id) -> StableView | None`** (unreadable, `Unavailable` or `*`: `None`). With `v` the reopened view, `spot = v.spot()` and `chain = v.chain()`; either `None` gives `None`, which admission refuses as `ADM-R05` `view_missing` (`kernel/admission.py:754-755`). Otherwise:
+
+| Field | Value |
+|---|---|
+| `view_id` | the text |
+| `underlying` | the identity's |
+| `calendar_id` | `v.calendar.calendar_id` (`NSE-FO`) |
+| `bar_open`, `bar_close` | `v.anchor` and `v.anchor + 60 s`, as `Timestamp(utc(...), "exchange")`: the newest window confirmed by the cutoff (the spec) |
+| `spot_as_of`, `chain_as_of` | the chosen records' `event_at` text, domain `exchange` |
+| `spot` | `repr` of the spot record's usable value (`_usable`, step 3), whether the read answered `via` `spot` or `chain` |
+
+**`chain(view_id)`** is the snapshot of `v.chain()`'s record; **`chains(view_id)`** the snapshots of `v.chains()`, nearest expiry first (`None` and `()` when nothing is picked, unreadable, or `*`). Every snapshot of one poll has the poll's `event_at` as `as_of`, so admission's `as_of` checks hold (`kernel/admission.py:761`, `:767`). **The snapshot of a chain record `m` (Fork call: legacy's planner rows, `S:81-181` flattened, `S:334-366` Greeks attached):**
+
+* `ChainSnapshot(underlying, expiry=str(payload["expiry"]), as_of=Timestamp(event_at, "exchange"), rows, dte)`, `expiry` as stored (`25AUG26`, legacy's envelope expiry). `dte` is legacy's `_dte` (`S:65-78`): the expiry stripped, upper-cased and parsed with `%d%b%y`, `%d-%b-%y`, `%Y-%m-%d` in order, minus the poll's exchange date in days; unparsed gives `None`.
+* **A passed expiry (Fork call, F-7):** in `chains()` a snapshot whose `dte` is negative is left out, so structures' `_expiry_rows` skips it as legacy does (`kernel/selection.py:413`); it is never turned into `None`, which `_integer` would refuse (`:397-400`). In `chain()` (the one-leg planner, which never reads `dte`) a negative `dte` is carried as `None`, because the contract carries no negative value (`contracts/market.py:134`).
+* `rows`: for each dict row of `rows_of(payload.get("response"))` in order: a row whose `strike` is not an int or float, or is a bool or non-finite, is skipped (**Deviation:** legacy kept a `None` strike, which selection read as 0.0); otherwise `ChainRow(repr(float(strike)), lotsize, None, ce, pe)`. `lotsize` is `positive_integral_lot_size(ce.get("lotsize") or pe.get("lotsize"))`, the planner's own rule (`kernel/selection.py:230-239`) copied into `market/view.py`, on legacy's `ce or pe` choice (`S:146`). A non-dict leg is `{}` (`S:93-98`). The row-level `tick_size` is `None`: legacy's flat row has none.
+* A leg gives an `OptionQuote` when it is a non-empty dict whose `symbol` is a non-empty string, else `None`. With `num(x)` legacy's `_num` (`S:100-104`, an int or float that is not a bool, as a float, here also finite, else `None`):
+  * `ltp`, `bid`, `ask`, `oi`, `volume`, `tick_size`: `repr(num(...))` or `None` (F-6: never rounded). **Fork call:** the tick size is the raw finite value, as legacy's leg `tick_size` reached `tick_size_of` (`kernel/selection.py:339-349`), so a 0.025 tick is rounded with, never replaced by the 0.05 default;
+  * `delta`, `gamma`: from `v.greeks_at(instant(m.record.event_at), raw strike, "CE" or "PE")`, legacy's join on the chain's own stamp (`S:348`): the record's `payload["greeks"]` (a dict, else `{}`), each `repr(num(...))` or `None`; `None` when the minute has no record (OD-9). The leg's own inline `delta` is never read, as legacy (`S:158-170`). `multioptiongreeks` wins a tie, since step 4 commits it after the inline rows and `greeks_at` ties to the higher `seq`; `valid` is not consulted, as `S:351-355`.
+
+**`reference_facts(underlying, decision_at, *, view_id=None)`**: `reader.reference_as_of("lot_size", underlying, decision_at, through=…)`, `through` the head of the view `view_id` reopens (any underlying, `*` included), else the reader's head. A `ReferenceMissing` is returned as is; a fact gives `ReferenceFacts(underlying, calendar("nse-fo/v1").exchange_date(instant(decision_at)), value)` with `value` the fact's value when it is an int and not a bool, else `None`. Unreadable: `ReferenceMissing("no_fact")` (**Deviation:** the contract has no "unreadable" reason).
+
+**`closes(view_id, instrument, since, *, underlying=None)`** (`view_id` or `underlying` `None`, unreadable, or no view: `()`). **Fork call, legacy's premium bars** (`_premium_bars`, RFL `:5062-5134`):
+
+1. the polls the view sees for `underlying`, oldest first: the latest visible revision of each chain record (the cutoff's exchange date, `seq <= head`, `event_at` and, under `arrival`, `arrival_at` at or before the cutoff), grouped by `event_at` instant, each poll's records in `seq` order;
+2. polls with `event_at` before `since` (an instant) are skipped (RFL `:5096`);
+3. within a poll, the legs whose symbol equals `instrument` (RFL `:5101`), in order: each whose `ltp` is not `None` sets `close = float(ltp)`, so the **last** wins (RFL `:5103-5106`). **Fork call (F-4):** an `ltp` that `float` refuses, or whose float is not finite, returns `PriceUnreadable(instrument, "ltp", poll instant)` at once: legacy's `float(close)` raised there (RFL `:5106`), the error left `_step_one` (`:5452`) and `sweep_trail` noted it (`:5552-5553`), so the position was not stepped, and the bad poll stayed in the day, so every later pass failed the same way;
+4. a poll with a `close` gives `InstrumentClose(instrument, Timestamp(utc(at), "exchange"), repr(close))`.
+
+`ltp` is read whatever `quotes_included` says, as legacy's bars (`S` support marks evidence only; Fork call).
+
+**`highs(view_id, instrument, frm, to, *, underlying=None)`** (the same `()` cases). **Fork call (F-5),** legacy's `_leg_day_high_jump` (RFL `:5316-5343`, the spec's "from the chain rows"): over every poll the view sees with `frm <= at <= to` (instants), an `ltp` or not, each matching leg whose `high` is not `None` in order gives `repr(float(high))`; a `high` `float` refuses gives `PriceUnreadable(instrument, "high", poll instant)` (legacy's `float(leg["high"])` raised inside `_record_trail_gap`, `:5339`, `:5492-5498`).
+
+**`latest_tick(view_id, instrument, *, underlying=None)`** (Q-031 A; the same `None` cases; R-12): the newest poll the view sees; the **last** matching leg of that poll; none gives `None` (the held strike left the polled window). If that leg's `ltp` is `None`, or `float` refuses it, or its float is not exact at two places as money, `None`: refused, never rounded (the spec), and no earlier leg or poll is consulted. `delta` as a quote's, from `v.greeks_at(at, row strike, side)`. `Tick(instrument, price, delta, Timestamp(utc(at), "exchange"))`. The kernel's own age and `since` checks (`kernel/protection.py:1134-1138`) still apply.
+
+**The calendar port.** `_BY_ID`, the calendars of `CALENDARS` by `calendar_id`, and `_TRADING_EXCHANGE = {"NSE-FO": "NFO"}` (the recorder's exchange, step 4).
+
+* `today(calendar_id, now)`: `calendar.exchange_date(instant(now))` for a known id; for an unknown id the UTC date of `now`, so the session open that follows fails closed on `trading_day` (**Deviation:** a binding naming an unknown calendar never raises out of `Sessions`).
+* `trading_day(calendar_id, date)`, **Fork call, legacy's gate** (`src/interfaces/mcp/core/market_calendar.py:111-205`: a window means trading, none means shut, a failure means not trading, `:28-33`). No caller has a view, so it reads at the reader's head (F-11):
+  * an unknown id, or unreadable: `DayUnavailable()`;
+  * the facts of kind `trading_day` and key `_TRADING_EXCHANGE[calendar_id]` in force on `date` (`effective_from <= date` and `effective_to` `None` or `>= date`, as step 2's `as_of`) with `available_at` at or before `clock.now()`; the latest by `(reference_instant(available_at), revision)`. None: `DayUnavailable()`, never assumed open;
+  * `value["open"]` false: `Holiday()` (`:179-188`);
+  * `value["open"]` true and `start` and `end` each an int or float and not a bool: `TradingDay(ms_text(start), ms_text(end), calendar.version, utc_offset_minutes=calendar.utc_offset_minutes)`, with `ms_text(ms) = utc(datetime.fromtimestamp(ms // 1000, timezone.utc) + timedelta(milliseconds=ms % 1000))` on `int(ms)` (R-14: no float division); otherwise `DayUnavailable()` (`:152-154`).
+* **Fork call (F-9): retried until stored.** Legacy asked the calendar again at the next gate after a failed read (`market_calendar.py:124-126`). `market/ingest.py` gains `trading_day_recorded(reader, exchange, day) -> bool`, true when the store holds a `trading_day` fact for `exchange` (stripped, upper-cased) in force on `day`. SLICE-11's host runs `record_reference_day` every minute from 09:05 until it is true; SLICE-11 binds that schedule. A session waits, recording `calendar_unavailable` once (`kernel/lifecycle.py:148-149`), and opens on the first tick after the fact is stored.
+
+**Inspection reads** (no kernel caller; R-13):
+
+* `coverage(view_id, instrument) -> tuple[dict, ...]`: the store's coverage rows with `seq <= head`, that `instrument`, and `scope_from` on the view's exchange date and at or before its cutoff, in `seq` order; `()` when unreadable or unavailable. This is the spec's feed-gap fact, readable by view; protection's detection stays from the closes.
+* `chain_evidence(view_id) -> tuple[ChainEvidence, ...]`, one per record of `v.chains()`: `ChainEvidence(expiry: str, as_of: Timestamp, context: dict, quote_support: dict | None)`, frozen, with `context = chain_context(response)` and `quote_support = quote_support(response)`; `()` when unreadable, unavailable or `*`. It is the field evidence SLICE-04 deferred to this port for structures (Q-020); nothing refuses on it.
+
+#### Chain context and the support rule (`market/sources.py`)
+
+* `CHAIN_CONTEXT`, legacy's `_CHAIN_CONTEXT` (`MP:379-391`), as `(key, short)` pairs in its order: `underlying_ltp`→`spot`, `underlying_prev_close`, `atm_strike`→`atm`, `expiry_date`, `expiry_ts`, `server_ts`, `quotes_included`, `greeks_included`, `forward_price`, `underlying_symbol`, `underlying_exchange`. `chain_context(response) -> dict` (`MP:399-404`): `{}` for a non-dict; else each key whose value is not `None` and is a `str`, `int`, `float` or `bool`, under its short name.
+* `CHAIN_QUOTE_FIELDS` (`MP:393-396`): `ltp`, `bid`, `ask`, `bid_qty`, `ask_qty`, `open`, `high`, `low`, `prev_close`, `volume`, `oi`. `quote_support(response) -> dict[str, bool] | None` (`MP:508-512`): every field `False` when the response is a dict whose `quotes_included` is `False` (identity, not falsiness), else `None`.
+
+#### The protection loop (`kernel/protection.py`)
+
+* **Constants.** `PROTECTION_VIEW = "protection"`, the view policy protection resolves; `TRAIL_GAP_SECS = 120.0`, legacy's `_TRAIL_GAP_SECS` (RFL `:5017-5019`). It only labels a record-only gap; it is not a new value.
+* **One view per pass.** `ProtectionLoop.__init__` sets `market_view: str | None = None` and `_outage = False` (R-12). `run_once` first sets `self.market_view = self.market.resolve(PROTECTION_VIEW)`, once, before any subject, then `_market_outage()`.
+* **The underlying (F-3).** `_Subject` gains `underlying: str | None = None`. `_desires` sets `sj.underlying = sj.entry.get("underlying")` beside `sj.instrument`, and `_evaluate_basket` does the same after `kernel/protection.py:453`, so the basket's trail (`:525`) and tick exit (`:466`) read through the entry's underlying too. `_trail` calls `self.market.closes(self.market_view, sj.instrument, since, underlying=sj.underlying)` and `_tick_exit` calls `self.market.latest_tick(self.market_view, sj.instrument, underlying=sj.underlying)`.
+* **An unreadable store (F-8; Fork call, legacy sends nothing without bars, RFL `:5454-5455`; the spec's failure row).** While `market_view` is `None`:
+  * `_trail` returns the desire unstepped and `_tick_exit` returns at once;
+  * in `_stop_requests` and `_basket_leg`, `level_differs` is forced false, so no modify carries a new trigger. A placement of a missing stop at its recorded level, a quantity-only modify, a cancel, an exit and the square-off still go: protection is never gated, only a new level is held;
+  * `_market_outage()` records `RECONCILIATION_ESCALATED(subject="market", reason="market_unreadable", episode=n)` once per outage, `n` the number of `market_unreadable` escalations already recorded, through `lifecycle.escalate` as `kernel:protection`. `_outage` is set; a pass that resolves a view clears it, so the next outage is a new episode. A restart during an outage records one more episode.
+* **An unreadable close (F-4, Fork call).** `closes` returning `PriceUnreadable` makes `_trail` record `self._escalate(sj, "close_unreadable")` (once per position, `lifecycle.escalate`'s rule) and return the desire unstepped: no step, no gap, no new level, as legacy.
+* **Square-off (F-1, Fork call).** `_square_off` takes the UTC offset from the static calendar whose `calendar_id` is the session row's (`CALENDARS`), and only for an id the code does not hold (the test calendars) from the calendar port as before. The store is never read for it, so an unreadable store cannot stop the square-off. Legacy used only the policy time and the IST wall clock (`src/runtime/session_close.py:92-118`, RFL `:3739-3751`).
+* **Recorded on the events.** `record_desired(writer, position_id, desire, extra=(), *, market_view: str | None = None)` adds `"market_view": market_view` to the `PROTECTION_DESIRED` payload. `market_view` is **not** part of the "unchanged" comparison (`kernel/protection.py:88-94`): a desire is recorded when its own fields change, never because a new pass resolved a new view. `_record` passes `self.market_view`; `_gap_draft` adds `"market_view": self.market_view` to `GAP_PEAK_RECORDED`, whose `view_id` stays the bar view. An unreadable store gives `null`.
+* **`gap_of(last, closes) -> Gap | None`**, `Gap(source, started, ended, unseen: tuple[int, ...])` frozen, legacy's `_trail_gap` (RFL `:5285-5313`):
+  * with `last`: `new` the indices of closes with `ts > last`; none gives `None`. With `stamps = [last] + [closes[i].ts for i in new]`, `missing_minutes` when any consecutive pair is more than `TRAIL_GAP_SECS` apart as instants (strictly), else `multi_bar` when `len(new) > 1`, else `None`. `started = last`, `ended = closes[new[-1]].ts`, `unseen = new[:-1]`;
+  * without: `rebuild` when `len(closes) > 2`, `started` the first close's `ts`, `ended` the last's, `unseen` all but the last; else `None`.
+* **`day_high_jump(highs) -> str | None`**, the end of `_leg_day_high_jump`: `None` for none; else `highs[-1]` when `float(highs[-1]) > float(highs[0])`, else `None` (the last reading against the first, never the maximum).
+* **`gap_peak(gap, closes, jump) -> tuple[str, int | None] | None`**, legacy's candidates (RFL `:5358-5367`): the unseen top (`max` by `Decimal(close)` over `unseen`, the earliest on a tie) as `(close, index)`; the jump as `(jump, None)` only when `Decimal(jump) > Decimal(top)`, so the unseen close wins a tie (legacy's `max` keeps the first candidate). Neither: `None`.
+* **`would_be_sl(settings, pre, bars, peak: float, at: int | None) -> float`**, legacy's replay (RFL `:5374-5388`): with `at` an index, `trail.step` from `at` to the end over `bars[:i + 1]`. With `at` `None` (the day high, which has no close and no time, so it goes just before the newest bar): `series = bars[:-1]`, `prev = series[-1].close`, `series.append(trail.Bar(bars[-1].ts, prev, max(prev, peak), min(prev, peak), peak))`, one `trail.step` at `len(series) - 1`, then `series.append(bars[-1])` and one more. Returns the last accepted `sl`.
+* **`_gap_draft`** reads `self.market.highs(self.market_view, sj.instrument, gap.started, gap.ended, underlying=sj.underlying)`: `PriceUnreadable` records nothing and escalates `gap_peak_failed` (the live step is kept; legacy's `except` noted it, RFL `:5492-5498`). Then `gap_peak(gap, closes, day_high_jump(highs))`; `None` records nothing (**Fork call, F-10:** legacy's own rule, RFL `:5365-5366`; this replaces SLICE-06's "one record per gap" for that case). Otherwise `recovered_peak` is the peak string and, when it exceeds the live peak (`Decimal`, as built), `would_be_stop = trail_level(would_be_sl(...), tick_size)`, with the existing failure rule. `_trail` passes `extra = (draft,)` only when there is one.
+* **Deviation (R-11):** a candidate not above the live peak is still recorded, with `would_be_stop` null (SLICE-06 as built); legacy recorded nothing then (RFL `:5371-5372`). Record-only.
+* **Fork call:** `missing_minutes`, the day high, its window and polls, its placement and the candidate order are legacy's. The whole record stays record-only (POL-013).
+
+#### Events (`resources/events.schema.json`)
+
+`PROTECTION_DESIRED` and `GAP_PEAK_RECORDED` each gain `"market_view": ["string", "null"]`. Payloads are validated on write only (`kernel/ledger/store.py:648`) and no fold reads the field (`kernel/ledger/projections.py:365-386`), so a ledger written before step 5 replays unchanged. No ledger migration.
+
+#### The `gap` coverage status (`market/store.py`, `market/ingest.py`)
+
+* **Schema 2.** `STORE_SCHEMA = 2`. `_COVERAGE_DDL` is the coverage table with `status TEXT NOT NULL CHECK (status IN ('covered', 'interrupted', 'gap'))`; a new store is created at schema 2.
+* **The upgrade from schema 1**, in `MarketStore.open`, under the writer lock, when `_schema_of(conn) == 1`, in one `BEGIN IMMEDIATE` transaction (SQLite cannot alter a `CHECK`): create `coverage_v2` with `_COVERAGE_DDL`; `INSERT INTO coverage_v2 (seq, source, stream, instrument, status, scope_from, scope_to, first_seq, last_seq, detail) SELECT` the same columns `FROM coverage`; `DROP TABLE coverage`; `ALTER TABLE coverage_v2 RENAME TO coverage`; `UPDATE store_meta SET schema = 2`; `COMMIT`. Any exception rolls back, the lock is released and the exception re-raised: the file stays schema 1, whole. `store_id`, `head` and every row's `seq` are unchanged. Any other schema than `None`, 1 or 2 is `MKT-R02` as today.
+* **The reader** accepts schema 2 only. A schema-1 file raises `StoreNotUpgraded`, a `ValueError` subclass with the `MKT-R02` text, until the writer has opened it once; `StoreMarket` reads that as unreadable (F-12: no startup refusal for schema 1). SLICE-11 opens the market writer, which upgrades, before the kernel starts; until then the kernel sees an unreadable store, which F-1 and F-8 make safe. A view resolved over schema 1 reopens as `Unavailable("store_schema")`, by design (step 3).
+* **Who writes `gap`** (`MarketLoop._fetched`): a due fetch whose list is empty records one row `CoverageEntry(source_of(stream), stream, instrument, "gap", when, got_at, "empty")` and no record: legacy's journal `empty` outcome (`MP:334-338` for quotes, `MP:471-474` for a chain), which legacy's evidence reads as a stream with no rows (`src/data/marketdata/evidence.py:160-162`). A not-due skip stays `covered` `not_due`; a fetch with only skipped Greeks rows stays `covered` with its note; any failure stays `interrupted`. **Deviation (from the spec's "silent for more than its expected cadence"):** the cadence is the source's own `due`, so the fact is per due poll. A `gap` row counts as the minute's poll and gets a `process_stopped` row after it, as any status does (`market/ingest.py:163-176`).
+
+#### Composition (`bootstrap.py`)
+
+`compose_simulation` gains `view_policies: Mapping | None = None`; `Composition` gains `market: object = None`, which stays `None` for a fixture world (R-13).
+
+* **Order.** The existing refusals run first (ledger path, capacity, revocation effect, every `_ADMISSION` setting, the budget), then the market checks, so every existing refusal keeps its order.
+* **With `settings.market_store_path` set:** `calendar` must be `None` (else `ValueError("a market-store composition takes its calendar from the store")`), `view_policies` given (else `RefusingParameterUnbound("market.views")`), `admission.market` `None` (else `ValueError("admission ports name a market while settings name a market store")`), and with admission and `protection_loop`, `PROTECTION_VIEW` bound (else `RefusingParameterUnbound("market.views.protection")`). Inside the composition's `try`, before `Sessions`: `market = StoreMarket(settings.market_store_path, view_policies, clock)` (its `ValueError` re-raised as `SettingsError`), `calendar = market`, and `admission.market = market`. The `try`'s `except` closes `market` before the writer (R-14).
+* **Without it:** unchanged; ports with `market=None` are `ValueError("admission ports name no market")`.
+* **SLICE-11 binds** `market.store_path`, `market.views.protection` and the strategies' policies for the kernel host. The protection policy's join, age and staleness fields do not change protection's reads (it never calls `read`); its availability, calendar and window do.
+
+#### The fixture port (`tests/conftest.py`)
+
+`FixtureMarket` gains `resolve(policy) -> "fixture-view"` (the spec's fixed identity), `high_rows` (instrument to `[(utc_iso, high)]`) and `highs(view_id, instrument, frm, to, *, underlying=None)` over it, and `closes`, `latest_tick` and `reference_facts` take the new arguments and ignore them. Every other caller in the table above is unchanged; `scripts/measure_protection.py` reuses it.
+
+#### Fork calls and Deviations in this step
+
+* **Fork calls:** the premium closes (`ltp` only, last leg per poll, from the fill, one exchange date, `quotes_included` ignored); an unreadable `ltp` holding the position (F-4); the day high from every poll in the window, `ltp` or not (F-5), an unreadable `high` recording nothing; quote prices carried exactly (F-6); the tick size carried as received, as legacy's raw leg tick reached the planner; a passed expiry left out of `chains()` (F-7); no new level while the store is unreadable (F-8); square-off from the static calendar (F-1); the planner's Greeks from the GREEKS join at the chain's stamp, `multioptiongreeks` winning a tie, `lotsize` from `ce` then `pe`; `missing_minutes` strictly above 120 s, the day-high candidate and its synthetic bar before the newest; the unseen close winning a tie; no record for a gap with no candidate (F-10); the trading day from the exchange window, failing closed, retried every minute until stored (F-9).
+* **Deviations:** the pass identity's underlying `*`; `underlying` on the protection reads; a candidate not above the live peak still recorded with `would_be_stop` null (R-11); a negative `dte` carried as `None` in `chain()`; an unreadable strike dropped; a non-finite price treated as unreadable; `ReferenceMissing("no_fact")` and `DayUnavailable` for an unreadable store; an unknown calendar id failing closed; the trading day from the recorded fact; `gap` per due poll; schema-1 views unavailable after the upgrade; the spec's `InstrumentClose.high` replaced by `highs`.
+
+### Tests
+
+`tests/integration/test_market_port.py` (**T-46**), over stores built with step 2's `MarketStore` under `tmp_path` and kernel worlds built with `conftest.build`. Every value is labelled synthetic; every expectation is written by hand from the rules above (A08-F3), except Gap parity's, generated once from legacy. Shared values: `RecordedClock`; 2026-11-02 (a Monday); `NIFTY`; the calendar id `NSE-FO`; a `protection` policy and a `live` policy, each `arrival`, `exclude`, `ticks`, every join `at_or_before`, `nse-fo/v1`, `WindowDef(60, "7")`, with `max_age_secs` unbounded and `report` for `protection`, 120 s and `drop` for `live`. A chain poll is one record `IncomingRecord("chain", u, "simulated", f"{expiry}@{utc(at)}", Timestamp(utc(at), "exchange"), Timestamp(utc(at + 300 ms), "recorded"), {"expiry": expiry, "exchange": "NFO", "response": {"status": "success", "data": rows}}, "simulated")`; Greeks records as step 4's loop keys them. An entry's view is resolved with step 3's `resolve(MarketReader.open(path), policies, "live" or "protection", "NIFTY", cutoff).id.text` (R-4).
+
+**`store_world(tmp_path, start=START, *, store=True, protection_loop=False, planner=None, policy=OFF, plan=None, facts=(timing(),))`** (R-5): the market store is opened under `tmp_path` and given `facts` (by default a `trading_day` fact for `NFO`: `open` true, `start` and `end` the epoch milliseconds of 09:15:00 and 15:30:00 IST, available at 09:05 IST); `build(..., admission=dataclasses.replace(admission_ports(...), market=None), calendar=None, view_policies=…, admission_settings=dict(ADMISSION_SETTINGS or LOOP_SETTINGS, market_store_path=…), leases=FakeLeaseStore())` and `prepare`; with `store=False`, the fixture port and `FakeCalendar({("NSE-FO", TODAY): FakeCalendar.day(TODAY)})`; `StandingBinding` `b-1` on `SessionScope(ACCT, "NSE-FO")` (and the action grant for a protection world); `recovery.tick()`; no `fresh()`; the `RecordedClock` at 2026-11-02T04:30:00Z (10:00 IST). Requests name `FinancialSessionId(SessionScope(ACCT, "NSE-FO"), TODAY)`. A missing store is simulated by monkeypatching `MarketReader.open` to raise `apsw.CantOpenError` after closing the cached reader (`StoreMarket.close()`).
+
+| Group | Cases |
+|---|---|
+| Composition | Refused: a `calendar` with a store; ports naming a market; `view_policies` missing (`market.views`); no `protection` policy with the loop (`market.views.protection`); ports with `market=None` and no store. A store world: `comp.market` is the `StoreMarket` and is admission's market, the sessions' calendar and protection's market and calendar; the session opened with `calendar_version` `nse-fo/v1`, 03:45Z to 10:00Z. A fixture world has `comp.market` `None` |
+| Schemas at composition (F-2, F-12) | A schema-3 store: `StoreMarket` raises `MKT-R02` and `build` raises `SettingsError`. A schema-1 store composes, `resolve` is `None` and `trading_day` `DayUnavailable`, until the writer opens it; then `resolve` answers. A missing file composes; `resolve` `None`, `closes` `()`, `reference_facts` `no_fact` |
+| Calendar port | `today` at 2026-11-01T18:29:59.999999Z (2026-11-01) and 18:30:00Z (2026-11-02); an unknown id the UTC date. `trading_day` at 09:10: no fact, then a fact available at 09:20, both `DayUnavailable`; at 09:20 `TradingDay("2026-11-02T03:45:00.000000Z", "2026-11-02T10:00:00.000000Z", "nse-fo/v1", utc_offset_minutes=330)`; a second revision ending 13:30 IST read over the first (close 08:00Z); `open` false on 2026-11-03 `Holiday`; `start` `"x"` on 2026-11-04 `DayUnavailable`; an unknown id `DayUnavailable`; `trading_day_recorded` true for `nfo` on the date and false on 2026-11-05 |
+| Sessions (F-9) | A store world without the fact records `calendar_unavailable` once over two ticks and opens nothing; once the fact is recorded, the next tick opens `sim:acct-sim:NSE-FO:2026-11-02` |
+| Views | A spot poll (`ltp` 24000.0) and a chain poll for `04NOV26` and `11NOV26` at 10:42:00.2 IST carrying `make_chain`'s three strikes, prices, sizes and lot, with inline Greeks (delta 0.5, 0.4, 0.3; gamma 0.001), read through a `live` view at 10:42:07: `view()` is `StableView(text, "NIFTY", "NSE-FO", 05:11:00Z, 05:12:00Z, 05:12:00.200000Z, 05:12:00.200000Z, spot="24000.0")`; `chain()` the `04NOV26` snapshot, `dte` 2, its first row `ChainRow("24000.0", 75, None, OptionQuote("NIFTY04NOV2624000CE", "20.0", "19.95", "20.05", "1000.0", "500.0", "0.5", "0.001", None), None)`; `chains()` `04NOV26` (2) and `11NOV26` (9) |
+| Tick size | A leg `tick_size` 0.025 is `"0.025"` and `tick_size_of(legacy_rows(chain)[0], "CE")` is 0.025 |
+| Mapping | `ltp` 20.125 kept as `"20.125"` (F-6); leg `tick_size` 0.05 as `"0.05"`; `lotsize` `"75"` as 75; `ce` 75 with `pe` 50 gives 75; `ce` without a symbol gives `None` and the row's lot comes from `pe`; strike `"x"` dropped; an inline leg `delta` 0.9 ignored for the Greeks record; `multioptiongreeks` 0.52 beating inline 0.5 at one instant; no Greeks record gives `None`; a `01NOV26` record (passed) left out of `chains()` (F-7) |
+| Entry reads that answer `None` | `"v-1"`; a `*` identity (`view` `None`, `chains` `()`); a `live` view whose spot and chain are 121.1 s old; a re-bound policy (`policy_changed`); a missing store (`view`, `chain` `None`, `chains` `()`) |
+| Reference | A `lot_size` fact 75 for `NIFTY`: `ReferenceFacts("NIFTY", "2026-11-02", 75)` at 10:00; at 09:00 `not_yet_available`; on 2026-11-01 `not_in_force` (POL-046); `BANKNIFTY` `no_fact`; after a revision 65 (available 09:06) the reader's head gives 65 and a view resolved before it gives 75 (F-11) |
+| Chain evidence | `chain_context` of `{underlying_ltp: 24010.5, atm_strike: 24000, quotes_included: false, nested: {…}, server_ts: null}` is `{spot: 24010.5, atm: 24000, quotes_included: false}`; `quote_support` the 11 fields `False`, and `None` for `true` or absent; a non-dict `{}`; `chain_evidence` of the Views store two records, `04NOV26` first, context `{}` and support `None` |
+| Admission over the store (PRF-MKT-07) | The Views store; `bound(…, planner=planner_policy())` with `Planner()` and the scores `(signal_score 60.0, iv_rank None, conviction 0.7)`; the intent names the 10:42:07 `live` view's text and is admitted at 10:42:07.4 (spot and chain 7.2 s old, the bar 7.4 s): admitted, `amount` and `worst_case_loss` `"1500.00"`, entry premium `"20.00"`, instrument `NIFTY04NOV2624000CE`. A fixture world fed the store world's own `view`, `chain`, `chains` and `reference_facts` answers records the same `plan` and `measured_ages` |
+| Closes, highs and the tick | Polls for `NIFTY-SIM-CE` at 10:00 (`ltp` 19.0), 10:01 (20.0, `high` 21.0), 10:02 (21.5, no `high`), 10:03 (two records, 22.0 then 23.0 with `high` 22.0 and 24.5, and inline 0.5 and `multioptiongreeks` 0.52 Greeks), 10:04 (no `ltp`, `high` 25.0); a 2026-10-30 poll and one arriving at 10:06:30; a `PE` leg and another strike as noise. Since 10:00:30 at a 10:06 view: closes 10:01 `"20.0"`, 10:02 `"21.5"`, 10:03 `"23.0"`; `highs` 10:01–10:04 `("21.0", "22.0", "24.5", "25.0")`; `latest_tick` `None` (10:04's leg has no `ltp`). At a 10:03:30 view: `Tick("NIFTY-SIM-CE", "23.00", "0.52", 10:03)`. `None` view, `None` underlying and `BANKNIFTY` give `()` |
+| Unreadable prices | `ltp` 20.125: `latest_tick` `None`; `high` `"x"`: `highs` `PriceUnreadable(…, "high", 10:01)`; `ltp` `"bad"` at 10:02: `closes` `PriceUnreadable(…, "ltp", 10:02)`, and `()` from a `since` after it |
+| Protection over the store (PRF-MKT-07) | `protected_world` (a `stop_on_fill` entry filled at 75, its stop resting at 15.00) over the store and over the fixture port, each fed closes 20.0, 22.0, 25.0, 24.0 a pass apart: identical `PROTECTION_DESIRED` payloads but `market_view` and the entry view's name; the fixture world's `market_view` is `"fixture-view"`, the store world's an `mv1` text naming `*` |
+| One view per pass | Spies on `resolve` and `run_once` count equal calls; the last desire's `market_view` text, reopened after two more passes and three later commits (one seen by its cutoff but committed after its head), gives the same closes; two passes with no new close record no desire |
+| Unreadable store (F-1, F-8) | A desire recorded at 16.00 over a stop confirmed at 15.00; with `MarketReader.open` raising: three passes send no modify and record `("market", "market_unreadable", 0)` once; readable again, the modify `prot:…:stop:2` goes; unreadable again, episode 1; at 15:13 IST the square-off still starts (`EXIT_STARTED` `square_off`) |
+| Unreadable close (F-4) | A poll with `ltp` `"bad"` after the fill: two later closes record no desire and `close_unreadable` once |
+| Basket (F-3) | In `tests/unit/test_protection_basket.py`: a basket subject's `closes` and `latest_tick` are called with the view `"fixture-view"` and underlying `NIFTY`, and the basket stop still trails |
+| Gap sources (R-7) | `gap_of` with the last seen close at 10:01: one close at 10:04 is `missing_minutes` with no unseen close; one at 10:03 (exactly 120 s) is no gap; closes at 10:02 and 10:03 are `multi_bar` with unseen `(2,)`; a hole and two closes is `missing_minutes`; without a seen close, four closes are `rebuild` with unseen `(0, 1, 2)`, two are none. `day_high_jump`: `("22.0", "26.5")` gives `"26.5"`, `("22.0", "22.0")` and `()` none, `("22.0", "27.0", "25.0")` gives `"25.0"` (R-10). `gap_peak` over unseen 25.0: jump `"27.0"` wins, `"25.0"` ties to the unseen close, none gives the close; no candidate gives `None`. By hand, the ladder seeded at 20.0 (stop 15.0, target 30.0) and stepped on closes 20.0, 22.0 at 10:00 and 10:01: a day-high gap (10:04 close 21.0, highs 22.0 then 26.5) has peak `"26.5"`, live peak `"22.0"` and would-be stop `"24.50"`; an unseen-close gap (closes 25.0 and 24.0 at 10:02 and 10:03) has peak `"25.0"` at index 2, live peak `"24.0"` and would-be stop `"23.00"`. In the loop over the fixture port, a close 180 s after the last seen one with highs 22.0 then 26.5 records one gap with `recovered_peak` `"26.5"` and `market_view` `"fixture-view"`; the next such hole with no candidate records nothing |
+| Gap parity | Each of the 40 cases of `gap_golden.json` in `tests/fixtures/market` (R-9): each snapshot one chain record with expiry `02NOV26` and `arrival_at` `event_at` + 300 ms, read through the `protection` view at the last stamp + 60 s. Compared: the closes' `ts` and `close` with legacy's bars, and `bars_from_closes` with them (`open`, `high`, `low`, `close` as `repr`); `gap_of`'s source, `gap_from`, `gap_to` and unseen stamps; `day_high_jump` with legacy's jump; `gap_peak`'s existence with legacy's candidate; the live peak; when legacy recorded, the peak, its source (`leg_day_high` or `unseen_close`) and `repr(would_be_sl(...))` against its shadow `sl`; a candidate that legacy did not record is not above the live peak |
+| Coverage | A loop whose spot fetch returns `[]` writes `gap` `empty` with null `first_seq` and `last_seq`; `StoreMarket.coverage(view, "NIFTY")` lists it and the chain's `covered` row, not a row on another date or committed after the view's head; `CoverageEntry` refuses `stale` |
+
+**The gap golden file.** `scripts/gen_fold_parity.py` (T-42) gains `--gaps`, which writes only `gap_golden.json` in `tests/fixtures/market` (R-8). It is run once, never in the suite:
+
+```
+python -I scripts/gen_fold_parity.py --gaps --legacy <root holding src/> --rfl <path to run_framework_live.py> --out tests/fixtures/market/gap_golden.json
+```
+
+* **Loading legacy:** `trail.py` by file path, as `scripts/gen_trail_parity.py`, registered as `src.core.framework.protection.trail`. `src`, `src.core`, `src.core.framework`, `src.core.framework.protection`, `src.data`, `src.data.marketdata` and `src.data.marketdata.store` are installed as empty modules linked to their parents, so the real legacy package never imports; the store stub's `snapshots(root, underlying, day)` yields the current case's polls. RFL's `_stamp_secs`, `_premium_bars`, `_trail_gap`, `_leg_day_high_jump` and `_record_trail_gap` are taken by `ast` and executed in one namespace holding `datetime`, `Any`, `_TRAIL_SEEN = {}`, `_TRAIL_SHADOW = {}`, `_TRAIL_GAP_SECS = 120.0` and `STORE = "case"`.
+* **Cases:** 40, `random.Random(1000 + seed)` for seeds 0–39, on 2026-11-02. Each has 6–14 polls from 10:00:00 IST, each 60 s after the last or, with probability 0.2, 120–240 s; stamps `datetime(…, tzinfo=IST).isoformat()`. One row, strike 24000: the CE leg `NIFTY02NOV2624000CE` with `ltp` a walk from 100.0 rounded to 0.05 (absent with probability 0.1 after the first poll, F-5) and `high` the running maximum of `ltp`, shown raised by 0.5–5.0 (rounded to 0.05) with probability 0.3 for that poll only, and absent with probability 0.1; a PE leg as noise. `since` is the first stamp. A rebuild when `seed % 5 == 0` (no seen stamp); otherwise the seen bar index is `1 + int(pick × (len(bars) − 2))`, `pick` the case's next random draw, and the ladder is stepped at each `k` from 1 to it over `bars[:k + 1]`.
+* **The ladder:** `TrailSettings()`; `TrailPosition(entry_premium=e, tgt=e + 30.0, sl=e − 10.0, slot_id="case", entry_conviction=0.0, initial_sl=e − 10.0, remaining_qty=75)`, `e` the first bar's close; `managed = SimpleNamespace(engine=PremiumTrail(settings), position=pos)`, so `engine.cycle` is legacy's `on_bar` without its emitter (`src/core/framework/runtime/orchestrator.py:933-958`). Each live cycle is a fresh `PremiumTrail`, as the target's `trail.step`.
+* **The pass:** `bars = _premium_bars("NIFTY", day, symbol, since=since)`; `gap = _trail_gap("case", bars, rebuilt=…)`; `pre = deepcopy(managed)` when there is a gap; the live cycle at `len(bars) − 1`; `jump = _leg_day_high_jump(...)` over the gap; `_record_trail_gap("case", managed, pre, gap, bars, symbol=…, underlying="NIFTY", day=…, emit=…, quiet=True)`, the emitter keeping its keyword arguments.
+* **Output:** `{"generator", "legacy_commit": "445eb116", "python", "counts", "cases"}`; each case holds its seed, day, symbol, snapshots, `since`, `rebuilt`, `seed_position`, `seen`, `bars` (`[ts, open, high, low, close]`, floats as `repr`), `gap` (`{source, from, to, unseen}` or null), `jump`, `candidate`, `live_peak` and `recorded` (null or `{recovered_peak, recovery_source, shadow_sl}`, `shadow_sl` `repr(_TRAIL_SHADOW["case"].position.sl)`).
+* **The generator asserts** at least 3 cases each of `missing_minutes`, `multi_bar`, `rebuild`, a recorded `leg_day_high`, a recorded `unseen_close`, and a gap whose window holds a poll without `ltp`; it exits otherwise.
+
+**Changed existing tests:**
+
+* `tests/unit/test_market_ingest.py` (T-43): "another schema is refused" sets schema 3; `:500` becomes `("spot", "gap", "empty", …)`; `:522` becomes `("simulated", "spot", "gap", "empty"), ("simulated", "chain", "gap", "empty")`; `:539` becomes `("simulated", "spot", "gap", "empty")` (R-6). New: a schema-1 file (step 2's coverage DDL, held in the test, with three rows) is upgraded by the writer to schema 2 with the same `store_id`, `head` 3 and rows, after which a `gap` row commits, the reader refusing it before and opening it after; a schema-1 file holding a table named `coverage_v2` fails the upgrade with `apsw.SQLError` and stays schema 1 with its rows; a loop opened in a minute whose polls wrote `gap` rows does not poll again.
+* `tests/unit/test_market_view.py` (T-44): the `store_schema` unavailable case uses 3.
+* `tests/unit/test_protection_states.py`: the literal `GAP_PEAK_RECORDED` and `PROTECTION_DESIRED` payloads gain `"market_view": None`, so each refusal still tests its own defect.
+* `tests/unit/test_protection_basket.py`: the basket test above (F-3).
+
+### Break checks
+
+Each is applied with its anchor checked first (exactly one occurrence), one at a time, run against `test_market_port.py`, `test_market_ingest.py` and `test_protection_basket.py`, and restored byte for byte with an md5 check (R-10). `P` is `kernel/protection.py`, `V` `market/view.py`, `ST` `market/store.py`, `I` `market/ingest.py`; `⏎` is a line break.
+
+| Change (file: exact text → replacement) | Test that must fail |
+|---|---|
+| Fork: closes keep the first leg. V: `if symbol != instrument or ltp is None:⏎ continue⏎ close = _float(ltp)` → the same with `if close is not None:⏎ continue` before `close = _float(ltp)` | Closes, highs and the tick |
+| Fork: closes ignore `since`. V: `if at < start:` → `if False:` | Closes, highs and the tick |
+| Fork: the tick from an older poll with a price. V: `at, legs = polls[-1]` → `at, legs = next(((a, l) for a, l in reversed(polls) if any(x[0] == instrument and x[3] is not None for x in l)), polls[-1])` | Closes, highs and the tick |
+| Fork: Greeks tie to the lower `seq`. V: `(instant(m.record.event_at), m.seq)) if found else None` → `(instant(m.record.event_at), -m.seq)) if found else None` | Mapping; Closes, highs and the tick |
+| Fork: a quote's delta from the leg. V: `_dec(_num(leg.get("volume"))), _dec(_num(greeks.get("delta"))),` → `… _dec(_num(leg.get("delta"))),` | Views; Mapping |
+| Fork: `lotsize` from `pe` first. V: `_lot(ce.get("lotsize") or pe.get("lotsize"))` → `_lot(pe.get("lotsize") or ce.get("lotsize"))` | Mapping |
+| F-6: a quote price rounded. V: `OptionQuote(symbol, _dec(_num(leg.get("ltp"))),` → `OptionQuote(symbol, _money_text(_num(leg.get("ltp"))),` | Views; Mapping |
+| Fork: a tick size rounded. V: `_dec(_num(greeks.get("gamma"))), _dec(_num(leg.get("tick_size"))))` → `… _money_text(_num(leg.get("tick_size"))))` | Tick size |
+| F-7: a passed expiry as `None`. V: `if dte is not None and dte < 0:⏎ continue` → `… dte = None` | Mapping |
+| Fork: `missing_minutes` at 120 s. P: `> TRAIL_GAP_SECS:` → `>= TRAIL_GAP_SECS:` | Gap sources |
+| Fork: the day high as the maximum. P: `return highs[-1] if float(highs[-1]) > float(highs[0]) else None` → `return max(highs, key=float) if float(max(highs, key=float)) > float(highs[0]) else None` | Gap sources |
+| F-5: only polls with an `ltp`. V: `if symbol != instrument or high is None:` → `… or _ltp is None:` | Closes, highs and the tick; Gap parity |
+| Fork: the day-high bar after the newest. P: `series = list(bars[:-1])` → `series = list(bars)` | Gap sources; Gap parity |
+| Fork: the jump wins a tie. P: `Decimal(jump) > Decimal(closes[top].close)` → `Decimal(jump) >= …` | Gap sources |
+| F-10: no candidate recorded anyway. P: `if found is None:⏎ return None, False` → `if found is None:⏎ found = (closes[-1].close, len(closes) - 1)` | Gap sources (the loop) |
+| Fork: `Holiday` with no fact. V: `if not facts:⏎ return DayUnavailable()` → `… return Holiday()` | Calendar port; Sessions |
+| `trading_day` ignores `available_at`. V: `and reference_instant(f.available_at) <= now]` → `]` | Calendar port |
+| A tick price rounded. V: `price = _money_text(_float(ltp)) if ltp is not None else None` → `price = _money_text(round(_float(ltp), 2)) if ltp is not None else None` | Unreadable prices |
+| F-1: the offset from the store. P: `offset = static.utc_offset_minutes if static is not None else None` → `offset = None` | Unreadable store |
+| F-2: only `apsw.Error` caught. V: `_UNREADABLE = (OSError, UnsafeRuntime, apsw.Error)` → `_UNREADABLE = (apsw.Error,)` | Schemas at composition |
+| F-2: `MKT-R02` not refused. V: `except (StoreNotUpgraded, *_UNREADABLE):` → `except (ValueError, *_UNREADABLE):` | Schemas at composition |
+| F-3: no underlying for a basket. P: `sj.underlying = entry.get("underlying")` (with its comment) → removed | Basket |
+| F-4: an unreadable `ltp` skipped. V: `if close is None:⏎ return PriceUnreadable(` → `if close is None:⏎ continue⏎ return PriceUnreadable(` | Unreadable prices; Unreadable close |
+| F-4: an unreadable `high` skipped. V: `if value is None:⏎ return PriceUnreadable(` → `if value is None:⏎ continue⏎ return PriceUnreadable(` | Unreadable prices |
+| F-8: a new level while unreadable. P: the two lines `if self.market_view is None:⏎ level_differs = False …` in `_stop_requests` → removed | Unreadable store |
+| F-8: escalated every pass. P: `if self._outage:⏎ return` → removed | Unreadable store |
+| F-11: reference at the reader's head. V: `through=v.id.head if v is not None else None)` → `through=None)` | Reference |
+| `resolve` per subject. P: before `closes = self.market.closes(self.market_view, sj.instrument, since,` insert `self.market_view = self.market.resolve(PROTECTION_VIEW)` | One view per pass |
+| Closes at the store's head. V: `heads = v.heads("chain", underlying)` → `heads = View(reader, v.policy, dataclasses.replace(v.id, head=reader.head())).heads("chain", underlying)` | One view per pass |
+| `market_view` compared. P: `and row["view_id"] == desire.view_id:` → `… and market_view is None:` | One view per pass |
+| `bar_close` equal to `bar_open`. V: `Timestamp(utc(anchor + timedelta(seconds=BASE_INTERVAL_SECS)), "exchange"),` → `Timestamp(utc(anchor), "exchange"),` | Views |
+| An empty fetch written `covered`. I: `"gap", when, got_at, "empty")]` → `"covered", when, got_at, None)]` | Coverage; `test_market_ingest.py` |
+| A not-due skip written `gap`. I: `"covered", when, when, "not_due")` → `"gap", when, when, "not_due")` | `test_market_ingest.py` (not due) |
+| The upgrade loses the rows. ST: `"DROP TABLE coverage",` → `"DELETE FROM coverage_v2", "DROP TABLE coverage",` | `test_market_ingest.py` (upgrade) |
+| Schema 1 not upgraded. ST: `elif schema == 1:` → `elif False:` | `test_market_ingest.py` (upgrade); Schemas at composition |
+
+### Files
+
+| File | Change |
+|---|---|
+| `src/autonomous_trading/market/view.py` | `StoreMarket`, `ChainEvidence`, `View.heads`; the snapshot mapping and its number rules |
+| `src/autonomous_trading/market/sources.py` | `CHAIN_CONTEXT`, `CHAIN_QUOTE_FIELDS`, `chain_context`, `quote_support` |
+| `src/autonomous_trading/market/store.py` | `STORE_SCHEMA = 2`, `_COVERAGE_DDL`, the upgrade from 1, `StoreNotUpgraded` |
+| `src/autonomous_trading/market/ingest.py` | The `gap` row for an empty due fetch; `trading_day_recorded` |
+| `src/autonomous_trading/contracts/market.py` | `TradingDay`, `Holiday`, `DayUnavailable` moved in; `PriceUnreadable`; `COVERAGE_STATUSES`; `OptionQuote` prices and tick size as decimal strings |
+| `src/autonomous_trading/kernel/ports.py` | The three records imported, `Unavailable` bound; `MarketPort.resolve`, `highs` and the reads' signatures |
+| `src/autonomous_trading/kernel/protection.py` | `PROTECTION_VIEW`, `TRAIL_GAP_SECS`, `Gap`, `gap_of`, `day_high_jump`, `gap_peak`, `would_be_sl`; one view per pass; the outage; the underlying; the square-off offset; `market_view` on both events |
+| `src/autonomous_trading/kernel/admission.py` | `reference_facts(..., view_id=intent.view_id)` |
+| `src/autonomous_trading/resources/events.schema.json` | `market_view` on `PROTECTION_DESIRED` and `GAP_PEAK_RECORDED` |
+| `src/autonomous_trading/bootstrap.py` | `view_policies`, the store composition, `Composition.market` |
+| `tests/conftest.py` | `FixtureMarket.resolve`, `highs`, `high_rows` and the new arguments |
+| `tests/integration/test_market_port.py` | New (T-46) |
+| `tests/unit/test_market_ingest.py`, `tests/unit/test_market_view.py`, `tests/unit/test_protection_states.py`, `tests/unit/test_protection_basket.py` | The changes above |
+| `scripts/gen_fold_parity.py`, `tests/fixtures/market` | `--gaps`; `gap_golden.json`, generated once |
+
+No new tree delta: the golden file sits in T-41's directory, as step 4's captures sit in T-31's, and its generator is T-42's. No ledger migration; the market store's schema goes from 1 to 2.
+
+### Completion conditions (step 5)
+
+* Every test above passes, twice in a row, with the whole suite; every break check fails a listed test, and every file is restored (md5); `ast.parse` passes on every edited Python file.
+* `gap_golden.json` is generated once from the legacy export at 445eb116 and committed.
+* PRF-MKT-07's clauses each pass a group: the store against the fixture (Admission over the store, Protection over the store), one identity per pass (One view per pass), the calendar port (Calendar port, Sessions), the gap sources and the day high on legacy's cases (Gap sources, Gap parity), the tick source (Closes, highs and the tick), reference facts and POL-046's unavailable date (Reference).
+
+### Step 5 as built
+
+**In plain words.** The kernel now reads the real price store. Entry checks and the protection loop read it the same way they read the test fixtures, and give the same answers for the same prices. Every protection decision names the one snapshot it used. A price that cannot be read, or a store that cannot be opened, holds stop moves and is reported once, while the square-off still runs. On 40 cases generated from today's system, the missed-peak record matches it exactly. All 1,244 automatic checks pass, twice in a row.
+
+Commits `7ebee6c` and `4ecc799` on `slice-08`, on top of `c2cca11`. `4ecc799` carries the tick size as received (Fork call, the owner's coordinator's call on the fork rule): `OptionQuote.tick_size` is a finite decimal string and the snapshot passes the raw value; one test and one break check added, both run (the touched files: 188 passed; the break check failed `test_a_tick_size_reaches_the_planner_as_received`); the full suite after it is the coordinator's run. `7ebee6c` It changes 18 paths (12,504 lines added, 89 removed; the gap golden file is 10,645 of them). The files match the step's table. Not pushed.
+
+**Choices made while building:**
+
+| Topic | As built |
+|---|---|
+| A third empty-fetch test | `test_a_stream_not_due_is_a_covered_not_due_row_and_no_fetch` (`test_market_ingest.py:500`) also polls an unscripted spot stream, so its row became `("spot", "gap", "empty", …)` too, beside R-6's `:522` and `:539` |
+| Refusal order | The first build checked the market store before the existing refusing settings, and 23 cases of `test_policy_parameters.py` (ports with `market=None` and a setting unbound) failed with "no market". The market checks now run after them, so every existing refusal keeps its order |
+| Schema 1 against an unknown schema | `MarketReader.open` raises `StoreNotUpgraded`, a `ValueError` subclass with the `MKT-R02` text, for schema 1, so `StoreMarket` can read schema 1 as unreadable (F-12) and still refuse any other schema (F-2) |
+| `View.heads` | A public form of step 3's `_latest`, so `StoreMarket` chooses polls without payloads and loads only uncached sequences |
+| Test worlds | `protected_world` repeats `test_protection_loop.py`'s entry flow (the entry, the fill, the stop at 15.00): pytest's import mode does not let one test directory import another's module |
+| The unreadable close test | Its bad poll needs an instant of its own: at another poll's instant it shares the chain key, and the store keeps the later one as a conflicted revision that replaces it in the view |
+| One survivor, then caught | "`market_view` in the unchanged comparison" survived the first run, because the loop never re-records an identical desire. One view per pass now also checks `record_desired` directly (an identical desire with another `market_view` is `unchanged`); the mutation then failed it |
+| The golden file | Generated with Python 3.14.0 from the legacy export `legacy445` (`src/` only) and its RFL copy: 40 cases; `missing_minutes` 23, `multi_bar` 6, `rebuild` 8, recorded `leg_day_high` 6, recorded `unseen_close` 18, a window holding a poll without `ltp` 15 |
+| Store against fixture | The first desire's `view_id` is the entry's own view (an `mv1` text over the store, `v-1` over the fixture); the comparison names it alike and compares every other field exactly |
+
+**Tests:** `tests/integration/test_market_port.py`, 64 cases (40 of them Gap parity). `tests/unit/test_market_ingest.py` gains 2 (36), and `tests/unit/test_protection_basket.py` gains 1. The existing tests named above changed as stated. The whole suite: 1,244 passed, 1 skipped (`test_pe_delta_sign_at_the_source`, waiting for C-1), twice in a row (125.7 s and 116.8 s), after the last edit. `ast.parse` passes on all 16 edited Python files.
+
+**Break checks** (`s08e_breaks.py`: anchors checked first, one at a time, every file restored byte for byte, md5 verified): all 34 failed a test, 33 on the first run and the 34th after the check above.
+
+| Change | Test that failed |
+|---|---|
+| Fork: closes keep the first leg | Closes, highs and the tick |
+| Fork: closes ignore `since` | Closes, highs and the tick; Unreadable prices; Protection over the store |
+| Fork: the tick from an older poll with a price | Closes, highs and the tick |
+| Fork: Greeks tie to the lower `seq` | Mapping; Closes, highs and the tick |
+| Fork: a quote's delta from the leg | Views; Mapping |
+| Fork: `lotsize` from `pe` first | Mapping |
+| F-6: a quote price rounded | Views; Mapping |
+| F-7: a passed expiry as `None` | Mapping |
+| Fork: a tick size rounded (`4ecc799`) | Tick size |
+| Fork: `missing_minutes` at 120 s | Gap sources; Gap parity (1 case) |
+| Fork: the day high as the maximum | Gap sources; Gap parity (20 cases) |
+| F-5: only polls with an `ltp` | Closes, highs and the tick; Gap parity (2 cases) |
+| Fork: the day-high bar after the newest | Gap sources (the day-high would-be stop) |
+| Fork: the jump wins a tie | Gap sources; Gap parity (13 cases) |
+| F-10: no candidate recorded anyway | Gap sources (the loop) |
+| Fork: `Holiday` with no fact | Calendar port; Sessions |
+| `trading_day` ignores `available_at` | Calendar port |
+| A tick price rounded | Unreadable prices |
+| F-1: the offset from the store | Unreadable store |
+| F-2: only `apsw.Error` caught | Schemas at composition |
+| F-2: `MKT-R02` not refused | Schemas at composition |
+| F-3: no underlying for a basket | Basket |
+| F-4: an unreadable `ltp` skipped | Unreadable prices; Unreadable close |
+| F-4: an unreadable `high` skipped | Unreadable prices |
+| F-8: a new level while unreadable | Unreadable store |
+| F-8: escalated every pass | Unreadable store |
+| F-11: reference at the reader's head | Reference |
+| `resolve` per subject | One view per pass |
+| Closes at the store's head | One view per pass |
+| `market_view` compared | One view per pass |
+| `bar_close` equal to `bar_open` | Views; Protection over the store; One view per pass; Unreadable store |
+| An empty fetch written `covered` | Coverage; `test_market_ingest.py` (4 tests) |
+| A not-due skip written `gap` | `test_market_ingest.py` (not due) |
+| The upgrade loses the rows | `test_market_ingest.py` (upgrade) |
+| Schema 1 not upgraded | Schemas at composition; `test_market_ingest.py` (upgrade) |
+
+**Open:** none in this step. C-1 stays open from step 4. SLICE-11 binds `market.store_path`, `market.views.protection`, the recorder's every-minute schedule until the day's timing is stored, and the writer's start before the kernel's.
 
 ## Step 6 — Canvas (outline)
 
