@@ -331,7 +331,7 @@ Added beside the built types. The module imports from `autonomous_trading` only 
 
 * **Step 2** (F-8):
   * `Authenticated` gains `request` and `via`, so every constructor of it changes, the simulation's included;
-  * the kernel refuses `SEC-R10` when `request.principal` is not the relayed principal, `request.via` is not the relay peer, or `request.channel` does not fit the path (a human channel, with `owner_credential` exactly for the owner);
+  * the kernel refuses `SEC-R10` when `request.principal` is not the relayed principal, `request.via` is not the relay peer, or the request's channel identity does not fit the principal (`owner-api:local` only for the owner); a path/principal mismatch (`owner_credential` not exactly for the owner) is `SES-R01` at bind's row 0, the kernel's existing `_authenticated`;
   * it looks up the recorded result by `request_id` before `validity`, so a retry of a committed request after 120 s returns the recorded result, and its reply flags `replayed` (F-7);
   * it calls `validity(effective_now(writer, clock), request_ttl_secs)` for `SEC-R07`, and recomputes `argument_digest` from each entry point's own target and arguments, checking a latch unlock's `strategy` against the session's binding.
 * **Step 5** calls `accept_relay` after its peer checks.
@@ -476,21 +476,588 @@ Commit `726ff6e` on branch `slice-10`, cut from `fb8f2bb` (SLICE-08 step 3) in i
 | The relay accepts a `service` principal | Relay |
 | `kill_release` offered on the owner API | Doors; Confirmations |
 
-## Step 2 — the kernel's binding check (outline)
+## Step 2 — the kernel's binding check
 
-Deepened after step 1 is built. Authority: the spec's [binding check](../../design/security-and-operator.md#the-kernels-binding-check-kernelauthoritypy).
+The authorities are the spec's [binding check](../../design/security-and-operator.md#the-kernels-binding-check-kernelauthoritypy), its [refusal codes](../../design/security-and-operator.md#refusal-codes) and [event catalogue](../../design/security-and-operator.md#event-catalogue), and the crash points CP-SEC1, F-SEC10 and F-SEC12 ([failure modes](../../design/security-and-operator.md#failure-modes-and-crash-points)). Step 2 changes the kernel, the ledger (migration 7), the simulation composition and the tests. It adds no socket, process or door: the doors that hand the kernel a request come in steps 5 and 6. It builds on step 1 as built (`726ff6e`, merged into `slice-08` at `c2cca11`) and honours every item of step 1's "What later steps take from step 1". The branch `slice-10` is brought to `c2cca11` by fast-forward before step 2 starts.
 
-* **First:** list every human entry point in the built kernel (codegraph callers of `Authority.check` and of `Safety._authorized`), so none is missed; the list is recorded in the step.
-* **Builds:**
-  * `Authenticated.request` and `via`;
-  * `authority.bind` with `SEC-R07`, `-R09`, `-R19`, `-R20`;
-  * `OPERATOR_REQUEST` in each entry point's decision and its fold into `operator_request` (migration T-67, numbered next free when built), with `SEC-R04` and `-R08`;
-  * bounded `OPERATOR_REQUEST_REFUSED`;
-  * request validity in `recheck`, with `DISPATCH_REFUSED`;
-  * `BUILTIN["kernel:safety"]` with `kill_engage` for the kill-input check only, accepted by `Safety._authorized` (`kernel/safety.py:209-220`) for that case;
-  * `bootstrap.py` composes step 1's authorization in place of the disarmed table, keeping the simulation's injected test principals.
-* **Tests:** `tests/unit/test_authority_grants.py` (T-07) extended with PRF-SEC-03. CP-SEC1 and F-SEC12 run by killing a real process in `tests/recovery/test_crash_boundaries.py`. Every existing test that calls a human entry point gets a bound request from a fixture.
-* **Done when:** PRF-SEC-03 passes; PRF-SES-01, PRF-SES-02 and every SLICE-04…07 test still pass; no side file is written anywhere.
+**In plain words.** The kernel now checks every owner action itself, instead of trusting whoever passes it on. Each action must carry the one request it was made for: the same action, on the same thing, with the same details, from the same person. A cancel or a close must also be less than 120 seconds old, as today, timed on the kernel's own clock. Kill release, hold release, latch unlock, pause clear and recovery have no time limit, as today. Your fresh request through the `at` command or the console always passes these checks. They refuse only a request that is malformed, sent by the wrong process, reused, or older than a restore. Every refusal is written down. Every action that goes through is written into the ledger together with its request, in the same step, so the record can never miss one. If the reply is lost and the same request is sent again, even minutes later, you get the first answer back and nothing happens twice. Applying an AI exit suggestion is refused until the advice store arrives (SLICE-09), and while trading is stopped, as today. And the kill file can now stop trading on its own, as the kernel's safety check, with no person needed.
+
+### Decisions
+
+#### The human entry points (found first)
+
+`OA_NEW` has no `.codegraph/` index, so the callers of `Authority.check` and of `Safety._authorized` at `c2cca11` were found with a full-text search of `src/` and each call site opened. Every caller is one of these 14 entry points, or one of the four exclusions below.
+
+| # | Entry point | Reaches the check through | Operation |
+|---|---|---|---|
+| 1 | `Safety.engage_kill` (`kernel/safety.py:239-240`) | `_commit` (`:222-237`) → `_authorized` (`:209-220`) → `check` (`:217`) | `kill_engage` |
+| 2 | `Safety.release_kill` (`:242-243`) | the same | `kill_release` |
+| 3 | `Safety.engage_hold` (`:245-247`) | the same | `hold_engage` |
+| 4 | `Safety.release_hold` (`:249-252`) | the same | `hold_release` |
+| 5 | `Safety.unlock_latch` (`:333-359`) | `check` (`:349`) | `latch_unlock` |
+| 6 | `Policy.clear_pause` (`kernel/policy.py:218-230`) | `check` (`:221`) | `pause_clear` |
+| 7 | `lifecycle.resolve_attempt` (`kernel/lifecycle.py:489-540`) | `check` (`:502`) | `attempt_resolve` |
+| 8 | `Recovery.advance` (`kernel/recovery.py:362-373`) | `_human_recovery_action` (`:351-360`) → `check` (`:357`) | `recovery_advance` |
+| 9 | `Recovery.record_fence` (`:375-389`) | the same | `recovery_advance` |
+| 10 | `Authority.issue` (`kernel/authority.py:177-196`) | `_admin` (`:170-175`) → `check` (`:172`) | `grant_admin` |
+| 11 | `Authority.revoke` (`:198-207`) | the same | `grant_admin` |
+| 12 | `Authority.authorize_binding` (`:228-238`) | `check` (`:230`) | `binding_authorize` |
+| 13 | `Authority.revoke_binding` (`:240-247`) | `check` (`:243`) | `binding_authorize` |
+| 14 | `ActionAdmission.admit` (`kernel/admission.py:519-617`), for a human cancel, close or modify | `_a2` (`:513-517`), at A2 (`:544`) and B:A2 (`:564`) | `cancel`, `close` or `advice_apply` |
+
+Not human entry points:
+
+* `EntryAdmission._a2` (`kernel/admission.py:634-638`) and the SLICE-01 seam `Coordinator._submit_admitted` (`kernel/coordinator.py:169-240`, checks at `:192` and `:206`) admit entries. No operation names `entry`, because there is no human entry door. Step 2 refuses a relayed human and the owner at `EntryAdmission` (below). The seam is reached only by the coordinator and `operations/verification.py` (the `_BUILDERS` guard in `tests/contracts/test_capabilities.py`).
+* `Authority.recheck` (`kernel/authority.py:155-163`), called at dispatch (`kernel/coordinator.py:283-286`), gains request validity (below).
+* `Authority._revoke_unverified` (`:209-213`) is `kernel:recovery`'s own capability and is never checked.
+* The protection loop (`kernel/protection.py:702`, `:1003`, `:1097`) acts as `kernel:protection`.
+
+The list is the spec's 13 names plus action admission. PRF-SEC-03's Binding group has one case per row, and three for row 14 (cancel, close, modify).
+
+#### `Authenticated` (`kernel/authority.py`)
+
+* `Authenticated(principal, path, *, request, via)`, frozen, with slots. `request` is an `OperatorRequest` or `None`; `via` is a `Principal` or `None`. Both are keyword-only and have **no default**, so every construction site states whether it carries a request (step 1, F-8).
+* `__post_init__` raises `ValueError` when:
+  * `request` is neither `None` nor an `OperatorRequest`;
+  * `via` is neither `None` nor a `service` principal;
+  * the principal is not `human` and either field is set.
+* Every constructor:
+
+  | Site | After step 2 |
+  |---|---|
+  | `bootstrap.py:96-100`, the disarmed table | `Authenticated(principal, path, request=None, via=None)` |
+  | `bootstrap.py:174`, `Composition.owner_auth` | `Authenticated(owner, "owner_credential", request=None, via=None)`, kept as the *unbound* owner: `Authority.check` accepts it, and every human entry point refuses it (`SEC-R09`, unrecorded) |
+  | `kernel/protection.py:702` | `Authenticated(PROTECTION, "in_process", request=None, via=None)` |
+  | New: `Composition.relay` in `bootstrap.py` | `Authenticated(relayed.principal, relayed.path, request=request, via=relayed.via)`: the simulation's stand-in for step 5's channel |
+  | Tests (every file in the Files table that builds one) | Each states `request=None, via=None`, or takes a bound one from the fixture |
+
+* Two guards keep it so, both in `tests/contracts/test_capabilities.py`, with one allowed-file set: `bootstrap.py` and `kernel/protection.py`. Step 4 adds the kill-input check's file; step 5 adds `adapters/unix_channel.py`.
+  * `_BUILDERS` gains `"Authenticated("` with that set.
+  * `test_authenticated_never_replaced` (new) parses every `src/` file with `ast`. It fails on any call to `replace` or `dataclasses.replace` with a keyword `principal`, `path`, `request` or `via` outside that set, so no code copies an `Authenticated` with a borrowed request or principal. No `src/` call passes those keywords at `c2cca11`.
+* **Two commits (F-9).** The constructor change (both fields at every site, `request=None, via=None`, and the guards) lands as its own mechanical commit, with no behaviour change, before the behaviour commit.
+
+#### `Replayed`, labels and the request lifetime (`kernel/authority.py`)
+
+* `Replayed(request_id, decision, sequence, outcome)`, frozen:
+  * `decision` is the recorded decision's kind;
+  * `sequence` is the recorded `OPERATOR_REQUEST` event's sequence;
+  * `outcome` is the command's current `Outcome` for action admission (`_existing_outcome`, `kernel/coordinator.py:47-55`), and `None` for every other entry point.
+
+  An entry point returns it in place of its `Committed` or `Outcome`. It writes nothing and changes no in-memory state (a replayed `advance` does not move `Recovery.stage`). Step 5 puts `replayed: true` on the wire.
+* `_MESSAGES` gains the spec's labels: `SEC-R04` `request_replayed`, `SEC-R07` `request_expired`, `SEC-R08` `confirmation_consumed`, `SEC-R09` `request_unbound`, `SEC-R10` `relay_scope`, `SEC-R19` `restored_since_request`, `SEC-R20` `advice_under_kill`, `SEC-R22` `owner_absent`. Each refusal is `Refusal(code, label, None, "authority")`; action admission re-wraps it with its command key and `COMMAND_ADMITTED`, as it does A2's.
+* `Authority(writer, clock, *, owner, stage, lease_hook=None, request_ttl_secs, relays)`. Both new arguments are required:
+  * `request_ttl_secs` is an int ≥ 1, with a bool refused (`ValueError`). It is the kernel's own bound lifetime, which step 1's `validity` compares with each request's window (F-2).
+  * `relays` is a `frozenset` of `service` principals (`ValueError` otherwise): the relay set, passed as data by the composition, so no `kernel/` module imports `interfaces`. The simulation passes `frozenset({SIM_RELAY})`; step 5 binds it from `channel.relays`.
+* `TIMED_OPERATIONS = ("cancel", "close")`, the operations legacy timed (`owner_command.py:54`, `:58`, `:154-156`; `src/interfaces/console/api/routes/exposure.py:30-34`).
+* `target_of(account, subject) -> OperatorTarget | None` returns the target, or `None` when `OperatorTarget` raises (a subject failing `check_subject`). `bind` refuses a `None` target with `SEC-R09`.
+* `action_wire(request) -> dict` (`kernel/admission.py`) is `wire(request)` without its `"principal"` key. It keeps `command_key`, so one request names one command.
+
+#### `bind(auth, operation, target, args) -> Replayed | Refusal | None` (`kernel/authority.py`)
+
+It runs first in every entry point of the table above. `operation`, `target` and `args` are the entry point's own, from the next table. The checks run in this order; the first that fails decides.
+
+| # | Refuses or returns when | Result | Recorded |
+|---|---|---|---|
+| 0 | `self._authenticated(auth)` is false (`kernel/authority.py:119-122`): no auth, a path the principal's kind may not use, or `owner_credential` not exactly for the owner (the path/principal mismatch) | `SES-R01` | no: not attributable |
+| 1 | The principal is `kernel` or `service` | `None` (no request needed) | — |
+| 2 | `auth.request` is `None` | `SEC-R09` | no: there is no request to name |
+| 3 | `request.principal != auth.principal`; `auth.via` is `None` or `request.via != auth.via`; or `request.channel_identity == "owner-api:local"` and the principal is not the owner (loopback is always the owner, step 1) | `SEC-R10` | no: the relay's assertion is what failed |
+| 4 | **The recorded result.** An `operator_request` row has `request.request_id`. When `request.operation == operation`, `request.target == target` and `request.argument_digest == row.argument_digest == argument_digest(operation, target, args)`, the result is `Replayed`; otherwise `SEC-R04` | `Replayed` or `SEC-R04` | `SEC-R04` yes |
+| 5 | `target` is `None`; `request.operation != operation`; `request.target != target`; `argument_digest(operation, target, args)` raises or differs from `request.argument_digest`; `check_target(operation, target, args)` raises; or the request's epoch was never activated in this ledger and no activation carries a restore marker | `SEC-R09` | yes |
+| 6 | `request.confirmation_id` is set and an `operator_request` row holds it | `SEC-R08` | yes |
+| 7 | `operation` is in `TIMED_OPERATIONS` and `request.validity(effective_now(self.writer, self.clock), self.request_ttl_secs)` is not `"valid"`. Any other operation skips this row | `SEC-R07` | yes |
+| 8 | A restore was activated since the request's epoch | `SEC-R19` | yes |
+| 9 | `operation == "advice_apply"` and kill is engaged: a `safety_state` row with kind `kill`, scope `desk` and state `engaged` | `SEC-R20` | yes |
+| 10 | Otherwise | `None` | — |
+
+* **Row 4 runs before validity** (F-7). A retry of a committed cancel or close after 120 s returns its recorded result. A request whose first submission was refused has no row, so its retry is judged again: a refusal consumed nothing, as legacy consumes an owner command only at a send that passes (`src/core/framework/execution/sender.py:335-338`).
+* **The epoch rule (rows 5 and 8).** `E` is the first `EPOCH_ACTIVATED` whose `epoch_id` is `request.epoch.value`. "Restored since" means some `EPOCH_ACTIVATED` has a non-null `restore` and either `E` is missing or its sequence is greater than `E`'s. A missing `E` with no restore anywhere is a request minted against another ledger: row 5. A missing `E` after a restore is a request from an epoch the backup never saw, which may have committed before the loss: row 8 (F-SEC12).
+* **Time (row 7).** The kernel's ratchet, never moving back (`kernel/lifecycle.py:43-51`). Every answer but `"valid"` (`"domain"`, `"lifetime"`, `"expired"`) is `SEC-R07`. **Fork call (request lifetime: cancel and close only):**
+  * 120 s, legacy's owner-command lifetime, applies only to `cancel` and `close`, the only actions legacy's owner command covered and timed (`src/core/framework/execution/owner_command.py:54`, `:58`, `:154-156`; `exposure.py:30-34`). The kernel checks it at admission and at dispatch, as legacy checked at the send (`sender.py:251-258`).
+  * Kill release, hold release, latch unlock, pause clear, recovery, grants, bindings and attempt resolution had no lifetime in legacy (`deploy/at:4273-4280`, `:4364-4370`; `src/interfaces/console/api/routes/loss_latch.py:25-35`), and get none.
+  * An `advice_apply` close or modify is not a legacy owner command and is not timed. It is refused until SLICE-09 in any case (`SEC-R22`, below).
+* **One clock (F-4).** The request's `issued_at` is the kernel's `effective_now`, not the door's wall clock, so a request is issued and judged on one clock.
+  * Step 5 builds the read on the kernel channel: a `now` request whose reply is `effective_now(writer, clock)`, with the epoch, as every reply carries it.
+  * Step 6 composes the `Authorizer` with an operator-side clock. Its `now()` makes that read; its `elapsed()` is the operator process's own monotonic clock, which step 1's session lifetimes use.
+  * The hand-off is step 1's `Authorizer(clock, …)` argument: no step 1 code changes.
+  * The simulation passes `KernelNow(writer, clock)` (`bootstrap.py`, below). This narrows step 1's clock Deviation: both instants are the kernel's ratchet, separated only by the read's round trip.
+
+#### What each entry point binds
+
+The entry point computes its own target and args from its own arguments; nothing is read from the request but, for a close or an advice application, the subject that the call cannot name (below).
+
+| Entry point (signature after step 2) | Operation | Target (account, subject) | Args | Decision recorded |
+|---|---|---|---|---|
+| `engage_kill(auth, reason)` | `kill_engage` | (None, None) | `{"reason": reason}` | `KILL_ENGAGED` |
+| `release_kill(auth, reason)` | `kill_release` | (None, None) | `{"reason": reason}` | `KILL_RELEASED` |
+| `engage_hold(auth, strategy, reason)`, `reason` new | `hold_engage` | (None, strategy) | `{"reason": reason}` | `HOLD_ENGAGED` |
+| `release_hold(auth, strategy, released_reason, justification)` | `hold_release` | (None, strategy) | `{"released_reason": …, "justification": …}` | `HOLD_RELEASED` |
+| `unlock_latch(auth, session_id, reason, *, strategy)`, `strategy` new | `latch_unlock` | (the session row's account, or None without a row; session_id) | `{"strategy": strategy, "reason": reason}` | `LOSS_LATCH_UNLOCKED` |
+| `clear_pause(auth, pause_id, reason)` | `pause_clear` | (None, pause_id) | `{"reason": reason}` | `PAUSE_CLEARED` |
+| `resolve_attempt(writer, authority, auth, command_key, attempt_no, legs, observation)` | `attempt_resolve` | (the command row's account, or None; command_key) | `{"attempt_no": attempt_no, "legs": L, "observation": wire(observation) or None when not an EvidenceRef}`, with `L` the legs rule below | `RESOLVED_REACHED` or `RESOLVED_NEVER_REACHED` |
+| `advance(auth)` | `recovery_advance` | (None, None) | `{"step": "advance"}` | `RECOVERY_STAGE` |
+| `record_fence(auth, evidence)` | `recovery_advance` | (None, evidence.old_host) | `{"step": "fence", "fence": the OLD_HOST_FENCED payload built at kernel/recovery.py:379-385}` | `OLD_HOST_FENCED` |
+| `issue(auth, grant)` | `grant_admin` | (None, grant.grant_id) | `{"step": "issue", "grant": wire(grant)}` | `GRANT_ISSUED` |
+| `revoke(auth, grant_id, reason)` | `grant_admin` | (None, grant_id) | `{"step": "revoke", "reason": reason}` | `GRANT_REVOKED` |
+| `authorize_binding(auth, binding)` | `binding_authorize` | (binding.scope.account_id, binding.binding_id) | `{"step": "authorize", "binding": wire(binding)}` | `BINDING_AUTHORIZED` |
+| `revoke_binding(auth, binding_id, reason)` | `binding_authorize` | (the binding row's account, or None; binding_id) | `{"step": "revoke", "reason": reason}` | `BINDING_REVOKED` |
+| `admit_action(request, *, auth=None, reason=None)`: a cancel | `cancel` | (request.account, request.broker_order_id) | `{"action": action_wire(request), "reason": reason}` | `COMMAND_ADMITTED` |
+| the same: a close | `advice_apply` when `auth.request` is set and its operation is `advice_apply`, else `close` | (request.account, S) | the same | `COMMAND_ADMITTED` |
+| the same: a modify | `advice_apply` | (request.account, S) | the same | `COMMAND_ADMITTED` |
+
+* **The subject `S` (R-2).** `S` is `auth.request.target.subject` when `auth.request` is not `None`, else `None`. The kernel never reads a missing request: with `None`, bind refuses at row 2.
+* **The legs rule (R-11).** `L` is `{role: oid for role, oid in legs.items()}` when `legs` is a mapping whose keys are strings and whose values are strings or `None`; otherwise `L` is `None`. That makes the args always canonical, so `argument_digest` never raises on them. A `None` `L` that the request did not name is a digest mismatch (`SEC-R09`). The entry point's own guard then refuses malformed legs as today (`ADM-R01`, `kernel/lifecycle.py:515-516`).
+* Every target is built with `target_of`, and every target and args pair fits step 1's `check_target` rows. A latch unlock's `strategy` is in args, as step 1 fixed. It is a confirmation, checked by `check_subject` (step 1's `check_target`, bind row 5) and recorded, and never used to refuse otherwise (below).
+* `Coordinator.admit_action(request, *, auth=None, reason=None)` passes `reason` to `ActionAdmission.admit(request, auth, *, reason=None)`.
+* The `reason` texts are bound as given. Each entry point keeps its own text guard (a non-empty string, `ADM-R01`), and `action_wire` keeps every field of the action. Legacy signed the reason with the action (`owner_command.py:90-96`).
+
+#### The common flow of a human entry point
+
+1. `bound = authority.bind(auth, operation, target, args)`. A `Replayed` or a `Refusal` is returned at once (re-wrapped by action admission).
+2. The entry point's existing checks run in their existing order. Each `Refusal` it returns for a human with a request passes through `authority.refused(auth, refusal)` first. That includes the grant check, stage, malformed text, `LED-R05`, the fence rule and lease refusals, and the writer's `LED-R09` returned today (`kernel/safety.py:234-235`, `:356-357`; `kernel/lifecycle.py:538-539`). A non-human principal keeps today's refusals (for example `SES-R02` at `kernel/safety.py:213-214`).
+3. The decision's events are the entry point's own, then `authority.request_drafts(auth, args, decision, command_key)`: one `OPERATOR_REQUEST`, last, in the **same transaction**. The record cannot miss an effect, nor exist without one. `Authority._record`, `Recovery._record`, `Recovery._advance_record`, `Safety._commit` and `Policy._transact` gain `extra: tuple[EventDraft, ...] = ()`, appended after their own drafts. `unlock_latch`, `resolve_attempt` and action admission append the draft inline.
+4. **`Safety._commit` (R-9)** becomes `_commit(self, auth, use, kind, payload, texts, *, target, args, kill_reason=None)`. `use` is the operation name (`kill_engage`, `kill_release`, `hold_engage` or `hold_release`), passed to `bind` as the operation. `target` and `args` are the table's. `kill_reason` is passed only by `engage_kill`, as its `reason`.
+
+#### The record (`kernel/authority.py`)
+
+* `request_drafts(auth, args, decision, command_key=None) -> tuple[EventDraft, ...]` is empty unless the principal is human and carries a request. Otherwise it is one `EventDraft("OPERATOR_REQUEST", payload, auth.principal)`, with the payload `request.wire()` plus three fields:
+  * `args`, so the digest can be recomputed from the ledger alone, as legacy's audit row described the whole command (`owner_command.py:82-87`);
+  * `decision`;
+  * `command_key`, which only action admission passes (its command's key). Every other entry point calls `request_drafts` without it, so the field is `None`.
+* `refused(auth, refusal) -> Refusal` returns `refusal` unchanged in every case. It records `OPERATOR_REQUEST_REFUSED` with payload `{"request_id", "principal": [value, kind], "channel_identity", "operation": request.operation, "target": request.target.wire(), "code"}`, as its own decision of that kind, except:
+  * it writes nothing when `auth` is `None`, the principal is not human, the request is `None`, or the code is `SES-R01` or `SEC-R10` (not attributable);
+  * it writes nothing when the `operator_request_refused` table (migration 7, below) has the row `(request_id, code)`, read by primary key. **Bounded:** at most one per request and code, as legacy audited refused writes (`src/interfaces/console/routes.py:566`). How often a caller may submit at all is the door's rate limit, step 6's; the kernel bounds only what it writes;
+  * a writer `Refusal` on that commit is not raised, and the original refusal is returned unrecorded: the row is evidence, and the door also logs it. `CommitFailed` propagates, as on every commit.
+
+#### Action admission (`kernel/admission.py`)
+
+`ActionAdmission.admit(request, auth=None, *, reason=None)`, in this order:
+
+1. `auth = auth if auth is not None else c.authenticate(request.principal)`, moved first.
+2. For a human `auth`:
+   1. Operation and target from the table; `args = {"action": action_wire(request), "reason": reason}`.
+   2. `bind`. A `Replayed` is returned with `outcome` filled. A `Refusal` is returned as `refused_outcome(key, Refusal(code, label, key, "COMMAND_ADMITTED"), "unchanged")`: bind recorded it, and no `ADMISSION_REFUSED` is written.
+   3. A1, a missing command key: `LED-R01`, through `refused`.
+   4. `reason` that is not a non-empty string: `ADM-R01`, recorded as today at check `A1` and through `refused`.
+   5. The command key exists in `command_identity`: `SEC-R04`, through `refused` only, outcome `"unchanged"`. **Fork call (single use):** a new attempt is a new request with a new command, as legacy issues a fresh owner command per attempt and consumes it at the send (`owner_command.py:121`, `:157-169`; `sender.py:335-338`). A human therefore never reaches A1a's dispatch retry (`existing_or_retry`, `:201-227`). Only the kernel's own commands do.
+   6. For operation `close`, the subject must be the entry's own order of that position. `order = holdings.order(request.account, subject)` is not `None`, `order.verb == "entry"`, `order.position_id == request.position_id`, and `not is_protective(order)`; otherwise `SEC-R09`, through `refused` only, outcome `"unchanged"`. **Fork call (a close names the entry's own order):** legacy refuses a close naming a protective leg and reads ownership of the exact ID at the send (`sender.py:260-270`).
+   7. For operation `advice_apply` (F-1): with `ports.advice` `None`, the result is `SEC-R22`, through `refused` only, outcome `"unchanged"`. No advice record exists before SLICE-09, so no human close or modify may claim one. With an advice port composed, the action must equal the advice's action: `ports.advice.action(S, request.account) == action_wire(request)`, else `SEC-R09`, through `refused` only. SLICE-09 replaces the port with its ledger advice record: the advice ID must resolve to a recorded advice whose action wire equals `action_wire(request)`. Under kill, bind's `SEC-R20` (row 9) comes first.
+3. For a non-human `auth`:
+   1. `reason` must be `None` (`ValueError`), and A1 is unchanged.
+   2. **A relay never acts for itself (F-2).** When `auth.principal` is in `c.authority.relays`, the result is `SEC-R10`, recorded as `ADMISSION_REFUSED` at check `A2` (`_CHECK_OF` gains `"SEC-R10": "A2"`). The operator process may relay a person's action and may never act as itself, whatever grant it is issued (`src/runtime/tier1_authority/service.py:270-277`).
+4. Then today's flow: targets, `prot_key_check` (A1), A1a (now reached only by non-humans), A2, A4 and stage B. Each refusal for a human is recorded as today (`ADMISSION_REFUSED`) and through `refused`.
+5. **The advice port.** `AdmissionPorts` (`kernel/ports.py:115-126`) gains `advice: object | None = None`, an `AdvicePort` with one method, `action(advice_id: str, account: AccountId) -> dict | None`: the advice's action in `action_wire` form, or `None` when unknown.
+   * The simulation and every live composition leave it `None` until SLICE-09.
+   * Only tests compose `FixtureAdvice` (`tests/conftest.py`), which maps an advice ID to the exact action it allows, so the existing human-modify tests keep exercising modify admission and dispatch.
+6. The admission decision's events are `COMMAND_ADMITTED`, then the `OPERATOR_REQUEST` with `command_key` set. The action payload's `dependencies` gains `"operator_request"`: the request ID for a human, `None` otherwise. An entry's payload is unchanged; the recheck reads `dependencies.get("operator_request")`.
+
+**Entries (F-2).** `EntryAdmission._a2` refuses `SEC-R09` in two cases. It is recorded at A2 (`_CHECK_OF` gains `"SEC-R09": "A2"`) and through `refused` (which writes only for a bound request):
+
+* `auth.request` is not `None`: no operation names `entry`;
+* the principal is `human` on path `owner_credential`, whatever the request: the owner never places an entry, bound or unbound (`Composition.owner_auth` included).
+
+The simulation's injected test principal still enters through the disarmed table, on `operator_credential` and without a request.
+
+**Fork call (no human entry door; no human modify door except advice application).** Legacy's owner command allows cancel and close only (`owner_command.py:35`, `:53-54`). In step 2 the kernel enforces the entry half and refuses every human modify not bound as `advice_apply` (`SEC-R09`). The advice half is **not yet** enforced by a link to real advice: until SLICE-09 composes the advice record, the kernel refuses every `advice_apply` (`SEC-R22`). The rule is therefore complete only when SLICE-09's check lands.
+
+#### The latch unlock's strategy (`kernel/safety.py`)
+
+After bind, `unlock_latch` keeps today's checks: non-human `SES-R02`; a missing session or an empty reason `ADM-R01`; then the `latch_unlock` grant check (`kernel/safety.py:348-351`).
+
+* `strategy` is a **confirmation** (F-5). It passes `check_subject` (step 1's `check_target`, at bind row 5) and is recorded in the request's `args`. It is **never used to refuse otherwise**: no ledger query decides whether a strategy "belongs" to the session.
+* The built standing binding names candidates, not strategies (`resources/migrations/002_sessions_authority.sql`). Only SLICE-09's candidate-to-strategy registry can say which strategies a binding covers. SLICE-09 may then add the check, as its own step, with the owner's review.
+* Correction: `INTENT_SEEN` is recorded for every resolved intent at entry admission (`kernel/admission.py:729`), whatever the review policy. The earlier claim about `kernel/policy.py:199-200` was wrong. That line returns the application before `record_intent`, but admission recorded the intent already.
+
+**Fork call (latch unlock by strategy), for the owner's review.** The owner unlocks by naming a strategy, as legacy does (`src/interfaces/console/api/routes/loss_latch.py:25-35`). Unlike legacy, the unlock lifts the **whole session's** latch, for every strategy on that account's session ([Q-028](../../decisions/owner-questions.md#q-028), SLICE-06's per-session latch). Legacy lifted one strategy's record for the day (`src/core/framework/execution/loss_latch.py:96-98`). Step 2 changes nothing in the latch itself.
+
+#### Validity at dispatch (`kernel/authority.py`, `kernel/coordinator.py`)
+
+* `recheck(grant_id, verb, account, *, request_id=None)`. When `request_id` is set, it is checked **before** the owner-root and built-in early return (`kernel/authority.py:156-157`):
+  * no `operator_request` row: `SEC-R09`;
+  * the row's `operation` is in `TIMED_OPERATIONS`, and either `effective_now(writer, clock).domain` differs from the row's `clock_domain` or `effective_now(...).utc_iso > row.valid_until`: `SEC-R07`.
+
+  Any other recorded operation passes this check. The second rule is step 1's `validity` boundary: still valid at exactly 120 s.
+* `_revalidate`'s row 3 (`kernel/coordinator.py:283-286`) passes `request_id=deps.get("operator_request")`. It names the dependency `"request"` for `SEC-R07` and `SEC-R09`, else `"grant"`.
+* `_refuse_dispatch` records `DISPATCH_REFUSED`, so the command ends `REFUSED` and its reservation, if any, is released. A human action holds none (`reservation_id` is `None` at `kernel/admission.py:597`). F-SEC10's "reservation released" is therefore checked as "no reservation row, command `REFUSED`, nothing sent".
+
+#### The kill-input exemption (`kernel/authority.py`, `kernel/safety.py`)
+
+* `BUILTIN["kernel:safety"] = frozenset({"kill_engage"})`.
+* `KILL_INPUT_REASONS = ("kill_file", "kill_flag")` in `kernel/safety.py`.
+* `Safety._authorized(auth, use, *, kill_reason=None)` gains one case, before its human-only refusal. When `auth.principal == SAFETY`, `auth.path == "in_process"`, `use == "kill_engage"` and `kill_reason in KILL_INPUT_REASONS`, it returns `authority.check("kill_engage", auth, None)`'s refusal or `None`. Every other non-human call keeps `SES-R02`, `kernel:safety` with any other reason included. `engage_kill` passes `kill_reason=reason`; no other entry point passes it.
+* `kernel:safety` never holds `kill_release`, so `release_kill` by it is `SES-R02`. The stage table already allows `kill_engage` in `RECOVERY_WRITING` and `OPERATING` (`kernel/authority.py:31-38`), so the input check works before `OPERATING`. This only restricts. Step 4 calls it, and records a kill input present at start as `KILL_ENGAGED` by `kernel:safety` in `RECOVERY_WRITING`, before the advance to `OPERATING`.
+
+#### Ledger: migration 7 and the fold
+
+* `resources/migrations/007_security.sql` (tree delta T-67; 7 is the next free number at `c2cca11`, after `001`…`006`):
+
+  ```sql
+  CREATE TABLE operator_request (request_id TEXT PRIMARY KEY, confirmation_id TEXT, argument_digest TEXT NOT NULL,
+    operation TEXT NOT NULL, decision TEXT NOT NULL, command_key TEXT, valid_until TEXT NOT NULL,
+    clock_domain TEXT NOT NULL, sequence INTEGER NOT NULL);
+  CREATE UNIQUE INDEX operator_request_confirmation ON operator_request(confirmation_id) WHERE confirmation_id IS NOT NULL;
+  CREATE UNIQUE INDEX operator_request_command ON operator_request(command_key) WHERE command_key IS NOT NULL;
+  CREATE TABLE operator_request_refused (request_id TEXT NOT NULL, code TEXT NOT NULL, sequence INTEGER NOT NULL,
+    PRIMARY KEY (request_id, code));
+  ```
+
+  `kernel/ledger/schema.py` gains `Migration(7, "security", "007_security.sql")`. If another slice lands a migration 7 first, this one takes the next free number and the file is renamed; nothing else changes.
+* `resources/events.schema.json` gains:
+  * `OPERATOR_REQUEST`: `request_id`, `epoch`, `channel`, `channel_identity`, `operation`, `argument_digest`, `issued_at`, `valid_until`, `clock_domain` and `decision` (each `"string"`); `principal` `"array"`; `via` `["array", "null"]`; `target` and `args` `"object"`; `confirmation_id` and `command_key` `["string", "null"]`.
+  * `OPERATOR_REQUEST_REFUSED`: `request_id`, `channel_identity`, `operation` and `code` (`"string"`); `principal` `"array"`; `target` `"object"`.
+* `kernel/ledger/store.py`:
+  * `_FAMILY` maps both kinds to `"authority"`.
+  * `_PK["operator_request"] = ("request_id",)` and `_PK["operator_request_refused"] = ("request_id", "code")`.
+  * `_load_touched` gains two branches, before its command branch:
+    * `OPERATOR_REQUEST` loads `operator_request` rows with `request_id = ? OR confirmation_id = ? OR command_key = ?`;
+    * `OPERATOR_REQUEST_REFUSED` loads the `operator_request_refused` row with `request_id = ? AND code = ?`.
+* `kernel/ledger/projections.py`:
+  * `TABLES` gains `"operator_request"` and `"operator_request_refused"`. `_NO_ROWS` is unchanged.
+  * The fold of `OPERATOR_REQUEST` raises `TransitionNotAllowed` (the writer's `LED-R09`) when the `request_id` exists, or when a set `confirmation_id` or `command_key` is held by another row. Otherwise it writes the row from the payload, with `sequence` the event's.
+  * The fold of `OPERATOR_REQUEST_REFUSED` raises `TransitionNotAllowed` when `(request_id, code)` exists, else writes `{request_id, code, sequence}`.
+
+  These are backstops: `bind` and admission refuse first.
+
+#### Contracts (`contracts/identity.py`)
+
+* `OperatorRequest.wire() -> dict` returns `{"request_id", "epoch": epoch.value, "channel", "channel_identity", "principal": [value, kind], "via": [value, kind] | None, "operation", "target": target.wire(), "argument_digest", "confirmation_id", "issued_at": utc_iso, "valid_until": utc_iso, "clock_domain": issued_at.domain}`.
+* `operator_request_from_wire(obj) -> OperatorRequest` raises `ValueError` on any other key set or value. Construction checks the rest. Step 5's channel and the crash tests use it.
+
+#### Settings (`settings/schema.py`, `settings/loader.py`)
+
+* `Settings` gains three refusing fields, each `None` by default:
+  * `request_ttl_secs`, read by the kernel and the operator process: 120, legacy's (`owner_command.py:58`);
+  * `session_ttl_secs` and `sessions_per_identity`, read by the operator process and the simulation's stand-in. Values are bound per release in step 6; no money effect.
+* The loader gains `_SECURITY` rows, read like `_ADMISSION`'s: section `interfaces`, names as the fields, environment names `AT_REQUEST_TTL_SECS`, `AT_SESSION_TTL_SECS` and `AT_SESSIONS_PER_IDENTITY`, kind `int`. `resources/defaults.yaml` gains nothing: no shipped value.
+
+#### The composition (`bootstrap.py`)
+
+* `SIM_RELAY = Principal("svc:operator-sim", "service")` is the simulation's operator process, labelled synthetic.
+* `compose_simulation(…, principals: Mapping[str, MapEntry] | None = None)`:
+  * after its existing refusals, it raises `RefusingParameterUnbound` for `interfaces.request_ttl_secs`, then `interfaces.session_ttl_secs`, then `interfaces.sessions_per_identity` when unbound;
+  * it builds `Authority(…, request_ttl_secs=settings.request_ttl_secs, relays=frozenset({SIM_RELAY}))`;
+  * `KernelNow(writer, clock)`, a small class in `bootstrap.py`, is the simulation's stand-in for step 5's `now` read. Its `now()` is `effective_now(writer, clock)` and its `elapsed()` is `clock.elapsed()`;
+  * inside its `try`, after the writer opens, it builds `Authorizer(KernelNow(writer, clock), owner=owner, principals=principals or {}, doors=LEGACY_DOORS, epoch=writer.epoch, via=SIM_RELAY, request_ttl_secs=…, session_ttl_secs=…, sessions_per_identity=…)`. A bad map raises `ValueError` and closes the writer.
+* `Composition` gains `authorizer` and `relay_peer` (`SIM_RELAY`). It also gains `relay(request, path) -> Authenticated | Refusal`: `accept_relay(relay_peer, frozenset({relay_peer}), owner, request.principal, path)`, then the constructor in the table above.
+* `operator_call(comp, evidence, operation, target, args, *, nonce, named=None, typed=None) -> Authenticated | Refusal`, a module function, is the simulation's door:
+  1. `authenticate(evidence)`;
+  2. `open_session`, with `csrf` the session's own token;
+  3. `prepare`, when the door rule for `(caller.channel, operation)` asks a confirmation, then `execute` with that challenge, `typed` and `nonce`; otherwise `execute` alone;
+  4. `end_session`;
+  5. `comp.relay(request, caller.path)`.
+
+  Any `Refusal` is returned. It never types on the person's behalf: `typed` is the caller's.
+* **In place of the disarmed table.** Every human entry point is now reached only through step 1's `Authorizer` and the relay. The table (`bootstrap.py:91-100`) stays only as the simulation's stand-in for step 5's channel, for the injected test principals: never the owner, never in-process, never with a request. A human it names therefore passes no human entry point (`SEC-R09`), and still submits the SLICE-04…07 entries.
+* Only `bootstrap.py` and `operations/verification.py` import `interfaces.authorization`; no `kernel/` module does. A live kernel composition (SLICE-11) composes no `Authorizer`.
+
+`operations/verification.py` composes with:
+
+* `principals={"uid:0": MapEntry(Principal("owner", "human"), None)}`;
+* the three settings as labelled synthetic measurement values: 120 (legacy), 900 and 1.
+
+Its owner advance and grant issue go through `operator_call(comp, CliEvidence(0, 1, None), …)` with nonces `nonce-measure-advance-0001` and `nonce-measure-issue-00001`. It raises `RuntimeError` naming any `Refusal`, where today it ignores the results (`operations/verification.py:42-45`).
+
+#### The test fixture (`tests/conftest.py`)
+
+All values are labelled synthetic.
+
+* `SECURITY_SETTINGS = dict(request_ttl_secs=120, session_ttl_secs=900, sessions_per_identity=2)`, legacy's 120 and step 1's synthetic 900 and 2. `build` passes it into `Settings`, and `principals=SIM_PRINCIPALS`.
+* `SIM_PRINCIPALS`:
+
+  | Key | Principal | Accounts |
+  |---|---|---|
+  | `uid:1001` | `OWNER` | None |
+  | `uid:1002` | `TEST_PRINCIPAL` | `{ACCT, ACCT_2}` |
+  | `uid:1003` | `Principal("ops", "human")` | `{ACCT}` |
+  | `uid:1004` | `Principal("deputy", "human")` | `{ACCT}` |
+  | `proxy:synthetic-test@example.test` | `TEST_PRINCIPAL` | `{ACCT, ACCT_2}` |
+
+* `operator_auth(comp, operation, target, args, *, principal=OWNER, channel=None, nonce=None, typed=None, named=None) -> Authenticated | Refusal` calls `operator_call`:
+  * `channel` defaults to `owner-api` for `advice_apply` and to `owner-cli` otherwise;
+  * the evidence is `CliEvidence(uid, 4242, None)` for the principal's `uid:` key on `owner-cli`. On `owner-api` it is `ApiEvidence("loopback", None, "console-sim")` for the owner, and `ApiEvidence("proxy", "synthetic-test@example.test", "console-sim")` for `TEST_PRINCIPAL`;
+  * `nonce` defaults to `"nonce-fixture-" + uuid4().hex`, so a reopened ledger never meets a fixture nonce from another process;
+  * `named` defaults to `args.get("strategy")` for `latch_unlock`;
+  * `typed` defaults to the door rule's expected text: the literal, `target.subject`, or `named`. That is the test acting as the person; a test of a confirmation passes its own.
+* `action_auth(comp, request, *, subject=None, operation=None, reason="synthetic reason", nonce=None, channel=None)` binds an action with `principal=request.principal`. The operation defaults to `cancel`, `close` or `advice_apply` by verb. The subject defaults to the broker order ID for a cancel, `"E1"` for a close, and `"advice-synthetic-1"` for a modify. The args are the table's.
+* `make_entry_order(**changes)`: an `OwnedOrder` with `broker_order_id="E1"`, `command_key="k-entry"`, `verb="entry"`, `leg_role="primary"`, `side="BUY"`, `order_kind="market"`, `position_id=POSITION`, `managed_by_protection=False`, and the other fields as `make_owned_order`'s. `action_world` (fixture holdings) adds it to its holdings, so a human close can name the entry's own order.
+* **`owned_close` (R-1)** gains `subject: str | None = None`, the order the bound close names. It binds its close with `action_auth(…, subject=subject or "E1")`. Its branches:
+  * **A ledger position** (a `str` `position`, worlds with `kernel_positions`): the position's entry is already in the ledger (`filled_entry` and `loop_filled_entry` acknowledge `k-entry` as `E1`), and `subject` defaults to `"E1"`.
+  * **A fixture position in a kernel-holdings world** (`kernel_holdings=True`, where orders come from `LedgerHoldings`): with `subject` `None`, it first admits entry `k-entry` (`world.request(make_intent(), "k-entry")`), acknowledged as `E1` (a step `{"result": "ack", "order_id": "E1"}` appended before the close's), and dispatches it. It then seeds the fixture position as `make_owned_position(position_id=position_id("k-entry", "primary"))`, so `LedgerHoldings.order(ACCT, "E1")` is that position's entry order (`kernel/admission.py:275-281`). With `subject` given, the caller's own entry and position are used unchanged.
+* `FixtureAdvice(entries: dict[str, dict])`, an `AdvicePort` whose `action(advice_id, account)` returns `entries.get(advice_id)`. `admission_ports(…, advice=None)` passes it through; `action_auth` for a modify registers nothing by itself.
+* `RESTORE = RestoreMarker("backup-2026-11-01", "old-host")` moves here from `tests/recovery/test_restore_fencing.py:35` (R-7), which imports it, so the crash child can use it too.
+* `prepare` advances with `operator_auth(comp, "recovery_advance", OperatorTarget(None, None), {"step": "advance"})` and issues `g-test` with `operator_auth(comp, "grant_admin", OperatorTarget(None, "g-test"), {"step": "issue", "grant": wire(test_grant())})`. `open_admission_world` and `action_world` bind their binding and grant calls the same way.
+* `FRESH` becomes: `EPOCH_ACTIVATED`; one `MIGRATION_APPLIED` per migration; `RUNTIME_OPENED`; `RELEASE_BOUND`; `RECOVERY_STAGE` twice; `OPERATOR_REQUEST`; `GRANT_ISSUED`; `OPERATOR_REQUEST`.
+
+**Existing tests that change.** Each file in the Files table marked "existing" changes in one of these ways only; no other expectation changes.
+
+* Every call of a human entry point takes its `auth` from `operator_auth` or `action_auth`, with the original principal, so the original expected code is kept. For example, `OPERATOR` keeps `SES-R05` in `test_delegation`, `OPS` keeps `SES-R02` in `test_a2_before_a4`, and `TEST_PRINCIPAL` keeps `SES-R02` in `test_only_recovery_advance_holder_fences`.
+* Every other `Authenticated(...)` states `request=None, via=None`. `tests/recovery/test_restore_fencing.py:134` passes `request_ttl_secs=120` to `Authority`.
+* **Every changed kind list or count** (a search for every kind-list equality in `tests/` at `c2cca11`):
+  * `FRESH` in `tests/conftest.py`, as above. Every list built on it follows unchanged: `BOOT` in `tests/recovery/test_crash_boundaries.py:63`, `:76`, `:86`, `:95`, `:108`, `:116` and `:149`, and `tests/integration/test_entry_outcomes.py:38`.
+  * `tests/unit/test_authority_grants.py:147`: the last four kinds are `COMMAND_ADMITTED`, `GRANT_REVOKED`, `OPERATOR_REQUEST`, `DISPATCH_REFUSED`.
+  * `tests/recovery/test_restore_fencing.py:114` (`test_reader_impact_measured`): `2 + len(schema.MIGRATIONS) + 5 + 3 * 50` events.
+  * The session-kind lists (`tests/recovery/test_session_transitions.py`) and the before-and-after comparisons (`tests/integration/test_shared_engine.py:61`, `tests/integration/test_reconciliation_commits.py:98`) filter or compare within one test and do not change.
+* **R-1's entry `k-entry` adds no checked kind list.** None of the nine tests that call `owned_close` in a kernel-holdings world compares a kind list: `tests/integration/test_dispatch_revalidation.py:341`, `:357`, `:381`, `:390`, `:401` and `tests/unit/test_admission_checks.py:678`, `:692`, `:700`, `:730`. Two of them change:
+  * `test_ledger_holdings_rows` (`tests/unit/test_admission_checks.py:673-686`) already acknowledges its own entry `k-e` as `E1`. It passes `subject="E1"` and `position=make_owned_position(position_id=position_id("k-e", "primary"))`, and its close assertion (`:685`) expects that position ID in place of `POSITION`.
+  * `test_row_6_refuses_a_close_of_a_position_observed_at_zero` (`tests/integration/test_dispatch_revalidation.py:365-376`) closes a fixture position `p-1` without `owned_close`. It gains an admitted `k-entry` acknowledged as `E1`, and uses `position_id("k-entry", "primary")` in place of `p-1`.
+* **A human modify is an advice application** (F-1).
+  * With no advice port it is `SEC-R22`. Every existing human-modify test therefore composes `FixtureAdvice` with the exact action of each modify (`advice-synthetic-<key>` → `action_wire(modify)`) and binds it as `advice_apply` on the owner API's proxy. That covers `tests/integration/test_verb_completion.py:74`, `tests/integration/test_dispatch_revalidation.py:343`, `:554`, `:558`, `tests/integration/test_reconciliation_commits.py:227`, `tests/unit/test_admission_checks.py:371`, `:821`, and `tests/unit/test_protection_loop.py:306`, `:660`.
+  * Under kill, bind refuses it `SEC-R20` before admission's `SEC-R22`, where today A4 refuses `PRT-R01`, and it writes no `ADMISSION_REFUSED`. In `test_kill_row` the modify row expects `SEC-R20` and `records(world)` has four rows.
+* `engage_hold` calls pass a reason. `unlock_latch` calls pass `strategy="buyer_edge"` as a confirmation only. **R-4 is moot under F-5:** no entry is inserted in any latch world, so no count downstream changes.
+* Human closes in fixture-holdings worlds name `E1`; in ledger-position worlds they name the entry's acknowledged order ID (`E1` from `filled_entry`).
+
+#### Fork calls and deviations in this step
+
+* **Fork calls**, each named where it applies above:
+  * request lifetime, for cancel and close only;
+  * single use;
+  * a close names the entry's own order;
+  * latch unlock by strategy, which lifts the whole session's latch;
+  * no human entry door, and no human modify door except advice application. Advice application is refused (`SEC-R22`) until SLICE-09.
+
+  Advice under kill (`SEC-R20`) is the slice's existing Fork call, made by bind.
+* **Deviation — for owner review: binding for every privileged operation (F-4).** This step's wording supersedes the slice-level "Deviation — binding for every privileged operation" above, for these operations. Legacy bound only cancel and close (`owner_command.py:53-54`). Kill release, hold release and latch unlock carried no request: a typed prompt on the host (`deploy/at:4273-4280`, `:4364-4370`; `scripts/loss_latch.py:60-75`), and the console route's reachability and CSRF check (`src/interfaces/console/api/routes/loss_latch.py:25-35`). They now carry a bound request, with these **new refusal paths**. None of them fires on the owner's fresh, valid request through the CLI or the console, and none of them times out:
+
+  | Refusal | Fires for kill release, hold release or latch unlock only when |
+  |---|---|
+  | `SEC-R09`, no request | The call reaches the kernel without a request: never from a door, only by bypassing the operator process |
+  | `SEC-R10` | The relay asserts another principal than the request's, comes from another peer than the request names, or puts a delegate on the loopback identity: a forged or foreign relay |
+  | `SEC-R09`, unbound | The request names another operation, target or argument than the call: for kill release, another reason; for hold release, another strategy, released reason or justification; for unlock, another session, strategy or reason. Or the request comes from another ledger. A door bug or a forged request |
+  | `SEC-R04` | A request ID already recorded is sent again for a different action: a replayed nonce on a new action |
+  | `SEC-R08` | A confirmation already used by another committed request is used again: one typed `DISENGAGE` or strategy ID authorises one release or unlock |
+  | `SEC-R19` | A request made before a restore is sent after it, and the restored ledger does not hold it |
+
+  The same request sent again, at any age, is not refused: it returns the first result (`Replayed`). For kill release the release still also needs `kill_release` and, from step 4, no kill input present (`SEC-R16`), as legacy stays engaged while the file exists.
+* **Deviation — replay after the lifetime.** Legacy refuses an owner command older than 120 s, and its key dies with the process (`owner_command.py:27-29`, `:154-156`). A retry of a committed request, at any age, returns the recorded result flagged `replayed`, with no effect. Nothing moves twice either way; the caller learns the outcome instead of guessing.
+* **Deviation — the hold engage reason.** `hold_engage` is new (R-12). Its reason is bound and kept in the request's `args`; `HOLD_ENGAGED`'s payload is unchanged.
+* **Deviation — an unauthenticated pause clear.** It refuses `SES-R01` from bind, where today it is `SES-R02` (`kernel/policy.py:219-220`). Both refuse; a service principal keeps `SES-R02`.
+* No score, threshold or money value is set. 120 is legacy's lifetime; 900, 2 and 1 are synthetic session values with no money effect.
+
+#### What later steps take from step 2
+
+* **Step 4:** the kill-input check builds `Authenticated(SAFETY, "in_process", request=None, via=None)` and calls `engage_kill` with `kill_file` or `kill_flag`. At start it records a present input in `RECOVERY_WRITING`, before the advance to `OPERATING`. It adds its file to both guards. `SEC-R16` goes in `release_kill` after bind.
+* **Step 5:**
+  * The channel builds a relayed human's `Authenticated` from `accept_relay` and `operator_request_from_wire`, and a service's with `request=None, via=None`.
+  * It binds `Authority.relays` from `channel.relays` and serves the `now` read (`effective_now`) that issues every request.
+  * It adds `adapters/unix_channel.py` to both guards and puts `replayed: true` on a `Replayed` reply.
+* **Step 6:**
+  * The operator process gives the `Authorizer` a clock whose `now()` is step 5's read.
+  * The doors map each `at` command and route to this step's target and args table: the hold engage `--reason`, the latch's `strategy` (a confirmation), and a close naming the entry's own order ID.
+  * The doors own the submission rate limit, and call `consumed` on a committed or replayed reply, or on `SEC-R08`.
+* **Step 7:** the advice route binds `advice_apply` with the advice ID as subject. It answers `SEC-R22` until SLICE-09.
+* **SLICE-09:** composes the advice record in place of the `None` advice port: the advice ID must resolve to a ledger advice record whose action wire equals `action_wire(request)`. It may also add the latch unlock's strategy check, from its candidate registry, for the owner's review.
+
+### Tests
+
+`tests/unit/test_authority_grants.py` (T-07) gains PRF-SEC-03's groups, and `tests/recovery/test_crash_boundaries.py` gains CP-SEC1 and F-SEC12. Every identity, nonce, reason, account and duration is labelled synthetic. Every expectation is written by hand from the rules above. Each hex value is the SHA-256 of the hand-written canonical text beside it, computed at deepening.
+
+The synthetic values:
+
+* the clock starts at `START`, `2026-11-02T09:15:00.000000Z` (recorded);
+* principals and map: `SIM_PRINCIPALS`; the relay `SIM_RELAY`; reason `"synthetic reason"`; `OFF = bound(ai_mode="off", review_required=False)`;
+* request IDs:
+  * `[["owner","human"],"uid:1001","nonce-synthetic-000000001"]` → `ed0b426a2765d08d4315c3d2b062fe10240976a3570a792a95c1b86ad1467d15`;
+  * `…"nonce-synthetic-000000002"]` (the owner) → `5f2985dc1ffa5264b4dcfffbf736848d522e33da07265f2ccff11145842d3ece`;
+  * `[["test-principal","human"],"uid:1002","nonce-synthetic-000000003"]` → `100478e18706a4c397b18946fd08e6891db248caeb115634a8fb487b575e7541`;
+* digests:
+  * `["operator-request/1","kill_engage",{"account":null,"subject":null},{"reason":"synthetic reason"}]` → `572cc58e9df728c9497437d14fd6cea8a2edc5a07bc739c2ab598ba96eb4a896`;
+  * the same with `"other reason"` → `d45e6d07585d857184179a77356db40e583dc78a0acb1bbb197dc50161aa5090`;
+  * `["operator-request/1","cancel",{"account":["sim","acct-sim"],"subject":"o-stop"},{"action":{"account":["sim","acct-sim"],"broker_order_id":"o-stop","command_key":"k-c1","verb":"cancel"},"reason":"synthetic reason"}]` → `762969166b948ce93385f0c18895a21cc49aaf91c64e971a61730c6a09f932c0`;
+  * `["operator-request/1","grant_admin",{"account":null,"subject":"g-cpsec1"},{"grant":{"accounts":[["sim","acct-sim"]],"actions":["entry"],"delegation_limit":0,"grant_id":"g-cpsec1","parent_grant_id":null,"principal":["test-principal","human"],"valid_from":"2026-11-01T00:00:00.000000Z","valid_until":null},"step":"issue"}]` → `ca560b9a0a96f3495e294f305458731ebae975c0880592a7d61c43eb008e51ca`.
+
+A "mismatch request" is a case's good request with one field replaced (operation, target or args), its digest recomputed over the replaced field so the request is self-consistent, and its `request_id` replaced by that of a fresh nonce. The kernel cannot tell it from a minted one; only its own recomputation can refuse it.
+
+| Group | Cases |
+|---|---|
+| Types | `Authenticated` raises `ValueError` for: a `dict` as `request`; a `human` `via`; `Principal("kernel:protection", "kernel")` with a request; a `service` principal with a `via`. Omitting `request` or `via` raises `TypeError`. `operator_request_from_wire(request.wire())` equals the minted kill request; an extra key, a missing key, and an account of three items each raise `ValueError`. `Authority(…, request_ttl_secs=0)` and `True` raise `ValueError`, as do `relays` holding a `human` principal and `relays` given as a list. Boundary, parsed with `ast`: no `kernel/` module imports `autonomous_trading.interfaces`. `BUILTIN["kernel:safety"] == frozenset({"kill_engage"})`; `TIMED_OPERATIONS == ("cancel", "close")` |
+| Binding | 16 cases, one per entry point and three for actions. The world is `action_world(ACK, policy=OFF)` for every case but fence and advance, which use `simulation([], advance=False, grant=False)` (stage `RECOVERY_WRITING`). There the fence is recorded **first**, then the advance (R-10): after the advance the stage is `OPERATING` and a fence is `SES-R09`. Each case runs its refusals before its good call. (a) Its unbound call (the table's or `owner_auth`): `SEC-R09`, nothing recorded. (b) A mismatch request with operation `pause_clear` (`kill_engage` for the pause case). (c) A mismatch request with subject `synthetic-other`. (d) A mismatch request with `"other reason"`, or, for args without a reason, a changed `step`, `grant_id` or `attempt_no`. Each of (b)–(d) is `SEC-R09`, recorded once. For the close, (c) reaches bind with the request's own subject and is refused `SEC-R09` by the close-subject rule, recorded once. **The modify case has no (c) (R-3):** its subject is the request's own, so no mismatch is possible. The good calls: kill engage, then release (`DISENGAGE` typed); hold engage and release of `buyer_edge` (`released_reason` `operator`, `justification` `synthetic justification`); grant `g-bind` issue and revoke; binding `b-bind` (SCOPE, `POLICY_ID`, `(CANDIDATE,)`, 2026-11-01 to 2026-11-30) authorize and revoke; the fence for `old-host`, then the advance. Each commits its decision. The latch unlock (`SESSION`, strategy `buyer_edge`, no entry needed) is `LED-R09` (not tripped), recorded, which proves bind passed. The pause clear of `pause-synthetic` is `LED-R09`, recorded. `resolve_attempt` on `k-none` (attempt 1, legs `{"primary": None}`, observation `EvidenceRef("simulated", "c" * 64, Timestamp(START, "recorded"))`) is `DOM-R04`, recorded. Cancel `k-c1` of `o-stop` and close `k-x1` naming `E1` (both `TEST_PRINCIPAL` on the CLI, typed) are each `COMMAND_ADMITTED`. Modify `k-m1` (trigger `11.00`, advice `advice-synthetic-1` on the owner API proxy, no advice port) is `SEC-R22`, recorded, which proves bind passed |
+| Record | In the Binding world, every committed decision's last event is `OPERATOR_REQUEST`, with the same `transaction_id` as the decision's first event. For each record, `argument_digest(operation, target, args)` recomputed from the payload equals its `argument_digest`. Each `operator_request` row equals its payload's fields plus the event's sequence, and `writer.check_index()` is empty. The owner's kill engage with nonce `nonce-synthetic-000000001` at `START` has exactly this payload: `request_id` `ed0b42…7d15`; `epoch` the writer's; `channel` `owner-cli`; `channel_identity` `uid:1001`; `principal` `["owner","human"]`; `via` `["svc:operator-sim","service"]`; `operation` `kill_engage`; `target` `{"account":null,"subject":null}`; `argument_digest` `572cc5…a896`; `confirmation_id` null; `issued_at` `2026-11-02T09:15:00.000000Z`; `valid_until` `2026-11-02T09:17:00.000000Z`; `clock_domain` `recorded`; `args` `{"reason":"synthetic reason"}`; `decision` `KILL_ENGAGED`; `command_key` null. Cancel `k-c1` with nonce `…003` records `request_id` `100478…7541`, `argument_digest` `762969…32c0` and `command_key` `k-c1`, and its `COMMAND_ADMITTED.dependencies.operator_request` is `100478…7541`; the protection loop's commands carry `null`. Every record whose `decision` is not `COMMAND_ADMITTED` has `command_key` null (F-7). Every `operator_request_refused` row matches one `OPERATOR_REQUEST_REFUSED` event |
+| Replay | In `action_world`: the kill engage above commits. The same call with the same request returns `Replayed(ed0b42…7d15, "KILL_ENGAGED", s, None)`, where `s` is its `OPERATOR_REQUEST` sequence, and the event count does not change. A request minted again in a new session with the same nonce is equal, and is replayed. The same request with reason `"other reason"` (the call's digest `d45e6d…5090` differs) is `SEC-R04`; twice gives one `OPERATOR_REQUEST_REFUSED`. After 300,000 ms the same call is still `Replayed`. The cancel `k-c1`, submitted again with its request, is `Replayed` with `outcome.effect == "not_sent"` and the command's key. After 300,000 ms more (with `fresh()`), the cancel is **still** `Replayed`, not `SEC-R07`: a timed operation's lookup runs before its lifetime |
+| Confirmations | The owner engages kill. In one CLI session: `prepare` `kill_release`, then `execute` twice with `DISENGAGE` and nonces `…010` and `…011` (no `consumed` between). That gives two requests with one `confirmation_id`. The first commits `KILL_RELEASED`. The second is `SEC-R08`, recorded, not `LED-R09`. Writing the second request's `OPERATOR_REQUEST` through `writer.transact` directly gives `LED-R09` (the fold's backstop) |
+| Validity | `action_world`, `TEST_PRINCIPAL`'s cancels of `o-stop` (keys `k-v1`…`k-v6`), with `fresh()` after every clock move so admission's own freshness never decides. **Timed:** `k-v1` minted at `START` and submitted at +120,000 ms: admitted. `k-v2` minted at `START`, submitted at +120,001 ms: `SEC-R07`, recorded. A request whose `valid_until` is +121 s (with a fresh `request_id`): `SEC-R07` ("lifetime"). A request in the `wall` domain: `SEC-R07` ("domain"). **Not timed (F-3):** the owner's kill engage minted at `START` and submitted at +300,000 ms commits. So does a pause clear: `LED-R09`, not `SEC-R07`. **One clock (F-4):** the clock advances 121,000 ms and a bound hold engage commits, so an event exists at 09:17:01. Then `jump_wall(-300_000)` sets the wall to 09:12:01. `k-v3` minted now has `issued_at` `2026-11-02T09:17:01.000000Z`, the kernel's ratchet and not the wall, and is admitted. Built on the raw wall it would be 300 s old and refused. **Ratchet:** `k-v4` minted at 09:15:00, before the event; after the same jump it is `SEC-R07`, though the wall reading alone would leave it valid |
+| Relay | All `SEC-R10`, and none recorded: the owner's request with `Authenticated(TEST_PRINCIPAL, "operator_credential", …)`; with `via` `Principal("svc:other", "service")`; with `via=None`. A hand-built pause-clear request for `TEST_PRINCIPAL` with `channel_identity` `owner-api:local`, relayed on `operator_credential`. Its proxy twin (`owner-proxy:` fingerprint) passes bind |
+| Restore | Composition A at the ledger. The owner mints R (nonce `…006`, issue `g-restore`) without submitting it. A shuts down. B composes on the same file with `restore=RESTORE` and `confirm_grant=lambda row: True`, then records a fence for `old-host` **first** and advances **second** (R-10), both bound. R through `B.relay` is `SEC-R19`, recorded once, and `g-restore` does not exist. In-memory twin: a request minted by composition C on another ledger file (nonce `…007`), submitted to a fresh composition with no restore, is `SEC-R09` (unknown epoch) |
+| Advice | **No advice port** (`action_world`): modify `k-m1` and close `k-x2` bound as `advice_apply` (`advice-synthetic-1`) are each `SEC-R22`, recorded, outcome `"unchanged"`. Modify `k-m2` bound as `close` (subject `o-stop`): `SEC-R09`. **With `FixtureAdvice({"advice-synthetic-1": action_wire(k-m3)})`:** modify `k-m3` bound with that advice ID is admitted. Modify `k-m4` with the same advice ID, a different trigger, is `SEC-R09`. An unknown advice ID is `SEC-R09`. **Under kill**, with the port: the owner engages kill; close `k-x1` bound as `close` (`E1`) is admitted; modify `k-m5` bound as `advice_apply` (registered) is `SEC-R20`, recorded, before any `SEC-R22` |
+| Latch | `admission_world(policy=OFF)`, with no entry. `strategy` is a confirmation only (F-5). Unlock `SESSION` with `strategy="buyer_edge"`: `LED-R09`, recorded. With `strategy="other_strategy"`, bound with that strategy: also `LED-R09`, never `SEC-R09`. Bound with `buyer_edge` but called with `other_strategy`: `SEC-R09` (digest). `strategy=" x"`: `ValueError` at the door (step 1's `check_target`). A hand-built request carrying it is `SEC-R09` (bind row 5). The unknown session `sim:acct-sim:NSE-FO-sim:2026-11-03`, bound to `ACCT`: `SEC-R09` (target) |
+| Actions | `action_world`. Cancel `k-c1` (nonce `…003`): admitted, as in Record. A new request (nonce `…004`) for the same `k-c1`: `SEC-R04`, recorded, outcome `"unchanged"`, and no `ADMISSION_REFUSED`. Close `k-x3` naming `o-stop` (a protective leg): `SEC-R09`; naming `E1`: admitted. Cancel `k-c5` with `reason=None`: `ADM-R01`, with one `ADMISSION_REFUSED` (check `A1`) and one `OPERATOR_REQUEST_REFUSED`. `kernel:protection` with `reason="x"`: `ValueError`. **A relay acting for itself (F-2):** the owner issues `SIM_RELAY` a grant with `cancel` on `ACCT`; cancel `k-c6` with principal `SIM_RELAY` and `Authenticated(SIM_RELAY, "local_channel", request=None, via=None)` is `SEC-R10`, with `ADMISSION_REFUSED` check `A2` and no `OPERATOR_REQUEST_REFUSED`. The same cancel by a service principal outside `relays` with the same grant is admitted |
+| Entry | `admission_world(policy=OFF)`. Entry `k-e1` by `TEST_PRINCIPAL` with a bound pause-clear `auth`: `SEC-R09`, with `ADMISSION_REFUSED` check `A2` and one `OPERATOR_REQUEST_REFUSED`. **The owner never enters (F-2):** entry `k-e3` with principal `OWNER` and `Composition.owner_auth` (no request) is `SEC-R09` at A2, with no `OPERATOR_REQUEST_REFUSED`; with a bound owner `auth` it is `SEC-R09`, recorded. Entry `k-e2` through the table: admitted |
+| Settings (`tests/unit/test_policy_parameters.py`, R-8) | `compose_simulation` with every other setting bound: `request_ttl_secs` unbound raises `RefusingParameterUnbound("interfaces.request_ttl_secs")`; then `session_ttl_secs` (`interfaces.session_ttl_secs`); then `sessions_per_identity` (`interfaces.sessions_per_identity`), in that order. `resolve("test", {"AT_REQUEST_TTL_SECS": "120", "AT_SESSION_TTL_SECS": "900", "AT_SESSIONS_PER_IDENTITY": "2"})` gives `120`, `900`, `2`; `AT_REQUEST_TTL_SECS="abc"` raises `SettingsError`; with no environment all three are `None` (nothing shipped) |
+| Refused | The `SEC-R07` record of `k-v2` (Validity) has exactly `{"request_id": k-v2's, "principal": ["test-principal","human"], "channel_identity": "uid:1002", "operation": "cancel", "target": {"account": ["sim","acct-sim"], "subject": "o-stop"}, "code": "SEC-R07"}`. The same refusal twice: one event. Another code for the same request: a second event. `SES-R01` (`auth=None`), `SEC-R10` and `SEC-R09` without a request: no event. The owner's kill engage while engaged: `LED-R09`, recorded. `ops` (uid 1003) with no kill grant: `SES-R02`, recorded with principal `["ops","human"]` |
+| Dispatch | `action_world([{"result": "ack", "order_id": "o-close"}], admission_settings=dict(ADMISSION_SETTINGS, deadline_ms_close=300_000))`, a labelled synthetic deadline beyond the lifetime. A human close `k-xd` naming `E1` is admitted at `START`. The clock advances 120,001 ms with no fresh observation, so the pass leaves it waiting (stale book). Then `fresh()` and a pass: `DISPATCH_REFUSED` with code `SEC-R07` and dependency `request`. The command is `REFUSED`, there is no reservation row, and `broker.calls` is empty. The twin, in its own world, uses the same close `k-xd` (R-5); at +120,000 ms it is claimed and sent once (F-SEC10) |
+| Kill input | `admission_world`, with `SAFETY_AUTH = Authenticated(Principal("kernel:safety", "kernel"), "in_process", request=None, via=None)`. `engage_kill(SAFETY_AUTH, "kill_file")` commits `KILL_ENGAGED` by `kernel:safety` with no `OPERATOR_REQUEST`. `release_kill(SAFETY_AUTH, "kill_file")`: `SES-R02`. After the owner's bound release, `"kill_flag"` commits. After the next release: `"drill"` is `SES-R02`; `kernel:protection` with `"kill_file"` is `SES-R02`; with the stage `INSPECTING` it is `SES-R09`; with the stage `RECOVERY_WRITING` it commits |
+| Side files | After the Binding cases, every file under the ledger's directory is `ledger.sqlite`, `ledger.sqlite-wal`, `ledger.sqlite-shm`, or under `ledger.sqlite.evidence/`. There is no audit or side file |
+
+**Crash tests** (`tests/recovery/test_crash_boundaries.py`), by killing a real process. Each runs this file as the child, as the existing crash points do, with argument `CP-SEC1` or `F-SEC12`.
+
+* **CP-SEC1.**
+  * The child builds and `prepare`s a composition at the ledger. It mints, with `operator_auth`, the owner's request R: nonce `nonce-synthetic-000000001`, `grant_admin` issue of `test_grant(grant_id="g-cpsec1")`, so `request_id` `ed0b42…7d15` and digest `ca560b…51ca`.
+  * It prints `json.dumps(R.wire())` and flushes: the operator process's copy. It calls `authority.issue`, and after the commit returns it exits with code 86 before writing anything else. Until step 5 the reply is the return value, so the parent never sees one.
+  * The parent asserts code 86, parses R with `operator_request_from_wire` from the last stdout line, and reopens the ledger with `simulation([], path=tmp_ledger)`.
+  * `issue(comp.relay(R, "owner_credential"), test_grant(grant_id="g-cpsec1"))` returns `Replayed(ed0b42…7d15, "GRANT_ISSUED", len(FRESH) + 2, None)`, which is 17 with seven migrations. Exactly one `GRANT_ISSUED` of `g-cpsec1` and one `OPERATOR_REQUEST` with R's ID exist.
+  * After 300,000 ms the same call is still `Replayed`. The same request with `valid_until` `2026-11-30T00:00:00.000000Z` on the grant is `SEC-R04`; twice gives one `OPERATOR_REQUEST_REFUSED`.
+* **F-SEC12.**
+  * The parent builds a composition at the ledger, shuts it down, and copies it with `apsw` backup to `tmp_path / "backup" / "ledger.sqlite"`: the backup.
+  * The child reopens the ledger (a new epoch), mints the same R, prints it, issues, and exits 86 after the commit.
+  * The parent composes on the backup with `restore=RESTORE` (imported from `tests/conftest.py`) and `confirm_grant=lambda row: True`. It then records, **first**, the bound fence `FenceEvidence("old-host", "stopped", "power_off", "2026-11-02T09:00:00.000000Z", None, "owner", None, ("acct-sim",), ())`, the evidence `test_restore_fencing.py`'s `_fence("old-host")` builds. **Second**, it records the bound advance.
+  * R through `relay` is `SEC-R19`, recorded once, and `g-cpsec1` does not exist. R's epoch is unknown to the backup, and a restore was activated.
+
+### Break checks
+
+Each mutation is applied after its anchor is checked, run against the listed test file, and restored byte for byte with an md5 check. Each must fail a test.
+
+The anchor is the code the mutation edits. It is checked to be present, exactly once, before the edit.
+
+| Change | Anchor | Test that must fail |
+|---|---|---|
+| `bind` skips the recorded-result lookup | `bind`, row 4 (the `operator_request` read by `request_id`) | CP-SEC1; Replay |
+| The lookup runs after validity | `bind`, rows 4 and 7 swapped | Replay (the cancel `k-c1` at +300,000 ms gives `SEC-R07`) |
+| A replay with another digest is accepted | `bind`, row 4's digest comparison | Replay (`SEC-R04`); CP-SEC1 |
+| `bind` trusts `request.argument_digest` without recomputing | `bind`, row 5's `argument_digest(operation, target, args)` | Binding (d) |
+| `bind` ignores the target | `bind`, row 5's `request.target != target` | Binding (c) |
+| `bind` ignores the operation | `bind`, row 5's `request.operation != operation` | Binding (b) |
+| Validity for every operation | `bind`, row 7's `TIMED_OPERATIONS` test | Validity (not timed: the kill engage at +300,000 ms) |
+| Validity on `clock.now()` instead of `effective_now` | `bind`, row 7's `effective_now(self.writer, self.clock)` | Validity (ratchet) |
+| The simulation's `Authorizer` on the raw clock | `compose_simulation`'s `Authorizer(KernelNow(writer, clock), …)` | Validity (one clock: `k-v3`) |
+| Validity on the request's own window | `bind`, row 7's `self.request_ttl_secs` | Validity (lifetime) |
+| `SEC-R08` check removed | `bind`, row 6 | Confirmations |
+| The fold's confirmation check removed | `projections.py`, the `OPERATOR_REQUEST` fold's `confirmation_id` test | Confirmations (the direct `transact` no longer gives `LED-R09`) |
+| `SEC-R19` only when the epoch is unknown | `bind`, the epoch rule's `E is None` | Restore |
+| `SEC-R19` removed | `bind`, row 8 | F-SEC12; Restore |
+| `SEC-R20` removed | `bind`, row 9 | Advice (under kill) |
+| `SEC-R22` removed (an `advice_apply` with no port admitted) | `ActionAdmission.admit`, step 2.7's `ports.advice is None` | Advice; Binding (modify) |
+| The advice port's action not compared | `ActionAdmission.admit`, step 2.7's `== action_wire(request)` | Advice (`k-m4`) |
+| `SEC-R10` `via` comparison removed | `bind`, row 3's `request.via != auth.via` | Relay |
+| `owner-api:local` accepted for a delegate | `bind`, row 3's `"owner-api:local"` test | Relay |
+| A relay may act for itself | `ActionAdmission.admit`, step 3.2's `in c.authority.relays` | Actions (`k-c6`) |
+| `OPERATOR_REQUEST` left out of a decision | `Safety._commit`'s `request_drafts` call | Record; Binding |
+| `OPERATOR_REQUEST` committed in its own transaction | `Safety._commit`'s single `Decision` | Record |
+| `refused` records every repeat | `refused`'s `operator_request_refused` read | Refused; Replay |
+| `refused` records `SEC-R10` | `refused`'s code exclusion | Relay; Refused |
+| The recheck ignores the request | `recheck`'s `request_id` block | Dispatch |
+| The recheck's request check after the owner-root return | `recheck`'s order (`kernel/authority.py:156-157`) | Dispatch |
+| `kernel:safety` accepted with any reason | `_authorized`'s `KILL_INPUT_REASONS` test | Kill input |
+| `kernel:safety` holds `kill_release` | `BUILTIN["kernel:safety"]` | Kill input |
+| The latch strategy used to refuse (a ledger query added) | `unlock_latch` after the grant check | Latch (`other_strategy` gives `LED-R09`) |
+| The close subject relation removed | `ActionAdmission.admit`, step 2.6 | Actions; Binding (close (c)) |
+| A human action may reuse a command key | `ActionAdmission.admit`, step 2.5 | Actions |
+| `EntryAdmission` accepts a relayed human | `EntryAdmission._a2`'s `auth.request is not None` | Entry |
+| `EntryAdmission` accepts the unbound owner | `EntryAdmission._a2`'s `owner_credential` test | Entry (`k-e3`) |
+| `Authenticated` accepts a request on a kernel principal | `Authenticated.__post_init__` | Types |
+| `Authority` accepts a non-service relay | `Authority.__init__`'s `relays` check | Types |
+
+### Files
+
+| File | Change |
+|---|---|
+| `src/autonomous_trading/kernel/authority.py` | `Authenticated` (`request`, `via`), `Replayed`, labels, `request_ttl_secs`, `target_of`, `bind`, `request_drafts`, `refused`, `recheck`'s `request_id`, `BUILTIN["kernel:safety"]`; `issue`, `revoke`, `authorize_binding`, `revoke_binding` bound |
+| `src/autonomous_trading/kernel/safety.py` | `KILL_INPUT_REASONS`, `_authorized`'s kernel case, `_commit`'s new signature, bound; `engage_hold`'s `reason`; `unlock_latch`'s `strategy` (bound, recorded, never refusing otherwise) |
+| `src/autonomous_trading/kernel/ports.py` | `AdmissionPorts.advice` (default `None`) |
+| `src/autonomous_trading/kernel/policy.py` | `clear_pause` bound; `_transact`'s `extra` |
+| `src/autonomous_trading/kernel/lifecycle.py` | `resolve_attempt` bound |
+| `src/autonomous_trading/kernel/recovery.py` | `advance`, `record_fence` bound; `_record`, `_advance_record`'s `extra` |
+| `src/autonomous_trading/kernel/admission.py` | `action_wire`; `ActionAdmission.admit` (order, `reason`, key reuse, close subject, advice gate `SEC-R22`, relay principal `SEC-R10`, `dependencies.operator_request`); `EntryAdmission._a2`'s two `SEC-R09` cases; `_CHECK_OF` |
+| `src/autonomous_trading/kernel/coordinator.py` | `admit_action`'s `reason`; row 3's `request_id` and dependency name |
+| `src/autonomous_trading/kernel/protection.py` | The `Authenticated` constructor only |
+| `src/autonomous_trading/kernel/ledger/store.py` | `_FAMILY`, `_PK`, `_load_touched` |
+| `src/autonomous_trading/kernel/ledger/projections.py` | `TABLES`, the `OPERATOR_REQUEST` and `OPERATOR_REQUEST_REFUSED` folds |
+| `src/autonomous_trading/kernel/ledger/schema.py` | `Migration(7, …)` |
+| `src/autonomous_trading/resources/migrations/007_security.sql` | New (T-67) |
+| `src/autonomous_trading/resources/events.schema.json` | The two kinds |
+| `src/autonomous_trading/contracts/identity.py` | `OperatorRequest.wire`, `operator_request_from_wire` |
+| `src/autonomous_trading/settings/schema.py`, `src/autonomous_trading/settings/loader.py` | The three `interfaces` settings and `_SECURITY` |
+| `src/autonomous_trading/bootstrap.py` | `SIM_RELAY`, `KernelNow`, the `Authorizer`, `principals`, `relays`, `relay`, `operator_call`, the refusing settings, constructors |
+| `src/autonomous_trading/operations/verification.py` | Bound advance and issue; settings; refusals raised |
+| `tests/conftest.py` | `SECURITY_SETTINGS`, `SIM_PRINCIPALS`, `operator_auth`, `action_auth`, `make_entry_order`, `owned_close`'s `subject`, `FixtureAdvice`, `admission_ports`' `advice`, `RESTORE`, `prepare`, `FRESH`, the worlds' bound calls |
+| `tests/unit/test_authority_grants.py` | PRF-SEC-03's groups (T-07); existing tests bound |
+| `tests/recovery/test_crash_boundaries.py` | CP-SEC1, F-SEC12 and their child branches |
+| `tests/contracts/test_capabilities.py` | The `Authenticated(` guard and `test_authenticated_never_replaced` |
+| `tests/unit/test_policy_parameters.py` | The Settings group (R-8) |
+| Existing: `tests/unit/test_admission_checks.py`, `tests/unit/test_clock_contract.py`, `tests/unit/test_conflict_relation.py`, `tests/unit/test_observation_loop.py`, `tests/unit/test_protection_basket.py`, `tests/unit/test_protection_loop.py`, `tests/unit/test_protection_states.py`, `tests/unit/test_review_semantics.py`, `tests/unit/test_safety_matrix.py`, `tests/integration/test_bounded_io.py`, `tests/integration/test_dispatch_revalidation.py`, `tests/integration/test_entry_outcomes.py`, `tests/integration/test_reconciliation_commits.py`, `tests/integration/test_verb_completion.py`, `tests/recovery/test_restore_fencing.py` (also imports `RESTORE` from `tests/conftest.py`), `tests/recovery/test_session_transitions.py` | Bound requests from the fixture, constructors, kind lists, `FixtureAdvice` for human modifies, and R-1's entry, as "Existing tests that change" says |
+
+No new tree delta. Every module is in the target tree, the migration is T-67, and the test file is T-07. Migration 7 is the next free number at `c2cca11`. `tests/unit/test_operator_authorization.py` (T-60) does not change.
+
+### Completion conditions (step 2)
+
+* Every test passes twice in a row with the whole suite, on Windows and on Linux alike: the crash children use `subprocess` as the existing crash points do.
+* Every break check fails a listed test, and every file is restored (md5). `ast.parse` passes on every edited Python file, and `json.loads` on `resources/events.schema.json`.
+* `git diff --name-only` names exactly the files in the table above.
+* **Two commits (F-9), in this order:**
+  1. The mechanical constructor commit: `Authenticated`'s two required fields, every constructor site stating `request=None, via=None`, and both guards. No behaviour change, and the whole suite passes on it alone.
+  2. The behaviour commit: everything else in this step.
+* The build starts only after the SLICE-08 step 5 commit, which also changes `bootstrap.py` and `tests/conftest.py`, and on the coordinator's word. Every `bootstrap.py` and `tests/conftest.py` line cited here is re-read on that head before editing.
+* PRF-SEC-03 passes. PRF-SES-01, PRF-SES-02 and PRF-SES-06, and every SLICE-04…08 test, pass with no expectation changed beyond "Existing tests that change". No side file is written anywhere.
+* The spec's binding-check section and this file record step 2 "as built", with any Deviation or Fork call found while building.
+
+### Step 2 as built
+
+**In plain words.** The kernel now checks each owner action against the one request made for it, and writes the request into the ledger with the action. A lost reply returns the first answer, and nothing happens twice. A cancel or close older than 120 seconds is refused, even while it waits to be sent; your other actions have no time limit. A request older than a restore is refused, AI exit advice is refused until the advice store arrives, and the kill file can stop trading on its own. All 1,288 automatic checks pass.
+
+Built on `slice-08` at `4ecc799` (SLICE-08 step 5), in `OA_NEW`, as two commits. Nothing is pushed.
+
+| Commit | What | Size |
+|---|---|---|
+| `aaa7bf9` | Mechanical: `Authenticated(principal, path, *, request, via)` at every construction site with `request=None, via=None`; the `Authenticated(` guard and `test_authenticated_never_replaced` | 13 files, +67 −29 |
+| `cb439ce` | Behaviour: everything else in this step | 38 files, +1,750 −299 |
+
+**Choices made while building:**
+
+| Topic | As built |
+|---|---|
+| The test world's advice port | `admission_ports` and `admission_world` compose a `FixtureAdvice` unless a test passes `advice=None`, rather than each human-modify test composing one. `admit_human` registers a modify as its own advice first. Every non-test composition still has none (`SEC-R22`) |
+| Test helpers (`tests/conftest.py`) | The step names `operator_auth`, `action_auth`, `make_entry_order` and `FixtureAdvice`. Also built: `admit_human` and `action_args`; one bound wrapper per owner call (`owner_issue`, `owner_revoke`, `owner_authorize`, `owner_revoke_binding`, `owner_advance`, `owner_fence`, `kill`, `hold`, `release_hold`, `unlock`, `clear_pause`, `resolve`); and `SYNTHETIC_REASON`. `SIM_PRINCIPALS` is a function, `sim_principals()`, because `ACCT_2` is defined later in the file |
+| `Authority.settle(auth, result)` | A small helper: a writer refusal from a bound call goes through `refused`, and anything else passes unchanged |
+| Action admission | Split into `_call` (the operation and target) and `_human` (the binding stage). `auth` is resolved first, then bind for a human, then A1 |
+| Human resubmissions | `test_action_admitted_awaiting_dispatch` now expects the same request again to return `Replayed` with the outcome, and a new request for an existing key to give `SEC-R04`. It expected the ledger identity rule and `LED-R02`: the single-use Fork call reaches this test too |
+| SLICE-08 step 5's new tests | `tests/integration/test_market_port.py` landed after the deepening and also needed bound requests, for two owner calls. It is in the second commit |
+| A shadowed helper | `tests/unit/test_protection_loop.py` defines its own `kill(world)`, so the conftest helper is imported there as `kill_switch` |
+| The side-file check | It allows `ledger.sqlite.writer.lock`, the ledger's own single-writer lock (SLICE-01), beside the ledger, its WAL files and its evidence store |
+| The dispatch test | It gained an owner case (`OWNER`, whose grant is the owner root), so that moving the recheck's request check after the owner-root return fails a test |
+| A break check | "`refused` records `SEC-R10`" mutated code no `SEC-R10` reaches: bind returns it without calling `refused`. It is replaced by "a relay refusal recorded", which routes bind's `SEC-R10` through `refused` and drops the exclusion |
+| Proof of the first commit | Its 10 touched test files and the guards: 314 passed. The whole suite was run once, after the last edit, as the coordinator asked |
+
+**Tests:** 42 new cases. `tests/unit/test_authority_grants.py` has 16 Binding cases, 3 Dispatch cases and the other PRF-SEC-03 groups. `tests/recovery/test_crash_boundaries.py` has CP-SEC1 and F-SEC12, each killing a real child process. `tests/unit/test_policy_parameters.py` has the Settings group (R-8). The whole suite: **1,288 passed, 1 skipped** (1,246 before), in 137.5 s, run once. `ast.parse` passes on all 36 edited Python files, and `json.load` on `resources/events.schema.json`. Every SHA-256 value in the tests was recomputed.
+
+**Break checks** (`s10b_breaks.py` in the session scratchpad). Each anchor was checked present exactly once before the run; one mutation at a time; every file restored byte for byte, md5 verified. All 37 failed a test of their listed group.
+
+| Change | Test that failed |
+|---|---|
+| `bind` skips the recorded-result lookup | CP-SEC1; Replay |
+| The lookup runs after validity | Replay |
+| A replay with another digest is accepted | CP-SEC1; Replay |
+| `bind` trusts `request.argument_digest` | Binding |
+| `bind` takes the target from the request | Binding |
+| `bind` takes the operation from the request | Binding |
+| Validity for every operation | Validity |
+| Validity on `clock.now()` instead of `effective_now` | One clock and the ratchet |
+| The simulation's `Authorizer` on the raw clock | One clock and the ratchet |
+| Validity on the request's own window | Validity |
+| `SEC-R08` check removed | Confirmations |
+| The fold's confirmation check removed | Confirmations |
+| `SEC-R19` only when the epoch is unknown | Restore |
+| `SEC-R19` removed | F-SEC12; Restore |
+| `SEC-R20` removed | Advice with a port |
+| `SEC-R22` removed | Advice without a port; Binding |
+| The advice port's action not compared | Advice with a port |
+| `SEC-R10` `via` comparison removed | Relay |
+| `owner-api:local` accepted for a delegate | Relay |
+| A relay may act for itself | Actions |
+| `OPERATOR_REQUEST` left out of a decision | Binding; Record |
+| `OPERATOR_REQUEST` committed in its own transaction | Binding |
+| `refused` records every repeat (the read and the fold's guard removed) | Binding; Refused; Replay |
+| A relay refusal recorded | Relay |
+| The recheck ignores the request | Dispatch |
+| The recheck's request check after the owner-root return | Dispatch |
+| `kernel:safety` accepted with any reason | Kill input |
+| `kernel:safety` holds `kill_release` | Kill input |
+| The latch strategy used to refuse | Latch |
+| The close subject relation removed | Actions; Binding |
+| A human action may reuse a command key | Actions |
+| `EntryAdmission` accepts a relayed human | Entry |
+| `EntryAdmission` accepts the unbound owner | Entry |
+| `Authenticated` accepts a request on a kernel principal | Types |
+| `Authority` accepts a non-service relay | Types |
+| An `Authenticated` copied with a borrowed request | `test_authenticated_never_replaced` |
+| An `Authenticated` built outside the allowed files | `test_decisions_built_only_by_the_kernel` |
 
 ## Step 3 — secrets (outline)
 

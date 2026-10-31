@@ -770,3 +770,16 @@ Fresh `egm:egm-design` (F-1…F-12) and `egm:egm-implementation-readiness` (R-1�
 | F-8 | Major | An unreadable store bypassed the through-market guard | New levels held, one `market_unreadable` escalation per outage; placed stops untouched |
 | F-10…F-12 | Minor | Labels, shared reader, upgrade order | Relabelled; one lock; SLICE-11 starts the writer first |
 | R-3…R-14 | Major/Minor | Expressions, test world, literals, generator, anchors | All applied |
+
+## SLICE-10 step 2 reviews (2026-10-31)
+
+Fresh `egm:egm-design` (F-1…F-9) and `egm:egm-implementation-readiness` (R-1…R-11) reviews of [SLICE-10 step 2](../../plan/slices/SLICE-10-security-and-operator.md#step-2--the-kernels-binding-check), before any code. All resolved in the text, then built (`aaa7bf9`, `cb439ce`; 1,288 passed, 1 skipped; 37 of 37 break checks).
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| F-1 | Blocker | `advice_apply` was a human modify and close door | Refused `SEC-R22` until SLICE-09's advice records; a test-only advice port |
+| F-2 | Blocker | The unbound owner could enter; a relay could act for itself | Both refused in admission (`SEC-R10`) |
+| F-3, F-4 | Major | The 120 s lifetime on operations legacy never timed; new unlock-right refusals labelled Deviation | Lifetime on cancel and close only (Fork call), on the kernel's clock; the other refusals a **Deviation — for owner review**, listed |
+| F-5 | Major | The latch strategy check could refuse a legitimate unlock | A confirmation only, never a refusal |
+| F-6…F-9 | Minor | Refusal scan, `command_key`, the `replace` bypass, rework | A keyed table; action admission only; an AST guard; two commits |
+| R-1…R-11 | Blocker/Major/Minor | Test worlds, unbound crash, break-check anchors, crash children, settings tests, signatures | All applied |
