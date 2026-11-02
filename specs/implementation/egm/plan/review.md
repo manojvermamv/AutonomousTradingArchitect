@@ -857,3 +857,11 @@ One fresh combined review each, before any code (the owner's trimmed routine: ta
 |---|---|---|---|
 | SLICE-10 step 6 (operator API) | 1 Blocker, 6 Major, 1 Minor | Fork call: close clamps before the whole-number check (legacy closed 75 of a 100.5 request); a missing nonce is minted; session open is POST with the origin checks; re-sign-in and resend once on expiry; plain `json.loads` on owner bodies; loopback peers by uid (Deviation for owner review) | `0400d25`; 19 of 19 break checks; Linux groups on a throwaway EC2 folder; full suite 1,618 passed, 11 skipped |
 | SLICE-09 step 4 (AI team runtime) | 6 Major, 1 Nit | Any unexpected error fails open at once (`team_unavailable`); child limits set in the child, not `preexec_fn`; the risk-critic setting added; live check: no review blueprint and no resource override on the EC2 (legacy runs no AI review today) | not yet built |
+
+## SLICE-10 step 7, SLICE-09 step 5 and SLICE-10 step 8 reviews (2026-11-02)
+
+| Step | Findings | Key resolutions | Built |
+|---|---|---|---|
+| SLICE-10 step 7 (owner-mutation table) | 6 Major, 2 Nit | Tick watch to the SLICE-11 market host; strategy on/off to configuration staging; an owner-ports table and a SLICE-14 rule that no row still refuses at cutover | `4e2756c`; 17 of 17 break checks; full suite 1,708 passed |
+| SLICE-09 step 5 (AI providers) | 1 Blocker, 4 Major, 2 Nit | A budget never stops `resolve()` (live `advisor.budgets` is `{}`); replay from records; an audit-hook network block; no redirect carries the key; scrub before truncation | `c27b608`; 26 of 26 break checks; full suite 1,733 passed, 15 skipped |
+| SLICE-10 step 8 (MCP) | 1 Blocker, 5 Major, 2 Nit | `framework_propose_intent` named as an indirect order route; live runs only the read-only profile (console or desk live is an Open owner item); per-call ledger kill read; per-token scrub; the caller's token per request | not yet built |

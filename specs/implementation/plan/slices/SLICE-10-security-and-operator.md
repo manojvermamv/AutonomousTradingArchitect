@@ -2946,18 +2946,294 @@ Commit `4e2756c` on `slice-08`, after `126eff1` (SLICE-09 step 4), which touched
 | `session_start` compared with `is True` | `_mapped`'s truthiness | Mapped |
 | Deactivate routed to `strategies` | `ROUTED` | Routed |
 
-## Step 8 — the AI tools and disclosure (outline)
+## Step 8 — the AI tools and disclosure
 
-Deepened after step 7 is built. Authority: the spec's [MCP surface](../../design/security-and-operator.md#mcp-surface-interfacesmcppy) and [Read scope and disclosure](../../design/security-and-operator.md#read-scope-and-disclosure-interfacesauthorizationpy-interfacesmcppy).
+<a id="step-8--the-ai-tools-and-disclosure-outline"></a>
 
-* **First:** copy the read allowlist and tool names from legacy `openalgo/server.py:62-79`, and the console's tool allowlists from `admin_console/src/config/tools.ts`, with provenance, and record the legacy tool list per domain, so the kept surface is exact.
-* **Builds:**
-  * `interfaces/mcp.py`, with its MCP library an optional extra;
-  * the projection registry, `read`, `disclose`, scoped caches, redaction and scrubbing;
-  * the console as a client (OIDC token, or the shared token from secrets);
-  * `propose_intent`, refusing until SLICE-09's sink exists.
-* **Tests:** `tests/integration/test_mcp_surface.py` (tree delta **T-65**) with an in-memory upstream; `tests/contracts/test_capabilities.py` for PRF-SEC-09, inspecting each composed process's environment and its children's.
-* **Done when:** PRF-SEC-08 and PRF-SEC-09 pass; CUJ-SEC-3 is refused.
+The authorities are the spec's [MCP surface](../../design/security-and-operator.md#mcp-surface-interfacesmcppy) and [Read scope and disclosure](../../design/security-and-operator.md#read-scope-and-disclosure-interfacesauthorizationpy-interfacesmcppy) sections, REQ-SEC-005, REQ-SEC-006, REQ-SEC-010, CUJ-SEC-3, PRF-SEC-08 and PRF-SEC-09 (TASK-S10-08). Step 8 builds on steps 1–7 as built (`4e2756c` on `slice-08`). It adds one module, `interfaces/mcp.py`, three secret scopes, one `__main__` branch and one optional extra. It changes no kernel check, event kind, migration, door row or owner-API route. Every `OA_NEW` citation is at `4e2756c`. Every legacy citation is at 445eb116, read from the session's snapshot of `src/` (`config/`, `deploy/constraints.txt` and `admin_console/` with `git show`; none of them changed between 445eb116 and the legacy head). No secret, `.env` file or live host was opened to write this step.
+
+**What legacy runs live (measured 2 November by the coordinator).** The live MCP gateway runs the read-only profile, and strategy orders never pass through it. That profile (`config/profiles/readonly.yaml`, extending `config/profiles/enforcing.yaml`) pins `auth.mode: openalgo`, sets `auth.advertise_write_orders: false`, grants `authority.grants: [observe]` and mounts `gateway.domains: [analysis, live, marketdata, monitoring, research, jobs, prompts]`, so neither the OpenAlgo proxy nor the `framework` and `strategies` domains are imported (`readonly.yaml:63`, `:86-88`, `:125-126`). Legacy also ships a desk profile (`desk.yaml`: `openalgo` mode, every domain with the proxy, grants observe, propose and act) and a console profile (`console.yaml`: `token` mode on loopback port 8002, stateless HTTP, grants observe and propose, the read domains plus `framework` and `strategies`). **Fork rule:** what an MCP client may do live stays legacy's live behaviour, the read-only profile. SLICE-11 runs only that profile live. This step builds and tests all three profiles as legacy's, but running the console or desk profile live needs the owner's own decision ([Open owner items](#open-owner-items)).
+
+**An indirect order route.** `framework_propose_intent` is one. Legacy's proposal goes journal → drain → `orchestrator.plan()` → `Gateway.submit()` → OpenAlgo (`src/contract/propose.py:13-14`), so a proposal the gates accept becomes a real order. The target hands it to the receiving strategy (SLICE-09), whose intents reach admission and the broker the same way. It is mounted only by the console and desk profiles; on the read-only profile it answers `SEC-R13`. No other tool reaches an order.
+
+**In plain words.** This step rebuilds the AI tools door. An AI client signs in exactly as today: with an OpenAlgo login, a company login or a fixed token. The door refuses to start when it would be open to the internet without a login, as today. Each door says what it allows: the public one, the only one running live, only reads; the console's may also file proposals, including a trade idea to an AI strategy, which can become a real order if the strategy's checks accept it; the desk's may also start research jobs and change which symbols are watched. Running those two live is the owner's decision. No door can place, change or cancel an order directly, or lift the kill switch, a hold or a loss latch. The OpenAlgo pass-through only reads, using the AI client's own OpenAlgo login, never the system's key. When trading is stopped, every proposal is refused and every read keeps working. Each answer is cleaned of passwords before it leaves. Most tools read data that later parts of the new system own; until each part is built, its tools answer "not available yet".
+
+### Decisions
+
+#### The catalogue (`interfaces/mcp.py`)
+
+`Tool(name, domain, verb, owner)`, frozen. `verb` is `observe`, `propose` or `act` (legacy's capability verbs, `src/interfaces/mcp/core/capability.py:50-62`). `override` is not in the vocabulary, so no tool can declare it. `owner` is an `McpPorts` field name (below) or `"proxy"`. `CATALOGUE: Mapping[str, Tool]` holds exactly legacy's 128 domain tools, each under its mounted name (`<domain>_<function>`, `src/interfaces/mcp/gateway.py:166`), with its declared verb (`@capability(...)`). The list was derived at deepening by parsing (never importing) every `src/interfaces/mcp/domains/*/server.py`, plus the 25 reports the analysis domain generates from `src/analysis/rpc/server.py`'s `TOOLS` (every entry not in `_EXPLICIT` whose schema adds nothing to `logfile`, `src/interfaces/mcp/domains/analysis/server.py:92-97`, `:367-396`). The build re-derives it with the same two scripts, kept in its scratchpad, and the test pins the result.
+
+| Domain | `observe` tools (prefix the domain and `_`) | `propose` | `act` | Owner field (slice) |
+|---|---|---|---|---|
+| `advisor` | `status`, `question`, `history`, `agreement`, `value`, `economics`, `prompt_history` | `advisor_consult`, `advisor_stage_prompt` | — | `cognition` (SLICE-09) |
+| `analysis` | 24 explicit: `list_sessions`, `list_log_patterns`, `search_log`, `lines_around_time`, `circuit_breaker`, `drawdown`, `calmar_ratio`, `omega_ratio`, `slippage`, `trade_kpis`, `journal_export`, `pattern_health`, `trade_detail`, `warehouse_status`, `warehouse_schema`, `warehouse_query`, `rejection_summary`, `rejection_detail`, `threshold_replay`, `session_continuity`, `gate_coverage`, `backfill_plan`, `out_of_sample`, `trace`. 25 generated: `data_provenance`, `session_config`, `signal_extract`, `signal_distribution`, `signal_confluence`, `signal_accuracy`, `entry_list`, `exit_list`, `trail_analysis`, `excursion_analysis`, `per_trade`, `fill_list`, `order_lifecycle`, `streak_analysis`, `breakeven`, `risk_reward`, `holding_period`, `exit_timing`, `expectancy_r`, `recovery_factor`, `tail_ratio`, `kelly_criterion`, `time_performance`, `symbol_performance`, `full_summary` | — | — | `research` (SLICE-12) |
+| `framework` | `strategies`, `decisions`, `why_refused`, `plans`, `worker_journal`, `book`, `gates`, `ownership`, `health`, `events`, `book_with_fills` | `framework_propose_intent` | — | `strategies` (SLICE-09); the propose tool `intents` (SLICE-09, `strategies/worker.py`) |
+| `jobs` | `job_types`, `job_status`, `job_result`, `job_list` | — | `jobs_job_enqueue`, `jobs_job_cancel` | `research` (SLICE-12, `research/jobs.py`) |
+| `live` | `now`, `metrics`, `calibration`, `outlook` | — | — | `market` (SLICE-11's market host) |
+| `marketdata` | `coverage`, `why_missing`, `poll_gaps`, `spot_series`, `tick_bars`, `chain_snapshot` | — | — | `market` |
+| `monitoring` | `market_data_health`, `risk_guard_status`, `recent_tool_failures`, `session_state`, `market_open`, `market_holidays`, `live_positions`, `pnl_curve`, `live_orders`, `todays_fills`, `recent_ticks`, `contract_check`, `approval_channel_health`, `show_config` | — | `monitoring_heal_market_data`, `monitoring_auto_watch_positions`, `monitoring_watch_symbols`, `monitoring_unwatch_symbols` | `market` |
+| `research` | `parameter_schema`, `current_config`, `list_proposals`, `read_proposal`, `evidence_strength`, `proposal_stability`, `trial_count`, `trial_list`, `trial_deflate`, `evidence_effective_sample_size`, `evidence_paired_only`, `evidence_selection_bias`, `evidence_deflated_sharpe`, `evidence_purged_folds`, `evidence_clustered_permutation`, `evidence_perfect_foresight` | `research_propose_config_change`, `research_trial_open`, `research_trial_close` | — | `research` (SLICE-12) |
+| `strategies` | `strategy_policy_schema`, `strategy_policy_get`, `strategy_policy_validate`, `strategy_policy_preview` | `strategies_strategy_policy_propose` | — | `configuration` (SLICE-11, policy staging; step 7's `policy.*` owner) |
+
+* **Counts:** 115 `observe`, 7 `propose`, 6 `act`. None of the 128 calls a kernel operation, a broker or a send path directly: each owner is a SLICE-09, SLICE-11 or SLICE-12 module, and `interfaces/mcp.py` imports none of them (owners are passed in). `framework_propose_intent` is the one indirect order route (above).
+* **The proxy's 37 tools.** `READ_TOOLS` is copied from `src/interfaces/mcp/domains/openalgo/server.py:62-79`, with that provenance: account state (9), market data and instruments (17), indicators (9), introspection (2). Each is listed as `openalgo_<name>`, verb `observe`, owner `"proxy"`.
+* **Prompts.** The five templates of `src/interfaces/mcp/domains/prompts/server.py:35-` (`session_review`, `why_refused`, `data_health`, `strategy_vs_framework`, `propose_change`) are copied verbatim, with provenance, and registered as MCP prompts of the `prompts` domain under the names fastmcp 3.4.7's `mount(namespace="prompts")` gives them. They are text, invoke nothing, have no verb and no owner, and are listed by every endpoint that mounts `prompts`, as legacy.
+* **`ALL_DOMAINS`** is eleven names: the table's nine, `openalgo` and `prompts`.
+
+#### Configuration (`interfaces/mcp.py`)
+
+`parse_mcp(profile: Mapping, environ: Mapping[str, str]) -> McpConfig` reads the MCP process's own profile (the YAML file `MCP_CONFIG_FILE` names, legacy's variable) at **legacy's key paths**, so legacy's three profiles' MCP blocks load unchanged. Defaults are legacy's (`config/defaults.yaml:19-59`, `:259-466`).
+
+* **The environment** replaces a YAML value when any name maps to its key: legacy's aliases (`MCP_AUTH_MODE`, `MCP_AUTH_OPENALGO_URL`, `MCP_PUBLIC_URL`, `MCP_AUTH_JWKS_URI`, `MCP_AUTH_ISSUER`, `MCP_AUTH_AUDIENCE`, `MCP_SCOPE_ENFORCEMENT`, `MCP_TRANSPORT`, `MCP_HOST`, `MCP_PORT`, `MCP_PATH`, `MCP_MASK_ERRORS`, `MCP_RATE_LIMIT_RPS`, `OPENALGO_MCP_URL`, `OPENALGO_MCP_TIMEOUT`; `src/config/__init__.py` `ENV_ALIASES`), kept in `MCP_ALIASES`, or any name `settings.secrets.env_path` maps to it (`AT__…` and `MCP_…__…`). With several, the first name in code-point order wins (step 6's rule). Values are coerced with legacy's `_coerce` (true and false words, `none`/`null`, int, float, JSON list or object); `auth.mode` is never coerced (legacy's `_STRING_KEYS`).
+* **Keys read:**
+
+  | Key | Default | Rule |
+  |---|---|---|
+  | `auth.mode` | `""` | `strip().lower()`; `""` means infer |
+  | `auth.openalgo_url`, `auth.public_url`, `auth.jwks_uri`, `auth.issuer`, `auth.audience` | `""` | stripped text |
+  | `auth.advertise_write_orders` | `true` | `bool` of the coerced value |
+  | `auth.scopes.enabled` | `true` | `bool` |
+  | `auth.scopes.domains`, `auth.scopes.aliases` | legacy's maps (`config/defaults.yaml:361-425`, `:464-466`) | a YAML value replaces the whole map, as legacy's profile layering did; no environment name |
+  | `auth.tokens` | `""` | must be empty: a non-empty value raises `SettingsError("auth.tokens holds a secret; reference it as secrets.mcp.tokens")` (Deviation, below) |
+  | `authority.grants` | unset | below |
+  | `gateway.domains` | `[]` | a list, or a text split on commas and spaces (`gateway.py:114-128`); empty means every domain in `ALL_DOMAINS` |
+  | `gateway.transport` | `stdio` | `stdio` or `http`, else `SettingsError` |
+  | `gateway.host`, `gateway.port`, `gateway.path` | `127.0.0.1`, 8000, `/mcp` | port an int 1–65535 |
+  | `gateway.stateless_http`, `gateway.mask_errors` | `false`, `true` | `bool` |
+  | `gateway.rate_limit_rps` | 10 | a positive number (legacy's value; no new limit) |
+  | `openalgo.mcp.url`, `openalgo.mcp.timeout_secs` | `""`, 30 | stripped text; a positive number |
+  | `interfaces.disclosure.destinations` | unbound | refusing (below) |
+  | `process` | required | exactly `ledger` (an absolute path or null), `deployment_root` (absolute) and `accounts` (`{client_key: [[broker, account], …]}`, possibly empty; each pair becomes `AccountId(broker, account)`, and the list a `frozenset`); anything else `ValueError` naming `process.<key>` |
+
+  Every malformed value raises `SettingsError` naming its key. Legacy's other gateway keys (`gateway.name`, `log_requests`, the scheduler, the console mount, tick recording, the Risk Guard's caps and approval) are not read (Deviations, below).
+
+#### Authentication and start refusals (`interfaces/mcp.py`)
+
+Ported from `src/interfaces/mcp/core/identity.py:25-127` and `src/interfaces/mcp/core/security.py:217-360`, with provenance and legacy's texts.
+
+* `auth_mode(cfg) -> tuple[str, bool]` (mode, explicit). An explicit mode wins, `none` included. Otherwise: `auth.openalgo_url` set gives `openalgo`; all three of `jwks_uri`, `issuer`, `audience` set gives `jwt`; else `none`. `AUTHENTICATING = {"token", "jwt", "openalgo"}`.
+* **Start refusals.** `McpStartRefused(SettingsError)` carries `code = "SEC-R17"`, `label = "auth_mode_refused"` and legacy's reason text. `serve` prints `REFUSING TO START: SEC-R17 <reason>` to stderr and exits 2 before binding anything. Each, in this order:
+  1. an explicit mode outside the four: `Unknown MCP_AUTH_MODE: '<mode>' (expected 'none', 'token', 'jwt' or 'openalgo')`;
+  2. transport `http`, mode `none` inferred: legacy's "no authentication is configured — auth.mode is unset …" text (`identity.py:117-122`);
+  3. transport `http`, `none` explicit, `gateway.host` not loopback: legacy's "MCP_AUTH_MODE is 'none' and the bind address '<host>' is not loopback …" text (`:123-126`). Loopback is exactly `127.0.0.1`, `::1` or `localhost` after `strip().lower().strip("[]")` (`:93-97`);
+  4. `token` with no static tokens (below): `MCP_AUTH_MODE=token requires MCP_AUTH_TOKENS…` (`security.py:280-283`), or a malformed entry: legacy's `Malformed MCP_AUTH_TOKENS entry …` and `… parsed to zero tokens.` texts (`:234-258`);
+  5. `jwt` with any of the three unset: `auth.mode=jwt: auth.<key> is unset`;
+  6. `openalgo` with `auth.openalgo_url` unset: legacy's `auth.mode=openalgo: …` text (`:306-310`).
+
+  `stdio` never asks rows 2 and 3 (`identity.py:113`). An authenticating mode is never refused by rows 2–3.
+* **Static tokens** come from the secret `mcp/tokens` (scope `mcp_token`, below), whose text is legacy's `MCP_AUTH_TOKENS` format, parsed by legacy's `_parse_static_tokens`: comma-separated `token:client_id[:space-separated scopes]`, split with `split(":", 2)`; no scopes gives every one of `ALL_SCOPES` (`analysis.read`, `trading.read`, `trading.write`, `research.propose`, `jobs.run`, `framework.propose`, `security.py:82-103`). A reference `source: env, locator: MCP_AUTH_TOKENS` reads today's variable unchanged.
+* **The provider** (`build_auth(cfg, secrets, *, verifier=None)`; fastmcp 3.4.7, imported only here): `none` gives `None`; `token` a `StaticTokenVerifier`; `jwt` a `JWTVerifier(jwks_uri, issuer, audience)`; `openalgo` a `JWTVerifier` on `openalgo_oauth_endpoints(url)` = issuer `url.rstrip("/")`, JWKS `<issuer>/oauth/jwks.json`, audience `<issuer>/mcp` (`security.py:217-231`). For `jwt` and `openalgo`, a set `auth.public_url` wraps it in `RemoteAuthProvider(…, scopes_supported=…)` (RFC 9728 discovery): `ALL_SCOPES` for `jwt`; for `openalgo`, `advertised_openalgo_scopes(cfg)`, which is `["read:market", "read:account", "write:orders"]`, or the first two when `auth.advertise_write_orders` is false (`security.py:146-150`). `verifier=` replaces the built verifier (tests only).
+* **Proxied requests under `none`.** Over HTTP with mode `none`, `RefuseProxied` (ported from `src/interfaces/mcp/core/proxy_guard.py:20-64`) runs first: any request carrying a header named `forwarded`, `x-forwarded-for`, `x-forwarded-host`, `x-forwarded-proto` or `x-real-ip` (name compared lower-cased, value ignored) is answered 403 with legacy's `REFUSAL_BODY` exactly; a websocket is closed with 1008. It is not installed under an authenticating mode.
+* **Readable 401.** `ReadableAuthErrors` is ported verbatim from `src/interfaces/mcp/core/http_errors.py:31-87`: an empty 401 body becomes `{"error": "invalid_token", "error_description": "Missing Bearer token."}`; `WWW-Authenticate` is untouched.
+* **The HTTP stack**, as legacy (`gateway.py:366-392`, `:480-554`): legacy's refusal-passing error middleware outermost, then fastmcp's `RateLimitingMiddleware(gateway.rate_limit_rps)`, then the surface; `mask_error_details` from `gateway.mask_errors`; `run(transport="http", host, port, path, middleware=[RefuseProxied?, ReadableAuthErrors], stateless_http)`.
+* **The caller** (`mcp_caller(verified, accounts) -> Caller`). `Verified(client_id, scopes, raw)` is built from fastmcp's `get_access_token()`: `client_id` (else `subject`), `scopes` and the raw bearer (the first non-blank of `token`, `raw_token`, `access_token`, `credentials`, stripped, `identity.py:148-176`). No verified token (stdio, `none`) gives client `unauthenticated`, legacy's attribution word (`identity.py:226-235`). The client key is the client ID when it fully matches `McpEvidence`'s rule (`interfaces/authorization.py:90-96`), else `h-` and the first 32 hex digits of the SHA-256 of its UTF-8 bytes, so a verified caller is never refused for its ID's characters. The caller is `Caller(Principal("mcp:<key>", "service"), None, "mcp", "mcp:<key>", accounts.get(key, frozenset()), None)`.
+  * **Fork call (every verified client is a caller):** legacy served any token its provider verified, including dynamically registered OpenAlgo clients. The MCP process therefore needs no identity-map entry; `process.accounts` only widens what account-scoped projections it may read. Step 1's `Authorizer.authenticate`, which refuses an unmapped `McpEvidence` with `SEC-R01`, is a human door's object; no MCP composition calls it, and it is left as built.
+
+#### Endpoint grants (`interfaces/mcp.py`)
+
+Ported from `src/interfaces/mcp/core/authority.py:54-137`.
+
+* `parse_grants(raw) -> tuple[frozenset[str], bool]` (grants, configured). `None`, `""` or `[]`: all three, not configured. A text is split on commas and spaces. Each value is stripped and lower-cased. `override` raises `SettingsError` with legacy's text ("a profile granted 'override'. No profile may: lifting a safety gate — clearing a hold, disengaging the kill switch — is the operator's, through `at` or the console. …"); any other unknown verb raises `unknown verb(s) [...] in authority.grants; expected any of ['observe', 'propose', 'act']`.
+* `permits(tool) -> str | None`: `None` when the tool's verb is granted, else legacy's text: `this endpoint does not grant '<verb>' — '<tool>' is a <verb> tool and this endpoint grants [<sorted grants>]. That is a property of the profile it was started with, not of your credentials`.
+* **Fork call (endpoint grants):** the three verbs, unset meaning all three, and `override` refused at start, as legacy. Under the read-only profile every `propose` and `act` tool is refused (`SEC-R13`).
+
+#### Scopes (`interfaces/mcp.py`)
+
+`ScopePolicy` is ported from `src/interfaces/mcp/core/scopes.py:52-168`, with its four reason constants and texts.
+
+* **Active** when `auth.scopes.enabled` and the mode authenticates; under `none` it allows everything (inert), as legacy.
+* `expand(granted)`: each scope plus its aliases. Legacy's aliases: `read:market` → `analysis.read`, `trading.read`, `research.propose`, `jobs.run`; `read:account` → `trading.read`; `write:orders` → `trading.write`. No alias gives `framework.propose` (`config/defaults.yaml:363-378`).
+* `required(tool, direction)`: the domain before the first `_`; a domain missing from `auth.scopes.domains` is `domain not in the scope map`; a direction with no mapping is `direction not mapped for this domain`. The direction is `read` for an `observe` tool and `write` for `propose` and `act`.
+* `allows(tool, direction, granted)`: no verified caller under an active policy is `no authenticated caller: …`; a missing scope is `missing required scope: '<tool>' requires '<scope>'; this caller holds [<sorted expanded>]`.
+* **Fork call (scopes):** legacy's domain map, aliases and fail-closed rules, unchanged. An OpenAlgo `read:market` token can therefore file a research proposal or enqueue a job wherever the endpoint grants the verb, and cannot reach `framework_propose_intent`.
+
+#### Kill (`interfaces/mcp.py`)
+
+* `kill_engaged() -> bool` runs only for a `propose` or `act` tool, at each call, never cached:
+  1. `KillInputs.resolve(settings.kill_switch, settings.kill_switch_files, process.deployment_root)`, built once at composition (`kernel/safety.py:73-91`, step 4's only builder, the kernel's root). `present()` not `None` engages. `KillInputUnreadable` engages, as legacy's call failed on an unreadable file.
+  2. With `process.ledger` set: `kill_engaged` opens `LedgerReader.open(process.ledger)` on each call, reads `safety_state` rows with `kind = 'kill' AND state = 'engaged'` through `LedgerReader.rows` (`kernel/ledger/store.py:62-70`, `:891-918`), and closes the reader in a `finally`. A row engages. Any failure to open or read (a missing file included) is logged once per call as a warning and counts as not engaged, so the ledger adds no refusal legacy could not have made; the inputs still decide. No reader is opened at start, so a missing ledger never stops the process starting.
+* Engaged: `Refusal("kill_switch", "ENGAGED: kill switch is engaged — every write tool is refused until it is cleared", None, "mcp")`, legacy's rule name and message (`src/interfaces/mcp/core/riskguard.py:804-811`). `observe` tools, the proxy and prompts never check kill.
+* **Fork call (kill on MCP):** `propose` and `act` refuse, reads keep working (`capability.py:64-71`). The ledger read follows step 4's accepted rule that deleting the file does not release kill; in that state the kernel refuses entries too, so no trade changes.
+
+#### The OpenAlgo proxy (`interfaces/mcp.py`)
+
+* `build_proxy(cfg, *, target=None)`: `None` unless `openalgo` is in the endpoint's domains and `openalgo.mcp.url` is set (startup line `skipped openalgo: not configured (openalgo.mcp.url is unset)`). Otherwise `create_proxy(StreamableHttpTransport(url, httpx_client_factory=…), name="openalgo", mask_error_details=…)`, mounted under `openalgo`; `target` (an in-memory server) replaces the transport in tests, as legacy's `build_proxy(target)` (`openalgo/server.py:113-171`).
+* **Read-only, two layers** (`:92-110`): `ReadOnlyFilter` lists only tools in `READ_TOOLS` and refuses any other call before upstream is asked; `proxy.enable(names=READ_TOOLS, components={"tool"}, only=True)`. The refusal is `SEC-R13 not_on_surface: openalgo tool '<name>' is not on the read allowlist: this proxy is read-only. Place, modify or cancel orders in OpenAlgo's own UI or Telegram. A new read tool must be added to READ_TOOLS before it is forwarded` (legacy's text after the prefix).
+* **The caller's token** (`:124-156`). The client factory sets the timeout to `openalgo.mcp.timeout_secs` and appends a request hook `forward_caller_token(request)`. On every request the hook reads `verified_of().raw` (the server's `verified_of`, `current_verified` in production), as legacy's hook calls `raw_bearer()` per request (`src/interfaces/mcp/domains/openalgo/server.py:143-149`): with a raw bearer it sets `Authorization: Bearer <raw>`; with none (no verified token, or one without its raw form) it removes any `Authorization` header. Nothing is captured when the client is built, so one reused client carries each caller's own token. The process holds no OpenAlgo credential (PRF-SEC-09). OpenAlgo narrows further by the token's own scopes.
+* **Fork call (the proxy's token):** the caller's own token, through the read allowlist, with `write:orders` advertised by default (`security.py:120-150`); the read-only profile advertises read scopes only. Listed improvement, not made: advertise read scopes on every profile.
+
+#### The propose tools (`interfaces/mcp.py`)
+
+The three `propose_*` tools are fastmcp function tools with legacy's signatures and docstrings copied verbatim (`Annotated` types and `Field` constraints included), so their input schemas and argument validation are legacy's by construction. Each body is one call to `surface.dispatch` (below).
+
+| Tool | Legacy signature | Owner call |
+|---|---|---|
+| `framework_propose_intent` | `strategy` (pattern `^(|[a-z0-9][a-z0-9_-]{0,63})$`), `direction=""`, `conviction=0.0` (`ge=0.0, le=1.0`), `reason=""`, `structure_id=""`, `market_bias=""` (`framework/server.py:84-91`, `:369-407`) | `intents.call("framework_propose_intent", {the six}, caller=…)` |
+| `research_propose_config_change` | `parameter`, `proposed_value: float`, `rationale`, `expected_effect`, `justification`, `evidence_sessions: list[str]`, `current_value: float \| None = None` (`research/server.py:57-76`, `:442-452`) | `research.call(…)` |
+| `strategies_strategy_policy_propose` | `strategy`, `candidate: dict`, keyword `by="mcp"`, `reason=""`, `evidence: dict \| None = None` (`strategies/server.py:66-76`) | `configuration.call(…)`, with `by` replaced by `attributed(caller, by)` |
+| (the other four `propose` tools) | the owner's schema when composed (below) | their owner |
+
+* `attributed(caller, stated) -> str` is legacy's (`identity.py:226-235`): `"mcp:<client key> (<stated stripped, or unnamed>)"`. It is exported for owners; the surface applies it to `strategies_strategy_policy_propose`'s `by` only, as legacy's tool did.
+* **What the surface checks and what it leaves.** The surface applies the schema, grants, scopes, kill and disclosure. Everything legacy's `contract.propose_intent` decided (registered, out-of-process kind, enabled, the ENTER rules, the conviction number, at most 64 pending, the `source: mcp_propose_intent` tag; `src/contract/propose.py:58-161`) is the `intents` owner's, judged there under the receiving strategy's grant, never the caller's. The research proposal's evidence rules are the `research` owner's.
+* **Fork call (who may propose):** the seven `propose` tools, their verb and their scopes (`framework.propose` for `framework_propose_intent`; `research.propose` for the other six) are legacy's. On the read-only profile none is granted and `framework_propose_intent` is not mounted, so the live endpoint, as today, accepts no proposal.
+
+#### Owner ports (`interfaces/mcp.py`)
+
+* `McpPort` is a protocol with two methods: `spec(tool: str) -> tuple[str, Mapping]` (description, JSON input schema) and `call(tool: str, args: Mapping, *, caller: Caller) -> Mapping | Refusal`.
+* `McpPorts`, frozen, every field defaulting to `None`: `strategies`, `intents`, `cognition` (SLICE-09); `configuration`, `market` (SLICE-11); `research` (SLICE-12). `serve` passes `McpPorts()`, so every catalogue tool of a mounted domain is listed and answers `Refusal("SEC-R22", "owner_absent: '<tool>' is served by <field> (<slice>), which is not composed yet", None, "mcp")`.
+* A tool whose port is `None` is listed with its owner's description text `not available yet: served by <field> (<slice>)` and the schema `{"type": "object", "additionalProperties": true}`; the three `propose_*` tools keep legacy's schema always. A composed port's `spec` replaces both at composition.
+* A port's `ValueError` or `KeyError` answers `invalid_request: <text>`; any other exception is masked by fastmcp (`gateway.mask_errors`, legacy's default) and logged.
+
+#### Reads and disclosure (`interfaces/mcp.py`)
+
+* `Projection(name, version, account_arg)`, frozen. `PROJECTIONS` holds one per catalogue and proxy tool: `name` the tool's, `version` 1, `account_arg` `None`. Field lists are each owner's, declared in its own slice. **Fork call (MCP reads):** no legacy MCP read was account-scoped, so none is here.
+* `read(caller, projection, args) -> Refusal | None`: with `account_arg` set, `args[account_arg]` must be a `[broker, account]` pair whose `AccountId(broker, account)` is in `caller.accounts` (`None` reads all); otherwise `SEC-R14 scope_denied: <projection>: account <broker>/<account> is outside this caller's accounts` (or `… names no account`).
+* **Destinations.** `interfaces.disclosure.destinations` is refusing: unbound raises `SettingsError("interfaces.disclosure.destinations is unbound")` at composition. Its value maps a destination (`owner-api`, `cli`, `telemetry`, `model:<provider>`, `mcp:<client key>`, or the pattern `mcp:*`) to a list of projection names or `"*"`. An unknown destination form or projection name raises `ValueError`. `disclose(projection, destination) -> Refusal | None` allows when the exact key, or for an `mcp:` destination the `mcp:*` key, lists the name or `"*"`; else `SEC-R15 destination_denied: <projection> may not go to <destination>`. **Fork call:** SLICE-11 binds `{"mcp:*": ["*"]}`, legacy's "every client with the scope reads every MCP read".
+* `scope_digest(caller, held) -> str`: the SHA-256 hex of `canonical_json([sorted(expanded held scopes), sorted([[broker, account]…]) or null for None])`. `cache_key(projection: Projection, args, digest) -> str`: the SHA-256 hex of `canonical_json(["mcp-cache/1", projection.name, projection.version, dict(args), digest])`. The surface caches nothing; an owner that caches keys by `cache_key`, so a narrower caller never receives a wider caller's answer.
+* **Redaction.** Every result leaves through `secrets.redact` (step 3: value scrubbing of the process's secrets, then legacy's key redaction, `settings/secrets.py:203-220`). A proxy result's text content that parses as a JSON object or array is redacted and re-serialised with `json.dumps(…, ensure_ascii=False)`; other text is scrubbed only; structured content is redacted.
+
+#### The call, in order (`McpSurface`)
+
+`McpSurface(cfg, *, secrets, kill_inputs, ports, proxy)`; `compose_mcp(cfg, settings, *, secrets, ports=McpPorts(), proxy=None) -> McpSurface` raises `ValueError` when `secrets` holds anything outside its scope (below). It opens no ledger (kill opens it per call). **Scrub forms per token:** in `token` mode it parses `mcp/tokens` and builds the surface's `Secrets` from the resolved secrets plus one `Secret` per parsed token value, with ref `SecretRef("mcp", f"token_{n}", <the tokens ref's source, locator and version>)`, `n` counting from 1 in entry order. So each token alone, not only the whole `MCP_AUTH_TOKENS` text, is scrubbed from every output and log line. `build_server(surface, *, verified_of=current_verified)` builds the fastmcp server; one middleware runs `check` on every `tools/call`, and filters `tools/list` to the mounted catalogue and the proxy's allowed tools. `current_verified` reads `get_access_token()`; in-memory tests pass `verified_of` to stand for the provider. `check(tool, args, verified) -> Caller | Refusal`:
+
+1. **On the surface.** A name not mounted on this endpoint: `SEC-R13 not_on_surface: '<tool>' is not a tool on this endpoint`; an `openalgo_` name while the proxy is mounted: the proxy's refusal above.
+2. **Grants:** `permits` → `SEC-R13 not_on_surface: <text>`.
+3. **The caller:** `mcp_caller`.
+4. **Scopes:** `allows(tool, direction, verified.scopes or None)` → `SEC-R14 scope_denied: <text>`; then `read` for an `observe` tool.
+5. **Kill**, `propose` and `act` only → the kill refusal.
+6. **Disclosure:** `disclose(projection, caller.channel_identity)` → `SEC-R15`. It runs before the owner, so a refused disclosure causes no effect.
+
+Then `dispatch(tool, args, caller)`: the proxy forwards; a `None` port answers `SEC-R22`; otherwise the port's answer, redacted. Every refusal reaches the client as a tool error whose text is `"<code> <message>"`. One `INFO` line per call goes to `autonomous_trading.mcp` with the tool, the client key, the verb and the outcome code; arguments are never logged. Startup prints legacy's banner lines: mounted domains, each skip and its reason (a listed name with no such domain: `NAMED IN gateway.domains BUT NO SUCH DOMAIN`), `Auth:`, `Authority:` and `Scopes:` summaries (`gateway.py:416-433`).
+
+#### Secrets and the process (`settings/secrets.py`, `src/autonomous_trading/__main__.py`, `pyproject.toml`)
+
+* `SCOPES` (`settings/secrets.py:255-259`) gains: `"mcp": frozenset()` (the `openalgo`, `jwt` and `none` modes), `"mcp_token": frozenset({("mcp", "tokens")})` (the `token` mode) and `"console": frozenset({("console", "mcp_token")})` (the console backend's shared token, read by step 10's backend). None holds `("openalgo", "api_key")`.
+* `serve(environ)`: settings from `loader.resolve(environ["AT_PROFILE"], environ)` (the kill keys), the MCP profile from `MCP_CONFIG_FILE`, `parse_mcp`, `resolve(parse_references(profile.get("secrets")), SCOPES["mcp_token" if mode == "token" else "mcp"], live=True, environ=environ)`, `compose_mcp`, `build_server`, then the transport. Without the extra it exits with `the mcp extra is not installed: pip install autonomous-trading[mcp]`. `__main__` gains `mcp serve`, importing `interfaces.mcp` only in that branch.
+* `pyproject.toml` gains the extra `mcp = ["fastmcp==3.4.7", "mcp==1.30.0", "httpx==0.28.1", "starlette==1.7.0", "uvicorn==0.54.0"]`, legacy's pins (`deploy/constraints.txt`). `interfaces/mcp.py` imports fastmcp, httpx and starlette only inside `build_auth`, `build_proxy`, `build_server` and `serve`.
+
+#### Fork calls and deviations in this step
+
+* **Fork calls**, each named above: the authentication modes, inference and start refusals; the proxied-request refusal under `none`; every verified client is a caller; the endpoint grants and ungrantable `override`; legacy's scope map and aliases; kill refuses `propose` and `act` only; the proxy's caller token and read allowlist; `write:orders` advertised by default; who may propose; MCP reads to every client with the scope; the three profiles' values, only the read-only one live; the prompts. **No new order route through MCP:** no tool reaches an order or a kernel operation directly, and the proxy forwards reads only. `framework_propose_intent` is legacy's indirect order route, kept as legacy had it: not on the live profile, and on the console and desk profiles only by the owner's decision.
+* **Deviations:**
+  * static tokens are a secret reference (`mcp/tokens`), and `auth.tokens` in a profile refuses the start (the slice-level Deviation). `source: env, locator: MCP_AUTH_TOKENS` keeps today's variable working;
+  * kill also reads the ledger (step 4's accepted rule);
+  * tools whose owner is not composed are listed and answer `SEC-R22`; legacy's tools read legacy's files, which the target does not have;
+  * the MCP process holds no broker key and runs no scheduler, tick recorder, market-data stream or owner API: legacy's gateway did (`gateway.py:184-234`, `:525-538`); those move to SLICE-11's market host and step 6's operator process;
+  * every output, the proxy's included, is redacted and scrubbed; legacy redacted domain outputs by key only and passed proxy output through;
+  * refusal texts start with a code; start refusals exit 2 with one `SEC-R17` line, where legacy's configuration errors ended in a traceback;
+  * the Risk Guard's caps, approval and `orders_disabled` are not ported (the spec's "do not reuse": no order tool exists), and its JSONL audit is replaced by the log line;
+  * a client ID outside the `McpEvidence` rule is keyed by its hash;
+  * `interfaces.disclosure.destinations` is refusing (new; it gates no trading).
+* No score, threshold or money value is set. 10 requests a second, 30 s and the conviction range are legacy's values; 64 pending is the `intents` owner's.
+
+#### What later steps take from step 8
+
+* **Step 9:** nothing.
+* **Step 10:** the console backend's MCP client is legacy's `credential()` (`admin_console/src/lib/gateway.ts:31-41`): with OIDC on, a call without a session token is refused, never downgraded. That PRF-SEC-08 row is proved by T-66 on the ported file. The console's allowlists stay legacy's (`admin_console/src/config/tools.ts:9-110`). Legacy owner-API GET reads that step 6 does not serve are step 10's.
+* **SLICE-09:** composes `strategies`, `intents` and `cognition`. The `intents` owner keeps `contract.propose_intent`'s rules and returns its answer shape. `cognition/tools.py` uses `PROJECTIONS`, `read` and `disclose` with `model:<provider>`.
+* **SLICE-11:** composes `market` and `configuration`. It runs **only the read-only profile live** (port 8000, `openalgo` mode, legacy's values); it ships the console (8002, `token` mode) and desk (8001) profiles as files and units that are not enabled, and enables either only on the owner's decision ([Open owner items](#open-owner-items)). The console profile carries `secrets: {mcp: {tokens: {source: env, locator: MCP_AUTH_TOKENS}}}`, so today's variable keeps working. SLICE-11 writes each profile's `process` section, binds `{"mcp:*": ["*"]}`, gives the units no environment file holding the broker key, and attaches `log_filter()`.
+* **SLICE-12:** composes `research`.
+* **SLICE-14:** at cutover no tool of the live profile may still answer `SEC-R22`, the same rule as step 7's owner ports.
+
+### Tests
+
+**`tests/integration/test_mcp_surface.py` (T-65), PRF-SEC-08.** The pure groups need no MCP library. The fastmcp groups use `pytest.importorskip("fastmcp")` and count only with the `mcp` extra installed (pinned versions); they call the server in memory with `fastmcp.Client(server)`, or over HTTP through `server.http_app(path="/mcp")` and `httpx.ASGITransport`, so no socket is opened. Every client ID, scope set, account and reason is labelled synthetic. **No literal secret:** each token is `"SYNTHETIC-TOKEN-" + uuid.uuid4().hex`, made at run time, and the static-token text is assembled from them (step 3's rule). The world for kill and ledger cases is step 6's `admission_world(…, kill_inputs=KillInputs.resolve(False, ("run/KILL",), tmp_path))` with `process.ledger` naming its ledger file.
+
+Configurations, each a `parse_mcp` of a mapping copied from legacy's profile, `process` added:
+
+* `READONLY`: `readonly.yaml`'s MCP keys over `enforcing.yaml`'s, mode `openalgo`, `auth.openalgo_url` `https://oa.example.test`, transport `http`, host `127.0.0.1`.
+* `DESK`: `desk.yaml`'s, with the proxy's `target` an in-memory upstream.
+* `CONSOLE`: `console.yaml`'s, mode `token`, `mcp/tokens` = `f"{T_CONSOLE}:console:analysis.read research.propose framework.propose jobs.run trading.read,{T_BOT}:bot:analysis.read"`.
+* Every one with `interfaces.disclosure.destinations` `{"mcp:*": ["*"]}` unless a case names another.
+
+The upstream fake is a FastMCP server with tools `get_quote`, `get_funds`, `get_unlisted_read`, `place_order`, `modify_order`, `cancel_order`, `close_all_positions`, `analyzer_toggle` and `send_telegram_alert`, each appending its name to `calls`. `FakePort(answer)` records `(tool, args, caller)` and returns `answer`, or raises it when it is an exception.
+
+Hand-computed values (SHA-256 of the UTF-8 text beside each, computed at deepening):
+
+* Client key of `synthetic client@example.test` (space and `@` fail the rule): `h-b90bfdd6314ff664ee24d54550b37000`.
+* `scope_digest` of `[["analysis.read","jobs.run","read:market","research.propose","trading.read"],[]]` (a `read:market` caller, no accounts): `5330c402f46e26cea58cb9564f475f1ff1a6c307c7946c0a952ee806fb476af4`. Of `[["analysis.read"],[]]`: `09797df41b6fa13cb58309f7c51e782c3500ef8dcbe0cfa0d3eab780f8ce402b`. Of `[["analysis.read"],[["sim","acct-sim"]]]`: `11ab7821741c71a23dcbf9c19018fc1e1939a3d3a5da22f2fd6be9f2e8a9ad19`.
+* `cache_key(Projection("framework_book", 1, None), {"day": "2026-11-02"}, <digest>)`: with the first digest, `["mcp-cache/1","framework_book",1,{"day":"2026-11-02"},"5330…6af4"]` → `d63ba68f24b4682c8c30368e97f6a8d751330958586cf649bd03454c6b50e1c6`; with the second, `a492026f8bb59089c016d79e1002cb435af999f4632bd8a3e9622a9da7e83f32`.
+
+| Group | Cases |
+|---|---|
+| Catalogue | `CATALOGUE` equals the 128 names in the table, with those verbs (115, 7, 6) and owner fields. `READ_TOOLS` equals the 37 legacy names, held as an explicit list with provenance. No tool's verb is `override`. Every name in the console's `READ_TOOLS` (57) is in the catalogue with verb `observe`, and every name in its `WRITE_TOOLS` (6) with `propose` or `act` (`tools.ts:9-110`). The prompts list is the five names |
+| Configuration | Defaults: mode `""`, transport `stdio`, host `127.0.0.1`, port 8000, path `/mcp`, `advertise_write_orders` true, scopes enabled, rate 10, timeout 30. `MCP_AUTH_MODE=" TOKEN "` gives `token`; `MCP_AUTH_MODE=none` stays the text `none`; `MCP_SCOPE_ENFORCEMENT=false` gives false; `MCP_PORT=8002` gives 8002; `MCP_PORT=abc` raises naming `gateway.port`; `MCP_AUTH__ADVERTISE_WRITE_ORDERS=0` gives false; `AT__GATEWAY__PORT=8001` with `MCP_PORT=8002` gives 8001 (code-point order). `gateway.domains: "analysis, live"` gives `{analysis, live}`. `auth.tokens: "x"` raises the secret line. `process` with an extra key or a relative ledger raises. The three legacy profiles parse to the values above |
+| Authentication | `auth_mode`: `{}` → (`none`, inferred); `openalgo_url` set → (`openalgo`, inferred); `jwks_uri`, `issuer`, `audience` set → (`jwt`, inferred); two of the three → `none`; explicit `none` with the URL set → (`none`, explicit). Start refusals, each `SEC-R17` with its text: mode `basic`; `http` inferred `none` on `127.0.0.1`; `http` explicit `none` on `0.0.0.0` (the text names `'0.0.0.0'`); `token` with an empty `mcp/tokens`; entries `abc`, `:bot` and `" , "`; `jwt` without `audience` (`auth.mode=jwt: auth.audience is unset`); `openalgo` without the URL. Starts: `http` explicit `none` on `[::1]` and on `localhost `; `stdio` inferred `none`. Static tokens: `T_BOT` gives client `bot`, scopes `["analysis.read"]`; an entry with no scopes gives the six of `ALL_SCOPES`. `openalgo_oauth_endpoints("https://oa.example.test/")` gives the three URLs above. `advertised_openalgo_scopes`: three by default, two with advertising off. `mcp_caller`: no token gives `mcp:unauthenticated`; `synthetic client@example.test` gives `mcp:h-b90b…7000`; `process.accounts` `{"bot": [["sim", "acct-sim"]]}` gives `bot` the accounts `frozenset({AccountId("sim", "acct-sim")})`. Raw bearer: an object with blank `token` and `access_token` `" T "` gives `T` |
+| HTTP (fastmcp) | `CONSOLE` over HTTP: `tools/list` with no `Authorization` is 401 with legacy's missing-token body and `WWW-Authenticate` present; with `Bearer T_BOT` it is 200; with a wrong token 401. An explicit `none` loopback composition: a request with `x-forwarded-for: 1.2.3.4` is 403 with `REFUSAL_BODY` exactly; with `X-Real-IP` (raw mixed case) 403; with no proxy header 200. A `jwt` composition with `verifier=JWTVerifier(public_key=…)` from `RSAKeyPair.generate()`: a token for client `synthetic-jwt-client`, scope `analysis.read`, audience right: `analysis_trade_kpis` answers `SEC-R22` (authenticated and in scope); the wrong audience is 401. `build_auth` gives a `RemoteAuthProvider` when `auth.public_url` is set and a bare verifier otherwise |
+| Grants | `parse_grants`: `None`, `""`, `[]` → three, not configured; `"observe, propose"` → two; `["OVERRIDE"]` → `SettingsError` (legacy text); `["observe", "admin"]` → `unknown verb(s) ['admin'] …`. `READONLY`, a caller holding every scope: `research_propose_config_change` → `SEC-R13` with legacy's text naming `'propose'` and `['observe']`; `jobs_job_enqueue` → `SEC-R13` naming `'act'`; `framework_propose_intent` → `SEC-R13 … is not a tool on this endpoint` (not mounted); `analysis_trade_kpis` → `SEC-R22`. `CONSOLE`, client `console`: `jobs_job_enqueue` → `SEC-R13` naming `['observe', 'propose']` (legacy's console could not enqueue). **Order of checks:** on `READONLY`, a client holding only `analysis.read` calling `research_propose_config_change` gets `SEC-R13`, not `SEC-R14` |
+| Scopes | `CONSOLE`, client `bot` (`analysis.read`): `analysis_trade_kpis` passes to the owner (`SEC-R22`); `monitoring_live_positions` → `SEC-R14 … requires 'trading.read'; this caller holds ['analysis.read']`; `framework_propose_intent` → `… requires 'framework.propose'`. `DESK`, an `openalgo` token with `["read:market"]`: holds `['analysis.read', 'jobs.run', 'read:market', 'research.propose', 'trading.read']`; `research_propose_config_change` and `jobs_job_enqueue` pass scope; `framework_propose_intent` → `SEC-R14`. A domain map without `live`: `live_now` → `domain not in the scope map: …`. A map with `research: {read: analysis.read}`: `research_propose_config_change` → `direction not mapped for this domain: …`. `stdio` in `token` mode with no token: `no authenticated caller: …`. Under explicit `none`, or with scopes disabled, every tool passes scope |
+| Kill | `DESK`, a caller with every scope, `FakePort({"ok": True})` everywhere. `tmp_path/run/KILL` created: `research_propose_config_change`, `framework_propose_intent`, `strategies_strategy_policy_propose` and `jobs_job_enqueue` each answer `kill_switch ENGAGED: kill switch is engaged — every write tool is refused until it is cleared`, and no port is called; `analysis_trade_kpis` reaches its port; `openalgo_get_quote` reaches upstream; prompts list. The flag alone: the same. **Ledger:** the file created, `comp.safety.check_kill_inputs()` records `KILL_ENGAGED` by `kernel:safety`, then the file is deleted: the propose tools still refuse. A fresh world with no kill: they reach their ports. `_exists` raising `KillInputUnreadable`: refused. A `LedgerReader` whose `rows` raises, with no input present: the propose tool reaches its port, and one warning is logged. **Missing ledger:** `process.ledger` names a file that does not exist: the composition starts, `analysis_trade_kpis` and `openalgo_get_quote` answer, a propose tool with no input present reaches its port, and each such call logs one warning. Two calls open the ledger twice (`LedgerReader.open` recorded): nothing is held between calls |
+| Proxy | `DESK`: `tools/list` holds `openalgo_get_quote` and `openalgo_get_funds` and no other `openalgo_` name. `openalgo_place_order`, `openalgo_cancel_order`, `openalgo_close_all_positions` and `openalgo_get_unlisted_read` each answer `SEC-R13 not_on_surface: openalgo tool '<name>' is not on the read allowlist: …`, and the upstream's `calls` stays empty. `openalgo_get_quote` answers the upstream's result and `calls == ["get_quote"]`. `READONLY`: no `openalgo_` tool is listed, the startup lines name the skip, and `openalgo_get_quote` → `SEC-R13 … is not a tool on this endpoint`. `DESK` with `openalgo.mcp.url` empty: skipped `not configured`. **The caller's token, through the real factory:** one `httpx.AsyncClient` from the proxy's client factory, given `transport=httpx.MockTransport(record)`, with `verified_of` answering caller A (raw `A`), then caller B (raw `B`), then no token; three requests, the first sent with `Authorization: Bearer stale`: `record` sees `Bearer A`, `Bearer B`, then no `Authorization` header (A and B synthetic, made at run time). The factory's timeout is 30 s |
+| Propose tools | `framework_propose_intent` with `FakePort({"accepted": True, "intent_id": "buyer_edge:2026-11-02:j1"})` as `intents`, client `console`: `{"strategy": "buyer_edge", "direction": "CE", "conviction": 0.6, "reason": "synthetic reason"}` reaches the port as those four plus `structure_id` and `market_bias` `""`, with caller `mcp:console`, and returns the port's answer. `conviction` 1.5 and `strategy` `"../x"` are refused by the schema with no port call. `intents` `None`: `SEC-R22 owner_absent: 'framework_propose_intent' is served by intents (SLICE-09), which is not composed yet`. `strategies_strategy_policy_propose` with `by="mallory"` reaches `configuration` with `by` `mcp:console (mallory)`; with no `by`, `mcp:console (mcp)`; under explicit `none` over stdio, `mcp:unauthenticated (mcp)`. `research_propose_config_change` reaches `research` with its seven arguments. **Redaction:** `CONSOLE`'s surface `Secrets` holds `mcp/tokens`, `mcp/token_1` (`T_CONSOLE`) and `mcp/token_2` (`T_BOT`); a port answering `{"api_key": "x", "nested": {"note": "echo " + T_CONSOLE, "other": "echo " + T_BOT}}` gives `{"api_key": "[redacted]", "nested": {"note": "echo ***", "other": "echo ***"}}`, and neither token's bytes appear in the captured log. A proxy answer whose text is `{"token": "x"}` reaches the client as `{"token": "[redacted]"}`. A port raising `ValueError("bad")` answers `invalid_request: bad` |
+| Disclosure | Destinations `{"mcp:console": ["framework_book"]}` on `CONSOLE`: `console` reads `framework_book` (its port is called); `framework_plans` → `SEC-R15 destination_denied: framework_plans may not go to mcp:console`, port not called; client `bot` → `SEC-R15` for every tool whose scope `bot` holds (each `analysis_*` tool, for example), port not called. Unbound → the start raises `interfaces.disclosure.destinations is unbound`. `{"mcp:*": ["no_such_tool"]}` → `ValueError`. `read` over a test-only `Projection("test_account_read", 1, "account")`: caller accounts `frozenset({AccountId("sim", "acct-sim")})` with `{"account": ["sim", "acct-sim"]}` → `None`; with `["sim", "acct-other"]` → `SEC-R14 … account sim/acct-other is outside this caller's accounts`; no account → `SEC-R14 … names no account`; caller accounts `None` → `None`. The digests and cache keys equal the values above, and the two cache keys differ |
+| Live profile | `LIVE_PROFILES = ("readonly",)`, the profiles SLICE-11 may run live without an owner decision. For each, composed with every scope granted and the `intents` port a `FakePort`: `framework_propose_intent` answers `SEC-R13`, the port is not called, and the name is absent from `tools/list` |
+| CUJ-SEC-3 | `DESK`, a static token with no scopes (every grantable scope), kill engaged: every listed tool's verb is `observe`, `propose` or `act`; `framework_unlock_latch`, `kill_release`, `holds_clear` and `openalgo_cancel_order` each answer `SEC-R13`; `analysis_trade_kpis` and `openalgo_get_quote` still answer |
+
+**`tests/contracts/test_capabilities.py`, PRF-SEC-09**, added to the existing file:
+
+* **Imports.** In a subprocess (`sys.executable -I -c`), `import autonomous_trading.interfaces.mcp` leaves none of `autonomous_trading.adapters.openalgo`, `.adapters.simulated_broker`, `.adapters.unix_channel`, `.bootstrap`, `.kernel.coordinator`, `.kernel.admission`, `.kernel.authority`, `.interfaces.api`, `.interfaces.cli`, nor `fastmcp`, in `sys.modules`. The same for `autonomous_trading.interfaces.api` against `adapters.openalgo`, `adapters.simulated_broker` and `bootstrap`.
+* **No children.** `interfaces/mcp.py`, parsed with `ast`, names no `subprocess`, `os.fork`, `os.exec*`, `os.spawn*` or `multiprocessing`.
+* **Scopes.** `SCOPES["mcp"] == frozenset()`, `SCOPES["mcp_token"] == {("mcp", "tokens")}`, `SCOPES["console"] == {("console", "mcp_token")}`, `SCOPES["operator"] == frozenset()`; no row but `kernel` and `market` holds `("openalgo", "api_key")`. `resolve` with references for `mcp/tokens` (an `env` locator holding a synthetic value) and `openalgo/api_key` (a `file` locator naming a missing path) under `SCOPES["mcp_token"]` succeeds: the key's file is never opened.
+* **Composition.** `compose_mcp` with a `Secrets` holding a synthetic `openalgo/api_key` raises `ValueError`; `compose_operator` with one raises as built.
+* **Child environment.** `child_environment` of a parent holding `OPENALGO_API_KEY` and `MCP_AUTH_TOKENS` (synthetic values), with the tokens' reference: neither name nor value survives, and the mask is set.
+
+Every existing test keeps its expectations.
+
+### Break checks
+
+Each mutation is applied after its anchor is checked present exactly once, run against the listed file, and restored byte for byte (md5). The minimum set; "as built" records the final table.
+
+| Change | Test that must fail |
+|---|---|
+| `override` accepted by `parse_grants` | Grants |
+| An inferred `none` starts over HTTP | Authentication |
+| An explicit `none` starts off loopback | Authentication |
+| `RefuseProxied` compares header names without lower-casing | HTTP (`X-Real-IP`) |
+| Grants checked after scopes | Grants (order of checks) |
+| `expand` drops aliases | Scopes (`read:market`) |
+| Scopes active under `none` | Scopes |
+| Kill skips the ledger | Kill (ledger) |
+| Kill checked for `observe` tools | Kill (`analysis_trade_kpis`) |
+| A reader error counted as engaged | Kill (reader raising) |
+| `ReadOnlyFilter` removed from the call path | Proxy (`calls` not empty) |
+| The token hook keeps a stale `Authorization` when the caller has none | Proxy |
+| `framework_propose_intent` calls through when `intents` is `None` | Propose tools (`SEC-R22`) |
+| `by` passed to the owner unattributed | Propose tools |
+| Results not redacted | Propose tools (redaction) |
+| `disclose` checked after the owner call | Disclosure (port not called) |
+| `cache_key` ignores the digest | Disclosure |
+| An unmapped verified client refused | Scopes (`bot` with no `process.accounts` entry) |
+| `interfaces/mcp.py` imports `adapters.openalgo` at module level | PRF-SEC-09 imports |
+| `SCOPES["mcp"]` gains `("openalgo", "api_key")` | PRF-SEC-09 scopes |
+| `framework` added to the read-only profile's domains | Live profile |
+| The token hook reads the bearer once, when the client is built | Proxy (the real factory: `Bearer A` repeated) |
+| The ledger opened once at composition | Kill (missing ledger: the start fails, or two calls open it once) |
+| Only the whole `MCP_AUTH_TOKENS` text scrubbed, not each token | Propose tools (redaction: `T_BOT`) |
+
+### Files
+
+| File | Change |
+|---|---|
+| `src/autonomous_trading/interfaces/mcp.py` | New: `Tool`, `CATALOGUE`, `READ_TOOLS`, `ALL_DOMAINS`, `ALL_SCOPES`, the prompts, `McpConfig`, `MCP_ALIASES`, `parse_mcp`, `auth_mode`, `McpStartRefused`, `openalgo_oauth_endpoints`, `advertised_openalgo_scopes`, `build_auth`, `RefuseProxied`, `ReadableAuthErrors`, `Verified`, `mcp_caller`, `attributed`, `parse_grants`, `ScopePolicy`, `kill_engaged`, `build_proxy`, `forward_caller_token`, `McpPort`, `McpPorts`, `Projection`, `PROJECTIONS`, `read`, `disclose`, `scope_digest`, `cache_key`, `McpSurface`, `compose_mcp`, `build_server`, `serve` |
+| `src/autonomous_trading/settings/secrets.py` | The `mcp`, `mcp_token` and `console` scope rows |
+| `src/autonomous_trading/__main__.py` | `mcp serve` |
+| `pyproject.toml` | The `mcp` extra |
+| `tests/integration/test_mcp_surface.py` | New (T-65) |
+| `tests/contracts/test_capabilities.py` | The PRF-SEC-09 group |
+
+No new tree delta: `interfaces/mcp.py` and `src/autonomous_trading/__main__.py` are in the target tree, and the test is T-65.
+
+### Completion conditions (step 8)
+
+* **Targeted tests only, no full suite.** On Windows, with the `mcp` and `test` extras installed at the pinned versions, these pass with no existing expectation changed: the new file; `tests/contracts/test_capabilities.py` and the rest of `tests/contracts/`; `tests/unit/test_secret_references.py` (the scopes); `tests/unit/test_operator_authorization.py` (`McpEvidence`, unchanged); `tests/integration/test_kill_inputs.py` (`KillInputs`); `tests/integration/test_owner_api.py` (`__main__` and the operator's imports). A run without the extra, where the fastmcp groups skip, does not count.
+* **Linux-only groups.** This step has none: no case needs `SO_PEERCRED` or systemd. If the build adds one, it runs on the EC2 once, in a throwaway folder under `~/claude-desktop/outputs` made from an `OA_NEW` git bundle, with its own venv and the project's safe test runner, as step 7's run; no live checkout, gateway or service is touched, and the folder is removed afterwards.
+* All code is written and committed in `OA_NEW` only. `git diff --name-only` names exactly the files above, in one commit. Nothing is pushed.
+* Before the code, in the same session, the spec's MCP section and policy inputs are corrected to this step: the key paths are legacy's (`auth.*`, `authority.grants`, `gateway.*`), the three `propose_*` tools are named, and PRF-SEC-08's console-client row is proved by T-66.
+* Every break check fails a listed test, and every file is restored (md5). `ast.parse` passes on every edited Python file and `tomllib` on `pyproject.toml`.
+* The build starts on the coordinator's word. Every cited line is re-read on the head it starts from, and the catalogue is re-derived by the two parsing scripts first.
+* PRF-SEC-08 (but its console-client row) and PRF-SEC-09 pass; CUJ-SEC-3 is refused.
+* This file records step 8 "as built", with any Deviation or Fork call found while building.
 
 ## Step 9 — restore continuity (outline)
 
@@ -2993,6 +3269,10 @@ The standing rules settle every money fork. These touch kill, owner rights or a 
 * **The CLI owner must be a mapped login uid.** Legacy's loopback rule would let any local service act as the owner on the socket that replaces Tier-1's, which never admitted one. Recommendation: keep the explicit map.
 * **The console's loopback route admits only the owner's mapped uids and the proxy's uid** (step 6). Legacy admitted any local process that reached loopback (`src/interfaces/console/api/security.py:45-74`). The SSH-tunnelled owner keeps access. Recommendation: keep the check.
 * **A fractional close quantity below the owned amount** (for example 1.5 of 75) is refused with `invalid_quantity` (step 6): the target's close counts whole units, and legacy sent the float to the broker (`src/runtime/owner_exposure.py:94-101`). Above the owned amount it clamps to the whole position, as legacy. Recommendation: keep the refusal, which sends nothing the target cannot represent.
+
+The fork rule does not settle this item, because it would widen live behaviour beyond legacy's:
+
+* **Running the console or desk MCP profile live** (SLICE-10 step 8). Both mount `framework_propose_intent`, which legacy's live endpoint never offered: a proposal travels to an AI strategy and, if its gates accept it, becomes a real order (`src/contract/propose.py:13-14`). The desk profile also mounts the read-only OpenAlgo proxy and grants `act` (job enqueue, symbol watching). Live today runs only the read-only profile, so SLICE-11 enables neither until the owner decides. Recommendation: keep only the read-only profile live; if the console is wanted, run it without `framework` in its domains.
 
 The earlier question on typed confirmations for `grant_admin`, `recovery_advance`, `attempt_resolve` and `binding_authorize` is settled by the fork rule: none, as legacy. The recommendation stays as a listed improvement.
 

@@ -1314,6 +1314,54 @@ Each is applied with its anchor checked first (exactly one occurrence, its text 
   * a 429 is `provider_error`, never an action (`http`; End to end);
   * replay answers from records with the network refused, and a gap is `replay_gap` (Replay; End to end).
 
+### Step 5 as built
+
+**In plain words.** The AI team's model calls are now real, and every call is written down. A failed call is recorded as a provider error and never read as ALLOW or BLOCK. A provider's "slow down" is honoured up to the market close. Spending limits stay empty, and the backup chain stays off. The API key never reaches a file, a log or a record. A recorded run can be replayed from its records alone, with the network blocked. Nothing here can block a trade.
+
+Commit `c27b608` on `slice-08`, on top of `4e2756c` (SLICE-10 step 7). It changes 11 files: the ten of the step's table, plus `tests/unit/test_cognition_assembly.py` (2,700 lines added, 5 removed). Not pushed.
+
+**Choices and corrections made while building:**
+
+| Topic | As built |
+|---|---|
+| Revealing the advisor key | `bootstrap.py` may not call `reveal`: `tests/unit/test_secret_references.py`'s boundary allows it only in `settings/secrets.py` and the OpenAlgo adapter. `settings/secrets.py` gains `delegated(resolved, key, env_name)`, and `compose_cognition` calls it. The guard is unchanged |
+| `test_cognition_assembly.py` | **Correction to the text**, which said it is unchanged. Its `test_environment` hands a credential to a `rule` child, and that child no longer receives it. Its expectation for that child drops `ADVISOR_API_KEY` (one line). The direct `role_environment` assertion is unchanged |
+| `consult`'s `work_dir` | Defaults to the current directory. Step 4's runtime starts each child with its run directory as the current directory, so this is the packet's directory, as the text says |
+| The returned circuit | Every `http` call returns its circuit after the call, carried or not; `rule`, the chain and replay return `None` |
+| Attempt fields | An attempt also records `failure` (the exception or failure type name), which replay needs to answer a transport failure. Each exchange entry is `{"m", "request_file", "response_file", "http_status", "kept", "bytes"}`, with a file name `None` when that file was not written. In the run record it becomes `{"m", "request_ref", "response_ref", "http_status", "bytes"}`. A staged replay attempt carries `transport_failed` |
+| Record store `create` | Also accepts a terminal initial state, so a run is entered once, already terminal (`completed` or `unavailable`). Legacy allowed only `created`, `active` and `pending` (`ST:344-350`); **Deviation**. The pause warning is created `active` |
+| Loader and providers | `_budgets_text` imports `cognition.providers.unlimited` at call time, so `settings` does not import `cognition` when it loads. `providers.py` uses `settings/secrets.py`'s `_forms` for the key's forms |
+| The kernel-composes case | `compose_simulation` with a capped budget text and the fixture admission ports, with no market store |
+| The 2,000-character break | Caught by a new case, `test_http_body_kept_whole` (a 5,000-character body through the `http` backend), not by Run records, whose files are hand-written and never pass through the backend |
+| Linux cases on the EC2 | `~/claude-desktop/scripts/s09e_linux_tests.sh` unpacks the working tree under `~/claude-desktop/outputs/s09e_run/`. It makes its own venv with the standard library's `venv` (nothing downloaded or installed), and a `.pth` file in it reads the live venv's packages read-only, with bytecode writing off and `nice -n 19`. `~/at-dev` is not used. The script removed the folder and the uploaded tree after the run |
+
+**Tests:** `tests/unit/test_provider_records.py`, 26 cases. On Windows (Python 3.14.0), 25 passed and the Linux-only file-mode case was skipped. On the EC2 (Linux, Python 3.13.5), the Linux-only and child-process cases ran twice and passed 8 of 8 each time: file modes, the audit hook with `sendmsg`, step 4's environment, parent-check and sweep cases, end to end, the receipt boundary, and the credential split. The targeted set ran twice on Windows, with 257 passed and 5 skipped each time: this file, `tests/unit/test_cognition_assembly.py`, `tests/contracts/test_capabilities.py`, `tests/unit/test_strategy_invocation.py`, `tests/unit/test_policy_parameters.py`, `tests/unit/test_secret_references.py`, and two further settings readers, `tests/integration/test_owner_api.py` and `tests/unit/test_safety_matrix.py`. The full suite was not run. `ast.parse` passes on every new or edited Python file.
+
+**Break checks** (`s09e_breaks.py` in the scratchpad; anchors checked first, one at a time, every file restored byte for byte with md5 checked): all 26 failed a listed test. One anchor (the audit hook's `"socket.sendto",`) first matched nothing, because the set literal wraps there. It was corrected and re-run alone.
+
+| Break | Caught by |
+|---|---|
+| 429 opens only at the streak threshold; the session-close clamp removed | Circuit cases |
+| A non-finite Retry-After taken as a number | Retry-After and close |
+| `minutes > warn` written `>=`; a warning on every qualifying row | Pause warning |
+| `effective_model` falls back to the requested model; the 400 resend removed; a failed call's body parsed | `http` cases |
+| The chain falls through on `abstained`; `consult` builds the chain | Chain |
+| A replay gap answered `abstained`; `forbid_network()` not called; the replay deadline not measured from the replay's clock | Replay in process |
+| The audit hook without `socket.sendto` | Audit hook in a subprocess |
+| Redirects followed | Redirect never followed |
+| The key scrubbed after the 300 cut | Key scrubbed before the cut |
+| The child's scrub removed | Key scrubbed before the cut; End to end |
+| The response body cut to 2,000 characters | Body kept whole |
+| Attempts written into the receipt | Receipt boundary |
+| The credential passed to `rule` children | Credential only to `http` children |
+| The request not published; an output not published before the run record | Run records |
+| The record store's integrity check skipped | Record store |
+| `refuse_secrets` removed from `pin_role` | Secret refusal |
+| The loader raises on a real budget cap | The kernel composes with a capped budget |
+| `compose_cognition` accepts a real cap | Budgets and settings |
+
+**Open:** `record_review`, CP-C1, CP-C2 and the proposal path's circuit are step 6's. SLICE-11 delivers the pause warning through telemetry and resolves the `cognition` secret scope. Step 7's capability scan should allow `cognition`'s imports of `settings.secrets` and `contracts.market`. The committee check still has no caller.
+
 ## Step 6 — review, proposals and advice (outline)
 
 The spec's [Entry review](../../design/strategies-and-cognition.md#entry-review-cognitionreviewpy), [Model-generated intents](../../design/strategies-and-cognition.md#model-generated-intents-strategiesmodel_strategypy) and [Exit advice](../../design/strategies-and-cognition.md#exit-advice-cognitionadvicepy). Builds the review producer up to the result, always answering; its submission through `kernel.policy.record_review`; CP-C1 and CP-C2; the proposal purpose and `model_strategy.py`; advice recording and the application request (the human route is SLICE-10's). Tests: `tests/integration/test_review_producer.py` (**T-57**) in a simulation composition with the SLICE-04 kernel as built, covering acceptance rows `README.md:1237` and `:1243` and a PAUSE reviewed for an entry refused at A4 (its pause starts; the next intent in scope is `paused`); `tests/unit/test_model_strategy.py` (**T-58**) on recorded proposals; the CP-C rows of `tests/recovery/test_crash_boundaries.py`.
