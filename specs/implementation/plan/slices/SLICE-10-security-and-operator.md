@@ -3287,18 +3287,225 @@ Commit `6caab5c` on `slice-08`, after `c27b608` (SLICE-09 step 5), which added t
 
 Two rows differ from the step's minimum table. "`RefuseProxied` compares header names without lower-casing" cannot fail: ASGI delivers header names lower-cased, so the break became "not installed". "`ReadOnlyFilter` removed from the call path" cannot fail alone: the surface's own catalogue check and `enable(only=True)` refuse the same names first. The break became "the allowlist widened", which the Proxy group catches.
 
-## Step 9 — restore continuity (outline)
+## Step 9 — restore continuity
 
-Deepened after step 8 is built (it needs only step 2). Authority: the spec's [Restore continuity](../../design/security-and-operator.md#restore-continuity-interfacesauthorizationpy).
+<a id="step-9--restore-continuity-outline"></a>
 
-* **Builds:**
-  * the `SecurityJournal` interface and an in-memory fake;
-  * issue before the ledger commit, refused when a composed journal is unreachable;
-  * revoke before the commit when reachable, else `journal: pending` and an alert;
-  * the background catch-up, which is not a start gate;
-  * `confirm_grant` over the journal, composed into recovery.
-* **Tests:** `tests/recovery/test_restore_fencing.py`: CUJ-SEC-4 both ways. CP-SEC2 and CP-SEC3 by killing a real process. F-SEC5. A routine start with a pending revocation reaches `OPERATING` on time.
-* **Done when:** PRF-SEC-10 passes; PRF-SES-06 still passes.
+The authorities are the spec's [Restore continuity](../../design/security-and-operator.md#restore-continuity-interfacesauthorizationpy) section, CUJ-SEC-4, CP-SEC2, CP-SEC3, F-SEC5 and PRF-SEC-10 (TASK-S10-09). Step 9 builds on steps 1–8 as built (`6caab5c` on `slice-08`); it needs only step 2's request record and the SLICE-03 `confirm_grant` hook (`kernel/recovery.py:228-239`). It adds no door, socket, route, `at` command, setting or migration. Every `OA_NEW` citation is at `6caab5c`; every legacy one at 445eb116, from the session's snapshot of `src/`. No secret or live host was opened to write this step.
+
+**In plain words.** Today only you can act, and a restored backup gives nobody any rights. The new system also lets you hand rights to named people. This step makes sure a restore from an old backup cannot hand back a right you took away. Every time you give or take away a right, the system also writes it in a separate journal that a restore does not roll back. After a restore, the system compares the restored rights with the journal: a right the journal shows as current is kept; any other is taken away. The journal is trusted only when you say, at the restore, that it survived the loss. If you do not, or it cannot be reached or looks damaged, every handed-out right is taken away, and you keep all of yours. Trading itself is never held up by any of this. Taking a right away never waits for the journal: if the journal is down, it happens at once, an alert shows, and the journal is brought up to date later without delaying a start. Giving a right is refused while the journal is down, because it could not be protected. Stopping trading, holds, unlocks, cancels and closes never touch the journal. Until the real off-host journal arrives (SLICE-11), no journal is composed, so every handed-out right is taken away at any restore.
+
+### Decisions
+
+#### The journal interface (`kernel/ports.py`)
+
+* `JOURNAL_GENESIS = "0" * 64`. `JournalUnreachable(Exception)`.
+* `JournalEntry(kind, grant_id, grant_digest, ledger_sequence, previous, entry_digest)`, frozen, slots. `kind` is `GRANT_ISSUED` or `GRANT_REVOKED`.
+* `journal_entry(kind, grant_id, grant_digest, ledger_sequence, previous) -> JournalEntry` computes `entry_digest = digest(["security-journal/1", kind, grant_id, grant_digest, ledger_sequence, previous])` (`kernel/ledger/envelope.py:55-56`). It raises `ValueError` on another kind, an empty `grant_id`, a digest or `previous` that is not 64 lowercase hex characters, or a `ledger_sequence` that is not an int ≥ 1 (a bool refused).
+* `chain_intact(entries) -> bool`: the first entry's `previous` is `JOURNAL_GENESIS`, each later one's is the prior `entry_digest`, and every `entry_digest` equals its recomputation.
+* `SecurityJournal`, a `Protocol` with two methods. The adapter (SLICE-11's off-host one, the fake below) does the chaining with `journal_entry`; the kernel verifies the chain when it reads:
+  * `append(kind, grant_id, grant_digest, ledger_sequence) -> JournalEntry`: links the entry to the journal's own head, stores it and returns it. It answers within the adapter's own bound (SLICE-11's).
+  * `entries() -> tuple[JournalEntry, ...]`: every entry, in append order.
+* **Unreachable** means either method raised `JournalUnreachable` or `OSError` (which covers `ConnectionError` and `TimeoutError`). **Any other exception** from the adapter, or from `journal_entry` or `chain_intact` over what it returned, is caught too: a read then gives the view state `"broken"` (below); an `append` is treated as unreachable (an issue is refused, a revocation goes pending). No journal exception ever leaves the kernel.
+* The protocol lives in the kernel, not `interfaces/authorization.py` as the spec's heading says: `kernel.authority` appends before its own commit, and no `kernel/` module may import `interfaces` (step 2's boundary test).
+
+#### What an entry holds
+
+* **Grant digest:** `digest(p)` where `p` is the grant's `GRANT_ISSUED` payload, `wire(grant)`. At issue it is the payload being committed. For a ledger row it is the payload of the event at `row["issued_sequence"]` (`Authority._grant_digest(row)`, one `SELECT payload FROM ledger_event WHERE sequence = ?` on the writer connection).
+* **Ledger sequence:** the sequence the decision's first event will take, `max(sequence) + 1` read on the writer connection just before the append (`Authority._next_sequence()`). For a pending revocation caught up later, it is the committed event's own sequence. Under the single writer it equals `Committed.sequences[0]`. It ties an entry to one ledger event: `confirms` requires an issue entry's sequence to equal the row's `issued_sequence`, and the consistency rule matches revoke entries by it (below). Were a prediction ever wrong, the grant would go unconfirmed or the view `"broken"`: fail closed.
+
+#### Issue (`Authority.issue`)
+
+`Authority(…, journal=None)` gains a keyword `journal: SecurityJournal | None`, default `None`, so every existing construction is unchanged. After bind, the admin check and the parent checks, in this order:
+
+1. **A grant ID already in the ledger** (`self.grant(grant.grant_id) is not None`): no journal call. `_record` runs and the fold refuses `LED-R09`, through `settle`, as today. An issue the ledger will refuse never reaches the journal, so a reused ID cannot add an issue entry after a revoke entry.
+2. **No journal composed:** commit as today.
+3. **Pending revocations exist** (below): `catch_up()` first. Unless it returns `"done"`, the result is `SEC-R23` (`journal_unreachable`), through `refused`.
+4. `journal.append("GRANT_ISSUED", grant.grant_id, digest(payload), self._next_sequence())`. Unreachable: `SEC-R23` through `refused`, nothing committed.
+5. `_record` the `GRANT_ISSUED` decision with its `OPERATOR_REQUEST`, as today.
+
+* A refused issue consumed nothing: no `operator_request` row exists, so the same request sent again once the journal answers is judged again and commits (step 2's row 4).
+* A crash between steps 4 and 5 (CP-SEC2) leaves an issue entry the ledger lacks. Nothing reads it back as a grant (below).
+* `_MESSAGES` gains `"SEC-R23": "journal_unreachable"`. It is emitted only by `issue`, only with a journal composed.
+
+#### Revoke (`Authority.revoke`, `Authority._revoke_unverified`)
+
+* `GRANT_REVOKED`'s payload gains `journal`, one of `"appended"`, `"pending"` or `None`. `resources/events.schema.json` gives it `["string", "null"]`; the payload check is an exact key set (`kernel/ledger/envelope.py:90-93`), so every new `GRANT_REVOKED` carries it. Events written before this step lack it; every reader uses `payload.get("journal")`.
+* `_journal_revoke(row, *, attempt) -> "appended" | "pending" | None`:
+  * `None` when no journal is composed, or when `row` is `None` or already revoked (the fold then refuses `LED-R09`; nothing is journaled);
+  * `"pending"` without any call when `attempt` is false;
+  * otherwise one `append("GRANT_REVOKED", row["grant_id"], self._grant_digest(row), self._next_sequence())`: `"appended"` when it returns, `"pending"` when unreachable.
+* `revoke` calls it with `attempt = not self.journal_pending`, after its existing checks and just before `_record`. **The revocation always commits**, appended or pending; the journal never refuses or delays it beyond one bounded attempt. While any revocation is pending, later ones make no attempt and go pending too, so the journal's order of revocations follows the ledger's.
+* `_revoke_unverified(grant_id, *, view=None)` (recovery's capability) journals the same way: `None` with no view; `attempt = view.state == "intact" and not self.journal_pending` otherwise. An untrusted restore's view (below) has state `"untrusted"`, so its revocations go `"pending"` with no call. A continuity revocation is journaled too, so a later restore of an even older backup cannot confirm the grant again.
+* After a committed `"pending"` revocation, `journal_pending[Committed.sequences[0]] = grant_id`.
+
+#### Pending revocations and the catch-up (`Authority`, `Recovery.tick`)
+
+* `journal_pending: dict[int, str]`, revoked sequence → grant ID. It is the alert.
+* `load_pending()` rebuilds it from the ledger alone: every `GRANT_REVOKED` event whose `payload.get("journal") == "pending"`. `Recovery.run` calls it **before** the continuity check, so a restore's own revocations see the earlier pending ones and go pending behind them, in ledger order; `_revoke_unverified` then adds its own. It makes no journal call. A start therefore lists every pending-marked revocation until the first catch-up pass shows it is already in the journal.
+* `catch_up() -> "done" | "unreachable" | "broken" | "chain_broken"`: `"done"` at once when nothing is pending. Otherwise one `journal_view()` read; any state but `"intact"` is returned and nothing changes. Otherwise, for each pending sequence in ascending order, with `row` the grant's ledger row: let `I` be the grant's **last matching issue entry** (kind `GRANT_ISSUED`, that grant ID, digest `_grant_digest(row)`, `ledger_sequence == row["issued_sequence"]`). When some `GRANT_REVOKED` entry for that grant ID comes **after** `I`, drop the sequence; else `append` it, then drop it; on an append treated as unreachable, return `"unreachable"`. Revoke entries before `I`, or with no `I` at all, do not count, so the revocation is appended. `"done"` when the dict is empty. **It writes nothing to the ledger.**
+* `pending_revocations() -> list[list]`: `[[grant_id, sequence], …]` in sequence order.
+* **Background, never a start gate.** On a routine start `Recovery.run` makes no journal call. On a start that owes continuity (`_continuity_owed`) it makes one `entries()` read, then, with an intact view and nothing pending, one `append` per grant it revokes; with any other view, no further call. `Recovery.tick` runs the catch-up last, after `_renew`, in `RECOVERY_WRITING` and `OPERATING`, whenever `journal_pending` is not empty:
+  * **At most once per `recovery.lease_renew_secs`** (the receipt's deployment value, as `_renew` reads it, `kernel/recovery.py:469-476`), timed on `clock.elapsed()`; the first tick of a process may run it. When that value is not an int, every tick may run it, as `_renew` does. No new setting.
+  * **Never raises.** Any exception from `catch_up` is caught and adds `"journal_catch_up_failed"` to `Recovery.alerts` (once). A `"chain_broken"` result adds `"journal_chain_broken"` and a `"broken"` result adds `"journal_broken"` (each once). `"unreachable"` adds nothing: the pending list is already the alert.
+  * It writes no ledger event, so SLICE-11 may move it to its own thread.
+* `issue`'s own catch-up (step 3 of Issue) is not rate-limited: it is one human call, and any result but `"done"` refuses `SEC-R23`.
+* **The alert route.** The kernel channel's `alerts` read (`adapters/unix_channel.py:464-466`) gains the key `"journal_pending": c.authority.pending_revocations()`. Step 6's owner API and `at alerts` pass the kernel's reply through unchanged (`interfaces/api.py:554-561`).
+
+#### The continuity check (`Authority.journal_view`, `Recovery._continuity`)
+
+* `JournalView(state, entries)`, frozen. `state` is one of:
+  * `"intact"`: read, chain intact, consistent with the ledger;
+  * `"unreachable"`: the read was unreachable;
+  * `"chain_broken"`: read, and `chain_intact` is false (its own label);
+  * `"broken"`: any other exception (above), or the journal is **inconsistent with the ledger**: some ledger `GRANT_REVOKED` event with `payload.get("journal") == "appended"` has no `GRANT_REVOKED` entry with that grant ID and `ledger_sequence` equal to the event's sequence. The kernel stored that entry before committing, so its absence means the journal lost entries (rolled back, or another journal);
+  * `"untrusted"`: set by `Recovery._continuity` only (below), with no read.
+* `journal_view() -> JournalView | None`: `None` when no journal is composed; otherwise one `entries()` read, `chain_intact`, then the consistency rule.
+* `JournalView.confirms(grant_id, grant_digest, issued_sequence) -> bool`: `True` only when `state == "intact"`, some `GRANT_ISSUED` entry has that grant ID, that digest and `ledger_sequence == issued_sequence`, and no `GRANT_REVOKED` entry for that grant ID comes after the last such issue entry. It is the `confirm_grant` hook's function over the journal.
+* `JournalView.live_ids() -> set[str]`: with `state == "intact"`, the grant IDs whose last `GRANT_ISSUED` entry has no later `GRANT_REVOKED` entry; empty otherwise.
+* **The owner's trust in the journal (`RestoreMarker.journal_trusted`).** `RestoreMarker` (`kernel/recovery.py:59-62`) gains `journal_trusted: bool = False`, set by the owner who runs the restore, and recorded in `EPOCH_ACTIVATED.restore` by `dataclasses.asdict` (the schema types `restore` as an object, `resources/events.schema.json:4`). Every existing marker, `RESTORE` in `tests/conftest.py` included, stays `False`. A journal kept beside the lost host can be rolled back with it; only the owner knows where it lived. Trust is read from the **owed** restore's recorded payload, `payload["restore"].get("journal_trusted", False)` of the latest restore-marked `EPOCH_ACTIVATED` with no advance after it, so a check resumed on a later start (CP-S4) keeps the owner's choice.
+* `Recovery._continuity()`, when owed:
+  1. With a journal composed and trust `False`: `view = JournalView("untrusted", ())`, with **no journal call**; it confirms nothing and lists no live IDs. Otherwise `view = self.authority.journal_view()`.
+  2. With a view, `confirm = lambda row: view.confirms(row["grant_id"], self.authority._grant_digest(row), row["issued_sequence"])`; without one, `confirm = self.confirm_grant` as today (`None` revokes every grant: fail closed).
+  3. A `"chain_broken"` view appends `"journal_chain_broken"` to `Recovery.alerts`; a `"broken"` view `"journal_broken"`; an `"untrusted"` view `"journal_untrusted"`.
+  4. Each unrevoked grant row, in `grant_id` order, that `confirm` does not confirm: `_revoke_unverified(grant_id, view=view)`, as today's loop.
+  5. With an intact view, `journal_only` = sorted(`view.live_ids()` minus every `grant_id` in the ledger's `grant` table, revoked or not). Each is appended to `Recovery.alerts` as `"journal_only:<grant_id>"`. **None is created:** a grant only in the journal is reported for the owner to re-issue.
+* `Recovery.report` gains `"journal_only"` (a list, empty when not owed or no intact view) and `"journal"` (the view's state, or `None` when not owed or no journal).
+* **Only grants.** Every state but `"intact"` acts on delegated grant rows alone. No state refuses or delays the start, the fence, the advance, an owner action, a protective action or a send: an untrusted, unreachable or broken journal changes who holds a delegated grant, never whether trading runs.
+* **Repair of a broken or chain-broken journal.** The journal is append-only and is never edited, so it is not repaired in place. The owner points `security.journal` at a new, empty journal (SLICE-11's adapter setting) and restarts the kernel. From then on: pending revocations stay listed until a catch-up appends them to the new journal; grants issued before the switch have no matching issue entry there, so the next restore revokes them unless the owner re-issues them first (each re-issue appends a fresh issue entry); the alerts, which live in `Recovery.alerts` for one process, are gone after the restart unless the new journal is broken too. Until the switch, every restore fails closed on grants and every issue that needs a catch-up is `SEC-R23`. The old journal is kept as evidence.
+* **Composition.** `compose_simulation(…, journal=None)` passes `journal` to `Authority`. Passing both `journal` and `confirm_grant` raises `ValueError("confirm_grant and journal are exclusive")`. Every existing caller passes neither or `confirm_grant` alone, so PRF-SES-06's tests keep their hooks. No production composition composes a journal before SLICE-11 (`security.journal`, refusing; absent: fail closed, F-SEC5).
+
+#### The in-memory fake (`tests/conftest.py`)
+
+`MemoryJournal(entries=())`, beside `FakeLeaseStore`, labelled synthetic:
+
+* `fail = False`; `calls: list[str]`, one `"append"` or `"entries"` per call, recorded before any failure; `on_append: Callable[[MemoryJournal, JournalEntry], None] | None = None`, called after a successful append (the crash hook).
+* `append` and `entries` raise `JournalUnreachable("synthetic")` while `fail`. `append` chains with `journal_entry` from its last entry, or `JOURNAL_GENESIS`.
+* `wire() -> list[dict]` (`dataclasses.asdict` of each entry) and `MemoryJournal.load(wire)`, which builds entries as given, without recomputing, so a test can load a broken chain.
+
+#### Sessions, confirmations and requests
+
+Nothing changes. Sessions and confirmations live in a door's memory and die with its epoch (step 1). A request committed before the backup is in the restored ledger and replays with no effect; one committed after it is `SEC-R19` (step 2, F-SEC12). PRF-SEC-10's "no consumed request or old session authorizes" is proved here against step 1's and step 2's code.
+
+#### Fork calls and deviations in this step
+
+* **Fork call — the owner after a restore.** The owner root holds no grant row, so continuity never revokes it. With the journal reachable, unreachable, broken or absent, the owner may still trade, kill, release, hold, unlock and clear after a restore. In legacy a restore grants nothing and the owner's right comes from the door on each call (`src/tier1/recovery.py:19-21`, `:195-196`; the owner command's key dies with its process, `owner_command.py:27-29`).
+* **Fork call — stopping and protecting never touch the journal.** Kill engage and release, hold engage and release, latch unlock, pause clear, cancel, close, advice application and the protection loop make no journal call, and no journal state refuses them. A revocation commits whether or not the journal answers. Legacy's kill reads only its file and flag (`src/core/framework/execution/killswitch.py:88-100`).
+* **Fork call — fail closed falls back to legacy's set.** When continuity cannot be established (no journal, an untrusted, unreachable or broken one, a broken chain), every restored delegated grant is revoked. Who may trade, kill, hold or unlock is then the owner alone, which is legacy's set: legacy has no delegated operator (`src/interfaces/console/api/routes/ai_management.py:26-41`).
+* **Deviation — `SEC-R23` (`journal_unreachable`),** a new code. The spec says the issue is refused but names no code. It refuses only the issue of a delegated grant, never the owner's own actions, and is not a gate on trading.
+* **Deviation — file placement.** The interface, view and check are in `kernel/ports.py` and `kernel/authority.py`, not `interfaces/authorization.py` (above).
+* **Deviation — continuity revocations are journaled,** and issues and revocations made while revocations are pending keep the ledger's order (catch-up first, or pending). The spec names neither; both only make a later restore stricter.
+* **Deviation — the owner's trust flag (`RestoreMarker.journal_trusted`, default `False`).** The spec trusts a reachable journal at every restore. Here the journal confirms grants only when the owner who runs the restore says it survived the loss; otherwise continuity fails closed on delegated grants, as with an unreachable journal. It never touches trading. Until SLICE-11's restore tooling sets it, every restore revokes every delegated grant.
+* **Deviation — journal consistency.** A journal missing a revoke entry the ledger says was appended is `"broken"` and confirms nothing (the spec names only the chain).
+* **Deviation — the catch-up writes no ledger event.** Pending is derived from the ledger's `"pending"` marks and the journal itself; a start lists each pending-marked revocation until its first catch-up pass.
+* **New (no legacy equivalent):** the whole journal (Combined-F4), as the slice says.
+* No score, threshold or money value is set; the step adds no setting.
+
+#### What later steps take from step 9
+
+* **Step 10:** nothing; the console's alerts page shows the kernel's reply as it comes.
+* **SLICE-11:**
+  * the off-host adapter implements `SecurityJournal` with its own bounded wait, behind `security.journal`; its location follows the backup destination (owner-only). PRF-SEC-10 is re-run on it;
+  * **`append` returns only once the entry is stored durably** (written and flushed where it survives the kernel host's loss); a return before that is a defect, because the kernel commits on it;
+  * **`entries()` never shrinks:** every entry once returned is returned again, in the same order; a shorter answer is a defect, and the kernel's consistency rule reads it as `"broken"`;
+  * the restore tooling asks the owner whether the journal survived and sets `RestoreMarker.journal_trusted`;
+  * the owner's switch to a new journal (the repair path above);
+  * it may move the catch-up off the writer thread, and delivers the alerts by push.
+
+### Tests
+
+**`tests/recovery/test_restore_fencing.py`, PRF-SEC-10**, added to the existing file. Every grant, reason and backup name is labelled synthetic. Worlds are the `simulation` fixture (shared `lease_store`, the fixture's `g-test`) with `journal=J`, a `MemoryJournal`, unless a case says otherwise. A backup is an `apsw` copy of the shut-down ledger, as F-SEC12 makes one. `FENCE` is `FenceEvidence("old-host", "stopped", "power_off", "2026-11-02T09:00:00.000000Z", None, "owner", None, ("acct-sim",), ())`; after a restore the fence is recorded first, then the advance (R-10). `OPS = Principal("ops", "human")`.
+
+Hand-computed values (SHA-256 of the canonical text; checked against `digest(wire(grant))` in `OA_NEW` at deepening):
+
+* `test_grant()` (`g-test`), canonical `{"accounts":[["sim","acct-sim"]],"actions":["entry"],"delegation_limit":0,"grant_id":"g-test","parent_grant_id":null,"principal":["test-principal","human"],"valid_from":"2026-11-01T00:00:00.000000Z","valid_until":null}` → `d018c9a006962320f98d79ec77ab38f91ecfcec3657c38104d4173133d991f2c`.
+* The same with `grant_id` `g-keep` → `001e26873d4ca28b0cceb1e402ba82b7e30f4739ba62a4c03992c89245d4bb6d`; `g-cpsec2` → `b7fb2ab25073cfc8a7332ee88dfae58285cd827c49cd7a14abc682907940c8cc`; `g-cut` with principal `["ops","human"]` → `cb4100377a106c120ae54b5874675fb05c49cf065b6b58e14e09eb9f6427f8ad`.
+* `journal_entry("GRANT_ISSUED", "g-test", d018…1f2c, 15, JOURNAL_GENESIS)`, text `["security-journal/1","GRANT_ISSUED","g-test","d018…1f2c",15,"000…000"]` → `226756a8254e17c87afd343287ca3f7c7581d73bb755a1a1f4fc9b6f3e059aad`.
+* `journal_entry("GRANT_REVOKED", "g-test", d018…1f2c, 20, 2267…9aad)` → `f3037d4e164249364873962c06bf18347ab661c0f09f771e69f40b27a8418b74`.
+
+Fixture sequences are never hard-coded: a case reads them from the ledger. `TRUSTED = RestoreMarker("backup-2026-11-01", "old-host", journal_trusted=True)`, defined in `tests/conftest.py` beside `RESTORE` (which stays untrusted); every restore that should read the journal uses it. `RaisingJournal`, a test class whose `append` and `entries` raise `RuntimeError("synthetic")`, stands for an adapter with a bug.
+
+| Group | Cases |
+|---|---|
+| Entries | The two entries above have exactly those digests. `journal_entry` raises `ValueError` for kind `GRANT_ISSUE`, an empty grant ID, `"D018…"` (upper case), sequence `0`, `True` and `"15"`. `chain_intact` is true for `()`, `(e1,)` and `(e1, e2)`; false for `(e2,)`, for `(e1, e2)` with `e2.grant_digest` replaced by `"f" * 64`, and for `(e2, e1)` |
+| View | Over `(e1, e2)`: `confirms("g-test", d018…, 15)` is false (revoked after); `live_ids()` is empty. Over `(e1,)`: true; with digest `001e…bb6d` false; with issued sequence 16 false; `live_ids() == {"g-test"}`. Over `(e1, e2, e3)` with `e3` a third issue of `g-test` at sequence 30: `confirms(…, 30)` true, `confirms(…, 15)` false. State `"unreachable"`, `"broken"`, `"chain_broken"` or `"untrusted"` over `(e1,)`: false, and `live_ids()` empty. **States from `journal_view()`** in a world with `g-test` revoked `"appended"`: J as is → `"intact"`; `MemoryJournal.load(J.wire()[:-1])`, the revoke being J's last entry (a valid chain, one entry short) → `"broken"`; J with one digest altered → `"chain_broken"`; `J.fail` → `"unreachable"`; `RaisingJournal` → `"broken"`, and nothing is raised |
+| Issue | `J.fail = True`: `owner_issue(test_grant(grant_id="g-new"))` is `SEC-R23`; `J.calls[-1] == "append"`; no `GRANT_ISSUED` of `g-new`; one `OPERATOR_REQUEST_REFUSED` with code `SEC-R23`. The same request sent again after `J.fail = False` commits (neither `Replayed` nor `SEC-R04`), and J's last entry is `GRANT_ISSUED` `g-new` with `ledger_sequence` equal to that event's sequence. `owner_issue` of `g-test` again: `LED-R09`, and `J.calls` gains nothing. With no journal: issue commits as today |
+| Revoke | `J.fail = True`: `owner_revoke("g-test")` commits; the payload is `{"grant_id": "g-test", "principal": ["owner","human"], "reason": "test", "journal": "pending"}`; `J.calls` gained exactly one `"append"`; `pending_revocations() == [["g-test", s]]` with `s` that event's sequence. A second grant `g-two`, issued before the failure, revoked now: commits `"pending"`, and `J.calls` gains **nothing**. An issue of `g-new` now: `SEC-R23` (the catch-up failed). `J.fail = False`, then `recovery.tick()`: pending is empty; J's last two entries are `GRANT_REVOKED` of `g-test`, then `g-two`, with their ledger sequences. With the journal up, a revoke's payload has `"appended"` and J's last entry is its revoke. With no journal: `"journal": None` |
+| CUJ-SEC-4 | A: the fixture, then `owner_issue` `g-keep` and `g-cut` (principal `OPS`); shut down; backup copied to `b1` and `b2`. A reopened on the original: `owner_revoke("g-cut")` (`"appended"`), `owner_issue` `g-late`; shut down. **Reachable:** B on `b1` with `restore=TRUSTED`, `advance=False, grant=False, journal=J`; `report["journal"] == "intact"`. `report["revoked"] == ["g-cut"]`; its `GRANT_REVOKED` is `{"grant_id": "g-cut", "principal": ["kernel:recovery","kernel"], "reason": "restore_unverified", "journal": "appended"}`; J's last entry revokes `g-cut` at that sequence. `report["journal_only"] == ["g-late"]`, `"journal_only:g-late"` is in `recovery.alerts`, and `authority.grant("g-late")` is `None`. `g-keep` and `g-test` are unrevoked. After the fence and the advance: `check("entry", Authenticated(OPS, "operator_credential", request=None, via=None), ACCT)` is `SES-R03`; for `TEST_PRINCIPAL` it is `Allowed("g-keep")`. **Unreachable (F-SEC5):** C on `b2` with `restore=TRUSTED`, `journal=Jd`, a `MemoryJournal.load(J.wire())` with `fail = True`, taken before B ran. `report["revoked"] == ["g-cut", "g-keep", "g-test"]`, each payload `"pending"`; `Jd.calls == ["entries"]` after the composition (no append); `pending_revocations()` lists the three in sequence order; `report["journal_only"] == []`. After the fence and the advance (neither touches the journal): the owner's `check` is `Allowed("owner-root")`, and `owner_issue` `g-again` is `SEC-R23`. `Jd.fail = False`, `recovery.tick()`: pending empty; Jd gained exactly two entries, revokes of `g-keep` then `g-test`; `g-cut`'s is skipped, because Jd already revokes it after its matching issue entry (R-4's rule); `owner_issue` `g-again` then commits |
+| Untrusted (R-1) | The CUJ's B and C, rerun on fresh copies of the backup with `restore=RESTORE` (untrusted) and a reachable J: `report["journal"] == "untrusted"`; `report["revoked"] == ["g-cut", "g-keep", "g-test"]`, each `"pending"`; `J.calls` gained nothing during the composition; `report["journal_only"] == []` (`g-late` not even reported); `"journal_untrusted"` is in `recovery.alerts`. After the fence and the advance, the owner's `check` is `Allowed("owner-root")`, stage `OPERATING`. **Resumed:** the same restore interrupted after the first revocation (`_revoke_unverified` patched to raise on its second call), then a plain reopen with J: the check resumes untrusted (trust read from the owed `EPOCH_ACTIVATED`), revoking the other two `"pending"` with no `entries()` call |
+| Pending before a restore (R-7) | A0 with **no journal**: the fixture's `g-test`, then `owner_issue` `g-old`; shut down. A reopened with J: `owner_issue` `g-cut` (appended), then `J.fail = True`, `owner_revoke("g-cut")` (`"pending"`); shut down; backup taken. Restored with `restore=TRUSTED` and `J.fail = False`: the view is `"intact"` (only `"appended"` revocations are checked against it); `g-test` and `g-old` have no issue entry in J, so both are revoked, each `"pending"` with **no** `append`, because `load_pending` ran first and `g-cut` is still pending; `J.calls` during the composition is exactly `["entries"]`; `pending_revocations()` lists `g-cut`, `g-old`, `g-test` in sequence order. `tick()` appends the three in that order |
+| Catch-up in `tick` (R-3) | A world with one `"pending"` revocation and the receipt's `recovery.lease_renew_secs` 10 (`RECEIPT`). `J.fail = True`: `tick()` makes one `"entries"` call; `tick()` again at once makes none; after `clock.advance(10_000)`, one more. Then `run_pass()` completes with no exception, and pending is unchanged. **Raising adapter:** the world composed with `RaisingJournal`: `tick()` raises nothing and adds `"journal_broken"` (the view caught the exception); `run_pass()` completes. **Raising catch-up:** `authority.catch_up` monkeypatched to raise `RuntimeError("synthetic")`: two ticks 10 s apart raise nothing, `"journal_catch_up_failed"` is in `recovery.alerts` exactly once, `run_pass()` completes, and `recovery.stage` is unchanged. **Chain broken:** a `chain_broken` journal at `tick()` adds `"journal_chain_broken"` once. **Order rule (R-4):** the world's `authority.journal` replaced by `Jx`, built with `journal_entry` as `[GRANT_REVOKED g-test d018…1f2c at sequence 5 from JOURNAL_GENESIS, GRANT_ISSUED g-test d018…1f2c at g-test's issued_sequence]`, a valid chain whose only revoke comes before the matching issue: `tick()` appends the pending revocation (Jx gains one entry) rather than skipping it |
+| Broken chain | The CUJ's C (`restore=TRUSTED`), with `Jb = MemoryJournal.load(J.wire())` whose second entry's `grant_digest` is `"f" * 64`, not failing: `report["journal"] == "chain_broken"`, the same three revocations, `"pending"`, and `"journal_chain_broken"` in `recovery.alerts`. `recovery.tick()`: pending unchanged, and `Jb.calls` gained one `"entries"` and no `"append"` |
+| Routine start | A with J: `J.fail = True`, `owner_revoke("g-test")` (`"pending"`), shut down. Reopen with `advance=False, grant=False, journal=J`, J still failing: `report["routine"] == "advanced"`, stage `OPERATING`, and `J.calls` gained nothing during the composition; `pending_revocations() == [["g-test", s]]`. `J.fail = False`, `tick()`: appended, pending empty. Shut down and reopen again: pending lists `g-test` again; `tick()`: pending empty and J's entry count unchanged (already there) |
+| Stopping | `action_world([ACK_A, ACK_B, ACK_C], policy=OFF, journal=J)`, three synthetic acks `{"result": "ack", "order_id": "o-s1"}` … `"o-s3"`, (its `g-act` issued with J up), then `J.fail = True` and one `"pending"` revocation of `g-test`. `n = len(J.calls)`. In this order, each giving its step 2 result: `TEST_PRINCIPAL`'s bound cancel `k-c1` of `o-stop` and close `k-x1` naming `E1`, each `COMMAND_ADMITTED`; the owner's advice application, modify `k-m1` bound as `advice_apply` with the fixture advice port (`admit_human`), admitted; `coordinator.run_pass()` twice, with `fresh()` before each, so the protection loop and dispatch run (`broker.calls` not empty); the owner's kill engage, kill release (`DISENGAGE` typed), hold engage and release of `buyer_edge`, unlock of `SESSION` (`LED-R09`, not tripped) and pause clear of `pause-synthetic` (`LED-R09`). After all of them `len(J.calls) == n` |
+| No revival | B of the CUJ: the owner's session opened on A's `authorizer` before the shutdown is unknown to B's (`SEC-R01`). A request A committed before the backup (the `g-keep` issue), sent to B, is `Replayed`, and the event count is unchanged |
+| Reconciliation | `admission_world(journal=Jd)` reopened with `restore=TRUSTED`, `Jd.fail = True`: `report["recovered"]` is present; after the fence and the advance, `coordinator.run_pass()` writes the same event kinds as the same world with the journal reachable, counted from each world's head before the pass |
+| Composition | `compose_simulation(…, journal=J, confirm_grant=lambda row: True)` raises `ValueError`. With neither, a restore revokes every grant with `"journal": None` (PRF-SES-06's rule, unchanged) |
+
+**Crash tests (CP-SEC2, CP-SEC3), by killing a real process.** `tests/recovery/test_crash_boundaries.py`'s `__main__` gains a branch for `CP-SEC2` and `CP-SEC3`: `_journal_child(ledger)` builds `J = MemoryJournal()` and `prepare(build(ledger, [], RecordedClock(START), leases=FakeLeaseStore(), journal=J))`. The tests are in `test_restore_fencing.py`, which runs the child with `CRASH_DRIVER` and parses its last stdout line.
+
+* **CP-SEC2.** The child sets `J.on_append` to print `json.dumps(J.wire())`, flush and `os._exit(86)` when the entry's grant ID is `g-cpsec2`, then calls `owner_issue(test_grant(grant_id="g-cpsec2"))`; reaching the next line exits 1. The parent asserts 86, loads `J2`, and checks that its last entry issues `g-cpsec2` with digest `b7fb…c8cc`, and that the ledger has no `GRANT_ISSUED` of `g-cpsec2`. Restored with `restore=TRUSTED, journal=J2`: `report["revoked"] == []`, `report["journal_only"] == ["g-cpsec2"]`, `grant("g-cpsec2")` is `None`. **Retry twin**, from a fresh crash: a plain reopen with `journal=J2`; the owner issues `g-cpsec2` once and it commits; `J2` holds two issue entries of `g-cpsec2` with the same digest, and only the second's `ledger_sequence` equals the row's `issued_sequence`; a later reopen with `restore=TRUSTED` keeps it (`revoked == []`, `journal_only == []`).
+* **CP-SEC3.** The child sets `J.fail = True`, revokes `g-test`, prints `J.wire()`, and exits 86 when the result is `Committed` and the payload is `"pending"`, else 1. The parent loads `J2` (no revoke entry) and reopens with `advance=False, grant=False, journal=J2`. Before any tick, `pending_revocations() == [["g-test", s]]`, `s` read from the ledger, and the channel's `alerts` reply carries it. `tick()`: `J2`'s last entry revokes `g-test` at `s`, and pending is empty.
+
+**Existing tests that change:** `tests/integration/test_unix_channel.py::test_alerts` expects `{"recovery": ["kill_file_unwatched"], "policy": [], "journal_pending": []}`. No other expectation changes.
+
+### Break checks
+
+The minimum set. Each anchor is checked present exactly once; one mutation at a time; each file restored byte for byte (md5). "As built" records the final table.
+
+| Change | Test that must fail |
+|---|---|
+| `issue` appends after its ledger commit | Issue; CP-SEC2 |
+| `issue` commits when the append is unreachable | Issue |
+| `issue` skips the existing-ID check | Issue (`J.calls` gains `"append"`) |
+| `issue` skips the catch-up while pending | Revoke (`g-new` commits) |
+| `revoke` returns a refusal when the journal is unreachable | Revoke |
+| `revoke` attempts an append while revocations are pending | Revoke (second revoke) |
+| `revoke` skips the append when the journal is up | CUJ-SEC-4 reachable (`g-cut` kept) |
+| `_revoke_unverified` passes no view | CUJ-SEC-4 unreachable (`None` for `"pending"`) |
+| `confirms` ignores revoke entries | View; CUJ-SEC-4 reachable |
+| `confirms` ignores the digest | View |
+| An unreachable view confirms | CUJ-SEC-4 unreachable; F-SEC5 |
+| `chain_intact` always true | Entries; Broken chain |
+| `catch_up` called from `Recovery.run` | Routine start (`J.calls` during the composition) |
+| `catch_up` re-appends an entry already in the journal | Routine start (count unchanged) |
+| `load_pending` not called at start | CP-SEC3; Routine start |
+| `load_pending` called after `_continuity` | Pending before a restore (appends during the composition) |
+| `compose_simulation` accepts `journal` with `confirm_grant` | Composition |
+| `journal_trusted` ignored (an untrusted restore reads the journal) | Untrusted |
+| Trust read from `self.restore`, not the owed activation | Untrusted (resumed) |
+| `confirms` ignores the issue entry's sequence | View (sequence 16; `e3` at 15) |
+| The ledger-consistency rule removed | View (`"broken"` one entry short) |
+| A non-`OSError` adapter exception propagates from `journal_view` | View (`RaisingJournal`); Catch-up in `tick` |
+| `"chain_broken"` reported as `"broken"` | View; Broken chain |
+| `tick` lets a `catch_up` exception escape | Catch-up in `tick` (raising catch-up) |
+| The catch-up not rate-limited | Catch-up in `tick` (second immediate tick) |
+| `catch_up` counts a revoke entry before the last matching issue | Catch-up in `tick` (order rule) |
+
+### Files
+
+| File | Change |
+|---|---|
+| `src/autonomous_trading/kernel/ports.py` | `JOURNAL_GENESIS`, `JournalUnreachable`, `JournalEntry`, `journal_entry`, `chain_intact`, `SecurityJournal` |
+| `src/autonomous_trading/kernel/authority.py` | `journal` argument; `JournalView`, `journal_view`; `_next_sequence`, `_grant_digest`, `_journal_revoke`; `issue`'s order; `revoke`'s and `_revoke_unverified`'s `journal`; `journal_pending`, `load_pending`, `catch_up`, `pending_revocations`; `SEC-R23` |
+| `src/autonomous_trading/kernel/recovery.py` | `RestoreMarker.journal_trusted`; `_continuity` over the view, trust from the owed activation; `journal_only`, `report["journal"]` and the journal alerts; `load_pending` before `_continuity`; the rate-limited, never-raising catch-up in `tick` |
+| `src/autonomous_trading/resources/events.schema.json` | `GRANT_REVOKED.journal` |
+| `src/autonomous_trading/bootstrap.py` | `compose_simulation`'s `journal`, the exclusivity check |
+| `src/autonomous_trading/adapters/unix_channel.py` | The `alerts` reply's `journal_pending` |
+| `tests/conftest.py` | `MemoryJournal`, `TRUSTED` |
+| `tests/recovery/test_restore_fencing.py` | PRF-SEC-10's groups, `RaisingJournal`, CP-SEC2, CP-SEC3 |
+| `tests/recovery/test_crash_boundaries.py` | `_journal_child` and its `__main__` branch |
+| `tests/integration/test_unix_channel.py` | `test_alerts`'s expectation |
+
+No new tree delta: every module is in the target tree and the test file exists (PRF-SES-06's). No migration: the journal state is not an index table.
+
+### Completion conditions (step 9)
+
+* **Targeted tests only, no full suite**, on Windows, with no existing expectation changed but `test_alerts`: `tests/recovery/test_restore_fencing.py` (PRF-SEC-10 and PRF-SES-06), `tests/recovery/test_crash_boundaries.py` (CP-SEC1, F-SEC12 and the rest of the file, since its driver changes), `tests/unit/test_authority_grants.py` (issue and revoke), `tests/integration/test_unix_channel.py` (its Windows-runnable cases), `tests/integration/test_owner_api.py` and `tests/integration/test_operator_commands.py` (the alerts route), and `tests/contracts/` (the kernel boundary and capability guards). No case needs Linux.
+* Every break check fails a listed test, and every file is restored (md5). `ast.parse` passes on every edited Python file and `json.load` on `resources/events.schema.json`. Every hex value in the tests is recomputed.
+* Before the code, in the same session, the spec is corrected to this step: the refusal table gains `SEC-R23`, the Restore continuity section names `kernel/ports.py` and `kernel/authority.py`, the owner's trust flag, the ledger-consistency rule and the repair path, and the alert route names `journal_pending`.
+* All code is written and committed in `OA_NEW` only, in one commit; `git diff --name-only` names exactly the files above. Nothing is pushed. The build starts on the coordinator's word, and every cited line is re-read on the head it starts from.
+* This file records step 9 "as built", with any Deviation or Fork call found while building.
 
 ## Step 10 — the operator UI (outline)
 

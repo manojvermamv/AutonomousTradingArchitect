@@ -1549,6 +1549,55 @@ Each applied with its anchor checked first (one occurrence, text recorded in the
 * `git diff --stat` against the branch head at the start of step 6 names only the files above and the changed tests the as-built table names.
 * PRF-STR-07's clauses each pass a group: actions mapped and applied by the kernel (Actions mapped); no team and bad context `unavailable` at once (Default; Answered at once); a mutated or swapped intent `digest_mismatch` and a proposal as a review `wrong_purpose` (Fixed intent); a PAUSE before an A4 refusal starts its pause (PAUSE before an A4 refusal); differing requirements without an extra review (Differing requirements); replay gives the same applications (Replay). PRF-STR-08's: a proposal becomes an intent or an explicit abstention, the worker score, recovery reuse (Mapping; Recovery reuse). PRF-STR-03's CP-C rows pass.
 
+### Step 6 as built
+
+**In plain words.** The AI review is now connected to the kernel. Every entry gets an answer before it is sent. By default, as in the live system today, that answer is "unavailable", and the entry goes on with an alert. After a crash, a recorded answer is never applied late. A model-driven strategy gets its proposal from cognition and reuses it after a crash. Exit advice is only recorded; a person can apply it as one close. Nothing here can block a trade.
+
+Commit `370b804` on `slice-08`, on top of `6caab5c` (SLICE-10 step 8). It changes 14 files (1,743 lines added, 21 removed). Not pushed.
+
+**Choices and corrections made while building:**
+
+| Topic | As built |
+|---|---|
+| The kernel port | `KernelReviewPort` also has `resolve(ref)`, the evidence store's read: the producer reads the run record it just published, and recovery reads it back (CP-C1, CP-C2) |
+| The review's evidence | `evidence_refs` holds the run record's digest, or the published pre-run answer's, as a plain 64-hex string |
+| The pre-run payload | The `review_request` row also keeps `deadline_secs` and the session's three digests, so recovery can answer without the kernel's binding |
+| `digest_mismatch` | Not reachable by a swapped intent: the kernel finds the intent by the review's own `intent_digest` and checks the content's digest (`Policy.resolve_intent`, as built). The Fixed intent test instead proves that a mutated intent has no review and is `ADM-R15` until its own review, and that a proposal is `wrong_purpose` |
+| The production `authenticated` table | No production kernel composition exists yet (SLICE-11). `bootstrap.service_authenticated(strategy_ids)` gives `cognition` and each `strategy:<id>` on `local_channel` for it; SLICE-10's channel already authenticates services as `local_channel` |
+| The proposal's session | `BarContext` carries no session ID, so `ProposalRequest.session_id` is `""`; the invocation ID already names the session |
+| The proposal's circuit | `TeamRequest.circuit` maps each role to the circuit its packet carries; the key is `(strategy, URL host, model)`, or the backend name for a `rule` role |
+| An exit run's identity | `generate`'s team request names the position's instrument as `underlying` and an empty `session_id`; the advice's `lineage_digests` are the run's |
+| Test world | `tests/conftest.py` `build` now takes `authenticated` (default unchanged), so a world can name `cognition`. The step's clock `T` is the admission world's `START` (09:15:00Z), not 10:42:07 IST: every expectation is relative to it (pre-run `valid_until` 09:15:30Z, run deadline 09:16:00Z, the PAUSE 09:15:00Z to 09:22:00Z) |
+| A secret in the result | Put in a profile, the secret fails the pin first (legacy's task-text check), so the test's scripted child produces it as model text (`leak`) |
+| The PAUSE before an A4 refusal | Driven as the host does it (request, then submit) on the admission world, with the fixture safety check refusing as the kill; not through step 2's host |
+| Advice through the door | Proved with the kernel's `admit_action` and the owner's bound `advice_apply` request; SLICE-10's door composition (`OwnerPorts.advice`) is not changed here |
+| Existing tests changed | None. `tests/conftest.py` gained one optional argument. `test_cognition_assembly.py`, `test_provider_records.py` and `test_strategy_invocation.py` pass unchanged |
+
+**Tests:** `tests/integration/test_review_producer.py` (30 cases), `tests/unit/test_model_strategy.py` (14 cases) and two CP-C rows in `tests/recovery/test_crash_boundaries.py`. The targeted set ran on Windows (Python 3.14.0): this step's files, `test_crash_boundaries.py`, `test_cognition_assembly.py`, `test_provider_records.py`, `test_strategy_invocation.py`, `test_review_semantics.py`, `test_strategy_registry.py`, `tests/contracts/test_capabilities.py` and `tests/integration/test_operator_routes.py`: 352 passed and 4 skipped, twice in a row. Two earlier back-to-back pairs each had the same two step 4 cases fail on the second run (`test_supervision_task_deadline`, `test_supervision_receipts`): a role deadline of 0.5 s that a slow child start misses under load. They pass alone (3 of 3), and after this step's files (2 of 2); step 6 does not touch that path. Recorded, not fixed. After the last test edit (a launch log in the model-strategy test), that file passed again, 14 of 14. **Linux-only cases on the EC2** (`~/claude-desktop/scripts/s09f_linux_tests.sh`, a throwaway folder `~/claude-desktop/outputs/s09f_run/` with its own standard-library venv reading the live venv's packages read-only, `nice -n 19`, no bytecode): the CP-C rows (CP-C2's orphan killed by the sweep), step 4's environment, parent-check and sweep cases, and this step's two files, 49 passed, twice. The folder and the uploaded tree were removed. `~/at-dev` was not used. The full suite was not run. `ast.parse` passes on the 14 files.
+
+**Break checks** (`s09f_breaks.py` in the scratchpad; anchors checked first, one at a time, every file restored byte for byte with md5 checked): all 22 failed a listed test. Two missed on the first run and were corrected: "a second request re-runs" was also blocked by the record store (a completed row cannot move), so the break now keys the request row by a fresh ID. "A recorded proposal not reused" escaped because the test counted packets that a re-run rewrites, so the test now counts launches in a log.
+
+| Break | Caught by |
+|---|---|
+| No team answers nothing; no team answers `allow`; the no-team check removed | Default |
+| `valid_until` from `completed_at`; `pause_minutes` set for `BLOCK` | Actions mapped |
+| The result secret check removed | Team failures |
+| Mode `off` still reviewed | Not required |
+| A second request re-runs | Idempotent |
+| `record_review` without the principal check | Route |
+| CP-C1 recovery skipped; CP-C1 submits the recorded PAUSE | CP-C1 |
+| A store failure raised from `compose_review_producer` | Store failure |
+| A model score without `× 100` | Mapping |
+| A recorded proposal not reused; an interrupted proposal directory not cleared | Recovery reuse |
+| The proposal circuit not carried; a proposal's typed output left as prose | The production child (429 and circuit) |
+| `_strategy_object` calling `create(d)` for a model descriptor | The host case |
+| `CP-W1P` not placed | CP-W1P |
+| A `service` principal's application accepted; "already applied" for a different reason; advice expiry not checked | Advice |
+
+**Not made as break checks** (the text listed them): "the team checked after the context" (no test has both a missing team and a stale context; the no-team check removed covers the order's effect), "CP-C2 re-runs the team" (recovery has no run path to break), "`action` answering an uncompleted record" (an uncompleted record has no action wire, so the break changes nothing).
+
+**Open:** the production `ContextPort` and `PositionPort` readers (SLICE-10's projection registry); composing `OwnerPorts.advice`, `AdmissionPorts.advice` and the advice-generation owner route in a production composition (SLICE-11); the channel route for `record_review` and proposals (SLICE-10); step 4's two timing-sensitive cases.
+
 ## Step 7 — the boundary and replay (outline)
 
 * **Carried from step 3 (2026-11-02):** BuyerEdge imports the OpenAlgo SDK's `ta` functions (`openalgo==2.0.5`). The capability boundary allows `openalgo.ta` only; any other `openalgo` import from `strategies/` (the broker client) is refused, with a test and a break check.

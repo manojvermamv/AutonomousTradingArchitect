@@ -865,3 +865,11 @@ One fresh combined review each, before any code (the owner's trimmed routine: ta
 | SLICE-10 step 7 (owner-mutation table) | 6 Major, 2 Nit | Tick watch to the SLICE-11 market host; strategy on/off to configuration staging; an owner-ports table and a SLICE-14 rule that no row still refuses at cutover | `4e2756c`; 17 of 17 break checks; full suite 1,708 passed |
 | SLICE-09 step 5 (AI providers) | 1 Blocker, 4 Major, 2 Nit | A budget never stops `resolve()` (live `advisor.budgets` is `{}`); replay from records; an audit-hook network block; no redirect carries the key; scrub before truncation | `c27b608`; 26 of 26 break checks; full suite 1,733 passed, 15 skipped |
 | SLICE-10 step 8 (MCP) | 1 Blocker, 5 Major, 2 Nit | `framework_propose_intent` named as an indirect order route; live runs only the read-only profile (console or desk live is an Open owner item); per-call ledger kill read; per-token scrub; the caller's token per request | not yet built |
+
+## SLICE-10 step 8, SLICE-09 step 6 and SLICE-10 step 9 reviews (2026-11-02)
+
+| Step | Findings | Key resolutions | Built |
+|---|---|---|---|
+| SLICE-10 step 8 (MCP) | see the step 8 entry above | — | `6caab5c`; 24 of 24 break checks; full suite 1,772 passed |
+| SLICE-09 step 6 (review producer, model strategy, advice) | 8 Major, 2 Minor | CP-C1 submits a cancelled review (no pause after a crash); `cognition` authenticated; a corrupt record store fails open (`COG-R01`); interrupted proposal runs cleared and re-asked | `370b804`; 22 of 22 break checks; full suite 1,818 passed, 15 skipped. Open: two step 4 cases with a 0.5 s deadline are timing-sensitive under load |
+| SLICE-10 step 9 (restore continuity) | 1 Blocker, 3 Major, 2 Minor, 2 Nit | `journal_trusted` owner flag (grants fail closed after a restore until set); a torn journal is `broken`; catch-up rate-limited and never raises; entries tied to issue sequence | not yet built |
