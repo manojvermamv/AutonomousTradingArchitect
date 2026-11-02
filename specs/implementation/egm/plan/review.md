@@ -873,3 +873,11 @@ One fresh combined review each, before any code (the owner's trimmed routine: ta
 | SLICE-10 step 8 (MCP) | see the step 8 entry above | — | `6caab5c`; 24 of 24 break checks; full suite 1,772 passed |
 | SLICE-09 step 6 (review producer, model strategy, advice) | 8 Major, 2 Minor | CP-C1 submits a cancelled review (no pause after a crash); `cognition` authenticated; a corrupt record store fails open (`COG-R01`); interrupted proposal runs cleared and re-asked | `370b804`; 22 of 22 break checks; full suite 1,818 passed, 15 skipped. Open: two step 4 cases with a 0.5 s deadline are timing-sensitive under load |
 | SLICE-10 step 9 (restore continuity) | 1 Blocker, 3 Major, 2 Minor, 2 Nit | `journal_trusted` owner flag (grants fail closed after a restore until set); a torn journal is `broken`; catch-up rate-limited and never raises; entries tied to issue sequence | not yet built |
+
+## SLICE-09 step 7 and SLICE-10 steps 9–10 reviews (2026-11-02)
+
+| Step | Findings | Key resolutions | Built |
+|---|---|---|---|
+| SLICE-10 step 9 (restore continuity) | see above | — | `58b55b2`; 26 of 26 break checks; full suite 1,845 passed |
+| SLICE-09 step 7 (capability boundary, replay) | 1 Blocker, 4 Major, 2 Nit | A `reflection` rule closes `sys.modules`/`__import__`/`getattr` bypasses; BuyerEdge watched from import; no-key proved by value and file; replay refusals listed and asserted empty | `9067a24`; 16 of 16 break checks; SLICE-09 complete |
+| SLICE-10 step 10 (operator console) | 4 Major, 2 Minor, 1 Nit | Path segments `..`/`%` refused; tracked-file provenance; the six reachable MCP writes named (refused live under the read-only profile); owner reads masked as legacy plus a scrub backstop | not yet built |
