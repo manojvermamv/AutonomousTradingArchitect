@@ -816,3 +816,15 @@ One fresh combined design and readiness review of [SLICE-09 step 1](../../plan/s
 | R-1 | Blocker | One bad row or ceiling stopped every strategy | Fork call: a missing or unknown authority reads `none` with a note; any other row defect refuses only that row (`STR-R11`); an absent ceiling stays unbound |
 | R-2 | Major | A shared helper could change behaviour without changing the `CandidateId` | `code` must equal the same-package modules actually imported (`STR-R03`) |
 | R-3…R-7 | Minor | File-read spy, note order, code ambiguity, blank requests, the simulation package set | Applied |
+
+## SLICE-10 step 4 review (2026-11-02)
+
+One fresh combined design and readiness review of [SLICE-10 step 4](../../plan/slices/SLICE-10-security-and-operator.md), before any code. 4 Major, 7 Minor (R-1…R-11). All resolved in the text, then built (`ee6aec9`; 1,508 passed, 2 skipped; 36 of 36 break checks).
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| R-1 | Major | The CLI and the kernel could watch different kill files | One fixed deployment root, one `KillInputs.resolve`; a test that both resolve the same files |
+| R-2 | Major | A wrong off-test expectation | `"DISENGAGE\r"` |
+| R-3 | Major | Six places still said an empty kill path refuses | Fork call: it starts and raises `kill_file_unwatched` (slice and spec) |
+| R-4 | Major | Read errors legacy treats as absent blocked trading | Fork call: exactly `Path.exists()`'s absent set is absent; other errors are unreadable |
+| R-5…R-11 | Minor | Stage of the pass-top check, inline outcome, dropped inputs, YAML flag, open behaviours, test inputs, a docstring | Applied |

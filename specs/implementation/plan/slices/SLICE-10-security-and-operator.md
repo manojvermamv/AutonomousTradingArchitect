@@ -1676,6 +1676,27 @@ No new tree delta: `interfaces/cli.py` is in the target tree and the test file i
 * PRF-SEC-12 passes, as the spec now states it (an empty path starts and raises `kill_file_unwatched`).
 * This file records step 4 "as built", with any Deviation or Fork call found while building.
 
+### Step 4 as built
+
+**In plain words.** The kill file and the kill setting now stop trading in the new kernel as they do today, before the next order, at start, and even when nothing else runs. The kernel writes down each time it does. `at kill-switch on`, `off` and `status` work as today, and kill cannot be lifted while the file or setting is still there. All 1,508 automatic checks pass.
+
+Commit `ee6aec9` on `slice-08`, after `8eb3a12` (SLICE-09 step 1), which touched none of the cited files. It changes exactly the twelve files in the step's table (+1,008 −11). Nothing is pushed. The EC2 was not used.
+
+**Choices made while building:**
+
+| Topic | As built |
+|---|---|
+| Joining a relative path | A `pathlib` join, as legacy's `repo_root / candidate`, so Windows gives one separator style. `os.path.join` mixed `\` and `/` |
+| `SAFETY_AUTH` | `safety_auth()`, a cached function built once, because `kernel/safety.py` imports `kernel.authority` lazily |
+| Owner under kill (a correction to the text) | Under kill, a market close while the stop rests is refused **at admission** (`PRT-R10`, B3), as `tests/unit/test_safety_matrix.py:178-185` already proved. It does not wait at dispatch. The test: close `k-x1` refused `PRT-R10`; the owner's cancel `k-c1` of `o-stop` is sent; the stop is observed cancelled; a new close `k-x2` is admitted and sent |
+| The claim loop on an unreadable input | The command waits, and the loop over accounts stops for that pass |
+| A YAML file value | Used as text; the `none`/`null` rule applies only to environment values, as legacy's `str(path)` |
+| Platform | No POSIX-only case in this step, so nothing skipped |
+
+**Tests:** `tests/integration/test_kill_inputs.py`, 119 cases with their parameters; all pass on Windows. The whole suite, once after the last edit: **1,508 passed, 2 skipped**, in 161.0 s. Neither skip is from this step: one is the existing Windows skip, the other step 3's POSIX case. `ast.parse` passes on the eleven edited Python files, and `yaml.safe_load` on `resources/defaults.yaml`.
+
+**Break checks** (`s10d_breaks.py` in the session scratchpad; anchors checked first, one mutation at a time, every file restored byte for byte, md5 verified): 36 of 36 failed a listed test. They are the table's rows, plus "an `Authenticated` copied with a borrowed request in `kernel/coordinator.py`", which proves the moved docstring check (`test_authenticated_never_replaced`).
+
 ## Step 5 — the kernel's local channel (outline)
 
 Deepened after step 4 is built. Authority: the spec's [kernel channel](../../design/security-and-operator.md#the-kernels-local-channel-adaptersunix_channelpy).
