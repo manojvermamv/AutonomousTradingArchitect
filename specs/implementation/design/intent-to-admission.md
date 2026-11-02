@@ -152,6 +152,7 @@ SessionStats(trade_count, desk_trade_count, desk_open_structures, setup_fresh: b
 PlanRefusal(stage, reason)
 ```
 
+* `setup_fresh` comes from the kernel's decision record: the strategy host records each decision through the kernel route `record_decision` (strategy service principal only; `DECISION_RECORDED`, folded into `decision`), and an entry is fresh unless the previous recorded decision was an entry, legacy's rule across restarts ([SLICE-09 step 2](../plan/slices/SLICE-09-strategies-and-cognition.md)).
 * `intent_digest` is `digest(intent)` with the ledger's normalization. `underlying` comes from the view; an intent never names an option contract.
 * **Where the intent lives.** The strategy host publishes the intent as evidence before submitting (Combined-F2); `EntryRequest.intent_ref` is its `EvidenceRef` digest, and A1 resolves the intent from the evidence store.
 * `structure_id` and `market_bias` are the legacy intent fields the planners read (`OA/src/core/framework/structures/planner.py:114`; replay `producer.py:670`); `single_long_option` is the one-leg structure.

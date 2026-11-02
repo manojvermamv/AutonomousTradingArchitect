@@ -311,9 +311,280 @@ Each is applied with its anchor checked first (exactly one occurrence; the exact
 * `git diff --stat` against the base branch head at the start of step 1 names only the files above.
 * PRF-STR-01's clauses each pass a group: each refusal before load with no module imported (Reading without import, Fields, Implementation and code, Capabilities and state); a missing authority refused on create only with legacy's text, a row's authority never rewritten and a disagreement reported, the ceiling lowering a request (Authority); legacy kinds mapped and an unknown kind refused (Kinds); `CandidateId` equal to a hand-computed digest (Candidate identity).
 
-## Step 2 — the strategy host (outline)
+### Step 1 as built
 
-Deepened after step 1 is built and after SLICE-08 step 3 names carries 1 and 2. The spec's [strategy host](../../design/strategies-and-cognition.md#the-strategy-host-strategiesworkerpy), [invocations and state](../../design/strategies-and-cognition.md#invocations-and-state-strategiesworkerpy) and [handoff](../../design/strategies-and-cognition.md#handoff-to-the-kernel-strategiesworkerpy) sections. Builds the strategy store and its lock; the invocation ID (`inv1:` and 64 hex digits over candidate, session, scope, view policy name and version, and trigger), used as the intent ID and command key; the state machine with I-W1…I-W5; serialization per scope; the three restoration kinds; one view per trigger; the handoff order (publish, record the decision, request the review, submit) and every kernel answer with the retry bound; recovery CP-W1…CP-W5 against the kernel's command status; the pass schedule and seal wait driven by a recorded clock; warm-up and faulted passes; the service principal, account and session of the `EntryRequest`. TASK-S09-09 builds the kernel's `record_decision` and `setup_fresh` derivation, once the intent spec carries them. EMA cross (`strategies/ema_cross.py`) ports `src/strategies/ema_crossover.py:105-205` unchanged, expectations computed by hand; protocol tests may also use strategies from the simulation-only test package. Tests: `tests/unit/test_strategy_invocation.py` (**T-51**), run against the SLICE-04 kernel in a simulation composition for the B1 and planner cases (a catch-up window past B1's bound refused `ADM-R05`; the plan reads the trigger minute's chain), and the CP-W rows of `tests/recovery/test_crash_boundaries.py`, killing a real host subprocess at each named point. Break checks include: one view for all windows of a pass; moving `scope_head` without the predecessor check; a fresh identity on retry; a `|` in the ID; resubmitting after CP-W2; an abstention not recorded with the kernel; retrying `ADM-R12` past the bound; walking a newer window before an unsealed older one.
+**In plain words.** The strategy list now exists. It reads each strategy's description as plain text without running its code, turns away a bad description with a reason, takes switches and permissions only from the owner's settings, keeps legacy's rules on what a strategy may do, and gives each strategy a fingerprint of its exact code. All 1,389 automatic checks pass.
+
+Commit `8eb3a12` on `slice-08`, on top of `ba2face` (the branch head at the start of step 1, after SLICE-10 step 3). It adds the 3 files of the step's table (907 lines) and changes no existing file. Not pushed.
+
+**Choices made while building:**
+
+| Topic | As built |
+|---|---|
+| Descriptor fields | `StrategyDescriptor` keeps the table's order with the nested values flattened: `requirement` and `view_policy` for `input`, `purpose` and `score_source` for `output`, `state_scope`, `state_kind` and `restoration` for `state`; `requested_authority` is kept as written, since the notes quote it as legacy did |
+| One read per file | `read_package` reads each file once with `read_text` and parses it on first use; the import walk reuses the parsed trees |
+| Kind before authority | `load` applies the row's `kind` check, then authority, so a kind mismatch is `STR-R08` whatever the authority |
+| `code` naming itself | A `code` entry equal to the descriptor's own module is `STR-R03` `code` |
+| Row order | Rows are read in `str`-sorted key order; a row with several extra keys reports the first in that order |
+| Orphans | Every row without a registration is an orphan, a disabled one included (the Rows test's `sim_off`) |
+| `is_hex_id` | Not imported: `candidate_id` returns a SHA-256 hex by construction, and the test checks 64 lower-case hex digits |
+| One more test | `read_package` alone returns descriptors and refusals in file order |
+
+**Tests:** `tests/unit/test_strategy_registry.py`, 68 cases in 25 test functions; every group of the step's table passed on its first run. The whole suite once after the last edit: 1,389 passed, 2 skipped (`test_pe_delta_sign_at_the_source`, waiting for C-1, and SLICE-10's POSIX-only file-mode test on Windows), in 188.9 s. `ast.parse` passes on the 3 files.
+
+**Break checks** (`s09a_breaks.py`: anchors checked first, one at a time, every file restored byte for byte, md5 verified): all 23 failed a test on the first run.
+
+| Change | Test that failed |
+|---|---|
+| Import before validation | Every group (24 test functions): the synthetic module raises on import |
+| `_` files read | Reading without import |
+| A non-literal `DESCRIPTOR` skipped silently | Reading without import (`STR-R01` cases) |
+| An unknown key accepted | Fields |
+| Another module's `implementation` accepted | Implementation and code |
+| `model` without `cognition.propose` accepted | Capabilities and state |
+| `checkpoint` accepted without `checkpointed` | Capabilities and state |
+| A missing request refused with a row too | Authority (two tests) |
+| The ceiling not applied | Authority |
+| An unknown request refused instead of taken as `none` | Authority |
+| The difference note dropped | Authority (BuyerEdge's shape and the unknown and blank cases) |
+| A row's authority rewritten | Authority (BuyerEdge's shape); Rows |
+| A row without `authority` raises | Rows |
+| A row defect raises instead of refusing that row | Rows (two tests) |
+| An unknown ceiling raises | Rows |
+| An undeclared same-package import accepted | Implementation and code |
+| A blank request takes the ceiling | Authority |
+| A simulation load without `PRODUCTION` first accepted | Composition |
+| An unknown kind mapped to `deterministic` | Kinds |
+| The first of two duplicate ids kept | Duplicates |
+| The test package accepted in production | Composition |
+| `CandidateId` without LF normalization | Candidate identity |
+| `CandidateId` over every file of the package | Candidate identity |
+
+**Open:** none in this step. Step 2's host composition feeds `parse_registry` the bound section and imports the accepted modules; TASK-S09-08 (step 3) reads the live rows that the first release binds.
+
+## Step 2 — the strategy host
+
+<a id="step-2--the-strategy-host-outline"></a>The authorities are the spec's [strategy host](../../design/strategies-and-cognition.md#the-strategy-host-strategiesworkerpy), [invocations and state](../../design/strategies-and-cognition.md#invocations-and-state-strategiesworkerpy) and [handoff](../../design/strategies-and-cognition.md#handoff-to-the-kernel-strategiesworkerpy) sections, A05-F2 and Combined-F5 (`README.md:841`), and legacy's live host at 445eb116 (`RFL` is `scripts/run_framework_live.py`, `RUN` is `src/core/framework/runtime/runner.py`). Step 2 is TASK-S09-02 and TASK-S09-09 (PRF-STR-02; PRF-STR-03 rows CP-W1…CP-W5). It builds the strategy host (`strategies/worker.py`), EMA cross (`strategies/ema_cross.py`), the host's composition (`bootstrap.py`), and the kernel's decision record with the `setup_fresh` derivation (`kernel/policy.py`, `kernel/coordinator.py`, the ledger). It builds on step 1 as built (OA_NEW `8eb3a12` on `slice-08`) and on SLICE-08's views, whose two carries for this step are built: `resolve` takes a cutoff earlier than the resolution instant, and the `exact_minute` chain join anchors at the newest base window confirmed by the cutoff (`View.anchor`). No score, threshold or money value is set; every setting the host reads is refusing or is the kernel's own.
+
+**In plain words.** This step builds the program that runs one strategy. A minute after each bar closes, plus the usual seven seconds, it looks for the bars that have become final, and for each one, oldest first, it takes a market snapshot fixed at that bar's own moment, asks the strategy for a decision, and writes the decision down before telling anyone. Then it publishes the decision, tells the kernel what it decided (even "nothing", because today's "fresh setup" rule needs the previous decision), asks for the AI review, and, only for a strategy allowed to trade, hands the entry to the kernel, retrying with the same name while the bar is still young enough to be valid. An entry the kernel did not write down is never sent, as today. If the AI review cannot even be asked for, the kernel is told at once and goes ahead without it, as today, instead of waiting. If the program crashes, it restarts by reading its own notes and asking the kernel what it already has, so a decision is never lost without a record and never sent twice. A decision interrupted before it was sent is not sent after a restart, as today. The kernel now keeps every decision itself, and judges "fresh setup" from that record with today's rule. Trading rules, scores and limits do not change.
+
+### Decisions
+
+#### What legacy does here
+
+* **The pass** is phase-locked to each bar's confirmation: `seconds_to_next_pass(poll, now, lag)` sleeps `max(0.05, min(to_close, to_grid))`, with `since_close = (now - lag) % 60`, `to_close = 60 - since_close`, `to_grid = poll - since_close % poll` and `poll = max(1.0, poll)` (RFL `:3431-3450`); the poll is 20 s by default (RFL `:7472`).
+* **The walk**: each pass walks the day's bars after a cursor (RFL `:8119-8127`, `RUN:96-99`); a bar whose index is below `warmup_bars` is skipped and not recorded (`RUN:100-102`); a raising strategy records `strategy_error` (`RUN:112-115`); a faulted pass walks nothing (RFL `:8103-8117`). Planning reads ENTER decisions after the cursor the pass started from (RFL `:6826-6839`, `:8137-8148`), so an ENTER whose planning faulted, or that was written before a crash, is never planned.
+* **Fresh setup** (RFL `:6790-6798`): over the day's decision rows in file order, an ENTER is fresh when the row just before it is not an ENTER (the first row of the day is fresh), and a decision not found is not fresh; applied to every planned ENTER (RFL `:6891-6893`). The file survives restarts.
+* **The score**: a library strategy plans with `float(ctx.get("score") or 0.0)` (RFL `:4211`), a worker with `conviction × 100` (RFL `:7115-7125`). A strategy's `Intent` holds `kind` (`ENTER` or `NOTHING` here), `direction` (`CE`, `PE`), `conviction` in 0…1, `reason`, `components`, `tags` (`src/core/framework/runtime/types.py:24-85`); `CE` is `bullish` and `PE` `bearish` (`src/core/framework/policy/family.py`, `legacy_bias`).
+* **Series**: `window(n)` is the last `n` values, oldest first, the current bar last, short at the start of the day and never padded (`src/data/tape/series.py:168-180`).
+
+#### The kernel's decision record (TASK-S09-09; `contracts/decisions.py`, `kernel/policy.py`, `kernel/coordinator.py`, the ledger)
+
+* **`DecisionRecord(invocation_id: str, principal: Principal, strategy: str, session_id: str, trigger: str, kind: str, evidence_ref: str)`**, frozen, in `contracts/decisions.py`: `invocation_id` a `CommandKey` value starting `inv1:`; `trigger` the decided window's start in the stored UTC form; `kind` `ENTER` or `NOTHING`; `evidence_ref` the 64-hex digest of the published output. Any other value raises `ValueError`.
+* **`Coordinator.record_decision(record, *, auth=None) -> str | Refusal`** raises `RuntimeError("entry admission is not composed …")` when `self.entry_admission` is `None`, as `admit_entry` does; otherwise it authenticates as `admit_entry` does (`auth` or `self.authenticate(record.principal)`; the payload principal is never trusted) and delegates to `self.entry_admission.policy.record_decision(record, auth)`, the one `Policy` admission reads applications and `setup_fresh` from. `Policy.record_decision`:
+  1. refuses `SES-R01` when `auth` is `None` or its principal differs from `record.principal`; `SEC-R09` when `auth.request` is not `None` or the principal is a human on `owner_credential`, exactly as `_a2` does (`kernel/admission.py:718-721`); and `SES-R02` (`grant_scope`) when the principal is not `Principal(f"strategy:{record.strategy}", "service")`;
+  2. refuses `ADM-R01` (`malformed_request`) when no `session` row has `record.session_id`; otherwise reads the session's account from the row's wire form, `AccountId(*json.loads(session["account"]))`, as the kernel's other readers of that column do (`kernel/lifecycle.py:135`), and passes on `authority.check("entry", auth, account)`'s refusal;
+  3. resolves `evidence_ref` from the evidence store and refuses `ADM-R01` unless it is, for `ENTER`, an intent whose `intent_id`, `strategy` and `session_id` equal the record's (`intent_from_wire`) and with `record.trigger == intent.as_of.utc_iso`, or, for `NOTHING`, an abstention whose `invocation_id`, `strategy`, `session_id` and `trigger` equal the record's;
+  4. a `decision` row with this `invocation_id` and the same fields returns `"existing"` and writes nothing; one with other fields refuses `LED-R02` (`idempotency_conflict`); a row with another `invocation_id` at the same `(strategy, session_id, trigger)` also refuses `LED-R02` (a second invocation at one trigger);
+  5. otherwise commits `DECISION_RECORDED` `{invocation_id, strategy, session_id, trigger, kind, evidence_ref, recorded_at}` (family `policy`, principal `kernel:policy`, through `Policy._transact`) and returns `"recorded"`.
+* **A failed review request (Fork call 16; legacy `service.py:117-138`, `:270-274`).** `Coordinator.record_unavailable(intent_ref, cause, principal, *, auth=None) -> str | Refusal` is composed and authenticated as `record_decision` (the same `RuntimeError`, `auth` or `self.authenticate(principal)`) and delegates to `Policy.record_unavailable(intent_ref, cause, auth)`, which:
+  1. refuses `SES-R01` and `SEC-R09` as step 1 above; resolves `intent_ref` with `resolve_intent` (`ADM-R01` when absent); refuses `SES-R02` when the principal is not `Principal(f"strategy:{intent.strategy}", "service")`; takes `cause` when it matches `[a-z][a-z0-9_]{0,63}`, else `team_unavailable`, as legacy's `_reason_code` (`service.py:140-144`);
+  2. with no bound policy for the intent's session refuses `ADM-R01`; with `ai_mode` `off` or `review_required` false returns `"not_required"` and writes nothing (`application` then answers `proceed` without a row, as now);
+  3. a `review` row whose `application` is already frozen returns `"existing"` and writes nothing (the first application stands, D12);
+  4. otherwise commits, in one transaction, `INTENT_SEEN` when there is no row and `REVIEW_UNAVAILABLE` `{intent_digest, application}` with `application` = `Frozen("proceed_unavailable", "cause", None, None, cause, None, True)`, appends `{"intent_digest", "cause"}` to `self.alerts`, and returns `"recorded"`. Admission's A5 (`Policy.application`) then reads the frozen application on the first `submit`: `proceed_unavailable`, never `ADM-R15`. Under `enforce_entry_holds` an active pause is still read first, as now (legacy `service.py:366-371`).
+* **The ledger.** `resources/events.schema.json` gains `DECISION_RECORDED` with those seven string fields and `REVIEW_UNAVAILABLE` with `REVIEW_DEADLINE_PASSED`'s two (`intent_digest` string, `application` object). `kernel/ledger/store.py`: `_FAMILY["DECISION_RECORDED"] = "policy"`, `_FAMILY["REVIEW_UNAVAILABLE"] = "policy"`, `_PK["decision"] = ("invocation_id",)`; `_load_touched` loads the `decision` row by `invocation_id` and the `review` row for `REVIEW_UNAVAILABLE` as for `REVIEW_DEADLINE_PASSED`. `kernel/ledger/projections.py`: `TABLES` gains `decision`; `fold` inserts `{invocation_id, strategy, session_id, trigger, kind, evidence_ref, sequence}` and raises `TransitionNotAllowed` for a second row with the same key; `REVIEW_UNAVAILABLE` folds into the `review` row exactly as `REVIEW_DEADLINE_PASSED` does. `kernel/ledger/schema.py`: `Migration(8, "decisions", "008_decisions.sql")`, a new file under `resources/migrations/` creating `decision (invocation_id TEXT PRIMARY KEY, strategy TEXT NOT NULL, session_id TEXT NOT NULL, trigger TEXT NOT NULL, kind TEXT NOT NULL CHECK (kind IN ('ENTER','NOTHING')), evidence_ref TEXT NOT NULL, sequence INTEGER NOT NULL)` and `CREATE UNIQUE INDEX decision_by_trigger ON decision (strategy, session_id, trigger)`, so one trigger holds one decision. **Proposed tree delta** (the next free T number in the module index): the file `008_decisions.sql`; SLICE-13's import migration then takes the next number, as its row already says.
+* **`setup_fresh` (Fork call, RFL `:6790-6798`).** `Policy.setup_fresh(intent) -> bool`: the `decision` row whose `invocation_id` is `intent.intent_id`; none gives `False` (legacy's "not found"); otherwise the row of the same `strategy` and `session_id` with the greatest `trigger` below it; none gives `True` (the session's first decision), else `kind != "ENTER"`. The kernel reads only its own record. Legacy ordered by file position; the host decides windows one at a time in trigger order and records each before the next is decided, so trigger order is file order.
+* **Composition (no new gate).** `kernel/policy.py` gains `RecordedSetup(inner, policy)`, a `SessionStatsPort` whose `stats(intent, now)` is `dataclasses.replace(inner.stats(intent, now), setup_fresh=policy.setup_fresh(intent))`. `compose_simulation` wraps `admission.stats` in it whenever admission is composed, right after `Policy` is built and before `EntryAdmission`, as legacy always derived the flag from its file. The planner's gate is unchanged (`limits.require_fresh_setup and not s.setup_fresh`, `kernel/planner.py`); with `require_fresh_setup` false, as in every existing admission test, the derived value changes nothing.
+* **For the intent spec** (carried; the coordinator decides the wording): the `SessionStats` row names `setup_fresh` as derived by `Policy.setup_fresh` from the kernel's `decision` record, and the kernel's routes gain `record_decision` with steps 1–5 above and `record_unavailable` with its steps 1–4.
+
+#### The strategy protocol (`strategies/worker.py`)
+
+* An implementation module's `create(descriptor: StrategyDescriptor)` returns an object with `decide(ctx: BarContext) -> Signal`; a `checkpointed` strategy also has `checkpoint() -> dict` and `restore(body: dict) -> None`.
+* **`Signal(kind: str, direction: str | None, score: float | None, conviction: float, reason: str, components: dict, tags: dict)`**, frozen: legacy's `Intent` fields the host maps. `kind` `ENTER` or `NOTHING`; `ENTER` needs `direction` `CE` or `PE`; `conviction` in 0…1; `NOTHING` carries no direction. A `Signal` that breaks these, or anything else returned, is a `strategy_error` (below).
+* **`BarContext`**, read-only: `view` (the trigger's `View`), `trigger` (the window start, aware), `at` (the bar's start as legacy's `Context.at`, ISO-8601 in IST), `bar_index`, and `open`, `high`, `low`, `close`, `volume` as `Series` over `view.bars(descriptor.underlying)` through the trigger bar; `Series.window(n)` is legacy's rule above, values as `float` of the bar strings.
+
+#### The strategy store (`strategies/worker.py`)
+
+* **`StrategyStore.open(path, strategy_id, clock) -> StrategyStore | Refusal`**: one SQLite file through `connect` and `WriterLock` (`kernel/ledger/runtime.py`, as `MarketStore.open`); a held lock refuses `STR-R12` (`store_lock_held`); a file of another schema or strategy `STR-R13` (`store_mismatch`). Schema 1, created in one `BEGIN IMMEDIATE`:
+  * `store_meta(host_id, schema, strategy_id, created_at)`;
+  * `invocation(invocation_id PRIMARY KEY, scope, trigger, policy, policy_version, state, attempt, view_id, predecessor, output, result_id, revision, revision_digest, published, decision_recorded, review_requested, submitting, outcome, cause, updated_at)`;
+  * `scope_head(scope PRIMARY KEY, revision, digest, last_trigger)`;
+  * `state(scope, revision, body, digest, PRIMARY KEY (scope, revision))` for `checkpointed` strategies;
+  * `journal(seq PRIMARY KEY, kind, scope, invocation_id, payload, at)`, append-only: `WARMUP`, `STATE_RESET`, `RESULT_CONFLICT`, `ALERT`.
+  The kernel never reads this file; it is the host's own record of how far each decision got.
+
+#### Identity
+
+`invocation_id = "inv1:" + sha256_hex(canonical([candidate_id, session_id, [strategy, underlying, session_id], policy, policy_version, [trigger, 60]]))`, `canonical` the ledger's (`kernel/ledger/envelope.py`) with `trigger` the window start in the stored UTC form; 69 characters of `[0-9a-f:]`, a valid `CommandKey`, never starting `prot:`. It is computed before anything is read and is the intent's `intent_id` and the entry's command key. `session_id` is `"<broker>:<account>:<calendar_id>:<trading_date>"` (the sessions spec's text, `kernel/lifecycle.py` `session_id_for`), with the row's account, the view policy's `calendar_id` and the trigger's exchange date.
+
+#### The invocation
+
+* **States and transactions** (each one transaction of the store):
+  * `PLANNED`: the row with its identity, `attempt` 1;
+  * `RESOLVED`: `view_id` and `predecessor` = the scope's head revision (0 with no head);
+  * `COMPLETED`: `output`, `result_id = digest(output)`, `revision = predecessor + 1`, `revision_digest = digest([previous digest or "", invocation_id, result_id, body digest or None])`, the `state` row for `checkpointed`, and `scope_head` set to that revision and `last_trigger = trigger`, guarded by `UPDATE … WHERE revision = predecessor`;
+  * **an invocation that cannot complete** (`predecessor_moved`: the guarded update changed no row; `checkpoint_mismatch`, below): in the same transaction, the strategy's output and any `state` row are discarded and the invocation is `COMPLETED` with the abstention of cause `strategy_error` and reason the host cause as its `output` and `result_id`, `revision` and `revision_digest` NULL, `cause` the host cause, and `scope_head.last_trigger` moved to the trigger (never backwards; the head's revision and digest untouched, so nothing is built on a moved predecessor, I-W1). It is then handed off as any abstention: published, recorded with the kernel, never reviewed or submitted, `RECORDED` with its `cause` kept. Legacy recorded a strategy that could not decide as `strategy_error` and walked on (`RUN:112-115`);
+  * `HANDED_OFF` (`outcome` set), `RECORDED` or `ABANDONED` (`cause` set): terminal.
+  A row already `COMPLETED` with another `result_id` is never overwritten: `RESULT_CONFLICT` is journalled and the stored output kept (I-W2).
+* **Errors.** `decide` raising, or returning anything but a valid `Signal`, completes with an abstention, cause `strategy_error`, its text `"<ExceptionType>: <message>"` (`RUN:112-115`).
+* **Restoration.** `recompute`: a new object from `create` for every invocation. `reset_on_restart`: one object for the host process; at start, every scope with a head gets `STATE_RESET` (`cause: host_restart`) in the journal and the object starts empty (Fork call, RFL `:7728`). `checkpoint`: the object is restored from the predecessor's `state` body after its digest is checked; a mismatch journals an `ALERT` and completes the invocation as one that cannot complete (`checkpoint_mismatch`, above), `decide` never called.
+* **Serialization.** One strategy, one host, one thread: invocations run one at a time in trigger order, handoff included, as legacy's single-flight loop (`src/runtime/worker_host/__init__.py:515-519`). A new trading date is a new scope (I-W5).
+
+#### The pass (`StrategyHost.run_pass`)
+
+1. **Schedule (Fork call).** `next_pass_delay(pass_secs, now_epoch, lag_secs)` is legacy's `seconds_to_next_pass` exactly, with `lag_secs` the view policy's `wdef.lag` in seconds (POL-019's lag, the same value) and `pass_secs` `strategies.host.pass_secs`. `StrategyHost.run(stop)` sleeps that, through an injected `sleep`, and runs a pass, until `stop()`.
+2. **Faulted pass (Fork call, RFL `:8103-8117`).** A pass whose `kernel.alive()` is false, or whose discovery view cannot be resolved (an unreadable store), walks nothing and records nothing.
+3. **Pending handoffs first.** Every invocation of this process left `COMPLETED` by a kernel fault in an earlier pass is resolved as recovery resolves CP-W2 (below) before any new window, in trigger order.
+4. **Discovery.** `discovery = resolve(reader, policies, policy, underlying, now)`; the newest confirmed window is `discovery.anchor`. If `discovery.final(underlying, anchor)` is false, the host sleeps `strategies.host.seal_wait_ms` once and resolves again. The windows walked are the bars of `discovery.bars(underlying)` with a start after the scope's `last_trigger`, oldest first, stopping before the first bar that is not `discovery.final(...)`, so no newer window is walked before an older unsealed one.
+5. **Per window, one view per trigger (Fork call).** `view = resolve(reader, policies, policy, underlying, confirm_at(trigger, wdef))`. Its bars must end at the trigger, else the pass stops before this window. `bar_index` is the trigger bar's position in `view.bars(underlying)`. Below `warmup_bars`: `WARMUP` journalled, `last_trigger` moved, no invocation and no decision (`RUN:100-102`). Otherwise the invocation runs and is handed off before the next window.
+
+#### The output (Fork calls 7 and 8)
+
+* **`ENTER`** becomes `Intent(intent_id=invocation_id, strategy=id, family, strategy_version=version, session_id, candidate_id, view_id, underlying, as_of=Timestamp(trigger, "exchange"), direction="long_call" for CE or "long_put" for PE, structure_id="single_long_option", market_bias="bullish" or "bearish", scores=(("signal_score", s), ("iv_rank", None), ("conviction", repr(conviction))))`, `s` = `repr(float(score or 0.0))` under `signal_score`, `repr(conviction * 100)` under `conviction_x100`; `evidence_refs` empty.
+* **`NOTHING`**, and every error, becomes the abstention `{"kind": "abstention", "invocation_id", "strategy", "session_id", "trigger", "cause": "no_signal" or "strategy_error", "reason", "components", "tags"}`, never submitted.
+
+#### The handoff
+
+For each `COMPLETED` invocation, each step's flag committed before the next starts:
+
+1. `published`: `kernel.publish(output)`; the digest is the intent's `intent_ref` (`intent_digest` is the digest of its wire form);
+2. `decision_recorded`: `kernel.record_decision(DecisionRecord(..., trigger, kind="ENTER" or "NOTHING", evidence_ref=digest))`, for every invocation (Fork call 20: legacy planned only the ENTER rows its decisions file held, RFL `:6828`, `:6832-6839`):
+   * `"recorded"` or `"existing"`: the flag is set and the handoff continues;
+   * `KernelUnavailable`, `WriterLost` or `CommitFailed` raised: the pass faults here (below);
+   * any `Refusal`: an `ALERT` is journalled and nothing more is sent for it: an abstention is `RECORDED`; an `ENTER` is `ABANDONED` (`decision_unrecorded`), never reviewed and never submitted;
+3. `review_requested`: for an intent, whatever the authority, `reviews.request(intent_ref)` (Fork call 12) through `ReviewPort.request(intent_ref) -> None | Refusal`. `None` sets the flag. A returned `Refusal` or any exception is a failed request (Fork call 16): an `ALERT` is journalled and the host calls `kernel.record_unavailable(intent_ref, "review_request_failed")` at once, so the kernel freezes `proceed_unavailable` with its alert and the first `submit` is decided on its other checks, with no `ADM-R15` and no retry sleep. Its `"recorded"`, `"existing"` or `"not_required"` sets the flag; a `Refusal` journals a second `ALERT` and the handoff continues (the kernel's deadline then applies); `KernelUnavailable`, `WriterLost` or `CommitFailed` faults the pass;
+4. for an intent under the row's authority `trade`: `submitting` set, then `kernel.submit(EntryRequest(CommandKey(invocation_id), principal, account, FinancialSessionId(SessionScope(account, calendar_id), date), intent_ref))`, the answer classified below;
+5. `RECORDED` for an abstention or an intent under `none` or `plan` (slice Deviation 8), else the classification's terminal state.
+
+A fault in steps 1–3 (`KernelUnavailable`, `WriterLost` or `CommitFailed`) stops the pass there (faulted), the invocation staying `COMPLETED` with the flags already set; the next pass resolves it first (pass step 3, as recovery's CP-W2 row: a publish or decision record not done is retried; Fork call 11 then applies), before any new window.
+
+**The kernel's answers.** The retry bound is the trigger bar's stamp under admission's `market.view_age_stamp` (`bar_close`: trigger + 60 s; `bar_open`: the trigger) plus `market.max_view_age_secs`, the kernel's own settings, read by the host's composition; no new value. Retries sleep `strategies.host.review_retry_ms`.
+
+| Answer (`Outcome`) | Host action |
+|---|---|
+| `refusal` `None` (admitted, or an existing command's outcome) | `HANDED_OFF` |
+| `canonical` `committed` with a refusal (any recorded check) | `HANDED_OFF` |
+| `ADM-R15` | Retry; the kernel's review deadline ends it with a recorded answer |
+| `ADM-R12` | Retry until the bound; then `ABANDONED` (`busy_until_stale`), slice Deviation 6 |
+| `canonical` `commit_failed` | Retry until the bound; then `ABANDONED` (`commit_failed`) |
+| `LED-R02` | `ABANDONED` (`idempotency_conflict`) with an `ALERT` |
+| Any other unrecorded refusal | `command_status`: known, `HANDED_OFF` with it; none, `ABANDONED` (`unrecorded:<code>`) |
+| `KernelUnavailable` or `WriterLost` | `command_status`: known, `HANDED_OFF`; none, retry until the bound, ask once more, then `ABANDONED` (`outcome_unknown`) |
+
+#### Recovery (`StrategyHost.recover`, before the first pass)
+
+| Found | Point | Result |
+|---|---|---|
+| `PLANNED` | before CP-W1 | Resolve the trigger's view as the pass does, then as CP-W1 |
+| `RESOLVED` | CP-W1 | Re-run on the same `view_id` (reopened by identity), `attempt` 2, from the restored state (`reset_on_restart`: empty, after `STATE_RESET`) |
+| `COMPLETED`, any of `published`, `decision_recorded`, `review_requested`, `submitting` | CP-W2…CP-W5 | Publish if not published and record the decision if not recorded (legacy's row was already durable), its answer classified as in handoff step 2 (a refusal: `ALERT`, an abstention `RECORDED`, an `ENTER` `ABANDONED` `decision_unrecorded`; a fault: left `COMPLETED`); request no review; then `command_status(invocation_id)`: known, `HANDED_OFF` with it (A05-F2: never resubmitted as new); none, `RECORDED` for an abstention or an intent under `none` or `plan`, else `ABANDONED` (`host_restart`), not submitted (Fork call 11) |
+
+#### The host's composition (`bootstrap.py`)
+
+* `HostSettings(pass_secs: int, seal_wait_ms: int, review_retry_ms: int)`, frozen; `None` raises `RefusingParameterUnbound("strategies.host.<key>")`, a value not an int of at least 1 `ValueError`. SLICE-11 binds them through the loader (`seal_wait_ms` and `review_retry_ms` measured by TASK-S11-07; `pass_secs` from step 3's characterization).
+* `compose_strategy_host(settings, host: HostSettings, *, registry, strategy_id, kernel, reviews, market_path, view_policies, store_path, clock, sleep, fault_point=None) -> StrategyHost` refuses, before opening anything: a `strategy_id` with no `runnable` registration (`STR-R14`, `not_runnable`); a descriptor whose `view_policy` is not bound (`RefusingParameterUnbound("market.views.<name>")`); unbound `market.view_age_stamp` or `market.max_view_age_secs`. It imports `<package.module>.<stem>` with `importlib` only now, for that one accepted strategy (one strategy per host, Fork call 14), then opens the store and runs `recover()`.
+* The host's principal is `Principal(f"strategy:{id}", "service")`; its `entry` grant on the row's account is recorded by a human holding `grant_admin`; class S tests use a synthetic grant. `bootstrap.InProcessKernel(composition, principal)` implements `KernelPorts` (`alive`, `publish` through the kernel's `EvidenceStore`, `record_decision` and `record_unavailable` through the coordinator's routes, `submit` through `Coordinator.admit_entry`, `command_status`) in process; SLICE-10's channel replaces it. `kernel.alive()` is `True` in process.
+* `fault_point` names CP-W1…CP-W5; the host exits 86 there (`os._exit`), as the market store's crash seam.
+
+#### EMA cross (`strategies/ema_cross.py`)
+
+Legacy's `EmaCrossover` and `_ema` copied unchanged (`src/strategies/ema_crossover.py:80-205`): `FAST` 9, `SLOW` 21, `MIN_SEPARATION` 0.0002 and `FULL_SEPARATION` 0.004 are the strategy's own constants, so another value is another strategy version (Fork call). `decide` returns `Signal` in place of legacy's `Intent` with the same kind, direction, conviction, reason, components and tags; `score` `None`. Its descriptor: id `ema_cross`, `decision_method` `deterministic`, `warmup_bars` 64 (`SLOW * 3 + 1`), `state` `stateless`/`recompute`, `score_source` `signal_score`, `requested_authority` `none`; registered disabled (slice Not ported note).
+
+#### Codes
+
+| Code | Message | When |
+|---|---|---|
+| `STR-R12` | `store_lock_held` | A second host for one strategy store |
+| `STR-R13` | `store_mismatch` | A store of another schema or strategy |
+| `STR-R14` | `not_runnable` | The composition names a strategy with no runnable registration |
+
+Host causes (`predecessor_moved`, `checkpoint_mismatch`, `decision_unrecorded`, `busy_until_stale`, `commit_failed`, `idempotency_conflict`, `unrecorded:<code>`, `outcome_unknown`, `host_restart`) are recorded on the invocation; only `predecessor_moved` and `checkpoint_mismatch` also leave it, as the reason of the published `strategy_error` abstention. `review_request_failed` is the cause the host sends with `record_unavailable`.
+
+#### Fork calls and Deviations in this step
+
+* **Fork calls:** the pass formula and lag (1); one view per trigger (2); the score mapping and `or 0.0` (7); abstentions never submitted (8); `setup_fresh` from the previous recorded decision, `False` when not recorded (9); BuyerEdge-style state reset at restart (10); a decision completed but not sent before a crash or a kernel fault not sent afterwards (11); a review for every intent (12); one strategy per host (14); a faulted pass walks nothing (15); a failed review request recorded with the kernel as unavailable at once, never waiting out the deadline (16); EMA cross's constants; and, new in this step, **Fork call 20: an `ENTER` the kernel did not record is never reviewed or submitted** (RFL `:6828`, `:6832-6839`: legacy planned only rows its decisions file held), entered in the slice's Fork calls list when the step is recorded as built.
+* **Deviations:** slice Deviations 4–8 as they apply; a refused `record_unavailable` journals an alert and leaves the kernel's deadline to run; a pass that cannot confirm a window's bar against its own view stops before it; the decision record is a ledger projection, where legacy kept a file.
+
+### Tests
+
+`tests/unit/test_strategy_invocation.py` (T-51) and the CP-W rows of `tests/recovery/test_crash_boundaries.py`. Every value is labelled synthetic; every expectation is computed by hand. Instants are IST on 2026-11-02 (a Monday). Strategies come from a `tmp_path` test package (step 1's `simpkg` pattern) holding scripted strategies whose `decide` returns a `Signal` read from a per-test script, plus EMA cross. Kernel worlds are SLICE-08 step 5's store world (`conftest.build` with a market store, a `live` policy, a session for `NSE-FO` on the date, `ai_mode` `off` unless a case says otherwise), its helper repeated in the file; unit cases of the handoff use `ScriptedKernel`, a `KernelPorts` double returning scripted answers. `HostSettings(20, 500, 1000)` and `market.max_view_age_secs` 90 with `view_age_stamp` `bar_close` (synthetic, as POL-018's approved 90).
+
+| Group | Cases |
+|---|---|
+| Identity | For candidate `"c" * 64`, session `sim:acct-sim:NSE-FO:2026-11-02`, strategy `sim_alpha`, underlying `NIFTY-SYN`, policy `live` version `1`, trigger 10:41: the ID equals `"inv1:" + sha256` of the canonical list written in the test with `json.dumps(sort_keys=True, separators=(",", ":"))`; 69 characters, `CommandKey` accepts it; another policy version or trigger gives another ID; a retry after CP-W1 keeps it |
+| Schedule | `next_pass_delay(20, t, 7)` at `t` with `t % 60` 7.0 gives 20.0; 10.0 gives 17.0; 50.0 gives 17.0; 6.98 gives 0.05; `pass_secs` 0 is refused by `HostSettings`, and `next_pass_delay(0.5, …)` uses 1.0 (legacy's floor) |
+| Windows and seal wait | Bars at 10:40, 10:41, 10:42 (the minute pattern of SLICE-08 step 6); a pass at 10:43:07 before the 10:43:07 seal commit sleeps `seal_wait_ms` once (recorded `sleep(0.5)`), finds 10:42 still not final and walks 10:40 and 10:41 only; the next pass walks 10:42. Each window's `view_id` names the cutoff at its own confirmation instant (10:41:07, 10:42:07) and differs from the others; a pass at a later instant re-deciding nothing (cursor) |
+| Warm-up | `warmup_bars` 2: the day's first two bars are `WARMUP` in the journal with no invocation and no `DECISION_RECORDED`; the third is decided with `bar_index` 2 |
+| One view per trigger with the kernel (PRF-STR-02) | `authority` `trade`, ENTER at 10:41: admitted, the plan's chain the 10:41 poll, `measured_ages.view_ms` from the 10:41 bar's close. A catch-up: the 10:41 bar sealed only at 10:43:40 and decided by the pass at 10:43:47: the planner is called once (stage P runs before stage B), then `ADM-R05` is recorded at check `B1` (the bar's close is 107 s old against 90), `HANDED_OFF` with it |
+| States and invariants | I-W1: a second `complete` from predecessor 3 after the head moved to 4 stores the `strategy_error` abstention with reason `predecessor_moved`, `revision` NULL and no `state` row, head revision still 4 and `last_trigger` moved to its trigger, in one transaction; it is published and recorded with the kernel once as `NOTHING`, never reviewed or submitted, and ends `RECORDED` with cause `predecessor_moved`; I-W2: a recomputed different `result_id` journals `RESULT_CONFLICT` and keeps the output; I-W3: across every case, at most one `COMMAND_ADMITTED` or `ADMISSION_REFUSED` per invocation ID; I-W4: a revision exists only with its output; I-W5: the next trading date starts scope revision 1 |
+| Output mapping | ENTER CE with score 47.0 and conviction 0.47 under `signal_score`: scores `("47.0", None, "0.47")`, `long_call`, `bullish`, `as_of` the trigger; score `None`: `"0.0"`; under `conviction_x100` with conviction 0.47: `repr(0.47 * 100)`; PE gives `long_put`, `bearish`; a raising `decide` and a `Signal` with conviction 1.5 each give an abstention with cause `strategy_error` and the text |
+| Handoff order | Per invocation: `publish`, `record_decision`, `request` (intents only), `submit` (`trade` only), in that order; `none` and `plan`: recorded, review requested, never submitted; an abstention: published and recorded, no review, no submit |
+| Kernel answers | `ScriptedKernel` returning: admitted; a recorded `ADM-R13`; `ADM-R15` twice then admitted (two sleeps of 1.0); `ADM-R12` until the bound (trigger 10:41, bound 10:43:30: the last retry before it, then `busy_until_stale`); `commit_failed` likewise; `LED-R02` (`idempotency_conflict` and an alert); an unrecorded `DOM-R06` with a known command (adopted) and with none (`unrecorded:DOM-R06`); `KernelUnavailable` with the key known (adopted) and unknown (retried, asked again, `outcome_unknown`). Every retry carries the same command key and request digest. `record_decision` answering: `"existing"` (the handoff continues); a `Refusal` (`ADM-R01`) for an `ENTER` under `trade` (an `ALERT`, `ABANDONED` `decision_unrecorded`, no `request`, no `submit`) and for an abstention (an `ALERT`, `RECORDED`); `KernelUnavailable`, `WriterLost` and `CommitFailed` raised (the pass faulted, no later window walked, the invocation `COMPLETED`; the next pass calls `record_decision` for it first, before any new window) |
+| Review request failure (Fork call 16) | `ScriptedKernel`: `request` returning a `Refusal` and `request` raising each give an `ALERT` and one `record_unavailable(intent_ref, "review_request_failed")` before `submit`. Kernel world with `ai_mode` `enforce_entry_holds`, review required, `authority` `trade`, ENTER at 10:41 and a failing `request`: the first `submit` is admitted with application `proceed_unavailable`, cause `review_request_failed`, `alert` true; no `ADM-R15` is returned, no sleep is recorded, and one `REVIEW_UNAVAILABLE` is in the ledger. `record_unavailable` after a review was recorded for the intent: `"existing"`, the review's application kept; with `ai_mode` `off`: `"not_required"`, no event; a cause `"Bad Cause"`: recorded as `team_unavailable`; principal `strategy:other`: `SES-R02` |
+| Decision record and `setup_fresh` (PRF-STR-02) | In one session: NOTHING at 10:00, ENTER at 10:01 (fresh), ENTER at 10:02 (not fresh), NOTHING at 10:03, ENTER at 10:04 (fresh); the session's first decision an ENTER at 09:16 (fresh); an intent with no record (`False`); after a host restart and kernel recomposition over the same ledger, the same answers; an abandoned decision still recorded and counted. `record_decision` twice with the same fields: `"existing"`, one event; with another `kind`: `LED-R02`. Refused: an unauthenticated principal (`SES-R01`), an `auth` carrying an operator request (`SEC-R09`), principal `strategy:other` (`SES-R02`), an unknown session and evidence of another invocation (`ADM-R01`); an `ENTER` record whose `trigger` is 10:02 for an intent with `as_of` 10:01, and a `NOTHING` record whose `trigger` differs from its abstention's (`ADM-R01`); a second invocation ID at the 10:01 trigger of the same strategy and session (`LED-R02`, one `decision` row). Two `DECISION_RECORDED` events at one `(strategy, session_id, trigger)` committed straight through the writer: the second does not commit (the unique index). A coordinator composed without admission: `record_decision` and `record_unavailable` raise `RuntimeError`. The account `authority.check` receives is the session row's, decoded. With `require_fresh_setup` true in the bound limits, the 10:02 ENTER is refused by the planner (`ADM-R13`, stage `session_gates`), as legacy |
+| Restoration | `reset_on_restart`: a restart journals `STATE_RESET` per scope and the strategy object is new; `checkpoint`: a body restored and its digest checked; a tampered body journals an `ALERT`, `decide` is not called, and the invocation stores the `strategy_error` abstention with reason `checkpoint_mismatch` and `last_trigger` moved, in one transaction, is recorded with the kernel once as `NOTHING`, and ends `RECORDED`; the next window is decided |
+| Composition | Unbound `pass_secs`, `seal_wait_ms`, `review_retry_ms`, view policy, `view_age_stamp` or `max_view_age_secs`: `RefusingParameterUnbound` naming it; a disabled row: `STR-R14`; the module is imported only for the accepted strategy (an import spy sees no other); a second host on one store: `STR-R12`; `kernel.alive()` false: the pass walks nothing |
+| EMA cross | 65 bars from 09:15, each close 100.0 but the last 101.0, `warmup_bars` 64: bars 0–63 `WARMUP`; bar 64 ENTER CE with `fast_now = 101.0 * 0.2 + 100.0 * 0.8`, `slow_now = 101.0 * (2 / 22) + 100.0 * (1 - 2 / 22)` (`k = 2 / (span + 1)`), `fast_prev = slow_prev = 100.0`, `gap = (fast_now - slow_now) / slow_now` and conviction `min(1.0, abs(gap) / 0.004)`, each written in the test as these float expressions; a flat series gives NOTHING with reason `no cross; separation +0.000%` |
+| Crash points (PRF-STR-03; `test_crash_boundaries.py`) | A real host subprocess (the file run as a script, as its CP-L and CP-M rows) killed at each point, then the kernel and host recomposed in process over the same files: CP-W1 re-runs with `attempt` 2 on the same `view_id`; CP-W2 and CP-W3 publish and record once, no review, `ABANDONED` (`host_restart`), no command; CP-W4 (killed after `admit_entry` returned, before `HANDED_OFF`) adopts the kernel's command, never a second; CP-W5 (killed during `ADM-R15` retries) adopts or abandons as the kernel holds; every completed decision recorded exactly once |
+
+**Changed existing tests:** any test that lists the event kinds, the index tables or the shipped migrations gains `DECISION_RECORDED`, `REVIEW_UNAVAILABLE`, `decision` and migration 8; the builder names each in the as-built table.
+
+### Break checks
+
+Each is applied with its anchor checked first (exactly one occurrence; the exact text recorded in the as-built table), one at a time, run against `test_strategy_invocation.py` and `test_crash_boundaries.py`, and restored byte for byte with an md5 check.
+
+| Change | Anchor | Test that must fail |
+|---|---|---|
+| One view for every window of a pass (the discovery view) | `worker.py`, the per-window `resolve` | Windows and seal wait; One view per trigger |
+| `scope_head` moved without the predecessor guard | `worker.py`, the `COMPLETED` update's `WHERE revision = ?` | States and invariants (I-W1) |
+| A fresh identity on retry (the attempt in the identity) | `worker.py`, `invocation_id` | Identity; Crash points (CP-W1) |
+| A `|` in the ID (`inv1|`) | `worker.py`, the `"inv1:"` prefix | Identity |
+| Resubmitting after CP-W2 | `worker.py`, `recover`: the no-command branch | Crash points (CP-W2) |
+| An abstention not recorded with the kernel | `worker.py`, the handoff's `record_decision` condition | Handoff order; Decision record |
+| `ADM-R12` retried past the bound | `worker.py`, the retry-bound comparison | Kernel answers |
+| A newer window walked before an older unsealed one | `worker.py`, the stop at the first non-final bar | Windows and seal wait |
+| Warm-up windows decided | `worker.py`, the `warmup_bars` comparison | Warm-up |
+| The review requested only under `trade` | `worker.py`, the review condition | Handoff order |
+| A refused decision record lets the `ENTER` go on to review and submit | `worker.py`, the decision-record refusal branch | Kernel answers (`decision_unrecorded`, no `request`, no `submit`) |
+| A decision-record fault treated as a refusal (the pass walks on) | `worker.py`, the decision-record fault branch | Kernel answers (the pass faulted) |
+| A failed review request left to the kernel's deadline (`record_unavailable` not called) | `worker.py`, the review-failure branch | Review request failure |
+| `record_unavailable` overwriting an application already frozen | `policy.py`, `record_unavailable`'s `"existing"` branch | Review request failure |
+| An `ENTER` record accepted with a trigger other than its intent's `as_of` | `policy.py`, the `ENTER` trigger comparison | Decision record |
+| A `NOTHING` record accepted with a trigger other than its abstention's | `policy.py`, the `NOTHING` trigger comparison | Decision record |
+| A second invocation at one trigger recorded | `policy.py`, the same-trigger `LED-R02` branch | Decision record |
+| `decision_by_trigger` created without `UNIQUE` | `008_decisions.sql`, the index | Decision record (the writer case) |
+| An invocation that cannot complete left unrecorded, `last_trigger` unmoved | `worker.py`, the `predecessor_moved` and `checkpoint_mismatch` completion | States and invariants (I-W1); Restoration |
+| The score without legacy's `or 0.0` | `worker.py`, the `signal_score` mapping | Output mapping |
+| The pass delay without `max(0.05, …)` | `worker.py`, `next_pass_delay` | Schedule |
+| `setup_fresh` true for an unrecorded intent | `policy.py`, `setup_fresh`'s not-found branch | Decision record |
+| `setup_fresh` from the latest decision of the session, not the one before | `policy.py`, the `trigger <` bound | Decision record |
+| `setup_fresh` taken from the fixture (`RecordedSetup` not composed) | `bootstrap.py`, the `RecordedSetup` wrap | Decision record (the planner refusal) |
+| `record_decision` trusting the payload principal | `coordinator.py`, the authentication | Decision record (`SES-R01`) |
+| A changed decision overwriting the first | `policy.py`, the `LED-R02` branch | Decision record |
+| CP-W4 resubmitted as a new command | `worker.py`, `recover`: the known-command branch | Crash points (CP-W4) |
+
+### Files
+
+| File | Change |
+|---|---|
+| `src/autonomous_trading/strategies/worker.py` | New: `Signal`, `BarContext`, `Series`, `StrategyStore`, `KernelPorts`, `ReviewPort`, `KernelUnavailable`, `invocation_id`, `next_pass_delay`, `StrategyHost` (`run_pass`, `run`, `recover`) |
+| `src/autonomous_trading/strategies/ema_cross.py` | New: legacy's EMA crossover and its `DESCRIPTOR` |
+| `src/autonomous_trading/contracts/decisions.py` | `DecisionRecord` |
+| `src/autonomous_trading/kernel/policy.py` | `record_decision`, `record_unavailable`, `setup_fresh`, `RecordedSetup` |
+| `src/autonomous_trading/kernel/coordinator.py` | `record_decision`, `record_unavailable` |
+| `src/autonomous_trading/kernel/ledger/projections.py`, `src/autonomous_trading/kernel/ledger/store.py`, `src/autonomous_trading/kernel/ledger/schema.py` | The `decision` table, its fold, family, key and load; migration 8 |
+| `src/autonomous_trading/resources/events.schema.json` | `DECISION_RECORDED`, `REVIEW_UNAVAILABLE` |
+| `src/autonomous_trading/resources/migrations/` | `008_decisions.sql` (T-96) |
+| `src/autonomous_trading/bootstrap.py` | The `RecordedSetup` wrap; `HostSettings`, `compose_strategy_host`, `InProcessKernel` |
+| `tests/unit/test_strategy_invocation.py` | New (T-51) |
+| `tests/recovery/test_crash_boundaries.py` | The CP-W rows and their child |
+
+### Completion conditions (step 2)
+
+* Every test above passes, twice in a row, with the whole suite; every break check fails a listed test, and every file is restored (md5); `ast.parse` passes on every edited Python file and `json.loads` on `events.schema.json`.
+* `git diff --stat` against the branch head at the start of step 2 names only the files above.
+* PRF-STR-02's clauses each pass a group (Identity; States and invariants; Warm-up; Handoff order; Kernel answers; Review request failure; One view per trigger; Decision record and `setup_fresh`; Windows and seal wait; Schedule), and PRF-STR-03's CP-W rows pass Crash points.
+* The coordinator has decided the intent spec's carried text, and the module index carries the migration's tree delta.
 
 ## Step 3 — BuyerEdge (outline)
 
