@@ -85,6 +85,7 @@ Each keeps legacy's live behaviour because it touches entries, sizes or review s
 17. **A required role that does not contribute**, whatever its outcome, makes the review `unavailable`; an optional one is omitted (`team.py:916-925`, `:1435-1473`; `child.py:41-54`).
 18. **Review deadline:** the blueprint's `deadline_seconds`, at most 300 s per team and 120 s per role (`service.py:279-282`; `blueprint.py:118-121`).
 19. **Management context sources** keep their 300 s freshness (RFL `:4481`, `:4496`).
+20. **An ENTER the kernel did not record is never reviewed or submitted** (RFL `:6828`, `:6832-6839`): legacy planned only the decisions its file held. A refused decision record journals an alert; the abstention is recorded, the ENTER abandoned (`decision_unrecorded`); a kernel fault leaves the decision to be recorded first on the next pass.
 
 **Not a fork: deciding on the sealed bar.** The pass decides a window only once SLICE-08 has sealed it, waiting at most `strategies.host.seal_wait_ms`. That changes the bar legacy decided on (legacy read the ticks flushed by the confirmation point, RFL `:3424-3427`), and it is the owner-approved Q-030 rule applied by SLICE-08, not a fork. Step 3's parity walks include bars at the seal boundary, where a tick arrived on time but after legacy's flush, so the difference is visible and bounded.
 
@@ -502,7 +503,7 @@ Host causes (`predecessor_moved`, `checkpoint_mismatch`, `decision_unrecorded`, 
 
 #### Fork calls and Deviations in this step
 
-* **Fork calls:** the pass formula and lag (1); one view per trigger (2); the score mapping and `or 0.0` (7); abstentions never submitted (8); `setup_fresh` from the previous recorded decision, `False` when not recorded (9); BuyerEdge-style state reset at restart (10); a decision completed but not sent before a crash or a kernel fault not sent afterwards (11); a review for every intent (12); one strategy per host (14); a faulted pass walks nothing (15); a failed review request recorded with the kernel as unavailable at once, never waiting out the deadline (16); EMA cross's constants; and, new in this step, **Fork call 20: an `ENTER` the kernel did not record is never reviewed or submitted** (RFL `:6828`, `:6832-6839`: legacy planned only rows its decisions file held), entered in the slice's Fork calls list when the step is recorded as built.
+* **Fork calls:** the pass formula and lag (1); one view per trigger (2); the score mapping and `or 0.0` (7); abstentions never submitted (8); `setup_fresh` from the previous recorded decision, `False` when not recorded (9); BuyerEdge-style state reset at restart (10); a decision completed but not sent before a crash or a kernel fault not sent afterwards (11); a review for every intent (12); one strategy per host (14); a faulted pass walks nothing (15); a failed review request recorded with the kernel as unavailable at once, never waiting out the deadline (16); EMA cross's constants; an `ENTER` the kernel did not record never reviewed or submitted (20).
 * **Deviations:** slice Deviations 4–8 as they apply; a refused `record_unavailable` journals an alert and leaves the kernel's deadline to run; a pass that cannot confirm a window's bar against its own view stops before it; the decision record is a ledger projection, where legacy kept a file.
 
 ### Tests
@@ -585,6 +586,33 @@ Each is applied with its anchor checked first (exactly one occurrence; the exact
 * `git diff --stat` against the branch head at the start of step 2 names only the files above.
 * PRF-STR-02's clauses each pass a group (Identity; States and invariants; Warm-up; Handoff order; Kernel answers; Review request failure; One view per trigger; Decision record and `setup_fresh`; Windows and seal wait; Schedule), and PRF-STR-03's CP-W rows pass Crash points.
 * The coordinator has decided the intent spec's carried text, and the module index carries the migration's tree delta.
+
+### Step 2 as built
+
+**In plain words.** The program that runs one strategy now exists. It decides each final bar on its own snapshot, writes the decision down, tells the kernel, and sends an entry only for a strategy allowed to trade. The kernel now keeps every decision and judges "fresh setup" from that record.
+
+Commit `e4948d0` on `slice-08`, on top of `ee6aec9` (SLICE-10 step 4). It changes 14 files (2,401 lines added). Not pushed.
+
+**Choices and corrections made while building:**
+
+| Topic | As built |
+|---|---|
+| Identity text | The ID is `inv1:` plus 64 lower-case hex digits; the text's "69 characters of `[0-9a-f:]`" overlooked the `i`, `n` and `v` of the prefix |
+| Crash points | CP-W1 after `RESOLVED`; CP-W2 after `COMPLETED`, before publishing; CP-W3 after the decision is recorded; CP-W4 after `submit` returns; CP-W5 after the first `ADM-R15` |
+| Retry bound | A retry is made only when it lands strictly before the bound (bound 10:43:30: last submit 10:43:29, 83 submits) |
+| `record_unavailable` signatures | `Coordinator.record_unavailable(intent_ref, cause, principal, *, auth=None)` and `Policy.record_unavailable(intent_ref, cause, auth, principal)`: the principal has no record to come from |
+| Composition | `compose_strategy_host` also takes `packages` (default `(PRODUCTION,)`): the registry holds no map from a package label to its module |
+| Gaps the text left open | A `RESOLVED` invocation whose view cannot be reopened faults the pass. A failing `checkpoint()` keeps the predecessor's state body |
+| EMA cross descriptor | View policy `ema_cross`, underlying `NIFTY`, fields `bars`, `code: ["worker"]` (it imports `Signal`); registered with no row, so never runnable |
+| Existing test changed | `tests/unit/test_strategy_registry.py`: three assertions narrowed, because the production package now registers EMA cross. This file is outside the step's file list |
+| Event, table and migration lists | No existing test needed a change: their counts derive from `MIGRATIONS` and the schema |
+| Windows test | Extended with a window sealed but not yet final, so the stop at the first non-final bar can be broken |
+
+**Tests:** `tests/unit/test_strategy_invocation.py` (44 cases) and 5 CP-W rows in `tests/recovery/test_crash_boundaries.py`. A targeted run on the owner's new routine passed 552 cases: the step's files plus the existing registry, review, admission, ledger, envelope, planner, projection, restore, session, market-port, entry-outcome, shared-engine, dispatch and capability tests. The full suite was not run (the coordinator decides). `ast.parse` passes on every edited Python file and `json.loads` on `events.schema.json`.
+
+**Break checks** (`s09b_breaks.py`): all 28 failed a listed test, and every file was restored (md5). These are the table's 19 plus 9 added for R-1 to R-5: a decision-record fault treated as a refusal; a failed review request left to the deadline; `record_unavailable` overwriting a frozen application; either trigger check removed; a second invocation at one trigger; `decision_by_trigger` without `UNIQUE`; an invocation that cannot complete left unrecorded; `SEC-R09` not applied.
+
+**Open:** the intent spec's carried text and the module index's tree delta for `008_decisions.sql` (the coordinator's).
 
 ## Step 3 — BuyerEdge (outline)
 

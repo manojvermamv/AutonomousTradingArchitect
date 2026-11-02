@@ -1697,17 +1697,404 @@ Commit `ee6aec9` on `slice-08`, after `8eb3a12` (SLICE-09 step 1), which touched
 
 **Break checks** (`s10d_breaks.py` in the session scratchpad; anchors checked first, one mutation at a time, every file restored byte for byte, md5 verified): 36 of 36 failed a listed test. They are the table's rows, plus "an `Authenticated` copied with a borrowed request in `kernel/coordinator.py`", which proves the moved docstring check (`test_authenticated_never_replaced`).
 
-## Step 5 — the kernel's local channel (outline)
+## Step 5 — the kernel's local channel
 
-Deepened after step 4 is built. Authority: the spec's [kernel channel](../../design/security-and-operator.md#the-kernels-local-channel-adaptersunix_channelpy).
+<a id="step-5--the-kernels-local-channel-outline"></a>
 
-* **Builds:** `adapters/unix_channel.py`, server and client, with:
-  * socket and directory checks;
-  * `SO_PEERCRED`, the unit's main pid and own uid, and process identity;
-  * the exact contract version and release digest;
-  * the epoch on every reply.
-* **Tests:** `tests/integration/test_unix_channel.py` (tree delta **T-62**), Linux only, run where the slice header says.
-* **Done when:** PRF-SEC-05 passes in a Linux run.
+The authorities are the spec's [kernel channel](../../design/security-and-operator.md#the-kernels-local-channel-adaptersunix_channelpy) section, the kernel-socket row of its [channel table](../../design/security-and-operator.md#channels-and-principals-interfacesauthorizationpy), its [refusal codes](../../design/security-and-operator.md#refusal-codes) (`SEC-R10`, `SEC-R11`, `SEC-R12`), F-SEC7 and F-SEC9 in its [failure modes](../../design/security-and-operator.md#failure-modes-and-crash-points), REQ-SEC-007 and A02-F1 (`README.md:901`). The hand-off rule is the runtime spec's [kernel host](../../design/runtime-isolation-observability-deployment.md#the-kernel-host-kernelhostpy) (`submit`). Step 5 builds on steps 1–4 as built (`726ff6e`, `cb439ce`, `ba2face`, `ee6aec9` on `slice-08`). It adds one module, its test file and one line of an existing guard. It changes no kernel module, ledger table, event kind, setting or composition: the kernel's checks are step 2's, and the channel only carries requests to them. Every `OA_NEW` citation is at `ee6aec9`; every legacy citation is at 445eb116, relative to the legacy repository root.
+
+**In plain words.** This step builds the private door into the kernel. Only two kinds of program may use it: the operator process, which passes on what you asked for at `at` or in the console, and the strategy host, which hands in trade ideas. The kernel asks the operating system who is knocking: which user, whether it is the main process of an approved service, and whether it is still the same process. Your own terminal, or any other program, is turned away before the kernel is asked anything, as today's Tier-1 socket does. Every message must also name the exact version of the door and of the installed release; a program from another release is turned away. Your own requests pass exactly as before: the kernel still makes every check of steps 1 and 2, and the door adds none to who may trade. If an answer is lost on the way back, asking again gives the first answer and nothing happens twice. Stopping never needs this door: the kill file still works with nothing else running (step 4).
+
+### Decisions
+
+#### What the step closes
+
+| Hand-off | From | Where it is met |
+|---|---|---|
+| The channel calls `accept_relay` after its peer checks | step 1 | [The order of checks](#the-order-of-checks-channelcorehandle), row 12 |
+| A relayed human's `Authenticated` is built from `accept_relay` and `operator_request_from_wire`; a service's with `request=None, via=None` | step 2 | [Operations](#operations), `execute` and the service operations (`svc_auth`) |
+| `Authority.relays` is bound from `channel.relays` | step 2 | `ChannelPeers.relays()`, which SLICE-11's kernel composition passes to `Authority`. `ChannelCore` refuses to start when a relay peer's principal is not in `Authority.relays`, or a service peer's principal is in it ([The order of checks](#the-order-of-checks-channelcorehandle)) |
+| SLICE-09's strategy host reaches the kernel through `KernelPorts`; SLICE-10's channel replaces `bootstrap.InProcessKernel` | SLICE-09 step 2 | One service operation per `KernelPorts` method ([Operations](#operations)) |
+| The channel serves the `now` read (`effective_now`) that issues every request | step 2 | The `now` operation |
+| `adapters/unix_channel.py` joins both `Authenticated(` guards | step 2 | `tests/contracts/test_capabilities.py` (Files) |
+| A `Replayed` reply carries `replayed: true` | step 2 | [Replies](#replies) |
+| No change to the kill check, which is in-process | step 4 | The channel reads no kill input. `kill_status` reports `Safety`'s own state, and `at kill-switch on` writes the file before it asks anything (step 4) |
+
+`bootstrap.py`'s `KernelNow` and `Composition.relay` (`bootstrap.py:41-53`, `:86-92`) stay as the simulation's in-process stand-ins. Every test before this step keeps using them; no expectation changes.
+
+#### Peers (`adapters/unix_channel.py`)
+
+* `Peer(unit, uid, principal, role)`, frozen. Construction raises `ValueError` when:
+  * `unit` does not fully match `[^\s/]+\.service`, or starts with `user@` (step 1's unit rule, `interfaces/authorization.py:35`, `:66-68`);
+  * `uid` is not an int ≥ 0 (a bool refused);
+  * `principal` is not a `service` `Principal`;
+  * `role` is not `"relay"` or `"service"`.
+* `ChannelPeers(peers)` holds a tuple of `Peer`s. It raises `ValueError` when the tuple is empty, a unit appears twice, or a principal appears twice. Two units may share a uid: legacy ran every unit under one uid (`src/runtime/tier1_authority/service.py:204`), and SLICE-11 gives each its own.
+  * `relays() -> frozenset[Principal]`: the relay peers' principals.
+  * `uids() -> frozenset[int]`: every listed uid.
+* `parse_peers(section) -> ChannelPeers` reads a profile's `channel` section. Its shape is exactly `{"relays": {unit: {"uid": int, "principal": str}}, "services": {unit: {...}}}`: both keys present, each a mapping (possibly empty), and each entry exactly those two keys. Peers come in this order: the relays in sorted unit order, then the services in sorted unit order. Any other shape raises `ValueError` naming `channel` or `channel.<role>.<unit>`. `Settings` and the loader do not change. SLICE-11's live profile loader calls it, as it calls step 3's `parse_references`, and `channel.services` and `channel.relays` stay refusing there (the spec's [policy inputs](../../design/security-and-operator.md#policy-inputs)).
+
+#### Process facts (Linux)
+
+* `PeerCred(pid, uid)`, frozen, each an int ≥ 0 (bools refused). A pid of 0 is what `SO_PEERCRED` reports for a peer in another pid namespace.
+* `peer_cred(sock) -> PeerCred` is legacy's `peer` (`src/runtime/tier1_authority/channel.py:91-95`): `getsockopt(SOL_SOCKET, SO_PEERCRED, struct.calcsize("3i"))`, unpacked as `3i` into pid, uid and gid; the gid is dropped.
+* `process_identity(pid) -> dict` is legacy's, copied with its provenance (`src/core/framework/runtime/provenance.py:178-198`). It reads field 22 (`starttime`) of `/proc/<pid>/stat` after the last `)` and `/proc/sys/kernel/random/boot_id`, and returns `{"boot_id": str, "start_ticks": int}`. It returns `{}` when the stat file cannot be read or parsed, which is always the case off Linux.
+* `systemd_main_pid(unit) -> int | None` is legacy's MainPID query (`service.py:84-96`). Any `main_pid` returns `None` for a unit that is stopped. It runs `["systemctl", "show", "--property=MainPID", "--value", unit]` with `capture_output=True, text=True, timeout=2, check=False`, and `env=SYSTEMCTL_ENV`, where `SYSTEMCTL_ENV = {"PATH": "/usr/bin:/bin", "LC_ALL": "C"}`. It returns the stripped output as an int when the return code is 0, the output is all digits, and the value is above 0. It returns `None` otherwise, including on `OSError` or `TimeoutExpired`.
+  * A stopped unit's MainPID is `0`, so `None` keeps a namespaced peer (pid 0) from matching a stopped unit.
+  * The fixed environment applies step 3's Fork call "children never hold the broker key" to this child too. Legacy's authority ran `systemctl` with its whole environment, which held the broker key (`service.py:13-14`, `:88-90`).
+
+#### Frames
+
+* `MAX_MESSAGE = 4 * 1024 * 1024`: 4,194,304 bytes, the most a read buffer may hold (`channel.py:54`). Timeouts are legacy's: `CONNECT_TIMEOUT_S = 5.0` and `REPLY_TIMEOUT_S = 60.0` (`channel.py:55-58`), and `REQUEST_TIMEOUT_S = 10.0` for the server's read (`service.py:61`). None is a money value.
+* `encode(obj) -> bytes` is legacy's: `json.dumps(obj, sort_keys=True, separators=(",", ":"), allow_nan=False)` plus `"\n"`, as UTF-8, with ASCII escapes (`channel.py:67-69`).
+* `FrameError(reason)`, with `reason` one of `timeout`, `incomplete`, `oversize`, `encoding`, `json` and `not_object`.
+* `read_frame(sock, timeout_s) -> bytes`, legacy's loop (`channel.py:72-88`). Its cases:
+  * While the buffer holds no newline, it reads one `recv(65536)` chunk and appends it. After each append, a buffer of more than `MAX_MESSAGE` bytes is `oversize` and reading stops, **even when that chunk holds the newline** (`channel.py:75-81`, fork rule). So a line of 4,194,303 bytes plus its newline (a buffer of exactly 4,194,304) is read, and a line of 4,194,304 bytes plus its newline is `oversize`.
+  * It returns the bytes before the first newline. Bytes after it are discarded: one request per connection.
+  * End of stream before a newline is `incomplete`, and so is any other `OSError`.
+  * A socket timeout is `timeout`.
+* `decode_frame(line) -> dict`:
+  * strict UTF-8, else `encoding`;
+  * `json.loads` with a `parse_constant` that raises (`NaN`, `Infinity`, `-Infinity`), and an `object_pairs_hook` that raises on a repeated key at any depth; either is `json`;
+  * anything but a JSON object is `not_object`.
+* **The request** is exactly `{"contract", "release", "caller", "op", "body"}`:
+  * `contract`: the string `CONTRACT = "kernel-channel/1"`;
+  * `release`: the `bundle_digest` of the release the caller was built from;
+  * `caller`: exactly `{"pid", "process_identity"}`;
+  * `op`: an operation name;
+  * `body`: a JSON object.
+
+#### The order of checks (`ChannelCore.handle`)
+
+`ChannelCore(comp, *, peers, submit, main_pid, identity_of)` holds everything a reply depends on. It raises `ValueError` when:
+
+* `peers` is not a `ChannelPeers`;
+* a relay peer's principal is not in `comp.authority.relays`, or a service peer's principal is in it (`kernel/authority.py:119-121`, `:128`): a relay acts only for people, a service only for itself (step 2);
+* `comp.safety` or `comp.policy` is `None`: the channel serves only a kernel composed with admission;
+* `submit`, `main_pid` or `identity_of` is not callable.
+
+It reads at construction:
+
+* `self.epoch = comp.writer.epoch.value`;
+* `self.release`, the field **`bundle_digest`** of the `receipt` in the ledger's last `RELEASE_BOUND` (`kernel/recovery.py:143-145`, bound at `:211-217`). It must be 64 lower-case hex; when no `RELEASE_BOUND` exists, or its receipt has no such field, it raises `ChannelError("release")`.
+  * **Code only, never the receipt digest.** The receipt also holds `deployment` and `settings_revision` (the configuration spec's release receipt), so its `receipt_digest` changes with a deployment key or a setting while the code stays the same. `bundle_digest` is `sha256(canonical(artifact))` over the code, dependencies, resources and templates only, with the Git SHA outside it (configuration spec, bundle manifest). Legacy also compared the code revision only (`service.py:291-297`). So changing a setting never turns a peer away; only a peer built from other code is. SLICE-11 gives every client that same `bundle_digest`, read from its release's `bundle.json`.
+  * **Fork call (no channel without an attested release):** legacy's authority refused to start unattested (`service.py:803-808`).
+* **When it is built.** The composition builds `ChannelCore` after `recovery.run()` has returned (`bootstrap.py:267`; `RELEASE_BOUND` is recorded inside it, `kernel/recovery.py:172`) and before the server starts serving. So `self.release` is this epoch's bound release, and no connection is answered before recovery has bound it.
+* `self.relays = comp.authority.relays`, and the owner, `comp.authority.owner`.
+
+`handle(peer: PeerCred, frame: bytes | FrameError) -> dict` returns the reply object ([Replies](#replies)). Its checks run in this order; the first that fails decides, and nothing before row 13 calls the kernel.
+
+| # | Fails when | Reply |
+|---|---|---|
+| 1 | `peer.uid` is not in `peers.uids()` | `SEC-R12`, reason `uid` |
+| 2 | No listed `Peer` `p` has `main_pid(p.unit) == peer.pid`. Peers are asked in `ChannelPeers` order, stopping at the first match; an unlisted unit is never asked | `SEC-R12`, reason `unit` |
+| 3 | The matched peer's `uid` is not `peer.uid` | `SEC-R12`, reason `uid` |
+| 4 | `frame` is a `FrameError`, or `decode_frame(frame)` raises one | `SEC-R11`, with that reason |
+| 5 | The message's keys are not exactly the five; `caller`'s are not exactly `pid` and `process_identity`; `caller.pid` is not an int (a bool refused); `process_identity` is not an object; `op` is not a string; or `body` is not an object | `SEC-R11`, reason `shape` |
+| 6 | `caller.pid != peer.pid`; or `identity_of(peer.pid)` is empty; or it is not equal to `caller.process_identity` | `SEC-R12`, reason `identity` |
+| 7 | `contract != CONTRACT` (exact `==`) | `SEC-R11`, reason `contract` |
+| 8 | `release != self.release` (exact `==`) | `SEC-R11`, reason `release` |
+| 9 | `op` is not in `OPS` | `SEC-R11`, reason `op` |
+| 10 | `op` is not in `ROLE_OPS[matched peer's role]` | `SEC-R10`, reason `role` |
+| 11 | The body does not decode for `op` ([Operations](#operations)) | `SEC-R11`, reason `call` |
+| 12 | `execute` only: `accept_relay(p.principal, self.relays, owner, request.principal, body["path"])` returns a `Refusal`, with `p` the `Peer` matched at row 2 (`interfaces/authorization.py:161-169`) | `SEC-R10`, reason `relay` |
+| 13 | One hand-off, `submit(fn)`, then the future's result | `answered`, or `ambiguous` when it raises |
+
+* **The peer comes first.** Rows 1–3 need nothing from the message, so a person's session or an unlisted program is refused `SEC-R12` whatever it sent. The frame is still read before the reply, so the peer's write never races the close (`service.py:146-152`).
+* **Fork call (peer attestation).** Rows 1–3 and 6 keep legacy's order and facts: the uid, the main pid of an approved unit by systemd, then the caller's stated pid and process identity against the peer's own (`service.py:270-284`). The target checks each unit's own uid; legacy checked one allowed uid set (`service.py:272-273`).
+* Each refusal is logged at `WARNING` on the logger `autonomous_trading.channel` as `refused pid <pid> uid <uid>: <code> <reason>`. Nothing from the frame is logged, and nothing is written to the ledger: a refusal here is not attributable to a person (the spec's "unauthenticated refusals are only logged").
+* `LABELS = {"SEC-R10": "relay_scope", "SEC-R11": "contract_version", "SEC-R12": "peer_refused"}`, the spec's labels.
+
+#### Operations
+
+`ROLE_OPS = {"relay": frozenset({"now", "execute", "kill_status", "alerts", "command_status"}), "service": frozenset({"alive", "publish", "record_decision", "record_unavailable", "submit", "command_status"})}`, and `OPS` is their union. Every operation that passes row 12 is exactly one `submit` hand-off. The hand-off returns the result's wire form. Below, `p` is the `Peer` matched at row 2, and `svc_auth` is `Authenticated(p.principal, "local_channel", request=None, via=None)`, built for the service operations.
+
+**The relay's operations:**
+
+| Operation | Body, exactly | The hand-off | Result |
+|---|---|---|---|
+| `now` | `{}` | `effective_now(comp.writer, comp.clock)` (`kernel/lifecycle.py:43`) | `{"utc_iso", "domain", "uncertainty_ms"}` |
+| `kill_status` | `{}` | `comp.safety.killed()`, `present_kill_inputs()`, `kill_inputs.watched` and `kill_input_state` (`kernel/safety.py:307`, `:383`, `:70`, `:292`) | `{"engaged": bool, "inputs": [str], "watched": bool or null (no inputs composed), "input_state": str}`, legacy's status facts (`src/core/framework/execution/killswitch.py:119-129`) |
+| `alerts` | `{}` | copies of `comp.recovery.alerts` and `comp.policy.alerts` (`kernel/recovery.py:119`; `kernel/policy.py:54`) | `{"recovery": [...], "policy": [...]}` |
+| `command_status` | `{"command_key": str}` | `comp.coordinator.command_status(key)` (`kernel/coordinator.py:555-571`) | `{"status": status wire or null}` |
+| `execute` | `{"path", "request", "args"}` | the call table below | the execute result |
+
+**The service's operations: one per `KernelPorts` method.** SLICE-09 step 2 names the strategy host's kernel port `KernelPorts` (`strategies/worker.py`): `alive`, `publish`, `record_decision`, `record_unavailable`, `submit` and `command_status`. Its in-process form, `bootstrap.InProcessKernel`, is what this channel replaces ([SLICE-09 step 2](SLICE-09-strategies-and-cognition.md), "The host's principal", and its decision record's `Coordinator.record_decision` and `Coordinator.record_unavailable`). SLICE-09 step 2 was not yet built when this was written (`OA_NEW` HEAD `ee6aec9`), so the table follows its text. The build re-reads `strategies/worker.py`, `bootstrap.InProcessKernel` and the two coordinator routes on its head. Any difference in a signature changes only the body and call of its row here, and is recorded "as built".
+
+| Operation (`KernelPorts` method) | Body, exactly | The hand-off | Result |
+|---|---|---|---|
+| `alive` (`alive() -> bool`) | `{}` | returns `True`. The answer itself shows the writer thread is running | `{"alive": true}` |
+| `publish` (`publish(output: dict) -> str`) | `{"output": object}` | `comp.evidence.publish(output).content_digest` (`kernel/ledger/evidence_store.py:109`) | `{"digest": the 64-hex digest}` |
+| `record_decision` (`record_decision(record)`) | `{"record": the decision wire}` | `comp.coordinator.record_decision(D, auth=svc_auth)`, with `D` the `DecisionRecord` decoded below | the execute result |
+| `record_unavailable` (`record_unavailable(intent_ref, cause)`) | `{"intent_ref": str, "cause": str}` | `comp.coordinator.record_unavailable(intent_ref, cause, p.principal, auth=svc_auth)` | the execute result |
+| `submit` (`submit(request)`; the spec's `submit_intent`) | `{"request": the entry's wire}` | `comp.coordinator.admit_entry(request, auth=svc_auth)` (`kernel/coordinator.py:157-161`) | the execute result |
+| `command_status` (`command_status(command_key)`) | `{"command_key": str}` | as the relay's | as the relay's |
+
+* **The decision wire** is exactly `{"invocation_id", "principal": [value, kind], "strategy", "session_id", "trigger", "kind", "evidence_ref"}`, the seven fields of `DecisionRecord` (`contracts/decisions.py`, SLICE-09 step 2) with the principal as a pair. `DecisionRecord(...)` checks the values; its `ValueError`, or a wrong key set, is `call`. The record's principal is a claim: the coordinator authenticates with `svc_auth`, never the payload (SLICE-09 step 2).
+* **`record_decision` and `record_unavailable` answer a string or a `Refusal`.** The strings are `recorded`, `existing` and `not_required` (SLICE-09 step 2). The result wire gains one form for them (below).
+* **`submit`** decodes with `entry_request_from_wire` (`contracts/execution.py:417-423`). The body's request must have exactly the keys `verb`, `command_key`, `principal`, `account`, `session_id` and `intent_ref`, with `verb == "entry"`. The rebuilt request's `wire()` must equal the sent object; otherwise it is `call`. The request's principal is a claim: A2 compares it with the authenticated service and refuses `SES-R01` (`kernel/admission.py:714-721`).
+* **`publish`** takes any JSON object, as `InProcessKernel.publish` hands its output to the evidence store. Its size is bounded by the frame (4 MiB).
+* **`command_status`** answers any listed peer for any command key, as legacy's `outcome` read did (`service.py:669-675`). Step 6 limits each person to their own commands (the spec's reads).
+* **No service operation carries a cancel, modify or close.** Legacy's strategy unit sent those for its own exit management (`service.py:738-739`). In the target the kernel makes those moves itself, as `kernel:protection` (`kernel/authority.py:24`; SLICE-06). A person's cancel, close and applied advice come through the relay.
+
+**The execute call table.** `execute` decodes `request = operator_request_from_wire(body["request"])` (`contracts/identity.py:363`). `args` must be a JSON object. `subject` below is `request.target.subject`. The call is decoded only from `request.operation`, `request.target` and `args`; the entry point then recomputes the digest from its own call (step 2, bind row 5). So a call that does not match its request is the kernel's recorded `SEC-R09`, never the channel's guess.
+
+| Operation | `args` keys, exactly | The call, with the relayed `auth` |
+|---|---|---|
+| `kill_engage` | `reason` | `comp.safety.engage_kill(auth, reason)` (`kernel/safety.py:360`) |
+| `kill_release` | `reason` | `comp.safety.release_kill(auth, reason)` (`:365`) |
+| `hold_engage` | `reason` | `comp.safety.engage_hold(auth, subject, reason)` (`:413`) |
+| `hold_release` | `released_reason`, `justification` | `comp.safety.release_hold(auth, subject, released_reason, justification)` (`:419`) |
+| `latch_unlock` | `strategy`, `reason` | `comp.safety.unlock_latch(auth, subject, reason, strategy=strategy)` (`:506`) |
+| `pause_clear` | `reason` | `comp.policy.clear_pause(auth, subject, reason)` (`kernel/policy.py:218`) |
+| `attempt_resolve` | `attempt_no`, `legs`, `observation` | `resolve_attempt(comp.writer, comp.authority, auth, subject, attempt_no, legs, E)` (`kernel/lifecycle.py:489`), where `E` is `None` for `null`, else the observation decoded below |
+| `recovery_advance`, `step` `advance` | `step` | `comp.recovery.advance(auth)` (`kernel/recovery.py:411`) |
+| `recovery_advance`, `step` `fence` | `step`, `fence` | `comp.recovery.record_fence(auth, F)` (`:430`), with `F` the fence decoded below |
+| `grant_admin`, `step` `issue` | `step`, `grant` | `comp.authority.issue(auth, G)` (`kernel/authority.py:323`) |
+| `grant_admin`, `step` `revoke` | `step`, `reason` | `comp.authority.revoke(auth, subject, reason)` (`:349`) |
+| `binding_authorize`, `step` `authorize` | `step`, `binding` | `comp.authority.authorize_binding(auth, B)` (`:384`) |
+| `binding_authorize`, `step` `revoke` | `step`, `reason` | `comp.authority.revoke_binding(auth, subject, reason)` (`:400`) |
+| `cancel`, `close`, `advice_apply` | `action`, `reason` | `comp.coordinator.admit_action(A, auth=auth, reason=reason)` (`kernel/coordinator.py:163-168`) |
+
+Another key set, or a `step` value not in the table, is `call`. Values are passed as sent; the entry points keep their own text guards (`ADM-R01`). The decoders accept exactly these shapes, and any `KeyError`, `TypeError`, `ValueError` or `IndexError` while decoding is `call`:
+
+* **The observation `E`.** Exactly `{"store", "content_digest", "published_at"}` gives `EvidenceRef(store, content_digest, Timestamp(published_at, "wall"))` (`contracts/evidence.py:174`). The domain is not on the wire (`contracts/execution.py:355-357`), and `resolve_attempt` reads only the store and digest, so the fixed `"wall"` changes no wire or digest.
+* **The fence `F`.** Exactly the nine keys of `_fence_payload` (`kernel/recovery.py:448-456`) give `FenceEvidence` (`:47-57`), with `accounted` as a tuple and each `fenced_lease_holders` item `[[broker, account], ledger, epoch]` as `(AccountId(broker, account), ledger, epoch)`.
+* **The grant `G`.** Exactly the eight keys of `wire(Grant)` (`contracts/execution.py:380-384`) give `Grant` (`contracts/identity.py:100-130`): `principal` `[value, kind]`, `actions` a list made a `frozenset`, and `accounts` a list of `[broker, account]` made a `frozenset` of `AccountId`.
+* **The binding `B`.** Exactly the six keys of `wire(StandingBinding)` (`contracts/execution.py:385-388`) give `StandingBinding` (`contracts/identity.py:133-155`): `scope` `[[broker, account], calendar]`, and `candidate_ids` a list made a tuple.
+* **The action `A`.** `action_request_from_wire(dict(action, principal=[request.principal.value, request.principal.kind]))` (`contracts/execution.py:443-454`). `action_wire` drops the principal (`kernel/admission.py:24`), so the action is always the request's person's.
+* The relayed `auth` is `Authenticated(relayed.principal, relayed.path, request=request, via=relayed.via)`, built in this module.
+
+#### Replies
+
+Every reply is exactly `{"contract": CONTRACT, "epoch": self.epoch, "outcome", "result", "refusal"}`. Every reply carries the epoch, refusals included.
+
+| `outcome` | `result` | `refusal` |
+|---|---|---|
+| `refused` | `null` | `{"code", "label", "reason"}`: rows 1–12, before any kernel call |
+| `answered` | the operation's result | `null` |
+| `ambiguous` | `{"error": <the exception's class name>}` | `null`: the hand-off raised, or was cancelled, or the reply could not be encoded |
+
+* **The execute result** (also `submit`'s, `record_decision`'s and `record_unavailable`'s), built by `result_wire(value)`:
+  * a `str` (`recorded`, `existing`, `not_required`): `{"kind": "answer", "replayed": false, "answer": the string}`;
+  * `Committed` (`kernel/ledger/store.py:228-230`): `{"kind": "committed", "replayed": false, "sequences": [...]}`;
+  * `Replayed` (`kernel/authority.py:95-102`): `{"kind": "replayed", "replayed": true, "request_id", "decision", "sequence", "outcome": the outcome wire or null}`;
+  * `Refusal`: `{"kind": "refusal", "replayed": false, "refusal": the refusal wire}`;
+  * `Outcome`: `{"kind": "outcome", "replayed": false, "outcome": the outcome wire}`;
+  * anything else raises `TypeError` in the hand-off, and the reply is `ambiguous`.
+* **The wire forms:**
+  * the refusal wire is `{"code", "message", "command_key", "decision"}` (`contracts/execution.py:292-297`);
+  * the outcome wire is `{"command_key", "attempt_no", "effect", "canonical", "broker_order_ids", "domain", "sent", "refusal"}`, with `domain` the `DomainEvidence` value or `null`, and `refusal` a refusal wire or `null` (`:312-330`);
+  * the status wire is `{"command_key", "state", "verb", "attempt_no", "effect", "broker_order_ids", "refusal"}` (`:300-309`).
+* **No free text leaves the kernel.** A reply holds codes, labels, identifiers and the kernel's own fields, and an `ambiguous` reply only an exception's class name, never its message. So no reply carries outside text that step 3's `scrub` would need to clean.
+* **A reply that cannot be delivered changes nothing** (Fork call, `service.py:24-25`, `:168-179`). A failed send is logged as `reply lost`. The ledger holds the outcome, and the caller retries with the same request (`Replayed`) or asks `command_status`. If `encode` raises, the reply becomes `ambiguous` with that class name, as legacy (`service.py:170-175`).
+
+#### Kernel calls run on the writer thread (`submit`)
+
+* `submit: Callable[[Callable[[], object]], Future]` runs each hand-off on the kernel's writer thread, as the runtime spec says. It is SLICE-11's `kernel.host.submit`; the operator channel is one of the hand-offs it names. Every kernel read and write behind an operation, `now` and `kill_status` included, goes through it. The ledger connection is then never used by two threads at once.
+* The handler waits for the future to complete, without its own timeout. The client's 60 s bounds the caller (`channel.py:58`), as legacy's server waited for the send to be recorded. A hand-off that raises, or that the host cancels at stop, gives `ambiguous`.
+* Until SLICE-11, tests pass an inline submit (the call runs on the caller's thread, and its result or exception goes into a completed `Future`), or a one-thread `ThreadPoolExecutor`'s `submit`.
+
+#### The socket and the server
+
+`ChannelError(reason)`, with reasons `platform`, `release`, `directory` and `locked`. `KernelChannelServer(core, path, *, socket_gid)`, where `socket_gid` is `None` or an int ≥ 0 (`ValueError` otherwise):
+
+* **Construction** raises `ChannelError("platform")` when `socket` has no `AF_UNIX` or `SO_PEERCRED`, or `fcntl` cannot be imported. The `socketserver` classes are defined inside `start()`, so the module imports on Windows.
+* **`start()`**, legacy's order (`service.py:800-833`):
+  1. `path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)`. Then the directory's owner must be `os.geteuid()`, with no group or other write bit (`st_mode & 0o022`); otherwise `ChannelError("directory")`.
+  2. `<path>.lock`, opened `O_RDWR | O_CREAT` with mode `0o600`, takes `fcntl.flock(LOCK_EX | LOCK_NB)`; failing that, the descriptor is closed and it raises `ChannelError("locked")`. One server per socket.
+  3. A stale socket file is unlinked (`missing_ok`): the lock is held.
+  4. The socket is bound under a umask of `0o177`, then `chmod 0o600`, when `socket_gid` is `None`. With a gid it is bound under `0o117`, then `os.chown(path, -1, socket_gid)` and `chmod 0o660`, group-restricted to the approved units' group (the spec). Any error releases the lock and propagates.
+* **`serve_in_thread()`** serves on a thread named `kernel-channel`, with `poll_interval=0.2`. The server is `ThreadingMixIn` with `UnixStreamServer`, `daemon_threads = False` and `block_on_close = True` (`service.py:182-185`, `:842-850`).
+* **`shutdown()`** stops serving, joins the thread, closes the server, unlinks the socket and releases the lock (`service.py:862-878`).
+* **Each connection:** `settimeout(REQUEST_TIMEOUT_S)`, then `peer_cred`. An `OSError` there is logged and the connection closed with no reply (`service.py:142-145`). Then `read_frame`, keeping a `FrameError` as the frame, then `core.handle`, then `sendall(encode(reply))`.
+* **Deviation (per-unit users).** Legacy's socket was `0600` for one shared uid (`service.py:825-830`). With each unit under its own user (SLICE-11), peers reach the socket through a group, and the uid check per peer (rows 1–3) keeps the attestation per unit.
+
+#### The client
+
+`KernelChannelClient(path, *, server_uid, server_gid, release)`. It raises `ValueError` unless `server_uid` is an int ≥ 0, `server_gid` is `None` or an int ≥ 0, and `release` is 64 lower-case hex. At construction it keeps `caller = {"pid": os.getpid(), "process_identity": process_identity(os.getpid())}` (`channel.py:131-133`).
+
+`ChannelRefused(reason)` means no byte of the request left this process. `ChannelAmbiguous(reason)` means the kernel may have it. This is legacy's line (`channel.py:24-33`).
+
+`call(op, body) -> Reply` runs these steps:
+
+1. It encodes the request. A `TypeError` or `ValueError`, or encoded bytes (newline included) over `MAX_MESSAGE`, raises `ChannelRefused("encode")`.
+2. `socket_problem(path, server_uid, server_gid)`, legacy's check (`channel.py:98-118`) extended to a group, returns the first reason, or `""`. A reason raises `ChannelRefused` with it:
+   * `missing`: `lstat` raises `FileNotFoundError`;
+   * `unreadable`: any other `OSError`;
+   * `not_socket`;
+   * `owner`: `st_uid != server_uid`;
+   * `mode`: an other bit (`& 0o007`), or a group bit (`& 0o070`) when `server_gid` is `None` or `st_gid != server_gid`;
+   * `directory`: the parent cannot be stat'ed, is not owned by `server_uid`, or has a group or other write bit.
+3. It connects with `CONNECT_TIMEOUT_S`; an `OSError` raises `ChannelRefused("connect")`. Then `peer_cred(sock).uid != server_uid` raises `ChannelRefused("peer_uid")` (`channel.py:143-146`).
+4. It sets `REPLY_TIMEOUT_S`, then `sendall`, `shutdown(SHUT_WR)`, `read_frame` and `decode_frame`. Any failure raises `ChannelAmbiguous` with the `FrameError` reason, or `send` for an `OSError` during the send.
+5. The reply must have exactly the five keys, `contract == CONTRACT`, a non-empty string `epoch`, and an `outcome` among the three. Otherwise it raises `ChannelAmbiguous("malformed_reply")`.
+6. It returns `Reply(epoch, outcome, result, refusal)`, frozen.
+
+The typed helpers each call `call` with their body:
+
+* `now()`, `kill_status()` and `alerts()`;
+* `command_status(command_key)`;
+* `execute(path, request, args)`, with the body `{"path": path, "request": request.wire(), "args": dict(args)}`;
+* `alive()`; `publish(output)`, with the body `{"output": output}`; `record_decision(record)`, with the body `{"record": decision_wire(record)}`; `record_unavailable(intent_ref, cause)`; `submit(entry_request)`, with the body `{"request": wire(entry_request)}`. `decision_wire` is the decision wire above.
+
+The client checks no kernel answer: an `answered` refusal is the kernel's, for the caller (step 6) to map.
+
+#### Module boundary
+
+* At module level, `adapters/unix_channel.py` imports only the standard library, `autonomous_trading.contracts` modules and `autonomous_trading.interfaces.authorization` (whose relay rule step 1 made importable for this, `interfaces/authorization.py:1-6`).
+* Every `autonomous_trading.kernel` import is inside a function of `ChannelCore` or its call table. So a client process (the operator process in step 6, the strategy host in SLICE-09) loads no kernel module by importing it, which PRF-SEC-09 later relies on.
+* `Authenticated(` is built here only in `ChannelCore`: the relayed human and the service.
+
+#### Fork calls and deviations in this step
+
+* **Fork calls:**
+  * Peer attestation (the slice-level Fork call): uid, the systemd main pid of a listed unit, then pid and process identity, in legacy's order.
+  * **Which peer may call which operation** (who may trade). Legacy gave each approved unit a role (`service.py:62-71`, `:732-741`): the owner API's unit sent only the person's cancel and close, and was the only one that could unlock the latch (`:720-721`); the strategy unit sent entries; the read-only units sent nothing. Here the relay alone carries a person's operations, each judged by the kernel under that person's own grant. A service alone submits entries, under its own grant. MCP is not a peer, since it reaches no kernel operation (the spec). No service operation carries an exit move, because the kernel makes those itself (above). The channel adds no condition on an entry or an owner action beyond the kernel's own checks.
+  * No channel without an attested release.
+  * Legacy's bounds and timeouts: one JSON line per connection, 4 MiB, 5 s, 60 s and 10 s.
+  * A lost reply changes nothing; a kernel failure is `ambiguous`, as legacy's unknown send (`service.py:791-795`).
+  * One server per socket under an exclusive lock; the stale socket is replaced only under it.
+  * The client's socket, owner and peer-uid checks, refused before the first byte.
+* **Deviations:**
+  * **Exact versions** (the slice-level Deviation; A02-F1). The exact `contract` string and the bound release digest replace legacy's integer protocol and principal name (`service.py:228-236`). They also replace legacy's check of the caller's startup provenance against the attested git revision (`service.py:285-301`): the caller states the `bundle_digest` it was built from, and the kernel compares it with its own bound release's `bundle_digest`. Like legacy's revision, it covers code only, never settings. A worker from another release is refused `SEC-R11`, as F-SEC9 requires; legacy refused a caller whose provenance did not match its bound release.
+  * **Per-unit users:** each peer's uid is its own unit's, and the socket is group-restricted when peers run under other users.
+  * **Codes, not text:** a refusal is `SEC-R10`, `-R11` or `-R12` with a reason, where legacy answered free text.
+  * **Strict JSON:** `NaN`, the infinities and repeated keys are refused. Legacy's `json.loads` accepted them, but legacy's own `encode` could produce none of them (`channel.py:67-69`), so no legacy client sent one.
+  * **No readiness probe without the main-pid check.** Legacy answered `readiness` to any process of an allowed uid whose process identity matched, without asking systemd (`service.py:238-268`). Here every operation passes the whole attestation. The supervisor reads the ledger instead (runtime spec).
+  * **`systemctl` gets a fixed environment** (stricter; step 3's rule).
+* No score, threshold or money value is set. The sizes and timeouts are legacy's transport bounds.
+
+#### What later steps take from step 5
+
+* **Step 6:**
+  * The operator process builds a `KernelChannelClient` for the kernel's socket. The `Authorizer`'s clock is `now()` from `client.now()`'s result (`Timestamp(utc_iso, domain, uncertainty_ms)`), and `elapsed()` from the operator's own monotonic clock.
+  * Every reply's `epoch` goes to `authorizer.observe_epoch(EpochId(reply.epoch))`.
+  * Step 4's `KernelLink`:
+    * `engage` and `release` mint through the `Authorizer`, then call `client.execute(caller.path, request, args)`;
+    * `kill_engaged` and `present_inputs` read `client.kill_status()`.
+  * It maps `answered` results to `Committed`, `Replayed` and `Refusal` for the CLI and the API, and calls `consumed` on `committed`, on `replayed`, or on a `refusal` coded `SEC-R08`.
+  * On `ChannelAmbiguous` or `ambiguous`, it retries with the same nonce. The alert route reads `alerts`, and per-person command reads filter `command_status`.
+* **SLICE-09 and SLICE-11:** the strategy host's `KernelPorts` over the channel is one client call per method. `alive()` is `True` for an `answered` reply and `False` on `ChannelRefused` or `ChannelAmbiguous`. Each other method raises SLICE-09's `KernelUnavailable` on either exception and on an `ambiguous` reply, and otherwise returns the answered result decoded back to the in-process return value: the digest; the string or `Refusal`; the `Outcome`; the `CommandStatus` or `None`.
+* **SLICE-11:**
+  * composes `ChannelCore(comp, peers=parse_peers(profile["channel"]), submit=host.submit, main_pid=systemd_main_pid, identity_of=process_identity)` and `KernelChannelServer(core, <its run directory>/kernel.sock, socket_gid=<the channel group's gid>)`;
+  * passes `relays=peers.relays()` to `Authority`;
+  * installs the socket directory owned by the kernel's user, with the channel group allowed to search and nobody else to write;
+  * puts each peer unit's user in that group;
+  * gives each client the kernel's uid and gid and the bundle's release digest;
+  * its step 2 adds the projection digests beside `contract` and `release` (configuration spec, boundary handshakes).
+
+### Tests
+
+`tests/integration/test_unix_channel.py` (tree delta **T-62**) holds PRF-SEC-05. The groups marked **Linux** use real sockets and `SO_PEERCRED` (`skipif(sys.platform != "linux")`). They run where the slice header says, and PRF-SEC-05 counts only from that run. Every other group calls `ChannelCore.handle` or the frame functions directly, and runs on Windows and Linux.
+
+**Synthetic values** (labelled synthetic in the file):
+
+* **Peers** (all-platform groups):
+  * the relay `Peer("at-operator-sim.service", 1500, SIM_RELAY, "relay")`;
+  * the service `Peer("at-strategy-sim.service", 1501, SVC, "service")`, with `SVC = Principal("strategy:sim", "service")`.
+* **Process facts:**
+  * `MAIN = {"at-operator-sim.service": 4100, "at-strategy-sim.service": 4200}`, so `main_pid = MAIN.get`;
+  * `IDS = {4100: {"boot_id": "boot-synthetic", "start_ticks": 7100}, 4200: {"boot_id": "boot-synthetic", "start_ticks": 7200}}`, so `identity_of = lambda pid: IDS.get(pid, {})`.
+* **Release:**
+  * `RELEASE = "42cf37207ad994b20a7eb7892220d6b1b7395f9b20449c1302e39f60dc06e4d9"`, the SHA-256 of the UTF-8 text `synthetic-bundle-1`, standing in for a `bundle_digest`;
+  * `RELEASE_2 = "849a6f736dc55adf49babb52c5ef59f114420b43b1f8b411640e908d91b7843e"`, the SHA-256 of `synthetic-bundle-2`;
+  * every world in this file is built with `receipt=CHANNEL_RECEIPT`, where `CHANNEL_RECEIPT = dict(RECEIPT, bundle_digest=RELEASE)` (`RECEIPT`, `tests/conftest.py:41-43`). The fixture's own `RECEIPT` has no `bundle_digest`, so `tests/conftest.py` does not change.
+* **Frames:** `frame(op, body, *, pid=4100, identity=IDS[4100], contract=CONTRACT, release=RELEASE)` is `encode` of the five-key request without its newline.
+* **Submit:** `Counted`, an inline submit that counts its calls. Each refused case asserts the count unchanged and the ledger's event count unchanged.
+* **Every reply** that `handle` or a socket returns in this file is checked to carry `epoch == comp.writer.epoch.value`, through one helper.
+* **Minting:** `mint(comp, evidence, operation, target, args, *, nonce, named=None, typed=None) -> (OperatorRequest, path)` is `operator_call` (`bootstrap.py:95-120`) without the relay. It authenticates, opens a session, prepares when the door asks, executes and ends the session, then returns the request and `caller.path`. The tests type as the person.
+* **Request IDs and digests,** each the SHA-256 of the canonical text beside it:
+  * `[["owner","human"],"uid:1001","nonce-channel-000000001"]` → `d8ed75b5ed932639a3f8fa7b90484902f2de521dfa115616afa30b0dcd922f14`;
+  * the kill engage digest `["operator-request/1","kill_engage",{"account":null,"subject":null},{"reason":"synthetic reason"}]` → `572cc58e9df728c9497437d14fd6cea8a2edc5a07bc739c2ab598ba96eb4a896` (step 2's);
+  * the grant `g-svc` (`test_grant(SVC, "g-svc")`, `entry` on `ACCT`): `["operator-request/1","grant_admin",{"account":null,"subject":"g-svc"},{"grant":{"accounts":[["sim","acct-sim"]],"actions":["entry"],"delegation_limit":0,"grant_id":"g-svc","parent_grant_id":null,"principal":["strategy:sim","service"],"valid_from":"2026-11-01T00:00:00.000000Z","valid_until":null},"step":"issue"}]` → `5b0cbdce68d4ee3d4d3659239a203b9e5172e9db5a6126ca1548bafa2233f95b`.
+* **Worlds:**
+  * `action_world(ACK, policy=OFF)`, the world step 2's Binding group used;
+  * for the fence and the advance, `simulation([], advance=False, grant=False, calendar=admission_calendar(), admission=admission_ports(kernel_safety=True))`, which stays in `RECOVERY_WRITING`.
+
+| Group | Cases |
+|---|---|
+| Peers | `parse_peers({"relays": {"at-operator-sim.service": {"uid": 1500, "principal": "svc:operator-sim"}}, "services": {"at-strategy-sim.service": {"uid": 1501, "principal": "strategy:sim"}}})` equals the two synthetic peers, relay first; `relays()` is `frozenset({SIM_RELAY})`; `uids()` is `{1500, 1501}`. Each raises `ValueError`: a missing `services` key; an extra top-level key; an entry with an extra key; uid `-1`, `True` and `"1500"`; units `session-3.scope`, `user@1500.service`, `at op.service` and `a/b.service`; the same unit under both roles; one principal for two units; no peers at all. Two units sharing uid 1500 are accepted. `ChannelCore` raises `ValueError` for a relay peer whose principal is `svc:other` (not in `comp.authority.relays`), for `SIM_RELAY` listed as a service, and over `simulation([])` (no admission). It raises `ChannelError("release")` over `simulation([], receipt=None, calendar=admission_calendar(), admission=admission_ports(kernel_safety=True))` (no `RELEASE_BOUND`), over the same with `receipt=RECEIPT` (no `bundle_digest`), and with `bundle_digest` `"x" * 64` |
+| Release (R-1: code only) | World A with `CHANNEL_RECEIPT`; `ChannelCore` over it has `release == RELEASE`, and `now` sent with `RELEASE` is answered. A shuts down. World B composes on the same ledger with `dict(CHANNEL_RECEIPT, deployment=dict(RECEIPT["deployment"], **{"recovery.lease_secs": 31}))`: the ledger now holds two `RELEASE_BOUND` with different `receipt_digest`s. A `ChannelCore` built after B's `recovery.run()` still has `release == RELEASE`, and `now` sent with `RELEASE` is **answered**: a changed deployment key turns no peer away. World C composes on the same ledger with `dict(CHANNEL_RECEIPT, bundle_digest=RELEASE_2)`: `now` with `RELEASE` is `SEC-R11` `release`, and with `RELEASE_2` it is answered |
+| Facts | `systemd_main_pid` with `subprocess.run` monkeypatched to record its call: the argv is exactly `["systemctl", "show", "--property=MainPID", "--value", "at-operator-sim.service"]`, with `timeout=2`, `check=False` and `env == {"PATH": "/usr/bin:/bin", "LC_ALL": "C"}`. Stdout `"4100\n"` with return code 0 gives 4100. `"0\n"` gives `None`, as do `""`, `"x\n"`, return code 1, `OSError` and `TimeoutExpired`. **Linux:** `process_identity(os.getpid())` has exactly the keys `boot_id` (non-empty) and `start_ticks` (an int); a pid that does not exist gives `{}` |
+| Frames | Over `socket.socketpair()`, with a short timeout of 0.2 s passed to `read_frame`. `b'{"a":1}\n'` gives `b'{"a":1}'`. `b'{"a":1}\nXYZ'` gives the same (the rest is discarded). `b'{"a":1}'` then end of stream is `incomplete`. Nothing sent is `timeout`. 4,194,305 bytes of `x` with no newline is `oversize`, written from a thread. 4,194,303 bytes of `x` then `\n` (a buffer of exactly 4,194,304) is read whole. 4,194,304 bytes of `x` then `\n` is `oversize`, though the newline arrived (legacy's loop, `channel.py:75-81`). `decode_frame`: `b"\xff"` is `encoding`; `b"[1]"` is `not_object`; `b'{"a":NaN}'`, `b'{"a":Infinity}'`, `b'{"a":1,"a":2}'` and `b'{"b":{"a":1,"a":2}}'` are `json`. `encode({"b": 1, "a": "é"})` is exactly `b'{"a":"\\u00e9","b":1}\n'` |
+| Attestation | `action_world`, a `ChannelCore` with the synthetic peers, and `Counted`. `handle(PeerCred(4100, 1500), frame("now", {}))` is answered. Each case below is refused before any kernel call, with its code and reason: `PeerCred(4100, 1600)`: `SEC-R12` `uid` (no listed peer has that uid), and the recording `main_pid` was asked about nothing. `PeerCred(4300, 1500)`: `SEC-R12` `unit` (a person's session); the recording `main_pid` was asked exactly about the two listed units, in order. A `main_pid` that returns `None` for the stopped `at-strategy-sim.service` (`MAIN` without it), with `PeerCred(4200, 1501)`: `SEC-R12` `unit`. `main_pid` mapping `at-other.service` to 4300, with `PeerCred(4300, 1500)`: `SEC-R12` `unit` (an unlisted unit). `PeerCred(4100, 1501)`: `SEC-R12` `uid` (the relay unit's pid under the service's uid). `PeerCred(0, 1500)` with `MAIN` unchanged: `SEC-R12` `unit`. `PeerCred(4300, 1500)` with `b"garbage"`: `SEC-R12` `unit` (the peer first). Caller pid 4101: `SEC-R12` `identity`. `start_ticks` 7101: `identity`. `identity_of` returning `{}` with caller identity `{}`: `identity`. A `FrameError` of each reason: `SEC-R11` with that reason. An extra key `principal`: `SEC-R11` `shape`, and so is a caller with an extra key, caller pid `True`, a list body and op `5`. Contracts `"kernel-channel/2"`, `"kernel-channel/1."` and `""`: `SEC-R11` `contract`. Release ending `…e4d8` and `RELEASE.upper()`: `SEC-R11` `release`. Op `submit_order`: `SEC-R11` `op`. `execute` from `PeerCred(4200, 1501)` (identity 7200): `SEC-R10` `role`. `submit` from the relay: `SEC-R10` `role`. `now` with body `{"x": 1}`: `SEC-R11` `call`. Each refusal reply is exactly `{"contract": "kernel-channel/1", "epoch": <the writer's>, "outcome": "refused", "result": null, "refusal": {"code", "label", "reason"}}`, with the spec's label. The log record names the code and reason and holds no frame byte |
+| Reads | In `action_world`: `now` is `{"utc_iso": "2026-11-02T09:15:00.000000Z", "domain": "recorded", "uncertainty_ms": null}`. **The ratchet:** the clock advances 121,000 ms, the owner's bound `hold_engage` of `buyer_edge` commits through `execute`, then `jump_wall(-300_000)`; `now` is `2026-11-02T09:17:01.000000Z`, recorded, which is also `effective_now(comp.writer, comp.clock)` read directly. `kill_status` is `{"engaged": false, "inputs": [], "watched": null, "input_state": "off"}`. After the owner's bound kill engage through `execute`, `engaged` is true. `admission_world(kernel_safety=True, kill_inputs=KillInputs.resolve(False, ("run/KILL",), tmp_path))`, with the file created and one `run_pass()`: `{"engaged": true, "inputs": [<the file>], "watched": true, "input_state": "engaged"}`. `admission_world(kernel_safety=True, kill_inputs=KillInputs(False, ()))`: `alerts` is `{"recovery": ["kill_file_unwatched"], "policy": []}`. `command_status` for `k-none` is `{"status": null}`. Each read is one hand-off |
+| Execute | One case per row of the call table, each minted with `mint` and sent from `PeerCred(4100, 1500)`. Each is exactly one hand-off, and its request's ID is then in the ledger: an `OPERATOR_REQUEST` for a commit or an admission, an `OPERATOR_REQUEST_REFUSED` for a refusal. **Committed:** kill engage (owner, uid 1001, nonce `nonce-channel-000000001`, reason `synthetic reason`); kill release (`DISENGAGE` typed); hold engage and release of `buyer_edge` (`released_reason` `operator`, `justification` `synthetic justification`); grant `g-bind` issue and revoke; binding `b-bind` (SCOPE, `POLICY_ID`, `(CANDIDATE,)`, 2026-11-01 to 2026-11-30) authorize and revoke; and, in the `RECOVERY_WRITING` world, the fence for `old-host` **first**, then the advance (R-10). **Refused by the kernel, recorded:** latch unlock of `SESSION` with strategy `buyer_edge` is `LED-R09`; pause clear of `pause-synthetic` is `LED-R09`; `attempt_resolve` of `k-none` (attempt 1, legs `{"primary": null}`, observation `{"store": "simulated", "content_digest": "c" * 64, "published_at": "2026-11-02T09:15:00.000000Z"}`) is `DOM-R04`. **Outcome:** cancel `k-c1` of `o-stop` and close `k-x1` naming `E1` (`TEST_PRINCIPAL`, uid 1002, typed), and advice application modify `k-m1` (trigger `11.00`, advice registered with `FixtureAdvice.allow`, `TEST_PRINCIPAL` on the owner API's proxy). Each is `{"kind": "outcome", "replayed": false, …}`, and its `COMMAND_ADMITTED.dependencies.operator_request` is the request's ID. **The first commit's payload:** the kill engage's `OPERATOR_REQUEST` has `request_id` `d8ed75…2f14`, `argument_digest` `572cc5…a896`, `via` `["svc:operator-sim","service"]` and `channel_identity` `uid:1001` |
+| Decoding | For each call-table row, the good request with `args` missing its first key, and with an extra key `x`, is `SEC-R11` `call`, with no hand-off. So are: `recovery_advance` with `step` `other`; a grant whose `principal` has three items; a binding whose `scope` is a string; a fence missing `accounted`; an observation with an extra key; an action that is a list; a body without `path`; a `request` with a missing key. **The kernel recomputes:** the kill engage minted with reason `synthetic reason` and sent with `args` `{"reason": "other reason"}` is one hand-off, answered `{"kind": "refusal", …}` with code `SEC-R09`, and one `OPERATOR_REQUEST_REFUSED` with the request's ID and `SEC-R09` |
+| Relay | The bound requests are each `SEC-R10` `relay`, with no hand-off: `TEST_PRINCIPAL`'s request sent with path `owner_credential`; the owner's with `operator_credential`; the owner's with path `local_channel`. The same requests with their own paths pass to the kernel |
+| Replay | The kill engage executed twice with the same request: the second reply is `{"kind": "replayed", "replayed": true, "request_id": "d8ed75b5ed932639a3f8fa7b90484902f2de521dfa115616afa30b0dcd922f14", "decision": "KILL_ENGAGED", "sequence": s, "outcome": null}`, with `s` the first `OPERATOR_REQUEST`'s sequence, and the event count unchanged. The cancel `k-c1` sent again is `replayed` with `outcome.command_key == "k-c1"` |
+| Services (one case per `KernelPorts` method) | The owner issues `g-svc` through `execute`: committed, with `argument_digest` `5b0cbd…f95b`. Each case below is sent from `PeerCred(4200, 1501)` (identity 7200), and each answered case is exactly one hand-off. **`alive`:** `{"alive": true}`. **`publish`** of `{"kind": "synthetic-output", "n": 1}`: `{"digest": "d82158c4c7401b6b7c3cb188a13481dffc7ac6f1f5dd0a772a8ed6a7039f0ff1"}`, the SHA-256 of `{"kind":"synthetic-output","n":1}`. **`record_decision`** of `DecisionRecord("inv1:synthetic-1", SVC, "buyer_edge", SESSION, "2026-11-02T09:14:00.000000Z", "NOTHING", <that digest>)`: `{"kind": "answer", "replayed": false, "answer": "recorded"}`, and one `DECISION_RECORDED`. Sent again: `"existing"`, with nothing more written. **`record_unavailable`** of that digest with cause `review_request_failed`, in this `policy=OFF` world: `"not_required"`. **`submit`** of `world.request(make_intent(), "k-s1", principal=SVC)`: `{"kind": "outcome", …}`, and `comp.writer.command("k-s1")` exists with the service as principal. **`command_status`** of `k-s1`: the state and verb of that row. **Claims:** `submit` of `k-s2` with principal `TEST_PRINCIPAL` is answered with an outcome whose refusal code is `SES-R01`. **`SEC-R11` `call`,** with no hand-off: a decision wire with an extra key; one with `kind` `MAYBE`; `publish` with body `{"output": [1]}`; `record_unavailable` with `cause` `5`; a submit request with an extra key `strategy`; one with `verb` `cancel`. **From the relay,** `alive`, `publish`, `record_decision`, `record_unavailable` and `submit` are each `SEC-R10` `role` |
+| Ambiguous | A submit whose function raises `RuntimeError("synthetic-error-text")` gives `{"outcome": "ambiguous", "result": {"error": "RuntimeError"}, "refusal": null}`, and the encoded reply holds no byte of `synthetic-error-text`. A hand-off returning `object()` gives `{"error": "TypeError"}`. A cancelled future gives `{"error": "CancelledError"}` |
+| Socket (**Linux**) | A short directory from `tmp_path_factory.mktemp("ch")`, the socket `kernel.sock` in it (under 100 bytes), `action_world`, peers with the relay at `os.getuid()`, `main_pid` mapping the relay unit to `os.getpid()`, `identity_of=process_identity`, and a one-thread executor's `submit`. After `start()`: the socket's mode is `0o600` and its owner `os.geteuid()`; `kernel.sock.lock` exists with mode `0o600`. `KernelChannelClient(path, server_uid=os.getuid(), server_gid=None, release=RELEASE)`: `now()` is answered with the writer's epoch; the owner's bound kill engage through `execute` commits; `kill_status()` shows it engaged. **Refused at start:** a second server on the same path is `ChannelError("locked")`; after the first's `shutdown()`, a third starts over the stale socket file. A directory chmodded `0o777` is `ChannelError("directory")`, and so is `os.geteuid` monkeypatched to return the real value plus 1. **Client refusals,** each with no hand-off: `server_uid=os.getuid() + 1` is `owner`; the socket chmodded `0o666` is `mode`; the directory chmodded `0o777` after start is `directory`; `peer_cred` monkeypatched in the module to report uid + 1 is `peer_uid`; a missing path is `missing`. **Group:** a server with `socket_gid=os.getgid()` has mode `0o660` and that `st_gid`. A client with `server_gid=os.getgid()` is answered; with `None` it is refused `mode`. **Malformed replies:** a stand-in listener in the same directory answering `b'{"x":1}\n'` gives `ChannelAmbiguous("malformed_reply")`, and one closing without a reply gives `ChannelAmbiguous("incomplete")`. **Oversize:** 4,194,305 bytes of `x`, sent raw from a thread that ignores send errors, gives a `SEC-R11` `oversize` reply |
+| Real peer (**Linux**) | A child `subprocess` with the test's interpreter and environment builds a client and calls `kill_status()` after reading one line from stdin. The parent sets the relay unit's main pid to the child's `Popen.pid`, then writes the line: the child prints an answered reply. Mapped to the test's own pid instead, the child's call is `SEC-R12` `unit`. The test process sending a raw frame that names the child's pid and the child's `process_identity` as its `caller` is `SEC-R12` `unit`: the peer is what `SO_PEERCRED` says, not what the frame says |
+| Lost reply (**Linux**) | A raw socket sends the owner's bound kill engage and closes without reading. `kill_status()` through the client is polled, for at most 5 s, until it is engaged; the server logs `reply lost`. The same request sent again through the client is `replayed`, and exactly one `KILL_ENGAGED` exists |
+| Boundary | Parsed with `ast`: the module-level imports of `adapters/unix_channel.py` from `autonomous_trading` are only `contracts` modules and `interfaces.authorization`. In a child process, importing the module and building a client leaves no `autonomous_trading.kernel` module in `sys.modules`. `tests/contracts/test_capabilities.py`'s `_BUILDERS["Authenticated("]` holds `adapters/unix_channel.py`, and `test_decisions_built_only_by_the_kernel` and `test_authenticated_never_replaced` pass |
+
+### Break checks
+
+Each mutation is applied after its anchor is checked present exactly once, run against the listed test file, and restored byte for byte with an md5 check. Each must fail a test. Rows marked **Linux** run in the Linux run.
+
+| Change | Anchor | Test that must fail |
+|---|---|---|
+| The listed-uid check removed | `handle` row 1's `peers.uids()` | Attestation (uid 1600: `main_pid` is asked about both units, where the test asserts it was asked nothing, and the reason is `unit`, not `uid`) |
+| The release read from `receipt_digest` instead of the receipt's `bundle_digest` | `ChannelCore`'s `self.release` | Release (world B's `now` with `RELEASE` is refused) |
+| The main-pid check removed | `handle` row 2 | Attestation (a person's session answered; the peer of the stopped unit, whose `main_pid` is `None`, answered) |
+| The matched unit's uid not compared | `handle` row 3 | Attestation (uid 1501 on the relay's pid) |
+| The frame checked before the peer | rows 1–3 moved after row 4 | Attestation (garbage from pid 4300 gives `SEC-R11`) |
+| The caller's pid not compared with the peer's | `handle` row 6's `caller.pid != peer.pid` | Attestation (pid 4101) |
+| An empty identity accepted | `handle` row 6's empty test | Attestation (`{}` with `{}`) |
+| The contract compared with `startswith` | `handle` row 7's `==` | Attestation (`"kernel-channel/1."`) |
+| The release compared case-insensitively | `handle` row 8's `==` | Attestation (`RELEASE.upper()`) |
+| The release not checked | `handle` row 8 | Attestation (release `…4bd4`) |
+| A service may `execute` | `ROLE_OPS["service"]` | Attestation (`SEC-R10` `role`) |
+| The relay may `submit` | `ROLE_OPS["relay"]` | Attestation; Services |
+| A service operation called with `auth=None` (the coordinator's disarmed table then authenticates) | `svc_auth` in the service calls | Services (`k-s1` gives `SES-R01`; `record_decision` is refused) |
+| `publish` accepts a non-object output | the `publish` body check | Services (`{"output": [1]}`) |
+| `accept_relay` skipped | `handle` row 12 | Relay |
+| An extra `args` key accepted | the call table's exact key sets | Decoding (`SEC-R11` `call` with no hand-off) |
+| The call decoded from a fixed default when a key is missing (`args.get`) | the same | Decoding |
+| The action's principal taken from `args["action"]` | the `dict(action, principal=…)` | Execute (the cancel `k-c1` is refused `SEC-R11` `call`: `action_wire` holds no principal) |
+| A kernel call made on the handler thread, not by `submit` | `handle` row 13's `submit(fn)` | Reads and Execute (the hand-off count) |
+| The epoch left out of refusal replies | the reply builder's `epoch` | Attestation (the epoch helper) |
+| `replayed` not set on a `Replayed` | `result_wire`'s `Replayed` branch | Replay |
+| The exception's message in an `ambiguous` reply | `handle`'s `{"error": type(exc).__name__}` | Ambiguous |
+| `oversize` at `>= MAX_MESSAGE` | `read_frame`'s length test | Frames (the 4,194,303-byte line, a buffer of exactly 4,194,304, is refused) |
+| The size checked only while the buffer holds no newline (not legacy's loop) | `read_frame`'s check after each append | Frames (the 4,194,304-byte line with its newline is read) |
+| `NaN` accepted | `decode_frame`'s `parse_constant` | Frames |
+| Repeated keys accepted | `decode_frame`'s `object_pairs_hook` | Frames |
+| A MainPID of `0` returned as 0 | `systemd_main_pid`'s `> 0` test | Facts (`"0\n"` gives 0, not `None`) |
+| `systemctl` given the process environment | `systemd_main_pid`'s `env=SYSTEMCTL_ENV` | Facts |
+| `ChannelCore` accepts a service principal among the relays | its `relays` check | Peers |
+| The directory check removed (**Linux**) | `start()`'s `st_mode & 0o022` | Socket (the `0o777` directory starts) |
+| The lock removed (**Linux**) | `start()`'s `flock` | Socket (the second server starts) |
+| The socket left at the umask's mode (**Linux**) | `start()`'s `chmod 0o600` | Socket |
+| The client's owner check removed (**Linux**) | `socket_problem`'s `st_uid != server_uid` | Socket (`owner`) |
+| The client's mode check ignores other bits (**Linux**) | `socket_problem`'s `& 0o007` | Socket (`0o666`) |
+| The client's peer uid not checked (**Linux**) | `call`'s `peer_cred(sock).uid != server_uid` | Socket (`peer_uid`) |
+| The peer taken from the frame's `caller.pid` instead of `SO_PEERCRED` (**Linux**) | the connection handler's `peer_cred(self.request)` | Real peer (the test process naming the child's pid is answered) |
+| A kernel module imported at module level | a top-level `from autonomous_trading.kernel.authority import Authenticated` | Boundary |
+| `adapters/unix_channel.py` removed from the builder set | `_BUILDERS["Authenticated("]` | `test_decisions_built_only_by_the_kernel` |
+
+### Files
+
+| File | Change |
+|---|---|
+| `src/autonomous_trading/adapters/unix_channel.py` | New: `CONTRACT`, `MAX_MESSAGE`, the three timeouts, `LABELS`, `OPS`, `ROLE_OPS`, `SYSTEMCTL_ENV`, `Peer`, `ChannelPeers`, `parse_peers`, `PeerCred`, `peer_cred`, `process_identity`, `systemd_main_pid`, `FrameError`, `encode`, `read_frame`, `decode_frame`, `ChannelError`, `ChannelCore` with the call table, the six service operations, `decision_wire` and `result_wire`, `KernelChannelServer`, `ChannelRefused`, `ChannelAmbiguous`, `Reply`, `socket_problem`, `KernelChannelClient` |
+| `tests/integration/test_unix_channel.py` | New (T-62) |
+| `tests/contracts/test_capabilities.py` | `_BUILDERS["Authenticated("]` (`:122`) gains `adapters/unix_channel.py`; its comment already names step 5 |
+
+No new tree delta. `adapters/unix_channel.py` is in the target tree (`README.md:1046`), and the test file is T-62. No kernel module, migration, event kind, setting, composition or existing test expectation changes.
+
+### Completion conditions (step 5)
+
+* **Targeted tests only, no full suite** (the owner's routine). On Windows: `tests/integration/test_unix_channel.py`, where the Linux groups report their skip, and `tests/contracts/test_capabilities.py`, the existing test that reads the changed guard. No existing test imports the new module.
+* **The Linux groups (PRF-SEC-05) run on the EC2,** in one run of the same two files. The run uses a throwaway folder under `~/claude-desktop/outputs`, made from an `OA_NEW` git bundle, with `~/at-dev`'s environment and the project's safe test runner, as step 3's Linux run. No live checkout or service is touched, and the folder is removed afterwards. PRF-SEC-05 counts from this run only.
+* All code is written and committed in `OA_NEW` only. `git diff --name-only` names exactly the three files above, in one commit.
+* The break checks run as before: each mutation one at a time, anchor checked first, the **Linux** ones in the EC2 run, every file restored (md5). The table above is the plan; the **final break-check table** (each change, its anchor and the test that failed) is written in "as built". `ast.parse` passes on every edited Python file.
+* The build starts on the coordinator's word; every cited line, and SLICE-09 step 2's `KernelPorts`, is re-read on the head it starts from.
+* PRF-SEC-05 passes, and the targeted existing tests pass with no expectation changed.
+* This file records step 5 "as built", with any Deviation or Fork call found while building.
 
 ## Step 6 — the operator process and the CLI (outline)
 

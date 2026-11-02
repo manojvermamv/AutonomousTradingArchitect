@@ -828,3 +828,16 @@ One fresh combined design and readiness review of [SLICE-10 step 4](../../plan/s
 | R-3 | Major | Six places still said an empty kill path refuses | Fork call: it starts and raises `kill_file_unwatched` (slice and spec) |
 | R-4 | Major | Read errors legacy treats as absent blocked trading | Fork call: exactly `Path.exists()`'s absent set is absent; other errors are unreadable |
 | R-5…R-11 | Minor | Stage of the pass-top check, inline outcome, dropped inputs, YAML flag, open behaviours, test inputs, a docstring | Applied |
+
+## SLICE-09 step 2 review (2026-11-02)
+
+One fresh combined review of [SLICE-09 step 2](../../plan/slices/SLICE-09-strategies-and-cognition.md), before any code. 2 Blocker, 3 Major, 1 Minor (R-1…R-6). All resolved in the text, then built (`e4948d0`; the full suite 1,557 passed, 2 skipped; 28 of 28 break checks).
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| R-1 | Blocker | A failed review request waited out the deadline; legacy fails open at once | `Policy.record_unavailable` freezes `proceed_unavailable` immediately (`REVIEW_UNAVAILABLE`) |
+| R-2 | Blocker | An unrecorded ENTER was still sent; fresh setup could flip | Fork call 20: never submitted; kernel unavailability retries next pass; a refusal abandons with an alert |
+| R-3 | Major | The kernel trusted the host's trigger | Trigger tied to the intent or abstention; `decision_by_trigger` unique |
+| R-4 | Major | An abandoned invocation had no next step | Completed as a `strategy_error` abstention, `last_trigger` moved |
+| R-5 | Major | `record_decision` could not be built as written | Delegates to admission's policy; account parsed by the wire decoder; `SEC-R09` |
+| R-6 | Minor | Catch-up expectation | Planner once, `ADM-R05` at B1 |
