@@ -3507,18 +3507,265 @@ No new tree delta: every module is in the target tree and the test file exists (
 * All code is written and committed in `OA_NEW` only, in one commit; `git diff --name-only` names exactly the files above. Nothing is pushed. The build starts on the coordinator's word, and every cited line is re-read on the head it starts from.
 * This file records step 9 "as built", with any Deviation or Fork call found while building.
 
-## Step 10 — the operator UI (outline)
+### Step 9 as built
 
-Deepened after step 8 is built. Authority: the spec's [Operator UI](../../design/security-and-operator.md#operator-ui-operator_ui).
+**In plain words.** A restore from an old backup can no longer bring back a right you took away. Giving or taking away a right is also written in a separate journal. After a restore, the journal decides which handed-out rights stay, but only if you said the journal survived; otherwise every handed-out right is taken away, and yours stay. Taking a right away never waits for the journal, and stopping, holds, unlocks, cancels and closes never touch it. Nothing in trading changed.
 
-* **Builds:**
-  * `operator_ui/*` from legacy `admin_console` at 445eb116, copied with its provenance;
-  * the data-access layer (legacy `admin_console/src/lib/write.ts` and `admin_console/src/lib/gateway.ts`), which becomes or sits beside `operator_ui/src/api.ts`;
-  * writes to the owner API with the session's CSRF header and an `x-request-id` per action;
-  * reads through the MCP surface with the user's token;
-  * the allowlists, the cross-site check and the OIDC session expiry kept.
-* **Tests:** `tests/contracts/test_operator_ui_routes.py` (tree delta **T-66**), reading the ported data-access files and the owner API's route table. The legacy end-to-end checklist is run by hand once and recorded (not counted as a proof).
-* **Done when:** PRF-SEC-11 passes.
+Commit `58b55b2` on `slice-08`, after `370b804` (SLICE-09 step 6), which changed `bootstrap.py`, `tests/conftest.py` and `tests/recovery/test_crash_boundaries.py` in other places; none conflicts with this step. It changes exactly the ten files in the step's table (+911 −23). Nothing is pushed. No new Fork call or Deviation was found.
+
+**Choices made while building:**
+
+| Topic | As built |
+|---|---|
+| `_continuity_owed` | Rebuilt on `_owed_restores()`, the same rule; `_journal_trusted()` reads the last owed restore's recorded payload |
+| Alerts | `Recovery._alert` adds a text only once, so `journal_chain_broken` and the others appear once however often they recur |
+| Catch-up tests | Built on `admission_world`, because `coordinator.run_pass()` needs dispatch, which a bare `simulation` does not compose |
+| The raising adapter | Swapped into `comp.authority.journal` after the composition: with it composed from the start, the fixture's own issue of `g-test` would be `SEC-R23` |
+| Reconciliation group | A `simulation` composed with `admission_ports` and `admission_calendar` on each backup, not `admission_world`: that fixture's owner advance cannot pass a restore's fence. Both worlds write the same kinds in one `run_pass()` |
+| CP-SEC3's alert | Checked through `pending_revocations()`, the function the `alerts` reply serves; the reply's key is checked by `test_alerts` |
+| Added tests | `test_issue_catches_up_first`, and a trusted twin in `test_untrusted_restore_resumes` (a trusted restore resumed with the journal down reports `unreachable`): two break checks needed a test that could fail |
+| Payload check | Every new `GRANT_REVOKED` carries `journal`; no existing test compared a `GRANT_REVOKED` payload |
+
+**Tests** (targeted only), Windows, the `.venv-slice01` venv: 27 new tests in `tests/recovery/test_restore_fencing.py` (PRF-SEC-10, CP-SEC2 and CP-SEC3, each crash killing a real child process); then `tests/recovery/`, `tests/unit/test_authority_grants.py`, `tests/integration/test_unix_channel.py`, `test_owner_api.py`, `test_operator_commands.py`, `test_dispatch_revalidation.py`, `test_kill_inputs.py`, `tests/unit/test_safety_matrix.py` and `tests/contracts/`: **429 passed, 9 skipped**. A second set (`test_clock_contract.py`, `test_strategy_invocation.py`, `test_admission_checks.py` with `tests/recovery/` and others) gave 443 passed. The 9 skips are earlier steps' Linux-only cases; step 9 has none, so **the EC2 was not used**. `ast.parse` passes on the nine edited Python files and `json.load` on `resources/events.schema.json`; no file carries a BOM. Every hex value was recomputed with Python.
+
+**Break checks** (`s10i_breaks.py` in the session scratchpad; each anchor checked present exactly once, one mutation at a time, every file restored byte for byte, md5 verified, `git diff` unchanged afterwards): 26 of 26 failed a listed test, on Windows.
+
+| Change | Test that failed |
+|---|---|
+| `issue` appends after its ledger commit | Issue |
+| `issue` commits when the append is unreachable | Issue |
+| `issue` skips the existing-ID check | Issue |
+| `issue` skips the catch-up while pending | Issue catches up first |
+| `revoke` raises when the journal is unreachable | Revoke |
+| `revoke` attempts an append while revocations are pending | Revoke |
+| `revoke` skips the append when the journal is up | CUJ-SEC-4 reachable |
+| `_revoke_unverified` passes no view | CUJ-SEC-4 unreachable |
+| `confirms` ignores revoke entries | View |
+| `confirms` ignores the digest | View |
+| `confirms` ignores the issue entry's sequence | View |
+| An unreachable view confirms | CUJ-SEC-4 unreachable |
+| `chain_intact` always true | Entries |
+| `catch_up` called from `Recovery.run` | Routine start |
+| `catch_up` re-appends an entry already in the journal | Routine start |
+| `load_pending` not called at start | CP-SEC3 |
+| `load_pending` called after `_continuity` | Pending before a restore |
+| `compose_simulation` accepts `journal` with `confirm_grant` | Composition |
+| `journal_trusted` ignored | Untrusted |
+| Trust read from `self.restore`, not the owed activation | Untrusted (the trusted twin) |
+| The ledger-consistency rule removed | View states |
+| A non-`OSError` adapter exception propagates from `journal_view` | View states |
+| `"chain_broken"` reported as `"broken"` | View states |
+| `tick` lets a `catch_up` exception escape | Catch-up raising |
+| The catch-up not rate-limited | Catch-up rate |
+| `catch_up` counts a revoke entry before the last matching issue | Catch-up order rule |
+
+"Revoke returns a refusal" became "revoke raises": `_journal_revoke` returns a payload value, not a refusal, so the realistic defect is the exception escaping. The spec corrections listed in the completion conditions (`SEC-R23`, the files, the trust flag, the consistency rule, the repair path, `journal_pending`) were made after the commit, on the coordinator's word: the spec's Restore continuity section, refusal table, event catalogue, F-SEC5, CUJ-SEC-4, alert route and policy inputs.
+
+## Step 10 — the operator UI
+
+<a id="step-10--the-operator-ui-outline"></a>
+
+The authorities are the spec's [Operator UI](../../design/security-and-operator.md#operator-ui-operator_ui) section, PRF-SEC-11 (TASK-S10-10) and the console hand-offs of steps 6, 7 and 8. Step 10 builds on steps 1–9 as built (`58b55b2` on `slice-08`). Every legacy citation is at 445eb116, read with `git -C OA show 445eb116:<path>`; `admin_console/` holds 111 files there. No secret, `.env` file or live host was opened to write this step.
+
+**What the legacy console does (opened at deepening).** It is a Next.js app with a backend-for-frontend (BFF). The browser never talks to the gateway; it calls the app's own `/api/*` routes, which call out:
+
+* **Writes** go through one function, `write(path, body)` (`admin_console/src/lib/write.ts:70-108`), to the BFF route `/api/console/<path>`, which forwards to the gateway's HTML console API `/console/api/<path>` (`src/app/api/console/[...path]/route.ts:20-73`). The pages make exactly three: `write("settings", …)` (`src/features/settings/index.tsx:305`), `write("operations", …)` (`:461`) and `write("registry/action", …)` (`src/features/strategies/index.tsx:88`, `:366`). The BFF forwards a POST only under the heads `settings`, `operations`, `overview`, `strategies`, `strategy`, `playbooks`, `registry`, `ops`, `ticks` (`route.ts:20-26`), after its cross-site check (`:84-101`). The CSRF token is one per gateway process, read from a listing and cached; a 403 clears it and retries once (`write.ts:45-82`).
+* **Console API reads** use the same BFF route: `registry`, `registry/script/{id}`, `registry/config/{id}`, `registry/decisions/{id}?day=` (`src/features/strategies/index.tsx:80`, `:284`, `:289`; `src/features/strategy-logs/index.tsx:68`, `:78`), `settings` (`src/features/settings/index.tsx:89`), `operations` (`:442`) and `ops/kill-switch` (`src/features/risk-guard/index.tsx:111`).
+* **MCP reads and writes** go through `/api/gateway/[tool]` to `callTool` (`src/lib/gateway.ts:74-176`), refused unless the name is in `READ_TOOLS` or `WRITE_TOOLS` (`src/config/tools.ts:9-110`; `src/app/api/gateway/[tool]/route.ts:25-67`), with the signed-in user's token or the shared `MCP_GATEWAY_TOKEN`, never a silent downgrade with OIDC on (`gateway.ts:31-41`). Prompts and health use the same gateway (`src/app/api/prompts/route.ts`; `src/app/api/health/route.ts`).
+* **No page offers** kill, hold, latch unlock, pause clear, exposure or advice application: the kill panel shows the state and the `at` command (`src/features/risk-guard/index.tsx:99-106`), and `tools.ts:101-103` says no strategy start or stop and no kill switch.
+* **The toolchain** (`package.json`; exact versions from `package-lock.json`, lockfile version 3): `next` 16.3.0, `react` and `react-dom` 19.2.8, `typescript` 5.9.3, `eslint` 9.39.5, `eslint-config-next` 16.3.0, `tailwindcss` and `@tailwindcss/postcss` 4.3.3, `@types/node` 20.19.43, `@types/react` 19.2.18, `@types/react-dom` 19.2.4. `next` 16.3.0 requires Node `>=20.9.0`.
+
+**In plain words.** The console you use today moves into the new system with its screens unchanged. What changes is underneath: its saves now go to the new owner API, which checks each one and writes it down, and its charts and tables read from the new AI-tools door, as today. Behind the scenes the console keeps its own session with the owner API, so you never see a "stale form" again; if the session ran out, it opens a new one and retries once with the same request number, so nothing is done twice. The console still cannot stop or start trading, lift a hold or a latch, or touch an order: it never could. Pages whose data belongs to parts not yet built say "not available yet". The small prompt library ("playbooks") moves across too.
+
+### Decisions
+
+#### The copy (`operator_ui/*`)
+
+* `operator_ui/` is every file of `admin_console/` at 445eb116, byte for byte, with the changes below and nothing else. `PROVENANCE.txt` at the root of `operator_ui/` lists, one per line, `<sha256 of the 445eb116 bytes>  <copied|changed|new>  <path>`, for every file under `operator_ui/` (paths relative to it), sorted by path. The build fills the hashes with `git show 445eb116:admin_console/<path>`; `new` files carry the hash of their own bytes.
+* **Changed:** `package.json`, `package-lock.json`, `.env.example`, `src/lib/write.ts`, `src/lib/gateway.ts`, `src/app/api/console/[...path]/route.ts`. **New:** `src/api.ts`, `playbooks/*.md` (seven, below), `PROVENANCE.txt`. Every page, component, hook, the MCP route, the prompts route, the health route, OIDC (`src/lib/oidc.ts`, with its session expiry at `:162-171`), `next.config.ts` (its CSP and security headers) and `src/config/tools.ts` are **copied unchanged**.
+* `.gitignore` already excludes `.next/` and `node_modules/` (`admin_console/.gitignore`), so neither is committed.
+
+#### The toolchain (`package.json`, `package-lock.json`)
+
+* `name` becomes `operator_ui`. `engines` is added: `{"node": ">=20.9.0"}`. `scripts` gains `"typecheck": "tsc --noEmit"`.
+* The toolchain is pinned to the exact versions the lockfile already resolves, replacing the ranges: `devDependencies` `@tailwindcss/postcss` `4.3.3`, `@types/node` `20.19.43`, `@types/react` `19.2.18`, `@types/react-dom` `19.2.4`, `eslint` `9.39.5`, `eslint-config-next` `16.3.0`, `tailwindcss` `4.3.3`, `typescript` `5.9.3`. `next`, `react` and `react-dom` were exact already. The runtime libraries keep their ranges; the lockfile fixes them.
+* The lockfile is updated with `npm install --package-lock-only --ignore-scripts` and nothing else; its diff touches only the root package entry. Installs use `npm ci`.
+
+#### The owner API client (`operator_ui/src/api.ts`, new)
+
+Self-contained (no imports), so it compiles alone. `createOwnerClient({ baseUrl, fetch, timeoutMs })` returns `{ read(path, search, traceId), write(path, body, traceId) }`, each resolving to `{ status: number, body: Record<string, unknown> }`. Nothing throws to the caller.
+
+* **The URL.** `baseUrl` must be `http://127.0.0.1:<port>` or `http://[::1]:<port>` (the owner API binds loopback only, step 6), else `createOwnerClient` throws `Error("OWNER_API_URL must be http://127.0.0.1:<port> or http://[::1]:<port>")`. Requests go to `baseUrl + "/owner/api/v1/" + path + search`.
+* **Headers it sends**, built fresh on every call (nothing from the browser is passed on, so no forwarding header ever reaches the owner API's reachability check): `x-owner-client: console` always (step 6: one cap bucket that no other client can drain); `x-request-id: <traceId>` always; for a write, `content-type: application/json`, `x-owner-session` and `x-owner-csrf-token`. No `origin`, `referer` or `host` is set by hand.
+* **The session.** One per BFF process, held in memory: `{ sessionId, csrfToken }` from `POST /owner/api/v1/session` with body `{}` (step 6). Opening is single-flight: concurrent writes that need a session share one pending open. A failed open is returned as the write's answer.
+* **A write**, in order:
+  1. no session: open one;
+  2. send;
+  3. **401 with `error.code` `SEC-R01`:** drop the session, open a new one, send again with the **same** body and `x-request-id`, **once**; a second 401 is returned (step 6's hand-off);
+  4. **503 with `error.code` `outcome_unknown`:** send again with the same session, body and `x-request-id`, **once**; a second one is returned with the message `the outcome is unknown: send it again with request <traceId>`;
+  5. anything else, a 403 included, is returned as it is. A 403 is now reachability or origin, which a new session cannot fix.
+* **A read** sends no session or CSRF header (reads need none, step 6's **Fork call (reads)**).
+* **The answer** unwraps step 6's envelope into the flat shape the pages read (`ok`, `message`, and the legacy fields):
+  * `ok: true`: the body is `data` when `data` is a plain object, else `{ data }`; status 200;
+  * `ok: false`: the body is `data`'s fields when `data` is a plain object without a `refusal` key, then `ok: false`, `message: error.message`, `code: error.code`, `request_id`; the status is the owner API's.
+* **Faults.** A thrown `fetch` or a timeout (`timeoutMs`, 15,000 in the route, legacy's forward timeout, `route.ts:137`) gives status 502 and `{ ok: false, message: "The owner API is not answering. It is served by the operator process, so this usually means the operator process is down.", detail: "<name>: <message>" }` (legacy's text, `route.ts:150-157`, with the process named). A body that is not JSON gives the owner API's status and `{ ok: false, message: <the first 400 characters> }` (`route.ts:140-146`).
+
+#### The BFF route (`operator_ui/src/app/api/console/[...path]/route.ts`, changed)
+
+* `crossSite(req)` is unchanged and still runs before every POST (`route.ts:64-65`, `:84-101`).
+* **Allowlists**, so the console reaches exactly what legacy's console reached and the owner API serves:
+  * `GET`: legacy's `ALLOWED` heads unchanged (`route.ts:20-26`); the owner API answers 404 for a path it does not serve;
+  * `POST`: exactly `settings`, `operations`, `registry/action`, `ticks/watch` and `playbooks`, the console-API writes legacy's route forwarded (`routes.py:422`, `:547`, `:577`, `:648`, `:695`). Any other path is 403 `{ ok: false, message: "/console/api/<path> is not proxied" }`, legacy's text (`route.ts:58-62`).
+* `traceFrom` adopts the caller's `x-request-id` only when it matches `^[A-Za-z0-9_-]{22,64}$`, the owner API's nonce rule (step 6), else mints `newTraceId()`. Legacy's rule was `{8,64}` (`route.ts:114`): an adopted id shorter than 22 would be replaced by the owner API, and a retry would then carry a different nonce.
+* `GET` and `POST` call one module-level client, `createOwnerClient({ baseUrl: process.env.OWNER_API_URL ?? "", fetch, timeoutMs: 15_000 })`, built on first use. With `OWNER_API_URL` unset or refused, every call answers 503 `{ ok: false, message: "OWNER_API_URL is not set to the owner API's loopback address: the console cannot reach it" }`. The answer is `NextResponse.json(body, { status, headers: { "cache-control": "no-store" } })`.
+* `.env.example` gains, after the MCP block: `OWNER_API_URL=` with the comment `# The operator process's owner API, on loopback (SLICE-11 sets the port). Writes and console reads go here.` The gateway's `MCP_GATEWAY_URL` lines are unchanged.
+
+#### `write.ts` and `gateway.ts` (changed)
+
+* `write.ts`: `cachedToken`, `csrfToken()` and the 403 retry are removed (`write.ts:34-62`, `:77-82`): the BFF holds the session. `post` sends the caller's `body` as given (`csrf` included when a page passes one; step 7 drops it). Everything else, `WriteResult`, the outcome rule (5xx `failed`, other non-ok `refused`) and the zod schemas, is unchanged.
+* `gateway.ts`: `newTraceId()`'s fallback (`gateway.ts:65-68`) becomes 12 lowercase hex characters from `crypto.getRandomValues(new Uint8Array(6))`, so every id is `req_` + 8 hex + `_` + 12 hex, 25 characters, inside the owner API's nonce rule. Legacy's `Math.random().toString(36).slice(2, 14)` could be shorter. Nothing else in `gateway.ts` changes.
+
+#### The owner API's console reads (`interfaces/api.py`)
+
+Step 8 handed step 10 the legacy owner-API GET reads that step 6 does not serve; the console's own API reads are added beside them, under step 6's order of checks (rows 1–4: route, reachability, authentication, the read).
+
+* `OwnerPort` gains `read(name: str, params: Mapping, *, actor: str) -> Mapping | Refusal`. Owners implement it with `apply` (hand-off below).
+* Every routed read is **owner-only**: a caller with `accounts` not `None` gets 403 `SEC-R14` (`scope_denied`), as the alert read. It needs no session, CSRF token or nonce. A `None` port answers `SEC-R22` (409). Params are the path fields plus every query parameter as a string; a repeated query parameter is 400 `invalid_request`. The answer follows step 7's table (a result with `ok` false is 409 `refused`, a port's `ValueError` or `KeyError` 400, any other exception 500 `owner_api_failure`).
+
+| Route | Name | Port | Legacy |
+|---|---|---|---|
+| `GET /registry` | `registry.list` | `strategies` | `routes.py:378-388` |
+| `GET /registry/script/{id}` | `registry.script` | `strategies` | `:390-397` |
+| `GET /registry/config/{id}` | `registry.config` | `strategies` | `:399-405` |
+| `GET /registry/decisions/{id}` | `registry.decisions` | `strategies` | `:407-420` (the owner defaults `day` to today's IST date) |
+| `GET /strategies` | `strategy.list` | `strategies` | `routes/strategies.py:11` |
+| `GET /strategies/{strategy}` | `strategy.read` | `strategies` | `:16` |
+| `GET /strategies/{strategy}/decisions` | `strategy.decisions` | `strategies` | `:23` |
+| `GET /strategies/{strategy}/policy` | `policy.read` | `configuration` | `:38` |
+| `GET /strategies/{strategy}/policy/schema` | `policy.schema` | `configuration` | `:43` |
+| `GET /settings` | `settings.read` | `configuration` | `routes.py:521-545` |
+| `GET /config` | `config.read` | `configuration` | `routes/configuration.py:9` |
+| `GET /system` | `system.read` | `configuration` | `routes/system.py:16` |
+| `GET /deployment` | `deployment.read` | `configuration` | `routes/deployment.py:10` |
+| `GET /governance` | `governance.read` | `configuration` | `routes/governance.py:11` |
+| `GET /ai/status`; `/ai/config/{strategy}`; `/ai/blueprint/{strategy}`; `/ai/exit-blueprint/{strategy}`; `/ai/decisions`; `/ai/decisions/{decision_id}`; `/ai/pauses`; `/ai/advice`; `/ai/advice/{advice_id}`; `/ai/designer/{strategy}/status` | `ai.status`, `ai.config.status`, `ai.blueprint.status`, `ai.exit-blueprint.status`, `ai.decisions.list`, `ai.decisions.show`, `ai.pauses.list`, `ai.advice.list`, `ai.advice.show`, `ai.designer.status` | `cognition` | `routes/ai_management.py:72-95` |
+| `GET /operations` | `operation.list` | `research` | `routes/operations.py:20`; `routes.py:514-519` |
+| `GET /research` | `research.read` | `research` | `routes/research.py:15` |
+| `GET /promotion-approval` | `promotion.read` | `research` | `routes/promotion_approval.py:19` |
+| `GET /promotion/lineage-repair` | `lineage.plan` | `research` | `routes/lineage_repair.py:37` (step 7 kept it CLI-only; it is now also served) |
+| `GET /monitoring`; `GET /monitoring/{reader}` | `monitoring.list`; `monitoring.read` | `market` | `routes/operations.py:31-36` |
+| `GET /playbooks` | `playbook.catalogue` | `playbooks` | `routes.py:507-512` |
+
+* **Mapped reads**, answered here with no port:
+  * `GET /` answers `{"prefix": "/owner/api/v1", "routes": [[method, path], …]}`, every row of `ROUTES` in order. Legacy's discovery also returned the process CSRF token (`routes/system.py:9-14`); sessions replace it.
+  * `GET /ops/kill-switch` answers legacy's shape (`operations_surface.py:196-207`) from step 6's kill read: `{"ok": true, "status": {"engaged", "by_flag", "by_file", "file"}}`, with `engaged` the kernel's, `by_flag` true when `risk_guard.kill_switch` is among the present inputs, `by_file` true when any other input is present (an unreadable path counts, named as the read names it), and `file` the first such input or `null`. With the kernel unreachable: `{"ok": false, "reason": "kernel_unreachable"}`, which step 7's rule answers 409, and the page then falls back to its MCP read, as its tri-state does (`risk-guard/index.tsx:116-118`). Legacy's other `ops/{what}` readers are not served (404): no page reads them.
+* `ROUTES` gains every row above with method `GET`. A path served for two methods (`/settings`, `/operations`, `/playbooks`, `/promotion/lineage-repair`) answers each; another method is 405.
+
+#### The playbooks owner (`interfaces/api.py`)
+
+* `Playbooks(directory: Path)` implements `OwnerPort` for `playbook.render` (row 18, step 7) and `playbook.catalogue`. It is legacy's `templates.py` ported line for line with its provenance (`src/interfaces/console/templates.py:41-211` @445eb116): `_FIELD`, `_FRONT`, `SCOPES`, `DEFAULT_SCOPE`, `FORBIDDEN_PHRASES`, `_hash` (the first 12 hex of SHA-256), `check`, `fields`, `load`, `_front_matter`, `catalogue` and `render`, every message text kept. `PLAYBOOK_DIR` becomes the constructor's `directory`. `choices` (`:214-265`) is not ported: no route reads it.
+* `apply("playbook.render", params, *, actor, nonce)`: `name` from `params["name"]`, stripped; empty gives `{"ok": false, "message": "Name a playbook — GET /console/api/playbooks lists them."}` (legacy's text, `routes.py:716-721`). `values` is `params.get("values") or {}` without `csrf` and `name` (`:722-723`). The answer is `{"ok": bool(out["available"]), **out}` (`:728`). `read("playbook.catalogue", {}, actor=…)` answers `catalogue()`.
+* The seven templates are copied byte for byte from `src/interfaces/console/playbooks/` into `playbooks/` under `operator_ui/`: `data-health.md`, `entry-gate-review.md`, `previous-n-sessions.md`, `session-forensics.md`, `trade-autopsy.md`, `trade-cohort.md`, `version-comparison.md`.
+* `parse_operator` accepts one more, optional key, `playbooks`: an absolute directory path. `serve` composes `OwnerPorts(playbooks=Playbooks(Path(config.playbooks)))` when it is set, else the port stays `None` (`SEC-R22`). SLICE-11 sets it to the installed console's `playbooks/` directory.
+
+#### MCP reads (unchanged)
+
+`gateway.ts`'s `callTool`, `rpc`, `parseBody` and `credential`, the `/api/gateway/[tool]` route and `tools.ts` are copied unchanged. They speak to step 8's MCP surface, which serves every name in `READ_TOOLS` and `WRITE_TOOLS` under the same name and verb (step 8's Catalogue group). `MCP_GATEWAY_URL` still defaults to `http://127.0.0.1:8000`; `.env.example` still names the console profile's port 8002 (`admin_console/.env.example:7`).
+
+#### Fork calls and deviations in this step
+
+* **Fork calls:**
+  * **The console's reach.** The BFF forwards exactly legacy's console writes (five paths) and legacy's read heads. Kill, hold, latch unlock, pause clear, exposure, advice application and candidate approval stay off the console's BFF, as no legacy page offered them (`risk-guard/index.tsx:99-106`; `tools.ts:101-103`); the owner API itself still offers its step 1 door rows to other callers. **No new door and no new gate.**
+  * **The console acts as the owner.** The BFF reaches the owner API on loopback, so every console action is `owner-api:local`, whoever signed in to the console, as legacy's forward stated loopback (`route.ts:127-129`). Listed improvement, not made: pass the OIDC subject as the proxy identity.
+  * **The allowlists, the cross-site check, the OIDC expiry, the MCP credential rule, the pages and their confirmations** (`settings/index.tsx:68-86`), all copied unchanged.
+  * **Legacy's messages** for the not-proxied path, the unreachable owner API and the playbooks.
+  * **MCP for reads.** The pages read through step 8's MCP surface; which MCP profile the console may use live is step 8's open owner item, unchanged here.
+* **Deviations:**
+  * the BFF holds one owner-API session and its CSRF token, replacing the per-process token read from a listing (the slice-level replay Deviation); a 403 is no longer retried;
+  * a 401 `SEC-R01` and an `outcome_unknown` are each retried once with the same `x-request-id` (new; step 6's hand-off);
+  * the BFF adopts a caller's id only at 22–64 characters, and `newTraceId`'s fallback is always 12 hex;
+  * the console's writes go to `/owner/api/v1/*` on the operator process, not to the gateway's `/console/api/*` (the slice-level separate-processes Deviation); `OWNER_API_URL` is new and has no default;
+  * the toolchain is pinned to the lockfile's exact versions, and `engines.node` is stated;
+  * `GET /` returns no CSRF token; legacy's unused console reads (`overview`, `strategy/{name}`, `ticks`, other `ops/*`) are not served;
+  * a playbook render refused by the owner answers 409 `refused` (step 7's rule), where legacy answered 400.
+* No score, threshold or money value is set. 15,000 ms is legacy's forward timeout; 22 and 64 are step 6's nonce bounds.
+
+#### What later steps take from step 10
+
+* **SLICE-09** (`strategies`, `cognition`), **SLICE-11** (`configuration`, `market`) and **SLICE-12** (`research`): each `OwnerPort` also implements `read` for its rows of the read table, with legacy's answer shapes, which the pages read unchanged.
+* **SLICE-11:** sets `OWNER_API_URL` and `MCP_GATEWAY_URL` for the console's unit; runs the console under a uid the owner API's loopback check admits (`http.proxy_uid`, or a uid the identity map names as the owner, step 6); sets `operator.playbooks`; builds with `npm ci` and `npm run build` on Node ≥ 20.9; ships the console's CSP and headers as built.
+* **SLICE-14:** no read or write route the pages call may answer `SEC-R22` at cutover, the same rule as step 7's owner ports.
+
+### Tests
+
+**`tests/contracts/test_operator_ui_routes.py` (T-66), PRF-SEC-11.** It reads `operator_ui/` as text and imports `interfaces.api`. The behaviour group compiles `operator_ui/src/api.ts` with the pinned compiler, `operator_ui/node_modules/.bin/tsc --target es2022 --module es2022 --outDir <tmp_path> src/api.ts`, and runs a driver written to `tmp_path` with `node`. It needs Node ≥ 20.9 and `npm ci` in `operator_ui/`; without them that group reports its skip and does not count. Every id and body is labelled synthetic; the trace id is `req_6745c2a0_0123456789ab` (25 characters).
+
+| Group | Cases |
+|---|---|
+| Provenance | `PROVENANCE.txt` lists every file under `operator_ui/` but `node_modules/` and `.next/`, once, sorted. Every `copied` line's hash equals the file's SHA-256. The `changed` set is exactly the six files above and the `new` set the nine. The step's copied files include `src/config/tools.ts`, `src/lib/oidc.ts`, `next.config.ts` and `src/app/api/gateway/[tool]/route.ts` |
+| Toolchain | `package.json`'s eleven toolchain entries are the exact versions above, with no range character; each equals `package-lock.json`'s `packages["node_modules/<name>"].version`; `engines.node` is `>=20.9.0`; the lockfile's root entry matches `package.json` |
+| Writes | The calls `write("…"` in `operator_ui/src/**/*.ts(x)` are exactly `settings`, `operations` and `registry/action`. Each, and each entry of the BFF's POST allowlist (`settings`, `operations`, `registry/action`, `ticks/watch`, `playbooks`), is `("POST", "/" + path)` in `interfaces.api.ROUTES`. No allowlist entry starts with `strategies`, `exposure`, `ai/` or `orders` |
+| Reads | Each console read the pages make (`registry`, `registry/script/{id}`, `registry/config/{id}`, `registry/decisions/{id}`, `settings`, `operations`, `ops/kill-switch`) appears in the page sources and is a `GET` row of `ROUTES` (template fields compared as `{…}`) |
+| Cross-site | `route.ts`'s `crossSite` function is byte-identical to legacy's `route.ts:84-101` (SHA-256 of those lines' text, computed at build from `git show`), and the POST handler calls it before the client |
+| Trace id | `gateway.ts`'s `newTraceId` uses `crypto.getRandomValues(new Uint8Array(6))` in its fallback and no `Math.random`; `traceFrom`'s pattern is `^[A-Za-z0-9_-]{22,64}$` |
+| Client (Node) | A fake `fetch` records each call and answers from a script. (a) The first write: `POST …/owner/api/v1/session` with body `{}` and `x-owner-client: console`, then `POST …/owner/api/v1/settings` with `x-owner-session`, `x-owner-csrf-token`, `x-owner-client: console`, `x-request-id: req_6745c2a0_0123456789ab`, `content-type: application/json`, and no `origin`, `referer`, `host`, `x-forwarded-for`, `forwarded` or `x-real-ip`. (b) A second write opens no session. (c) 401 `SEC-R01` then 200: one more session open, the resend with the same body and id; the answer 200. (d) 401 twice: the caller gets the 401; two sends and two opens. (e) 503 `outcome_unknown` then 200: the resend reuses the session and id. Twice: the caller gets 503 with `the outcome is unknown: send it again with request req_6745c2a0_0123456789ab`. (f) 403 `mutation_refused`: one send. (g) `{ok: true, data: {groups: []}}` unwraps to `{groups: []}`, 200; `{ok: false, error: {code: "SEC-R22", message: "owner_absent"}, data: {refusal: {}}, request_id: "r"}` to `{ok: false, message: "owner_absent", code: "SEC-R22", request_id: "r"}`, 409. (h) A read sends no session headers and keeps `?day=2026-11-02`. (i) Two concurrent writes with no session: one open. (j) `fetch` throwing: 502 with legacy's text. `baseUrl` `http://example.test:8090` throws |
+
+**`tests/integration/test_owner_api.py` (T-64)** gains, in step 6's world:
+
+| Group | Cases |
+|---|---|
+| Routed reads | Every row of the read table, from the owner on loopback with no session headers: with no port, 409 `SEC-R22`; from `TEST_PRINCIPAL` through the proxy, 403 `SEC-R14`. With a `FakePort` answering `{"rows": []}`: 200 with that data, and the port saw, for example, `("registry.decisions", {"id": "buyer_edge", "day": "2026-11-02"}, "owner-api:local")` for `GET /registry/decisions/buyer_edge?day=2026-11-02`. `?day=a&day=b`: 400. A port answering `{"ok": false, "reason": "x"}`: 409 `refused`. `POST /settings` and `GET /settings` both served; `PUT /settings` 405 |
+| Discovery | `GET /` lists `["GET", "/registry"]` and `["POST", "/session"]`, in `ROUTES` order, with no `csrf` key |
+| Kill panel | The world with `KillInputs.resolve(False, ("run/KILL",), tmp_path)`: the file created and a pass run: `{"ok": true, "status": {"engaged": true, "by_flag": false, "by_file": true, "file": "<tmp_path>/run/KILL"}}`, 200. With no input and no kill: `engaged` false, both flags false, `file` null. The kernel unreachable: 409, `data` `{"ok": false, "reason": "kernel_unreachable"}` |
+| Playbooks | `Playbooks(tmp)` with `one.md` = `"---\nscope: session\n---\n# One\n\nRead {strategy} on {day}.\n"` (version `b7d92fc74e5e`) and `bad.md` = `"# Bad\n\nplace an order for {strategy}.\n"` (version `af2d869882d2`), both hand-computed. `GET /playbooks` (port composed): `templates` names `["bad", "one"]`; `bad` has `usable` false and the problem `contains 'place an order' — a playbook measures and proposes, it never applies`; `one` has scope `session`, title `One`, fields `["strategy", "day"]`. `POST /playbooks` with `{"name": "one", "values": {"strategy": "buyer_edge", "csrf": "x"}}`: 200, `prompt` `"# One\n\nRead buyer_edge on {day}.\n"` (the body after the front matter, the unfilled field kept), `missing` `["day"]`, `complete` false. `bad`: 409, message from `reason` `this playbook is refused: …`. `../x`: 409 with `'../x' is not a template name. Names are bare file stems.`. `{}`: 409 with the "Name a playbook" text. Without the port: 409 `SEC-R22`. `parse_operator` with `playbooks` relative: `ValueError` naming `operator.playbooks` |
+
+**By hand, not counted as a proof:** legacy's browser checklist (`admin_console/e2e/checklist.cjs`, run as `e2e/README.md` says, with Playwright 1.62.1 installed with `--no-save` in a throwaway folder) once against a simulation operator process and the console MCP profile, its results recorded in "as built".
+
+Every existing test keeps its expectations, but `test_owner_api.py`'s route-table count and `parse_operator`'s key-set test, which gain the new rows and the optional key.
+
+### Break checks
+
+The minimum set; "as built" records the final table. Each anchor is checked present exactly once, one mutation at a time, every file restored byte for byte (md5). A TypeScript mutation is checked by the Node group.
+
+| Change | Test that must fail |
+|---|---|
+| The 401 retry mints a new `x-request-id` | Client (c) |
+| The 401 retry loops (no "once") | Client (d) |
+| The `outcome_unknown` resend dropped | Client (e) |
+| A 403 retried | Client (f) |
+| `x-owner-client` not sent | Client (a) |
+| The browser's headers passed on | Client (a) |
+| Session open not single-flight | Client (i) |
+| A non-loopback `baseUrl` accepted | Client (j) |
+| `crossSite` removed from POST | Cross-site |
+| `exposure/cancel` added to the POST allowlist | Writes |
+| `traceFrom` back to `{8,64}` | Trace id |
+| A toolchain entry back to a range | Toolchain |
+| `tools.ts` edited | Provenance |
+| A routed read open to a delegate | Routed reads (`SEC-R14`) |
+| A routed read requiring a session | Routed reads (no session headers) |
+| `by_flag` from the file | Kill panel |
+| `FORBIDDEN_PHRASES` dropped from `check` | Playbooks |
+| `render` blanks an unfilled field | Playbooks (`{day}` kept) |
+
+### Files
+
+| File | Change |
+|---|---|
+| `operator_ui/**` | New: the copy, with the six changed and nine new files above |
+| `src/autonomous_trading/interfaces/api.py` | `OwnerPort.read`; the routed reads and their `ROUTES` rows; `GET /` and `GET /ops/kill-switch`; `Playbooks`; `parse_operator`'s `playbooks`; `serve`'s port |
+| `tests/contracts/test_operator_ui_routes.py` | New (T-66) |
+| `tests/integration/test_owner_api.py` | The four groups; the route-count and key-set expectations |
+
+No new tree delta: `operator_ui/*` and `interfaces/api.py` are in the target tree, and the test is T-66.
+
+### Completion conditions (step 10)
+
+* **Targeted tests only, no full suite:** `tests/contracts/test_operator_ui_routes.py` with its Node group run (Node ≥ 20.9, `npm ci` done in `operator_ui/`), `tests/integration/test_owner_api.py`, `tests/integration/test_operator_routes.py`, `tests/integration/test_operator_commands.py` and the rest of `tests/contracts/`. A run where the Node group skips does not count.
+* In `operator_ui/`, with the pinned toolchain: `npm ci`, `npm run typecheck`, `npm run lint` and `npm run build` each succeed. Each is run as legacy's scripts define it; no script or rule is weakened to pass.
+* Every break check fails a listed test, and every file is restored (md5). `ast.parse` passes on every edited Python file and `JSON.parse` on both package files.
+* All code is written and committed in `OA_NEW` only, in one commit; `node_modules/` and `.next/` are not committed. `git diff --name-only` names exactly the files above. Nothing is pushed. The build starts on the coordinator's word, and every cited line is re-read on the head it starts from.
+* PRF-SEC-11 passes. This file records step 10 "as built", with any Deviation or Fork call found while building, and the by-hand checklist's result.
 
 ## Open owner items
 

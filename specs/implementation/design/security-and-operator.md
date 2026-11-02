@@ -92,7 +92,7 @@ The decision text is the requirement; the label is a reminder.
 
 * **Given** grant G was delegated, then revoked, then the host was lost; the restored ledger shows G unrevoked.
 * **When** recovery runs its continuity step.
-* **Then** with the security journal reachable, G is revoked again and other journal-confirmed grants are kept; with it unreachable, every restored delegated grant is revoked (`restore_unverified`) and the owner re-issues through the owner root. No confirmation or request consumed before the loss authorizes anything (PRF-SEC-10).
+* **Then** with the security journal trusted by the owner and reachable, G is revoked again and other journal-confirmed grants are kept; with it unreachable, every restored delegated grant is revoked (`restore_unverified`) and the owner re-issues through the owner root. No confirmation or request consumed before the loss authorizes anything (PRF-SEC-10).
 
 ### CUJ-SEC-5: The broker key is replaced
 
@@ -188,7 +188,7 @@ The catalogue below is the kernel-bound privileged surface. **Fork call:** which
 * **Latch unlock target.** The CLI and API name a strategy, as legacy; the kernel's latch is per session (protection spec). The door maps the strategy to the standing binding that names it and that binding's scope to today's session; zero or several matches refuse (`SEC-R21`) and the caller names the session with `--session`.
 * **Advice application.** The route calls the strategies spec's `application_request(advice_id, principal, reason)`, which returns one typed close or protection modify; the door binds it as operation `advice_apply` and submits it. The kernel refuses it under kill (`SEC-R20`). Until SLICE-09 composes the advice store the route refuses (`SEC-R22`).
 * **Reads** (no request record, no confirmation): kill and hold status, latch status, positions, orders, commands and `command_status(command_key)` for one's own commands (the owner reads all), the alert list, and the outcome event stream (`GET /events?after=<sequence>`). They come from independent ledger readers, not the writer. Kill status reports which kill input is present and whether the kernel watches a file, as legacy (`src/core/framework/execution/killswitch.py:119-129`).
-* **Alerts.** The operator alert route is a read model: the kernel's in-process alert lists (`kernel/policy.py:54`, `kernel/recovery.py:98`), served over the kernel channel's `alerts` read, merged with recorded `RECONCILIATION_ESCALATED` events and journal-pending revocations. Push delivery is SLICE-11's.
+* **Alerts.** The operator alert route is a read model: the kernel's in-process alert lists (`kernel/policy.py:54`, `kernel/recovery.py:98`), served over the kernel channel's `alerts` read, merged with recorded `RECONCILIATION_ESCALATED` events and journal-pending revocations (the `alerts` reply's `journal_pending` key). Push delivery is SLICE-11's.
 
 ### Other legacy owner mutations
 
@@ -280,15 +280,19 @@ child_environment(parent_env, allowed) -> dict; scrub(text) -> str; redact(obj) 
 * **Replacement** is a process restart under the release and recovery rules; old use ends when the old process exits; nothing re-reads a secret while running. A restart neither resolves an effect it left uncertain nor permits resending it (`README.md:867`).
 * **Backups.** No secret value is in the ledger, evidence or recovery set; restoring them cannot restore a revoked credential.
 
-### Restore continuity (`interfaces/authorization.py`)
+### Restore continuity (`kernel/ports.py`, `kernel/authority.py`, `kernel/recovery.py`)
 
-Combined-F4 needs a record of authorization that a restored ledger cannot roll back.
+<a id="restore-continuity-interfacesauthorizationpy"></a>
 
-* **Security journal.** An append-only, digest-chained list of `GRANT_ISSUED` and `GRANT_REVOKED` entries (grant ID, grant digest, ledger sequence), kept apart from the ledger.
-* **Issue.** `kernel.authority` appends the issue before its ledger commit; with a journal composed but unreachable, the issue is refused. **Grant issuance with continuity depends on SLICE-11's off-host journal.** Before it, a production composition has no journal: grants can be issued, and every delegated grant is revoked at any restore (fail closed).
-* **Revoke.** With the journal reachable, the revocation is appended before its ledger commit. With it unreachable, the revocation commits at once with `journal: pending` in its payload and raises an alert; it never waits on the journal.
-* **Catch-up.** After every start the kernel appends each pending revocation in the background and clears the alert when done. It is not a start gate: a routine start reaches `OPERATING` as before (Q-009).
-* **Continuity check.** It implements recovery's `confirm_grant` hook (`kernel/recovery.py:228-239`): with the journal reachable and its chain intact, a restored grant is confirmed when the journal shows it issued with the same digest and not revoked, and revoked again otherwise; a grant only in the journal is not brought back (reported for the owner to re-issue). With the journal unreachable, every restored delegated grant is unconfirmed and revoked (`restore_unverified`), the fallback the master allows when continuity cannot be established.
+Combined-F4 needs a record of authorization that a restored ledger cannot roll back. The interface and the check live in the kernel, not `interfaces/authorization.py`: `kernel.authority` appends before its own commit, and no kernel module may import `interfaces` (SLICE-10 step 9).
+
+* **Security journal.** An append-only, digest-chained list of `GRANT_ISSUED` and `GRANT_REVOKED` entries (grant ID, grant digest, ledger sequence), kept apart from the ledger. `SecurityJournal` (`kernel/ports.py`) has `append` and `entries`; the adapter chains, the kernel verifies the chain when it reads. `append` returns only once the entry is stored durably, and `entries()` never shrinks (SLICE-11's adapter).
+* **Issue.** `kernel.authority` appends the issue before its ledger commit; with a journal composed but unreachable, the issue is refused (`SEC-R23`). An ID the ledger already holds never reaches the journal. While revocations are pending, the issue first appends them. **Grant issuance with continuity depends on SLICE-11's off-host journal.** Before it, a production composition has no journal: grants can be issued, and every delegated grant is revoked at any restore (fail closed).
+* **Revoke.** With the journal reachable, the revocation is appended before its ledger commit (`journal: appended`). With it unreachable, or while earlier revocations are pending, the revocation commits at once with `journal: pending` in its payload and raises an alert; it never waits on the journal. Recovery's own `restore_unverified` revocations are journaled the same way.
+* **Catch-up.** Pending revocations are rebuilt from the ledger at every start, before the continuity check. The kernel's periodic pass appends each one the journal lacks, at most once per `recovery.lease_renew_secs`, and clears the alert when done; a revoke entry counts only when it follows the grant's last matching issue entry. It writes nothing to the ledger, never raises (a failure is the alert `journal_catch_up_failed`), and is not a start gate: a routine start reaches `OPERATING` as before (Q-009) with no journal call.
+* **The owner's trust.** `RestoreMarker.journal_trusted` (default false) is set by the owner who runs the restore and recorded with it. While false, the journal is not read: continuity fails closed on delegated grants, as with an unreachable journal. A journal kept beside the lost host can be rolled back with it; only the owner knows.
+* **Continuity check.** It implements recovery's `confirm_grant` hook (`kernel/recovery.py:228-239`) with one read of the journal. A trusted, reachable journal whose chain is intact and which holds every revoke entry the ledger marks `appended` is **intact**: a restored grant is confirmed when the journal shows it issued with the same digest at its ledger issue sequence and not revoked after, and revoked again otherwise; a grant only in the journal is not brought back (reported, alert `journal_only:<grant>`, for the owner to re-issue). Every other state (untrusted, unreachable, a broken chain, an inconsistent journal or an adapter error) confirms nothing: every restored delegated grant is revoked (`restore_unverified`), the fallback the master allows when continuity cannot be established, with the alert `journal_untrusted`, `journal_chain_broken` or `journal_broken`. No state touches trading: only delegated grants change.
+* **Repair.** The journal is never edited. A broken one is replaced: the owner points `security.journal` at a new journal and restarts; pending revocations are appended to it, and grants issued before the switch are revoked at the next restore unless re-issued.
 * **Sessions and confirmations** live only in the doors' memory and die at a kernel epoch change; consumed requests are in the ledger; a request lost in a restore cannot be repeated (`SEC-R19`). None can be restored into authority.
 
 ### Operator UI (`operator_ui/*`)
@@ -341,6 +345,7 @@ SLICE-01…SLICE-09 use a test principal with a synthetic grant, injected by fix
 | `SEC-R20` (`advice_under_kill`) | An advice application while kill is engaged | `kernel.authority` |
 | `SEC-R21` (`ambiguous_target`) | A strategy maps to no session or to several | doors |
 | `SEC-R22` (`owner_absent`) | The route's owning module is not composed yet | doors |
+| `SEC-R23` (`journal_unreachable`) | A grant issue while a composed security journal cannot take its entry | `kernel.authority` |
 
 ### Event catalogue
 
@@ -350,7 +355,7 @@ SLICE-01…SLICE-09 use a test principal with a synthetic grant, injected by fix
 | `OPERATOR_REQUEST_REFUSED` | `kernel.authority`, once per `request_id` and code | `request_id`, principal, `channel_identity`, operation, target, code | none (evidence) |
 | `CREDENTIAL_BOUND` | `kernel:recovery`, once per credential per epoch, in `RECOVERY_WRITING` | `identifier`, `source` | none (evidence) |
 | `KILL_ENGAGED` by `kernel:safety` | `kernel.safety`, from a kill input | as the protection spec, reason `kill_file` or `kill_flag` | `safety_state` |
-| `GRANT_REVOKED` with `journal: pending` | `kernel.authority` | as the sessions spec, plus `journal` | `grant` |
+| `GRANT_REVOKED` with `journal: pending` | `kernel.authority` | as the sessions spec, plus `journal` (`appended`, `pending`, or null with no journal) | `grant` |
 
 ## Failure modes and crash points
 
@@ -360,7 +365,7 @@ SLICE-01…SLICE-09 use a test principal with a synthetic grant, injected by fix
 | CP-SEC2 | Crash after a journal issue entry, before the grant's ledger commit | The journal holds a grant the ledger lacks; continuity never resurrects it | PRF-SEC-10 |
 | CP-SEC3 | Crash after a pending revocation commits, before the catch-up appends it | The next start's background catch-up appends it; the alert stays until then | PRF-SEC-10 |
 | F-SEC4 | The kernel restarts or is restored | The operator process sees the new epoch and drops every session and challenge; callers re-authenticate | PRF-SEC-02, -07 |
-| F-SEC5 | The journal is unreachable at a restore | Every restored delegated grant is revoked (`restore_unverified`); the owner root still works | PRF-SEC-10 |
+| F-SEC5 | The journal is unreachable, untrusted or broken at a restore | Every restored delegated grant is revoked (`restore_unverified`); the owner root still works | PRF-SEC-10 |
 | F-SEC6 | A secret file is world-readable or missing, or the broker key comes from the environment in live | The process refuses to start (`SEC-R18`) | PRF-SEC-04 |
 | F-SEC7 | The kernel socket's directory is writable by another user | The server refuses to start; clients refuse to connect | PRF-SEC-05 |
 | F-SEC8 | The kill file appears while a dispatch is due | `KILL_ENGAGED` is recorded before the claim; the claim is refused | PRF-SEC-12 |
@@ -398,6 +403,7 @@ SLICE-01…SLICE-09 use a test principal with a synthetic grant, injected by fix
 | `risk_guard.kill_switch`, `risk_guard.kill_switch_file` (alias `MCP_KILL_SWITCH_FILE`) | Kill inputs | Legacy keys and defaults `false` and `""` (`config/defaults.yaml:132-133`); an empty file path starts and raises `kill_file_unwatched` |
 | `secrets.<service>.<name>` | Secret references | Refusing for every credential a composition needs |
 | `security.journal` | The journal adapter | SLICE-11; absent: fail closed (F-SEC5) |
+| `RestoreMarker.journal_trusted` | The owner's word, at a restore, that the journal survived | Default false: fail closed on delegated grants |
 
 ## Reuse evidence
 

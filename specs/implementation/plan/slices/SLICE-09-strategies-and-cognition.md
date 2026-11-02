@@ -1598,11 +1598,184 @@ Commit `370b804` on `slice-08`, on top of `6caab5c` (SLICE-10 step 8). It change
 
 **Open:** the production `ContextPort` and `PositionPort` readers (SLICE-10's projection registry); composing `OwnerPorts.advice`, `AdmissionPorts.advice` and the advice-generation owner route in a production composition (SLICE-11); the channel route for `record_review` and proposals (SLICE-10); step 4's two timing-sensitive cases.
 
-## Step 7 — the boundary and replay (outline)
+## Step 7 — the boundary and replay
+
+<a id="step-7--the-boundary-and-replay-outline"></a>The authorities are the spec's [Proofs](../../design/strategies-and-cognition.md#proofs) rows PRF-STR-09 and PRF-STR-11, REQ-STR-006 (D09 `README.md:847`; POL-029, POL-034), REQ-STR-005, Combined-F5 `README.md:366`; `:800`, and legacy's replay at 445eb116. Step 7 is TASK-S09-07 (PRF-STR-09) and TASK-S09-10 (PRF-STR-11). It builds on step 6 as built (OA_NEW `370b804` on `slice-08`, or the branch head when the build starts) and **adds tests only**: `tests/contracts/test_capabilities.py` gains PRF-STR-09, `tests/integration/test_shared_engine.py` gains PRF-STR-11. No source file, setting, event kind or migration changes. **No Fork call:** nothing here touches an entry, a size or a review rule, and nothing here can stop a trade, because every check is a test. Legacy citations are at 445eb116 (`RE` is `src/data/replay_engine/`). Every rule below was run once against `370b804` by a throwaway script in the scratchpad (not committed): the static rules give no finding, and the import measurements are quoted where used.
 
 * **Carried from step 3 (2026-11-02):** BuyerEdge imports the OpenAlgo SDK's `ta` functions (`openalgo==2.0.5`). The capability boundary allows `openalgo.ta` only; any other `openalgo` import from `strategies/` (the broker client) is refused, with a test and a break check.
 
-Extends `tests/contracts/test_capabilities.py` (PRF-XC-02's file) with PRF-STR-09: an `ast` scan of every module under `strategies` and `cognition` for imports of the ledger writer, the order adapters and the simulated broker, and for constructions of `ReviewApplication` and `Plan`; the spawned host and role environments carry no broker key; no settings, policy or locked-evidence write path; advice alone produces no action. The OS part of D09 is SLICE-11's. Adds PRF-STR-11 to `tests/integration/test_shared_engine.py`: a simulated session (market store, BuyerEdge and EMA cross, a scripted review team, one host crash and restart) is recorded, then re-run in a replay composition with only the replay backend; invocation IDs, state revision digests, outputs, decision records and reviews match the recorded run (Combined-F5, A05-F2; `README.md:366`, `:800`).
+**In plain words.** This step adds two checks on the finished strategy and AI code. The first proves the code cannot reach orders, the broker key, the ledger or the settings. A scan reads every import and every risky call. It allows only a short, fixed list and fails on anything else. BuyerEdge may use OpenAlgo's indicator functions and nothing else from OpenAlgo. A real run of one strategy and one AI review, watched from inside, shows each side writing only its own files, and the strategy program running without the broker key. The second check records a short trading session and replays it. The session has BuyerEdge, a model-driven test strategy, AI reviews over a test endpoint, and one crash and restart of BuyerEdge. The replay uses the records alone, with the network blocked. Every decision, its identity and its state chain must come out the same, and the endpoint must receive nothing during the replay. Nothing here changes how the system trades.
+
+### Decisions
+
+#### What legacy does here
+
+* **Replay isolation by removing the handle.** `NoBroker` stands where the broker client stood and raises `OrderAttempted` on any use (`RE/guard.py:62-95`). `disarm` replaces the client on every holder and refuses if one is unaccounted for (`RE/guard.py:97-126`).
+* **Candidate code in a fresh process** under a Landlock filesystem boundary (`RE/filesystem_sandbox.py:123`).
+* **One input source and one historical clock** drive either strategy kind (`RE/runner.py:237-379`). The run's semantic digest excludes run-derived and wall-time fields (`RE/runner.py:440-484`).
+* **Model replay** answers by bar sequence and abstains on a gap (`src/runtime/advisor/backends/replay.py:57-63`). A team replay re-runs the models live (`src/runtime/ai_management/team.py:1260-1278`).
+* **Child environments** withhold the broker key: the team child (`src/runtime/agent_team/__init__.py:176-190`) and the strategy child (`_child_env`, `src/runtime/strategy_host/process.py:288-334`). Legacy has no import scan. Its boundary is a convention (the spec's [problem](../../design/strategies-and-cognition.md#the-problem)).
+
+#### The static boundary (PRF-STR-09)
+
+* **The scanner.** `boundary_findings(rel: str, source: str) -> list[str]` is a pure function in the test file. `rel` is the path under `src/autonomous_trading` in POSIX form, and its first part is the importing package. It parses with `ast`, walks every node (imports inside functions included), and returns one finding per offending node in `ast.walk` order: `f"{rel}:{node.lineno}: {rule}: {ast.unparse(node)}"`. A relative import resolves at level 1 to `autonomous_trading.<package>` and at level 2 to `autonomous_trading`. The tree test applies it to every `*.py` under `strategies/` and `cognition/` (`rglob`, name order) and expects `[]`.
+* **The rules.** "Under M" means equal to M or starting with `M.`.
+
+  | Rule | Allowed | A finding |
+  |---|---|---|
+  | `openalgo` | Exactly `from openalgo import ta` (level 0, one name, no alias), in `strategies/` | Any other import of `openalgo` or a module under it, anywhere; any `openalgo` import in `cognition/` |
+  | `internal` | An `autonomous_trading` import under `autonomous_trading.contracts` or the importer's own package (also `from autonomous_trading import <that package or contracts>`), or a `from` import whose module and every name are in the pair table | Any other `autonomous_trading` import, including every plain `import autonomous_trading.<x>` outside those two |
+  | `network` | Only in `cognition/providers.py` (step 5: the one module that opens a socket) | A module, or a from-import's `module.name`, under `socket`, `ssl`, `http`, `urllib.request`, `urllib.error`, `urllib3`, `requests`, `httpx`, `aiohttp`, `websocket`, `websockets`, `asyncio`, `ftplib`, `smtplib`, `telnetlib` or `xmlrpc` (`urllib.parse` is allowed everywhere) |
+  | `process` | Imports of `subprocess`, `multiprocessing`, `ctypes` and `pty` only in `cognition/runtime.py` (the role launcher and its `prctl`) | Those imports elsewhere; anywhere, a call `os.<x>(…)` with `x` one of `system`, `popen`, `fork`, `forkpty`, the eight `exec*`, the eight `spawn*`, `posix_spawn`, `posix_spawnp`, `startfile` |
+  | `database` | `apsw` and `sqlite3` only in `strategies/worker.py` (the host's own store) | Those imports elsewhere |
+  | `dynamic` | Nothing | An import under `importlib` or `runpy`; a call of the bare name `exec`, `eval`, `compile` or `__import__`; an attribute call `import_module`, `run_module` or `run_path` |
+  | `environ` | `os.environ`, `os.environb`, `os.getenv`, `os.getenvb`, `os.putenv`, `os.unsetenv` in `cognition/runtime.py` (`SYSTEMROOT`) and `cognition/providers.py` (`consult`'s default environment), and in `strategies/buyer_edge.py` inside a function named `from_env` | Those attributes anywhere else; in `strategies/`, a call `<x>.from_env(…)` outside a `from_env` body |
+  | `advice` | Nothing | In `cognition/advice.py`, a call of an attribute named `admit_entry`, `admit_action`, `submit`, `record_review`, `record_decision`, `record_unavailable`, `dispatch`, `send`, `run_pass` or `_submit_admitted` |
+
+* **The pair table** (per importing package; each row is what step 1–6 as built import, nothing more):
+
+  | Package | Module | Names | Why |
+  |---|---|---|---|
+  | `strategies` | `autonomous_trading.cognition.review` | `ProposalRequest` | The model strategy builds its request (step 6) |
+  | `strategies` | `autonomous_trading.market.quality` | `InputRequirement` | The registry (step 1) |
+  | `strategies` | `autonomous_trading.market.sources` | `rows_of` | BuyerEdge's assembly (step 3) |
+  | `strategies` | `autonomous_trading.market.store` | `MarketReader`, `StoreNotUpgraded` | The host reads the market store; never `MarketStore`, its writer |
+  | `strategies` | `autonomous_trading.market.view` | `resolve`, `reopen`, `Unavailable` | One view per trigger (step 2) |
+  | `strategies` | `autonomous_trading.kernel.ledger.envelope` | `canonical`, `digest` | Pure digests |
+  | `strategies` | `autonomous_trading.kernel.ledger.runtime` | `UnsafeRuntime`, `WriterLock`, `connect` | The host's own SQLite store (step 2) |
+  | `strategies` | `autonomous_trading.kernel.coordinator` | `WriterLost` | An exception the kernel port raises |
+  | `strategies` | `autonomous_trading.kernel.ledger.store` | `CommitFailed` | An exception the kernel port raises; never `LedgerWriter` |
+  | `cognition` | `autonomous_trading.settings.secrets` | `BROKER_KEY_MASK`, `BROKER_KEY_PATH`, `env_path`, `MARKER`, `_forms` | The role environment's key removal (step 4) and the key scrub (step 5) |
+
+  `strategies` may not import `cognition` beyond that one name, and `cognition` may not import `strategies` at all. **Reading of the hand-offs:** step 5 expected cognition to import `Secrets`. As built, no cognition module imports it, because the recorder is handed the process's `Secrets` object. The table therefore leaves it out. Steps 1, 4 and 5 named no other import, and the table holds no more.
+* **Constructions.** `ReviewApplication(` and `Plan(` outside `kernel/policy.py` and the planner are already refused across the whole tree, `strategies/` and `cognition/` included, by the existing `test_decisions_built_only_by_the_kernel`. That test is PRF-STR-09's construction clause and is unchanged. Reaching the broker key's value is already refused outside `settings/secrets.py` and the OpenAlgo adapter by `tests/unit/test_secret_references.py`'s `reveal` boundary, also unchanged.
+* **The import closure.** `_modules_after` (already in the file) runs two subprocesses. One imports the eleven modules other than BuyerEdge, and `openalgo` must not be loaded. The other imports all twelve modules, and the loaded set must hold no module under `autonomous_trading.adapters`, `autonomous_trading.interfaces` or `autonomous_trading.operations`, and none of `autonomous_trading.bootstrap`, `…kernel.coordinator`, `…kernel.admission`, `…kernel.policy`, `…kernel.planner`, `…kernel.authority`, `…kernel.ledger.store`, `…kernel.ledger.projections`, `…kernel.ledger.evidence_store`, `…market.store`. Measured at import: the only kernel modules loaded are `kernel.ledger.envelope` and `kernel.ledger.runtime`. The host loads `kernel.coordinator` and `kernel.ledger.store` lazily for the two exception names (`_faults`), and `market.store` for its reader, only when it runs.
+* **Readings, recorded rather than changed:**
+  * **The two kernel exception names.** The kernel ports raise `WriterLost` and `CommitFailed`, so catching them is part of the port's contract. The lazy import loads those two kernel modules into the host process. No writer instance exists there, and SLICE-11's OS boundary denies the ledger file. *Listed, not made:* moving the two exceptions into `contracts`.
+  * **BuyerEdge's copied configuration readers.** `BrokerConfig.from_env` and the eight other `*.from_env` methods (`strategies/buyer_edge.py:92-107` and on) read `OPENALGO_API_KEY` and other variables. Nothing calls them: `create` uses `BotConfig()` (`BE:2454`). They stay byte for byte (Fork call 3; step 3's hashed range). The `environ` rule fails the moment one becomes reachable by a call. *Listed, not made:* removing them, which would change step 3's recorded hash of the copied range.
+  * **The OpenAlgo SDK loads whole.** `from openalgo import ta` runs the SDK package's `__init__`, which loads 27 SDK modules into the strategy process, among them `openalgo.orders` and the `httpx` client library (measured). The boundary is the import statement: only the name `ta` is bound, so no strategy code can name the client. Denying egress is D09's OS part, SLICE-11's.
+
+#### The run-time watch (PRF-STR-09)
+
+* **The boundary child.** `python -B tests/contracts/test_capabilities.py boundary <base>`. The file gains a `__main__` for it, as `tests/recovery/test_crash_boundaries.py` has. `-B` writes no bytecode, so the import system writes nothing. In order, the child:
+  1. imports the helpers of `tests/unit/test_strategy_invocation.py`, `tests/integration/test_review_producer.py` and `tests/recovery/test_crash_boundaries.py` (as `_inv()` and `_rev()` do) and every module the scenarios use;
+  2. installs the watch (below), only after those imports;
+  3. **scenario H, the strategy host:** over `<base>/host`, which the parent prepared with `crash_prepare`, the steps of `crash_child`, with `fault_point=None` and a review port that raises. The ENTER at 10:41 is published and recorded, `record_unavailable` is called, and it is admitted;
+  4. **scenario R, one review:** `_cp_c_world(<base>/review, {})` (step 4's `VALID`, every role `contribute:ALLOW`) and one `kit.producer.request(world.publish(rev.make_intent()))`;
+  5. prints one JSON line `{"events", "apsw", "key_names", "admitted", "reviews", "broker_calls"}` and exits 0.
+* **The watch.** `sys.addaudithook` records `open` (write when the mode holds any of `w`, `a`, `x`, `+`, or when the flags hold `O_WRONLY`, `O_RDWR`, `O_CREAT` or `O_APPEND`), `os.rename` (which `os.replace` also raises), `os.remove`, `os.rmdir`, `os.mkdir`, `os.chmod`, `os.truncate`, `shutil.rmtree`, the five socket events of `providers._FORBIDDEN_EVENTS`, `subprocess.Popen`, `os.system`, `os.exec`, `os.spawn`, `os.posix_spawn` and `os.startfile`. `apsw.connection_hooks` records each new connection's `filename`. **The owner** of an event is the innermost frame on the stack whose module is under `autonomous_trading.strategies` (`strategies`), under `autonomous_trading.cognition` (`cognition`) or is `autonomous_trading.bootstrap` (`port`, the in-process kernel ports, unconstrained). An event with none of these on the stack is not recorded. Paths are `os.path.normcase(os.path.realpath(…))`, and a file-descriptor path is skipped.
+* **The spawned host's environment.** The parent launches the child with `env = child_environment(parent, allowed, refs=(), resolved=Secrets())`. `parent` is `os.environ` plus synthetic `OPENALGO_API_KEY` and `AT__OPENALGO__AUTH__API_KEY` values. `allowed` is every parent name, those two included, so the helper's removal must override its own allow-list. `key_names` lists the child's names whose `env_path` is `BROKER_KEY_PATH` and whose value is non-empty. SLICE-11's strategy-host unit must spawn with `child_environment`, as legacy's `_child_env` did (carried). The test also checks that `compose_strategy_host` has no `secrets` or `credentials` parameter and that no `SCOPES` key starts with `strategy`.
+
+#### Replay of a recorded session (PRF-STR-11)
+
+* **The replay composition, from existing parts.** Each phase composes:
+  * a simulation kernel (`compose_simulation`, `SimulatedBroker(ScriptResponder([]))`) over its own ledger;
+  * the same registry rows, and one `compose_strategy_host` per strategy, each with its own store. Class S composes both hosts in one test process, as step 6's tests do with the kernel, host and cognition; SLICE-11 runs each in its own service (Fork call 14);
+  * the review producer and the proposal producer.
+
+  The phases differ only in cognition: the record phases use `compose_cognition` with a synthetic advisor key, and the replay phases use `compose_cognition_replay` with the staged answers and no credential. No coordinator pass runs, so nothing is dispatched. A production replay entry point (a research job) is SLICE-12's.
+* **What is recorded:** the market store (one file, read by every phase), every model answer (staged from the recorded run records), and the session script: the pass instants and the crash point. The crash is part of the session. The replay reproduces it from the script, and the test proves the replay's `STATE_RESET` rows equal the recorded ones.
+* **The session** (every value labelled synthetic, except the golden day's records):
+
+  | Item | Value |
+  |---|---|
+  | Day | 2026-11-04 (a Wednesday), the golden day of the walk `synthetic-equidistant-multi-expiry` (`tests/fixtures/strategies/buyer_edge_golden.json`) |
+  | Market | Step 3's day-2 construction in `test_through_the_host_and_across_a_session_change`: `trading_days`, then `_ticks` from 10:40 IST with closes `[100.0] * 20` plus the walk's ten closes, then `put_days(["2026-11-04"])`, then the seal commit at 11:10:07. Windows 10:40 to 11:09, 30 bars |
+  | `buyer_edge` | The production package; row `enabled`, `authority` `trade`, account `sim`/`acct-sim`; view policy `BE_POLICY` (step 3's test). Warm-up 20, so 10:40 to 10:59 are `WARMUP` and 11:00 to 11:09 are decided |
+  | `sim_model` | A test package named `replaypkg` under `<base>/pkgs`, written once: step 6's `model_package` descriptor with `warmup_bars` 27; row `enabled`, `authority` `none`, `kind` `ai_worker`; view policy `live`. 10:40 to 11:06 are `WARMUP` and 11:07 to 11:09 are decided |
+  | Kernel | `test_strategy_invocation.kernel_world`'s composition with three changes: binding `b-1` naming both candidate IDs (2026-11-01 to 2026-11-30); `entry` grants `g-be` and `g-sm` for `strategy:buyer_edge` and `strategy:sim_model`; `authenticated` = `AUTHENTICATED` plus `service_authenticated(("buyer_edge", "sim_model"))`. Policy `bound(ai_mode="enforce_entry_holds", review_required=True, configuration_digest="c"*64, blueprint_digest=digest(REVIEW_TEAM), lineage_digests=lineage_digests(REVIEW_PINS), planner=planner_policy())`. View policies `{"live": LIVE, "buyer_edge": BE_POLICY}` |
+  | Review team | `REVIEW_TEAM`: step 4's `VALID` without `spec_b` (roles `spec_a` and `lead`, both `http`, `task_limit` 1, `concurrency` 1). `REVIEW_PINS`: `{"config": {"model": "sim-model", "url": <endpoint>}, "instruction": "synthetic review"}`. Context `TriggerSpot`: one `ToolResult("spot", 24000.0, "test.trigger_spot", intent.as_of.utc_iso, 15.0, intent.view_id, intent.underlying)` per intent (age 0, fresh) |
+  | Proposal team | Step 6's `proposal_team("http")`, pins `{"config": {"model": "sim-model", "url": <endpoint>}, "instruction": "synthetic proposal"}`, configuration digest `"c"*64` |
+  | Endpoint | Step 5's `_Server` on 127.0.0.1, started by the parent, which logs every request. It parses `messages[1].content` and answers `reply_body(view)` by `output_schema` and `identity.as_of`. For `entry_review`, every task gets `V_ALLOW`. For `intent_proposal` at `2026-11-04T05:37:00.000000Z` (11:07), `{"abstain": false, "direction": "CE", "conviction": 0.58, "reason": "cross up"}`; at 05:38Z, `{"abstain": true, "reason": "flat"}`; at 05:39Z, `{"abstain": false, "direction": "PE", "conviction": 0.4, "reason": "cross down"}` |
+  | Clock | One `RecordedClock` per phase drives the kernel and the hosts; cognition's `clock` is that clock's instant in epoch seconds (step 6's `epoch`). The observation fixture is set one second before each pass instant (`observe_at`) |
+
+* **The phases.** Each child runs `python -B tests/integration/test_shared_engine.py <phase> <base> <endpoint>` with `ADVISOR_API_KEY` removed from its environment.
+
+  | Phase | Clock (IST) | Runs | Exit |
+  |---|---|---|---|
+  | prepare (parent) | 10:40:00 | The market store; both ledgers (`<base>/rec`, `<base>/rep`) with binding, grants and the session opened | — |
+  | `record-1` | 11:10:07 | Kernel, cognition, both producers; the `sim_model` host's pass; then the `buyer_edge` host's pass with `fault_point="CP-W2"`, which exits at 11:00's completion, before it is published | 86 |
+  | `record-2` | 11:10:30 | Kernel, cognition, producers; the `buyer_edge` host recomposed (recovery: `STATE_RESET`, then CP-W2's row) and its pass | 0 |
+  | stage (parent) | — | `stage_replay` of every `cognition_run` row of `<base>/rec/records`, resolved from the recorded ledger's evidence store, into `<base>/stage` | — |
+  | `replay-1` | 11:10:07 | As `record-1`, in the replay composition over `<base>/rep`. The first statement installs a hook that refuses the five socket events of `providers._FORBIDDEN_EVENTS` (`subprocess.Popen` stays allowed: role children must start, and each one installs `forbid_network`) | 86 |
+  | `replay-2` | 11:10:30 | As `record-2`, the same way | 0 |
+
+* **Compared, record against replay:**
+  * each host store's `invocation` rows (every column), `scope_head` rows, and `journal` rows (`kind`, `scope`, `invocation_id`, `payload`, `at`, in `seq` order);
+  * the ledger's `decision` rows without `sequence`;
+  * per command key, the admission event (`COMMAND_ADMITTED`, or `ADMISSION_REFUSED` with its code);
+  * per `intent_digest`, the review's `review_id`, `outcome`, `pause_minutes`, three digests, `started_at`, `completed_at` and `valid_until`, and the frozen application;
+  * per run ID, the run record's `result` and each role's `role`, `outcome`, `cause` and `output_digest`.
+* **Not compared:** a review's `evidence_refs`, and the run records' own digests. A replayed attempt carries `replayed: true` and the child's wall-clock attempt times, so the run records differ by construction, as legacy's semantic digest excluded run-derived fields (`RE/runner.py:464-484`). **EMA cross is not in the session:** its 64-bar warm-up needs 44 more synthetic minutes before the golden stretch, which would move BuyerEdge's first decided bar off bar 20, where step 3's walks start. The stateless `recompute` path is covered by `sim_model`. **Change from the outline**, which named EMA cross.
+
+### Tests
+
+Every value is labelled synthetic unless it comes from the golden fixture, and every expectation is written by hand from the rules above. Digests are computed in the test with `hashlib.sha256` over `json.dumps(…, sort_keys=True, separators=(",", ":"), ensure_ascii=False)`, which is `kernel/ledger/envelope.py`'s `canonical`.
+
+**`tests/contracts/test_capabilities.py`, PRF-STR-09:**
+
+| Group | Cases |
+|---|---|
+| Tree | `boundary_findings` over every module of `strategies/` and `cognition/`: `[]` |
+| Synthetic sources (rel strategies/x.py unless stated; the expected list is exact) | `import openalgo` → `["strategies/x.py:1: openalgo: import openalgo"]`; `from openalgo import api`, `from openalgo import ta, api`, `from openalgo import ta as t`, `import openalgo.ta` and `from openalgo.orders import OrderAPI` → one `openalgo` finding each, the text the statement; `from openalgo import ta` → `[]`, and with rel cognition/x.py → `["cognition/x.py:1: openalgo: from openalgo import ta"]`. `from autonomous_trading.kernel.ledger.store import LedgerWriter`, `import autonomous_trading.kernel.ledger.store`, `from autonomous_trading.adapters import simulated_broker`, `from autonomous_trading import bootstrap`, `from autonomous_trading.market.store import MarketStore` and `from autonomous_trading.settings.secrets import Secrets` → one `internal` finding each; `from autonomous_trading.kernel.ledger.store import CommitFailed` → `[]`. With rel cognition/x.py: `from autonomous_trading.settings.secrets import MARKER` → `[]`; `… import Secrets` and `from autonomous_trading.strategies.worker import Signal` → `internal`. `import socket` and `from urllib import request` → `network`; `import urllib.parse` → `[]`. `import subprocess` → `process`; `"import os\nos.system('x')"` → `["strategies/x.py:2: process: os.system('x')"]`. `import apsw` → `database` (also with rel cognition/x.py). `import importlib` and `x = eval('1')` → `dynamic` (`"strategies/x.py:1: dynamic: eval('1')"`). `"import os\nk = os.getenv('OPENALGO_API_KEY')"` → `["strategies/x.py:2: environ: os.getenv"]`; a `from_env` body reading `os.getenv` in strategies/x.py → `environ` at its line (the exemption is BuyerEdge's file only); `"class C:\n    @classmethod\n    def from_env(cls):\n        return 1\nC.from_env()"` → `["strategies/x.py:5: environ: C.from_env()"]`; with rel cognition/x.py, `os.environ['A']` → `environ`. With rel `cognition/advice.py`, `self.kernel.admit_action(x)` → `["cognition/advice.py:1: advice: self.kernel.admit_action(x)"]` |
+| The OpenAlgo import | Over the tree, the statements naming `openalgo` are exactly one: `from openalgo import ta` in `strategies/buyer_edge.py` |
+| Import closure | The two subprocesses above: `openalgo` absent without BuyerEdge; no forbidden module with all twelve |
+| Role environments | `role_environment(d)` for `d` = `{"OPENALGO_API_KEY": S}`, `{"AT__OPENALGO__AUTH__API_KEY": S}` and `{"ADVISOR_API_KEY": A}` (`S` and `A` built as `"SYNTHETIC-SECRET-" + uuid4().hex`) is exactly `{"PATH": os.defpath, "LANG": "C.UTF-8", "PYTHONUNBUFFERED": "1", "OPENBLAS_NUM_THREADS": "1", "OMP_NUM_THREADS": "1", "AT__OPENALGO__AUTH__API_KEY": ""}`, plus `SYSTEMROOT` on Windows, plus `"ADVISOR_API_KEY": A` in the third case. `S` appears in no value |
+| No host secret | `compose_strategy_host`'s parameters include neither `secrets` nor `credentials`; no key of `SCOPES` starts with `strategy` |
+| The run-time watch | The boundary child exits 0. `key_names == []`; `admitted == 1` (the 10:41 invocation's `COMMAND_ADMITTED`); `reviews == ["allow"]`; `broker_calls == 0`. Every `strategies` write is to a file in `<base>/host` whose name starts with `host.sqlite` (the store, its journal files and `host.sqlite.writer.lock`). Every `cognition` write is under `<base>/review/work` or `<base>/review/records`. No read owned by `strategies` or `cognition` names a file ending `.yaml`, `.yml`, `.env` or `.toml`, a file whose name starts with `ledger.sqlite`, or a path under either world's evidence root. The `strategies` `apsw` connections are exactly `{<base>/host/host.sqlite, <base>/host/market.sqlite}`; `cognition` opens none. `subprocess.Popen` owned by `cognition`: exactly 3 (`VALID`'s three roles); owned by `strategies`: 0. No socket, `os.system`, `os.exec`, `os.spawn`, `os.posix_spawn` or `os.startfile` event owned by either |
+
+**`tests/integration/test_shared_engine.py`, PRF-STR-11** (one test function runs the phases; its groups are separate assertions):
+
+| Group | Cases |
+|---|---|
+| Exits | `record-1` 86, `record-2` 0, `replay-1` 86, `replay-2` 0; `broker_calls` 0 in all four |
+| Identity (recorded run) | `buyer_edge`'s `CandidateId` computed in the test by step 1's formula from the LF-normalized bytes of `strategies/buyer_edge.py` and `strategies/worker.py` (its `code` is `["worker"]`) equals `Registration.candidate_id`; likewise `sim_model`'s from `replaypkg/sim_model.py`. Session `sim:acct-sim:NSE-FO:2026-11-04`. Each invocation ID equals `"inv1:" + sha256(canonical([candidate, session, [strategy, "NIFTY", session], policy, "1", [trigger, 60]]))`: `buyer_edge` with policy `buyer_edge` and triggers `2026-11-04T05:30:00.000000Z` to `…05:39:00.000000Z` (11:00 to 11:09 IST, ten IDs); `sim_model` with policy `live` and `…05:37…` to `…05:39…` (three IDs) |
+| Lineage (recorded run) | `buyer_edge`: revisions 1 to 10, each with predecessor one less; `sim_model`: 1 to 3. Each `revision_digest` equals `digest([previous digest or "", invocation_id, result_id, None])` from the stored values, the first with `""`. `scope_head` holds revision 10 and `last_trigger` `…05:39…` (`buyer_edge`), and 3 and `…05:39…` (`sim_model`) |
+| Journal (recorded run) | `buyer_edge`: 20 `WARMUP` rows (triggers 10:40 to 10:59 IST), then exactly one `STATE_RESET` with payload `{"cause": "host_restart"}` and `at` `2026-11-04T05:40:30.000000Z`. `sim_model`: 27 `WARMUP` rows (10:40 to 11:06), no `STATE_RESET` |
+| The crash point (recorded run) | `buyer_edge`'s 11:00 invocation is `RECORDED` with `attempt` 1; its output equals the golden walk's 11:00 bar mapped by step 2's rule, compared as step 3's host test compares (an uninterrupted fresh engine, before the crash) |
+| Outputs by hand (recorded run) | `sim_model` 11:07: an intent `long_call`, `bullish`, scores `(("signal_score", "57.99999999999999"), ("iv_rank", None), ("conviction", "0.58"))`. 11:08: the abstention with cause `no_signal`, reason `"model proposal unavailable: required_role_failed"` and tags `{"proposal_run": <its run ID>, "proposal_cause": "required_role_failed"}`. 11:09: `long_put`, `bearish`, `signal_score` `"40.0"`, conviction `"0.4"`. Each run ID equals `records.run_id("intent_proposal", {"invocation_id": <its ID>}, "c"*64, digest(PROPOSAL_TEAM), lineage_digests(PROPOSAL_PINS))` |
+| Kernel records (recorded run) | 13 `decision` rows: ten `buyer_edge` (11:00 `NOTHING`) and three `sim_model` (`ENTER`, `NOTHING`, `ENTER`); each `evidence_ref` equals `digest` of its invocation's output. One `REVIEW_RECORDED` per `ENTER` decision, each `allow` with application `proceed`, and `review_id` = `"review_" + sha256_hex([run_id, "ALLOW", "sim_ok", "synthetic"])[:32]`. No admission event for a `sim_model` key; at most one per `buyer_edge` key (I-W3) |
+| Endpoint | During the record phases: `intent_proposal` requests exactly `[(05:37, "spec_a"), (05:37, "lead"), (05:38, "spec_a"), (05:39, "spec_a"), (05:39, "lead")]` by `identity.as_of` and `task` (11:08's lead is cancelled, never launched); `entry_review` requests exactly two per `ENTER` decision. During the replay phases: no request of any kind |
+| Replay equal (PRF-STR-11) | Every comparison listed under Decisions is equal: invocation rows, scope heads, journals (so the `STATE_RESET` is reproduced), decision rows, admission events, reviews, frozen applications and run results |
+| No provider reached | No request reaches the endpoint during the replay phases; every attempt in `<base>/rep/records`' run records carries `replayed: true`; the replay children's hook raised nothing (exit codes as listed) |
+
+**Changed existing tests:** none. `tests/contracts/test_capabilities.py` gains the scanner, its tests and a `__main__`. `tests/integration/test_shared_engine.py` gains the session's helpers, its test and a `__main__`. Both import the existing helpers named above, unchanged. If a helper must change, its owning file and every file importing it join the targeted set, and the builder names each in the as-built table.
+
+### Break checks
+
+Each is applied with its anchor checked first (exactly one occurrence; the exact text recorded in the as-built table), one at a time, run against the two files, and restored byte for byte with an md5 check. At least:
+
+| Change | Test that must fail |
+|---|---|
+| `strategies/buyer_edge.py`: `from openalgo import ta` becomes `from openalgo import ta, api` | Tree; The OpenAlgo import |
+| `strategies/ema_cross.py`: `import openalgo` added | Tree |
+| `strategies/worker.py` `_faults`: `LedgerWriter` added to the `kernel.ledger.store` import | Tree |
+| `cognition/advice.py`: `from autonomous_trading.adapters import simulated_broker` added | Tree |
+| `strategies/registry.py`: `import socket` added | Tree |
+| `cognition/review.py`: `import subprocess` added | Tree |
+| `strategies/buyer_edge.py`: `BotConfig()` in `BuyerEdge.__init__` becomes `BotConfig.from_env()` | Tree |
+| `cognition/review.py`: a `ReviewApplication(` built | `test_decisions_built_only_by_the_kernel` |
+| `settings/secrets.py` `child_environment`: the broker-key removal loop removed | The run-time watch (`key_names`) |
+| `strategies/worker.py` `run_pass`: writes `Path(self.market_path).with_name("settings.yaml")` | The run-time watch (a `strategies` write outside the host store) |
+| `cognition/review.py` `request`: writes `self.work_root.parent / "policy.json"` | The run-time watch (a `cognition` write outside its roots) |
+| `bootstrap.py` `compose_cognition_replay`: `replay_dir=replay_root` becomes `replay_dir=None` | Replay equal (`sim_model`'s outputs become `not_configured` abstentions) |
+| `strategies/worker.py` `recover`: the `STATE_RESET` journal call removed | Journal (recorded run) |
+
+### Files
+
+| File | Change |
+|---|---|
+| `tests/contracts/test_capabilities.py` | PRF-STR-09: `boundary_findings`, the pair table, the tree, synthetic, OpenAlgo, closure, environment and secret tests, the run-time watch and its `__main__` |
+| `tests/integration/test_shared_engine.py` | PRF-STR-11: the session (market, kernel, teams, endpoint, phases), the comparison and its `__main__` |
+
+**No new tree delta:** both files are in README §6. No source file changes. **Carried:** SLICE-11's strategy-host unit spawns with `child_environment` and denies egress, mounts and the ledger file (D09's OS part, `tests/isolation/test_resource_storage_scope.py`). SLICE-12 builds a production replay entry point. **Listed, not made:** moving `WriterLost` and `CommitFailed` into `contracts`; removing BuyerEdge's unreachable `from_env` readers.
+
+### Completion conditions (step 7)
+
+* **Targeted tests only:** `tests/contracts/test_capabilities.py` and `tests/integration/test_shared_engine.py`, twice in a row locally. No case is Linux-only. Every break check fails a listed test, and every file is restored (md5). `ast.parse` passes on both files.
+* `git diff --stat` against the branch head at the start of step 7 names only the two files.
+* PRF-STR-09's clauses each pass a group: no ledger-writer, order-adapter or simulated-broker import (Tree; Synthetic sources; Import closure); no `ReviewApplication` or `Plan` built (`test_decisions_built_only_by_the_kernel`); no broker key in the spawned host or role environments (The run-time watch; Role environments; No host secret); no settings, policy or locked-evidence write path (The run-time watch; Tree); exit advice alone produces no action (Synthetic sources, the `advice` rule, with step 6's "Advice alone writes no ledger event"); the OpenAlgo boundary (The OpenAlgo import; Synthetic sources). PRF-STR-11 passes Replay equal and No provider reached.
+* The slice's one full suite runs once at the end of the slice, run by the owner.
 
 ## Completion conditions
 
