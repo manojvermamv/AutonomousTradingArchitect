@@ -3235,6 +3235,58 @@ No new tree delta: `interfaces/mcp.py` and `src/autonomous_trading/__main__.py` 
 * PRF-SEC-08 (but its console-client row) and PRF-SEC-09 pass; CUJ-SEC-3 is refused.
 * This file records step 8 "as built", with any Deviation or Fork call found while building.
 
+### Step 8 as built
+
+**In plain words.** The AI tools door is built and tested. AI clients sign in as they do today, each door allows what its legacy profile allowed, and only the read-only door is meant to run live. No tool can place, change or cancel an order, or lift a safety block. The OpenAlgo pass-through only reads, with each caller's own login. When trading is stopped, proposals are refused and reads keep working. Passwords are cleaned out of every answer. Until the parts of the system that own the data are built, the tools answer "not available yet". Nothing in the kernel changed.
+
+Commit `6caab5c` on `slice-08`, after `c27b608` (SLICE-09 step 5), which added the `cognition` row to `SCOPES` and `delegated` to `settings/secrets.py`; neither conflicts with this step. It changes exactly the six files in the step's table (+2,196). Nothing is pushed. No new Fork call was found. One small Deviation from the text is recorded below (`split_secret`).
+
+**Choices made while building:**
+
+| Topic | As built |
+|---|---|
+| Token scrub forms | `compose_mcp` does not build `Secret`s itself: step 3's guard (`tests/unit/test_secret_references.py`, `test_boundary`) allows `Secret(` and `.reveal(` only in `settings/secrets.py` and the adapter. `settings/secrets.py` gains `split_secret(resolved, key, split, part)`, which reveals the text once, parses it with the caller's `split` (`parse_static_tokens`) and returns the parse plus a `Secrets` holding one `mcp/token_<n>` per token. `check_start` returns `(tokens, scrubber)` |
+| `verified_of` | Passed to `compose_mcp` and held by the surface, not to `build_server`, so the proxy's client factory and the checking middleware read the same caller. `forward_caller_token(request, verified_of)` reads it on every request; `client_factory(cfg, verified_of)` is the factory the tests drive with `httpx.MockTransport` |
+| `build_server(surface, *, verifier=None)` | `verifier` replaces the built JWT verifier (tests); the refusal-passing error middleware and the rate limit are added in `serve` for HTTP only, as legacy added them at serve time |
+| Annotations | `interfaces/mcp.py` has no `from __future__ import annotations`: the three `propose_*` tools are defined inside `build_server` with legacy's `Annotated` signatures, and fastmcp resolves them there |
+| Caller hand-off | A context variable carries the checked `Caller` from the middleware to the tool's `run`, so the propose tools and the routed tools call `dispatch` with it |
+| Extra arguments | fastmcp 3.4.7 refuses an unexpected argument to a function tool (`Unexpected keyword argument`), so the three `propose_*` tools keep legacy's behaviour by construction |
+| Prompts | Copied by script from `src/interfaces/mcp/domains/prompts/server.py:36-170` with the decorators dropped, registered with `FastMCP("prompts").prompt(fn)` and mounted under `prompts` (listed as `prompts_<name>`) |
+| Tests | The ledger cases use two tests (`test_kill_from_ledger`, `test_no_kill_in_ledger`), because the simulation shares one ledger file per test. The HTTP group runs the app's lifespan around `httpx.ASGITransport` with `json_response=True` and stateless HTTP |
+
+**Tests** (targeted only), Windows, the venv holding the `mcp` extra at its pins (fastmcp 3.4.7, mcp 1.30.0, httpx 0.28.1, starlette 1.7.0, uvicorn 0.54.0): `tests/integration/test_mcp_surface.py` (34 passed), `tests/contracts/` (with the five new PRF-SEC-09 tests), `tests/unit/test_secret_references.py`, `tests/unit/test_operator_authorization.py`, `tests/integration/test_kill_inputs.py` and `tests/integration/test_owner_api.py`: **314 passed, 2 skipped**. The two skips are earlier steps' Linux-only cases (step 3's POSIX file modes, step 6's served owner API), not this step's. `ast.parse` passes on the five edited Python files and `tomllib` on `pyproject.toml`. **The EC2 was not used:** the step has no Linux-only group.
+
+**Break checks** (`s10h_breaks.py` in the session scratchpad; anchors checked present exactly once, one mutation at a time, every file restored byte for byte, md5 verified, `git status` unchanged afterwards): 24 of 24 failed a listed test, each on an assertion, all on Windows.
+
+| Change | Test that failed |
+|---|---|
+| `override` accepted by `parse_grants` | Grants |
+| An inferred `none` starts over HTTP | Start refusals |
+| An explicit `none` starts off loopback | Start refusals |
+| `RefuseProxied` not installed under `none` | HTTP |
+| Grants checked after scopes | Grants |
+| `expand` drops aliases | Scopes |
+| Scopes active under `none` | Scopes |
+| Kill skips the ledger | Kill from ledger |
+| Kill checked for `observe` tools | Kill |
+| A reader error counted as engaged | Kill (missing ledger; rows raising) |
+| `READ_TOOLS` gains `place_order` | Proxy |
+| The token hook keeps a stale `Authorization` | Proxy token (real factory) |
+| The token hook reads the bearer once, when the client is built | Proxy token (real factory) |
+| `framework_propose_intent` calls through when `intents` is `None` | Propose tools |
+| `by` passed unattributed | Propose tools |
+| Results not redacted | Propose tools |
+| Only the whole `MCP_AUTH_TOKENS` text scrubbed | Propose tools |
+| `disclose` not checked before the owner | Disclosure |
+| `cache_key` ignores the digest | Digests and cache keys |
+| An unmapped verified client refused | Scopes |
+| The ledger opened once at composition | Kill (missing ledger) |
+| `interfaces/mcp.py` imports `adapters.openalgo` at module level | PRF-SEC-09 imports |
+| `SCOPES["mcp"]` gains the broker key | PRF-SEC-09 scopes |
+| `framework` added to the read-only test profile's domains | Live profile |
+
+Two rows differ from the step's minimum table. "`RefuseProxied` compares header names without lower-casing" cannot fail: ASGI delivers header names lower-cased, so the break became "not installed". "`ReadOnlyFilter` removed from the call path" cannot fail alone: the surface's own catalogue check and `enable(only=True)` refuse the same names first. The break became "the allowlist widened", which the Proxy group catches.
+
 ## Step 9 — restore continuity (outline)
 
 Deepened after step 8 is built (it needs only step 2). Authority: the spec's [Restore continuity](../../design/security-and-operator.md#restore-continuity-interfacesauthorizationpy).
