@@ -1701,7 +1701,7 @@ Commit `ee6aec9` on `slice-08`, after `8eb3a12` (SLICE-09 step 1), which touched
 
 <a id="step-5--the-kernels-local-channel-outline"></a>
 
-The authorities are the spec's [kernel channel](../../design/security-and-operator.md#the-kernels-local-channel-adaptersunix_channelpy) section, the kernel-socket row of its [channel table](../../design/security-and-operator.md#channels-and-principals-interfacesauthorizationpy), its [refusal codes](../../design/security-and-operator.md#refusal-codes) (`SEC-R10`, `SEC-R11`, `SEC-R12`), F-SEC7 and F-SEC9 in its [failure modes](../../design/security-and-operator.md#failure-modes-and-crash-points), REQ-SEC-007 and A02-F1 (`README.md:901`). The hand-off rule is the runtime spec's [kernel host](../../design/runtime-isolation-observability-deployment.md#the-kernel-host-kernelhostpy) (`submit`). Step 5 builds on steps 1–4 as built (`726ff6e`, `cb439ce`, `ba2face`, `ee6aec9` on `slice-08`). It adds one module, its test file and one line of an existing guard. It changes no kernel module, ledger table, event kind, setting or composition: the kernel's checks are step 2's, and the channel only carries requests to them. Every `OA_NEW` citation is at `ee6aec9`; every legacy citation is at 445eb116, relative to the legacy repository root.
+The authorities are the spec's [kernel channel](../../design/security-and-operator.md#the-kernels-local-channel-adaptersunix_channelpy) section, the kernel-socket row of its [channel table](../../design/security-and-operator.md#channels-and-principals-interfacesauthorizationpy), its [refusal codes](../../design/security-and-operator.md#refusal-codes) (`SEC-R10`, `SEC-R11`, `SEC-R12`), F-SEC7 and F-SEC9 in its [failure modes](../../design/security-and-operator.md#failure-modes-and-crash-points), REQ-SEC-007 and A02-F1 (`README.md:901`). The hand-off rule is the runtime spec's [kernel host](../../design/runtime-isolation-observability-deployment.md#the-kernel-host-kernelhostpy) (`submit`). Step 5 builds on steps 1–4 as built (`726ff6e`, `cb439ce`, `ba2face`, `ee6aec9` on `slice-08`). It adds one module, its test file and one line of an existing guard. It changes no kernel module, ledger table, event kind, setting or composition: the kernel's checks are step 2's, and the channel only carries requests to them. Every `OA_NEW` citation was written at `ee6aec9` and re-checked at `e4948d0` (SLICE-09 step 2), where the moved lines were updated; every legacy citation is at 445eb116, relative to the legacy repository root.
 
 **In plain words.** This step builds the private door into the kernel. Only two kinds of program may use it: the operator process, which passes on what you asked for at `at` or in the console, and the strategy host, which hands in trade ideas. The kernel asks the operating system who is knocking: which user, whether it is the main process of an approved service, and whether it is still the same process. Your own terminal, or any other program, is turned away before the kernel is asked anything, as today's Tier-1 socket does. Every message must also name the exact version of the door and of the installed release; a program from another release is turned away. Your own requests pass exactly as before: the kernel still makes every check of steps 1 and 2, and the door adds none to who may trade. If an answer is lost on the way back, asking again gives the first answer and nothing happens twice. Stopping never needs this door: the kill file still works with nothing else running (step 4).
 
@@ -1779,7 +1779,7 @@ It reads at construction:
 * `self.release`, the field **`bundle_digest`** of the `receipt` in the ledger's last `RELEASE_BOUND` (`kernel/recovery.py:143-145`, bound at `:211-217`). It must be 64 lower-case hex; when no `RELEASE_BOUND` exists, or its receipt has no such field, it raises `ChannelError("release")`.
   * **Code only, never the receipt digest.** The receipt also holds `deployment` and `settings_revision` (the configuration spec's release receipt), so its `receipt_digest` changes with a deployment key or a setting while the code stays the same. `bundle_digest` is `sha256(canonical(artifact))` over the code, dependencies, resources and templates only, with the Git SHA outside it (configuration spec, bundle manifest). Legacy also compared the code revision only (`service.py:291-297`). So changing a setting never turns a peer away; only a peer built from other code is. SLICE-11 gives every client that same `bundle_digest`, read from its release's `bundle.json`.
   * **Fork call (no channel without an attested release):** legacy's authority refused to start unattested (`service.py:803-808`).
-* **When it is built.** The composition builds `ChannelCore` after `recovery.run()` has returned (`bootstrap.py:267`; `RELEASE_BOUND` is recorded inside it, `kernel/recovery.py:172`) and before the server starts serving. So `self.release` is this epoch's bound release, and no connection is answered before recovery has bound it.
+* **When it is built.** The composition builds `ChannelCore` after `recovery.run()` has returned (`bootstrap.py:270`; `RELEASE_BOUND` is recorded inside it, `kernel/recovery.py:172`) and before the server starts serving. So `self.release` is this epoch's bound release, and no connection is answered before recovery has bound it.
 * `self.relays = comp.authority.relays`, and the owner, `comp.authority.owner`.
 
 `handle(peer: PeerCred, frame: bytes | FrameError) -> dict` returns the reply object ([Replies](#replies)). Its checks run in this order; the first that fails decides, and nothing before row 13 calls the kernel.
@@ -1815,8 +1815,8 @@ It reads at construction:
 |---|---|---|---|
 | `now` | `{}` | `effective_now(comp.writer, comp.clock)` (`kernel/lifecycle.py:43`) | `{"utc_iso", "domain", "uncertainty_ms"}` |
 | `kill_status` | `{}` | `comp.safety.killed()`, `present_kill_inputs()`, `kill_inputs.watched` and `kill_input_state` (`kernel/safety.py:307`, `:383`, `:70`, `:292`) | `{"engaged": bool, "inputs": [str], "watched": bool or null (no inputs composed), "input_state": str}`, legacy's status facts (`src/core/framework/execution/killswitch.py:119-129`) |
-| `alerts` | `{}` | copies of `comp.recovery.alerts` and `comp.policy.alerts` (`kernel/recovery.py:119`; `kernel/policy.py:54`) | `{"recovery": [...], "policy": [...]}` |
-| `command_status` | `{"command_key": str}` | `comp.coordinator.command_status(key)` (`kernel/coordinator.py:555-571`) | `{"status": status wire or null}` |
+| `alerts` | `{}` | copies of `comp.recovery.alerts` and `comp.policy.alerts` (`kernel/recovery.py:119`; `kernel/policy.py:57`) | `{"recovery": [...], "policy": [...]}` |
+| `command_status` | `{"command_key": str}` | `comp.coordinator.command_status(key)` (`kernel/coordinator.py:569-585`) | `{"status": status wire or null}` |
 | `execute` | `{"path", "request", "args"}` | the call table below | the execute result |
 
 **The service's operations: one per `KernelPorts` method.** SLICE-09 step 2 names the strategy host's kernel port `KernelPorts` (`strategies/worker.py`): `alive`, `publish`, `record_decision`, `record_unavailable`, `submit` and `command_status`. Its in-process form, `bootstrap.InProcessKernel`, is what this channel replaces ([SLICE-09 step 2](SLICE-09-strategies-and-cognition.md), "The host's principal", and its decision record's `Coordinator.record_decision` and `Coordinator.record_unavailable`). SLICE-09 step 2 was not yet built when this was written (`OA_NEW` HEAD `ee6aec9`), so the table follows its text. The build re-reads `strategies/worker.py`, `bootstrap.InProcessKernel` and the two coordinator routes on its head. Any difference in a signature changes only the body and call of its row here, and is recorded "as built".
@@ -1846,7 +1846,7 @@ It reads at construction:
 | `hold_engage` | `reason` | `comp.safety.engage_hold(auth, subject, reason)` (`:413`) |
 | `hold_release` | `released_reason`, `justification` | `comp.safety.release_hold(auth, subject, released_reason, justification)` (`:419`) |
 | `latch_unlock` | `strategy`, `reason` | `comp.safety.unlock_latch(auth, subject, reason, strategy=strategy)` (`:506`) |
-| `pause_clear` | `reason` | `comp.policy.clear_pause(auth, subject, reason)` (`kernel/policy.py:218`) |
+| `pause_clear` | `reason` | `comp.policy.clear_pause(auth, subject, reason)` (`kernel/policy.py:320`) |
 | `attempt_resolve` | `attempt_no`, `legs`, `observation` | `resolve_attempt(comp.writer, comp.authority, auth, subject, attempt_no, legs, E)` (`kernel/lifecycle.py:489`), where `E` is `None` for `null`, else the observation decoded below |
 | `recovery_advance`, `step` `advance` | `step` | `comp.recovery.advance(auth)` (`kernel/recovery.py:411`) |
 | `recovery_advance`, `step` `fence` | `step`, `fence` | `comp.recovery.record_fence(auth, F)` (`:430`), with `F` the fence decoded below |
@@ -1854,7 +1854,7 @@ It reads at construction:
 | `grant_admin`, `step` `revoke` | `step`, `reason` | `comp.authority.revoke(auth, subject, reason)` (`:349`) |
 | `binding_authorize`, `step` `authorize` | `step`, `binding` | `comp.authority.authorize_binding(auth, B)` (`:384`) |
 | `binding_authorize`, `step` `revoke` | `step`, `reason` | `comp.authority.revoke_binding(auth, subject, reason)` (`:400`) |
-| `cancel`, `close`, `advice_apply` | `action`, `reason` | `comp.coordinator.admit_action(A, auth=auth, reason=reason)` (`kernel/coordinator.py:163-168`) |
+| `cancel`, `close`, `advice_apply` | `action`, `reason` | `comp.coordinator.admit_action(A, auth=auth, reason=reason)` (`kernel/coordinator.py:177-182`) |
 
 Another key set, or a `step` value not in the table, is `call`. Values are passed as sent; the entry points keep their own text guards (`ADM-R01`). The decoders accept exactly these shapes, and any `KeyError`, `TypeError`, `ValueError` or `IndexError` while decoding is `call`:
 
@@ -2095,6 +2095,72 @@ No new tree delta. `adapters/unix_channel.py` is in the target tree (`README.md:
 * The build starts on the coordinator's word; every cited line, and SLICE-09 step 2's `KernelPorts`, is re-read on the head it starts from.
 * PRF-SEC-05 passes, and the targeted existing tests pass with no expectation changed.
 * This file records step 5 "as built", with any Deviation or Fork call found while building.
+
+### Step 5 as built
+
+**In plain words.** The kernel's private door is built and tested. Only an approved service, as the operating system reports it, gets in. A program from other code is turned away, but a changed setting turns no one away. Your requests reach the kernel's own checks unchanged. A lost answer, asked again, returns the first answer. Nothing in the kernel, the ledger or the settings changed.
+
+Commit `e6cfb28` on `slice-08`, after `e4948d0` (SLICE-09 step 2). It changes exactly the three files in the step's table (+1,717 −1). Nothing is pushed. No new Deviation or Fork call was found.
+
+**Choices made while building:**
+
+| Topic | As built |
+|---|---|
+| `KernelPorts` re-read at `e4948d0` | `strategies/worker.py:130-142` and `bootstrap.InProcessKernel` (`bootstrap.py:301-324`) have the six methods and signatures the text assumed. The coordinator routes are `kernel/coordinator.py:163-175` |
+| The `record_decision` test value | `Policy.record_decision` requires the principal `strategy:<record.strategy>`, and a `NOTHING` record must name a published abstention with the same invocation, strategy, session and trigger (`kernel/policy.py:231-275`). So the case records strategy `sim` for `strategy:sim`, citing an abstention published through the channel's own `publish`. Likewise, `record_unavailable` cites an intent published with strategy `sim` |
+| Wire helpers | `refusal_wire`, `outcome_wire` and `status_wire` are module functions beside `result_wire`. `encode_reply` (an encoding failure becomes `ambiguous`) is a `ChannelCore` method, so it can be tested without a socket |
+| The client's mode case | `0o666` alone could not catch "the client ignores other bits", because its group bits refuse anyway. The test also chmods `0o606` (other bits only) |
+| The builder-set check | The Boundary group reads `_BUILDERS` with `ast` rather than importing the other test module |
+| The Linux run | A git bundle of a snapshot commit object (no branch moved) was unpacked into `~/claude-desktop/outputs/s10e-linux` on the EC2. It ran under the legacy safe runner with `--memory-max 1G`, because the host had 1.9 GB free, with absolute test paths and `--rootdir`. The folder and every copied file were removed afterwards. No live checkout or service was touched |
+
+**Tests** (targeted only, per the owner's routine):
+
+* Windows: `tests/integration/test_unix_channel.py` and `tests/contracts/test_capabilities.py`: 31 passed, 7 skipped (the Linux groups).
+* Linux (EC2): the same two files, 38 passed, none skipped. PRF-SEC-05 passes there.
+* `ast.parse` passes on the three files.
+
+**Break checks** (`s10e_breaks.py` in the session scratchpad). Each anchor was checked present exactly once, one mutation at a time, and every file was restored byte for byte, md5 verified. All 38 failed a listed test: 31 on Windows, and the 7 Linux rows on the EC2.
+
+| Change | Anchor | Test that failed |
+|---|---|---|
+| The listed-uid check removed | `handle` row 1 | Attestation (uid 1600: `main_pid` asked, reason `unit`) |
+| The main-pid check removed | row 2's `main_pid(p.unit) == peer.pid` | Attestation |
+| The matched unit's uid not compared | row 3 | Attestation |
+| The frame checked before the peer | a frame test added before row 1 | Attestation (garbage from pid 4300) |
+| The caller's pid not compared | row 6's `caller["pid"] != peer.pid` | Attestation |
+| An empty identity accepted | row 6's `not identity` | Attestation |
+| The contract compared with `startswith` | row 7 | Attestation |
+| The release compared case-insensitively | row 8 | Attestation |
+| The release not checked | row 8 | Attestation |
+| A service may `execute` | `ROLE_OPS["service"]` | Attestation |
+| The relay may `submit` | `ROLE_OPS["relay"]` | Attestation; Services |
+| `accept_relay` given the path the principal implies | row 12's `body["path"]` | Relay |
+| An extra key accepted | `_keys`' exact set | Decoding |
+| A missing key decoded as a default | the `kill_engage` row's `_keys` | Decoding |
+| The action's principal taken from `args["action"]` | `dict(action, principal=…)` | Execute |
+| A kernel call on the handler thread | row 13's `submit(fn)` | Reads (the hand-off count) |
+| The epoch left out of refusals | `_refuse`'s reply | Attestation |
+| `replayed` not set | `result_wire`'s `Replayed` branch | Replay |
+| The exception's message in an `ambiguous` reply | `_run`'s `{"error": …}` | Ambiguous |
+| `oversize` at `>= MAX_MESSAGE` | `read_frame`'s length test | Frames |
+| The size checked only while no newline | the same | Frames |
+| `NaN` accepted | `decode_frame`'s `parse_constant` | Frames |
+| Repeated keys accepted | `decode_frame`'s `object_pairs_hook` | Frames |
+| A MainPID of `0` returned | `systemd_main_pid`'s `<= 0` | Facts |
+| `systemctl` given the process environment | `env=SYSTEMCTL_ENV` | Facts |
+| A service principal among the relays | `ChannelCore`'s relays check | Peers |
+| The release read from `receipt_digest` | `self.release` | Release |
+| Service calls with `auth=None` | `svc_auth` | Services |
+| `publish` accepts a non-object | the `publish` body check | Services |
+| A kernel module imported at module level | the module's imports | Boundary |
+| `adapters/unix_channel.py` removed from the builder set | `_BUILDERS["Authenticated("]` | `test_decisions_built_only_by_the_kernel` |
+| The directory check removed (Linux) | `start()`'s `st_mode & 0o022` | Socket start refusals |
+| The lock removed (Linux) | `start()`'s `flock` | Socket |
+| The socket left unrestricted (Linux) | `start()`'s umask and `chmod 0o600` | Socket |
+| The client's owner check removed (Linux) | `socket_problem`'s `st_uid != server_uid` | Socket |
+| The client ignores other bits (Linux) | `socket_problem`'s `& 0o007` | Socket (`0o606`) |
+| The client's peer uid not checked (Linux) | `call`'s `peer_cred(sock).uid` | Socket |
+| The peer taken from the frame's `caller.pid` (Linux) | `_serve`'s `peer_cred(sock)` | Real peer |
 
 ## Step 6 — the operator process and the CLI (outline)
 
