@@ -2518,6 +2518,53 @@ No new tree delta: `interfaces/api.py`, `src/autonomous_trading/__main__.py` and
 * PRF-SEC-06 and PRF-SEC-07 pass; CUJ-SEC-1 and CUJ-SEC-2 behave as written.
 * This file records step 6 "as built", with any Deviation or Fork call found while building.
 
+### Step 6 as built
+
+**In plain words.** The operator process is built and tested. The console's server side and the `at` commands now reach the kernel through it, with today's checks, prompts and messages. A copied console click cannot be sent again for a different action, and a kernel restart ends open console sessions. Only your listed login users reach the owner API from the server itself. Nothing in the kernel's checks changed.
+
+Commit `0400d25` on `slice-08`, after `412baa6` (SLICE-09 step 3), which touched none of the cited files. It changes exactly the thirteen files in the step's table (+2,813 −3). Nothing is pushed. No new Deviation or Fork call was found.
+
+**Choices made while building:**
+
+| Topic | As built |
+|---|---|
+| The lock | One `threading.RLock`, shared by `OperatorDoor` and `Relay` (`Relay(client, authorizer, *, lock)`). It also covers `KernelClock`'s `now` read, which runs inside the `Authorizer`'s calls; only `Relay.submit`'s execute and the reads run outside it |
+| `OperatorDoor.prepare` | Returns `Prepared(challenge, summary)`, so the CLI socket can send the summary line |
+| The CLI session | `CliSession(door, evidence)` holds one connection's session and answers each message; `CliSocketServer` feeds it lines, and the tests drive it directly (`DoorConn`) |
+| `cli.main` | Also takes `tty` (and, for tests, `connect` and `nonce`): legacy checks the terminal before the prompt, and the prompt comes after `prepare` |
+| Signatures | `OwnerApi(door, reads, settings, config, *, tables)` and `compose_operator(…, tables=_proc_tcp_tables)`, so the loopback-user check reads injectable TCP tables; `InvalidQuantity(ValueError)` carries the 400 `invalid_quantity` |
+| `serve` | Composes `registry=None`: SLICE-11 composes the strategy registry; until then a latch unlock by strategy alone answers `SEC-R22`, and `--session` works |
+| Tests | The body-cap case sends three chunks, so the count while arriving is distinguishable from a parse failure. The minted-nonce cases engage holds on three strategies. The API's quantity cases run in the exposure world (they need a ledger position). A two-account case proves the latch rule refuses several sessions. CUJ-SEC-1's world observes `E2` open, for the cancel's effect check. The consumed case calls the `Authorizer` and `Relay` directly, since the CLI session ends after one `execute` |
+
+**Tests** (targeted only):
+
+* Windows: `tests/integration/test_owner_api.py` (14 passed, 1 skipped) and `tests/integration/test_operator_commands.py` (11 passed, 1 skipped), with `tests/unit/test_policy_parameters.py`, `tests/integration/test_kill_inputs.py`, `tests/integration/test_unix_channel.py`, `tests/unit/test_secret_references.py`, the three `LedgerReader` users (`tests/integration/test_entry_outcomes.py`, `tests/recovery/test_crash_boundaries.py`, `tests/recovery/test_restore_fencing.py`) and `tests/contracts/`: **308 passed, 10 skipped**. `ast.parse` passes on every edited Python file, `yaml.safe_load` on `resources/defaults.yaml`, and `tomllib` on `pyproject.toml`.
+* Linux (EC2): the two new files, **27 passed, none skipped**: PRF-SEC-06's CLI-socket rows and PRF-SEC-07's loopback-user row pass there. A bundle of a snapshot commit (no branch moved) was fetched into a fresh folder `~/claude-desktop/outputs/s10f-linux`, run with `~/at-dev`'s environment (`uvicorn` 0.54.0) under the safe runner with `--memory-max 1G`, and the folder and bundle were removed. No live checkout or service was touched.
+
+**Break checks** (`s10f_breaks.py` in the session scratchpad; anchors checked present exactly once, one mutation at a time, every file restored byte for byte, md5 verified): 19 of 19 failed a listed test, all on Windows.
+
+| Change | Anchor | Test that failed |
+|---|---|---|
+| Reachability accepts a proxied loopback request with no public host | `reachable`'s `if _proxied(headers)` | Reachability |
+| The proxy route skips the loopback-peer check | `reachable`'s `or not local` | Reachability |
+| The origin check removed | `_handle`'s `if origin_host not in allowed` | Mutation checks; Sessions |
+| The CSRF token not checked on mutations | row 7's `self.door.session(…, csrf)` | Mutation checks |
+| The body cap checked only on `content-length` | `_body`'s `if size > cap` | Body |
+| `relay.sync()` removed before the session check | `_handle`'s row 6 and `OperatorDoor.execute`'s `sync` | CUJ-SEC-2 |
+| The relay does not resend on ambiguity | `Relay.submit`'s `except ChannelAmbiguous` | Ambiguity |
+| `consumed` never called | `Relay.submit`'s `consumed` | Kill release |
+| The command key from `new_nonce()` instead of the request ID | `_exposure`'s `request_id_of` | CUJ-SEC-1 |
+| The close quantity not clamped | `_quantity`'s `min(q, owned)` | Close quantity and fields |
+| The whole-number check before the clamp | `_quantity`'s order | Close quantity and fields |
+| A missing nonce refused instead of minted | `__call__`'s `new_nonce()` | Mutation checks |
+| The loopback route admits any uid | `_handle`'s `_local_user_ok` | Loopback user |
+| A `--session` with no row passed to the kernel | `build_call`'s latch `if not rows` | Latch; Catalogue |
+| The latch rule takes the first of several sessions | `build_call`'s `len(matches) != 1` | Latch several sessions |
+| A CLI peer in a unit accepted | `CliSession`'s `door.open(evidence)` | Doors |
+| The session kept after a refusal | `CliSession._fail` | Doors |
+| A delegate reads `/events` | `OperatorReads.events`' `_owner_only` | Reads |
+| `parse_cgroup_unit` keeps a `user@` unit's child | its `user@` test | Cgroup |
+
 ## Step 7 — the legacy owner mutations (outline)
 
 Deepened after step 6 is built. Authority: the spec's [Other legacy owner mutations](../../design/security-and-operator.md#other-legacy-owner-mutations).

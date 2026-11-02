@@ -850,3 +850,10 @@ One fresh combined review each, before any code (the owner's trimmed routine: ta
 |---|---|---|---|
 | SLICE-10 step 5 (kernel Unix channel) | 1 Blocker, 3 Major, 5 Minor | Release check on the code-only `bundle_digest` (a deployment-setting change no longer refuses callers); one channel operation per `KernelPorts` method; legacy's 4 MiB edge | `e6cfb28`; 38 of 38 break checks; Linux groups on a throwaway EC2 folder |
 | SLICE-09 step 3 (BuyerEdge) | 1 Blocker, 6 Major, 1 Nit | Spot frame cut at `ctx.at` as legacy; chain rows in file order; versions pinned to the live host; engine rebuilt on a date change; scorer proved by blob hashes; TASK-S09-11 closed (strategy orders never reach the Risk Guard); Fork call 21 (no Greeks priced, as live) | `412baa6`; 40 of 40 live bars equal; 16 of 16 break checks; full suite 1,592 passed, 9 skipped |
+
+## SLICE-10 step 6 and SLICE-09 step 4 reviews (2026-11-02)
+
+| Step | Findings | Key resolutions | Built |
+|---|---|---|---|
+| SLICE-10 step 6 (operator API) | 1 Blocker, 6 Major, 1 Minor | Fork call: close clamps before the whole-number check (legacy closed 75 of a 100.5 request); a missing nonce is minted; session open is POST with the origin checks; re-sign-in and resend once on expiry; plain `json.loads` on owner bodies; loopback peers by uid (Deviation for owner review) | `0400d25`; 19 of 19 break checks; Linux groups on a throwaway EC2 folder; full suite 1,618 passed, 11 skipped |
+| SLICE-09 step 4 (AI team runtime) | 6 Major, 1 Nit | Any unexpected error fails open at once (`team_unavailable`); child limits set in the child, not `preexec_fn`; the risk-critic setting added; live check: no review blueprint and no resource override on the EC2 (legacy runs no AI review today) | not yet built |
