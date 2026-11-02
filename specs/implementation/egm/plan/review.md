@@ -841,3 +841,12 @@ One fresh combined review of [SLICE-09 step 2](../../plan/slices/SLICE-09-strate
 | R-4 | Major | An abandoned invocation had no next step | Completed as a `strategy_error` abstention, `last_trigger` moved |
 | R-5 | Major | `record_decision` could not be built as written | Delegates to admission's policy; account parsed by the wire decoder; `SEC-R09` |
 | R-6 | Minor | Catch-up expectation | Planner once, `ADM-R05` at B1 |
+
+## SLICE-10 step 5 and SLICE-09 step 3 reviews (2026-11-02)
+
+One fresh combined review each, before any code (the owner's trimmed routine: targeted tests, one full-suite run for wide changes).
+
+| Step | Findings | Key resolutions | Built |
+|---|---|---|---|
+| SLICE-10 step 5 (kernel Unix channel) | 1 Blocker, 3 Major, 5 Minor | Release check on the code-only `bundle_digest` (a deployment-setting change no longer refuses callers); one channel operation per `KernelPorts` method; legacy's 4 MiB edge | `e6cfb28`; 38 of 38 break checks; Linux groups on a throwaway EC2 folder |
+| SLICE-09 step 3 (BuyerEdge) | 1 Blocker, 6 Major, 1 Nit | Spot frame cut at `ctx.at` as legacy; chain rows in file order; versions pinned to the live host; engine rebuilt on a date change; scorer proved by blob hashes; TASK-S09-11 closed (strategy orders never reach the Risk Guard); Fork call 21 (no Greeks priced, as live) | `412baa6`; 40 of 40 live bars equal; 16 of 16 break checks; full suite 1,592 passed, 9 skipped |

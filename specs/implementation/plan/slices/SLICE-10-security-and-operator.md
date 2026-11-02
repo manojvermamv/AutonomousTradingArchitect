@@ -2162,23 +2162,361 @@ Commit `e6cfb28` on `slice-08`, after `e4948d0` (SLICE-09 step 2). It changes ex
 | The client's peer uid not checked (Linux) | `call`'s `peer_cred(sock).uid` | Socket |
 | The peer taken from the frame's `caller.pid` (Linux) | `_serve`'s `peer_cred(sock)` | Real peer |
 
-## Step 6 — the operator process and the CLI (outline)
+## Step 6 — the operator process and the CLI
 
-Deepened after step 5 is built. Authority: the spec's [Owner API transport](../../design/security-and-operator.md#owner-api-transport-interfacesapipy) and [Operator commands](../../design/security-and-operator.md#operator-commands-interfacesclipy-interfacesapipy).
+<a id="step-6--the-operator-process-and-the-cli-outline"></a>
 
-* **Builds:** `interfaces/api.py`, an ASGI app whose web framework is an optional dependency extra, never imported by the kernel composition. It carries:
-  * sessions, CSRF, nonce, reachability and the body cap;
-  * the CLI socket (group `at-operators`, mapped login users, no service peers);
-  * the relay with `via` and `channel_identity`, dropping sessions on an epoch change;
-  * the catalogue's routes under `/owner/api/v1`;
-  * the latch's strategy-to-session mapping (`SEC-R21`);
-  * reads, alerts and `GET /events`.
+The authorities are the spec's [Owner API transport](../../design/security-and-operator.md#owner-api-transport-interfacesapipy), [Operator commands](../../design/security-and-operator.md#operator-commands-interfacesclipy-interfacesapipy), the CLI row of its [channel table](../../design/security-and-operator.md#channels-and-principals-interfacesauthorizationpy), CUJ-SEC-1, CUJ-SEC-2, F-SEC4 and F-SEC13. Step 6 builds on steps 1–5 as built (`726ff6e`, `cb439ce`, `ba2face`, `ee6aec9`, `e6cfb28` on `slice-08`) and closes every hand-off they left for it (below). Every `OA_NEW` citation is at `e6cfb28`; every legacy citation is at 445eb116 (`deploy/at`, `scripts/loss_latch.py`, `config/defaults.yaml` and `deploy/constraints.txt` opened with `git show`). It changes no kernel check, event kind or migration. Advice application, bindings through the console and every other legacy mutation are step 7's.
 
-  Also: the catalogue's `at` commands in `interfaces/cli.py` and the package's `__main__.py`; `deploy/systemd/at-operator.service`.
-* **Tests:**
-  * `tests/integration/test_operator_commands.py` (tree delta **T-63**): the catalogue end to end. The CLI-socket rows run in Linux; the rest everywhere.
-  * `tests/integration/test_owner_api.py` (tree delta **T-64**): legacy's reachability cases, rewritten as independent expectations.
-* **Done when:** PRF-SEC-06 and PRF-SEC-07 pass; CUJ-SEC-1 and CUJ-SEC-2 behave as written.
+**In plain words.** This step builds the program that stands between you and the kernel: the operator process. The console talks to it over the web, and the `at` command talks to it over a private socket on the server. It checks who you are exactly as today: a console request must come from the server itself or through your login proxy, and from the console's own page. Your `at` command works only for login users you list, never for a service. You type the same confirmations as today, and the kernel then checks your request again (steps 1 and 2). New for the console: each browser session gets its own token, and each click carries its own number, so a copied click cannot be sent again for a different action. If the kernel restarts, open console sessions end and you sign in again. Reading status needs no confirmation, as today. Nothing here adds a check to who may trade; it only carries your requests to the kernel and its answers back.
+
+### Decisions
+
+#### Hand-offs closed
+
+| Hand-off | From | Where it is met |
+|---|---|---|
+| `CliEvidence` from `SO_PEERCRED` and the pid's cgroup; `ApiEvidence` with its `client` label | step 1 | [The CLI socket](#the-cli-socket-interfacesapipy); [The owner API](#the-owner-api-interfacesapipy) |
+| The `Authorizer`'s settings; `new_nonce()`; a CLI session ended after any refusal; `consumed` | step 1 | [The composition](#the-composition-interfacesapipy); [The relay](#the-relay-interfacesapipy) |
+| The `Authorizer`'s clock: `now()` is the kernel's `now` read, `elapsed()` the operator's own monotonic clock | steps 2, 5 | `KernelClock` |
+| The doors map each command and route to step 2's target and args table: the hold engage reason, the latch's `strategy`, a close naming the entry's own order | step 2 | [The catalogue mapping](#the-catalogue-mapping-interfacesapipy) |
+| The submission rate limit | step 2 | None, as legacy: the owner API had none (`src/interfaces/console/api/registry.py:50-78`). The kernel already bounds what it writes per request and code |
+| `KernelLink` over the operator process; the CLI's `main` with the fixed deployment root; status reads `kill_input_state` | step 4 | `OperatorLink`; [The `at` commands](#the-at-commands-interfacesclipy) |
+| The operator resolves `SCOPES["operator"]` (nothing); children from `child_environment` | step 3 | The composition requires an empty `Secrets`; the operator spawns no child |
+| A `KernelChannelClient`; every reply's epoch to `observe_epoch`; answered results mapped; retry on ambiguity with the same request | step 5 | [The relay](#the-relay-interfacesapipy) |
+
+#### Settings (`settings/schema.py`, `settings/loader.py`, `settings/secrets.py`, `resources/defaults.yaml`)
+
+* `Settings` gains `console_public_host: str = ""`, `console_auth_header: str = ""` and `owner_api_max_body_bytes: int = 1_048_576`, legacy's keys and defaults (`config/defaults.yaml:657-659`, `:677-678`). They are not refusing.
+* `resources/defaults.yaml` gains `console: {public_host: "", auth_header: "", owner_api: {max_body_bytes: 1048576}}`.
+* `_ENV_ALIASES` gains legacy's two aliases, `"MCP_CONSOLE_HOST": "console.public_host"` and `"MCP_CONSOLE_AUTH_HEADER": "console.auth_header"` (`src/config/__init__.py:90-91`).
+* `loader.resolve` reads each key as step 4 reads the kill keys: every environment name whose `env_path` is the key replaces the YAML value. When several are set, the first name in code-point order wins.
+  * Host and header: stripped and lower-cased, as legacy compared them (`src/interfaces/console/api/security.py:55`, `:69`).
+  * The cap: `""` or `0` gives 1,048,576, as legacy's `int(x or 1048576)` (`security.py:116`); a negative value or one that is not an integer raises `SettingsError` naming `console.owner_api.max_body_bytes`.
+* `console.owner_api.prefix` is not read: the routes are fixed under `/owner/api/v1` (Deviation, below).
+* `interfaces.session_ttl_secs` and `interfaces.sessions_per_identity` stay refusing. The operator process refuses to start while either is unbound; SLICE-11's live profile binds them. Tests use step 1's synthetic 900 and 2. `interfaces.request_ttl_secs` is read by both the kernel and the operator from the same profile: 120.
+
+#### The ledger reader (`kernel/ledger/store.py`)
+
+* `LedgerReader.rows(table, where, args=())`: index-table rows as dicts, in one bounded read transaction (`_bounded`), as `LedgerWriter.rows`. A `table` not in `projections.TABLES` raises `ValueError`. The operator passes only fixed names and fixed `where` texts.
+* `LedgerReader.events_page(after, limit)`: the events with `sequence > after`, in order, at most `limit`, bounded. `after` is an int ≥ 0 and `limit` an int ≥ 1 (bools refused), else `ValueError`.
+
+#### The relay (`interfaces/api.py`)
+
+* `KernelClock(client, monotonic, *, on_epoch)`, with `monotonic: Callable[[], int]` (nanoseconds) and `on_epoch: Callable[[EpochId], bool]` (the `Authorizer`'s `observe_epoch`, bound after construction through `KernelClock.on_epoch`, a settable attribute). `now()` calls `client.now()` and returns `Timestamp(utc_iso, domain, uncertainty_ms)` from an `answered` reply; `elapsed()` returns `Elapsed(monotonic())`. A `ChannelRefused`, a `ChannelAmbiguous`, or a reply that is not `answered`, raises `KernelUnreachable` (`interfaces/cli.py`). Every reply's epoch is passed to `on_epoch` before anything else; when that returns true (another epoch), `now()` raises `EpochMoved`, so a session opened under one epoch never mints a request under another.
+* `UNSEEN = EpochId("operator-unseen")`: the `Authorizer`'s epoch at construction. The first reply replaces it.
+* `Relay(client, authorizer)`:
+  * `sync()`: one `now` read, whose epoch goes to `authorizer.observe_epoch`. Every session open and every mutation calls it first.
+  * `submit(request, path, args) -> Answer`: `client.execute(path, request, args)`. On `ChannelAmbiguous` or an `ambiguous` reply it sends the **same request once more** (step 2 replays a committed one). Still unknown: `Answer("ambiguous", request_id)`. `ChannelRefused`: `Answer("unreachable")`. A `refused` reply (rows 1–12 of step 5): `Answer("refusal", Refusal(code, label, None, "channel"))`.
+  * An `answered` result keeps step 5's `kind`: `committed`, `replayed`, `refusal`, `outcome` or `answer`. `consumed(request.confirmation_id)` is called when the request has one and the kind is `committed` or `replayed`, or a `refusal` coded `SEC-R08`.
+  * Every reply's epoch goes to `observe_epoch`, refusals included.
+* `Answer(kind, request_id, result, refusal)`, frozen: `kind: str`, `request_id: str | None`, `result: dict | None` (step 5's result wire), `refusal: Refusal | None`. `kind` is one of the five, or `ambiguous` or `unreachable`.
+* `Nothing(reason: str)`, frozen: a command with nothing to do (`not_held`); no request is minted.
+* `OperatorDoor(authorizer, relay, reads, registry, *, lock)`, with `lock` a `threading.Lock` held around every `Authorizer` call and never around a channel call. Its methods, each running `relay.sync()` first:
+  * `open(evidence) -> tuple[Caller, Session] | Refusal`;
+  * `prepare(session_id, caller, csrf, name, params, nonce) -> Challenge | Nothing | Refusal`;
+  * `execute(session_id, caller, csrf, name, params, nonce, *, confirmation_id=None, typed=None) -> Answer | Nothing | Refusal`;
+  * `end(session_id) -> None`.
+
+  `build_call`'s `ValueError` propagates to the caller (the API's 400, the socket's `invalid_request`). A CLI caller's session is ended by `prepare` on any refusal, and by `execute` on any result.
+* `Operator(config, authorizer, relay, reads, door, api)`, a frozen dataclass: what `compose_operator` returns.
+
+#### The catalogue mapping (`interfaces/api.py`)
+
+`build_call(name, params, caller, nonce, reads) -> Call | Nothing | Refusal` turns a command or route into step 2's operation, target and args. `Call(operation, target, args, named, summary)`, frozen. Every name, its parameters and its mapping:
+
+| Name | Params, exactly (`?` optional) | Operation | Target | Args | `named` |
+|---|---|---|---|---|---|
+| `kill_engage` | `reason` | `kill_engage` | (None, None) | `{reason}` | — |
+| `kill_release` | `reason` | `kill_release` | (None, None) | `{reason}` | — |
+| `hold_engage` | `strategy`, `reason` | `hold_engage` | (None, strategy) | `{reason}` | — |
+| `hold_release` | `strategy`, `hold?`, `justification?` | `hold_release` | (None, strategy) | `{released_reason: H, justification: J}` | — |
+| `latch_unlock` | `strategy`, `reason`, `session?` | `latch_unlock` | (A, S) from the latch rule | `{strategy, reason}` | `strategy` (CLI) |
+| `pause_clear` | `pause_id`, `reason` | `pause_clear` | (None, pause_id) | `{reason}` | — |
+| `cancel` | `strategy`, `broker_order_id`, `reason` | `cancel` | (A, broker_order_id) | `{action: action_wire(CancelRequest(K, P, A, broker_order_id)), reason}` | — |
+| `close` | `strategy`, `broker_order_id`, `reason`, `quantity?` | `close` | (A, broker_order_id) | `{action: action_wire(CloseRequest(K, P, A, position_id, Q, MarketOrder())), reason}` | — |
+| `binding_approve` | `binding` (an object) | `binding_authorize` | (`AccountId(*binding["scope"][0])`, `binding["binding_id"]`) | `{step: "authorize", binding}` | — |
+| `binding_revoke` | `binding_id`, `reason` | `binding_authorize` | (the `standing_binding` row's account, or None; binding_id) | `{step: "revoke", reason}` | — |
+| `grant_issue` | `grant` (an object) | `grant_admin` | (None, `grant["grant_id"]`) | `{step: "issue", grant}` | — |
+| `grant_revoke` | `grant_id`, `reason` | `grant_admin` | (None, grant_id) | `{step: "revoke", reason}` | — |
+| `recovery_advance` | none | `recovery_advance` | (None, None) | `{step: "advance"}` | — |
+| `recovery_fence` | `fence` (an object) | `recovery_advance` | (None, `fence["old_host"]`) | `{step: "fence", fence}` | — |
+| `attempt_resolve` | `command_key`, `attempt_no`, `legs`, `observation` | `attempt_resolve` | (the command row's account, or None; command_key) | `{attempt_no, legs, observation}` | — |
+
+* **Values.** On `cancel` and `close` only, `strategy`, `broker_order_id` and `reason` are first made `str(v or "").strip()`, legacy's field rule (`src/core/framework/execution/owner_command.py:99-105`). A text param (`strategy`, `broker_order_id`, `pause_id`, `binding_id`, `grant_id`, `command_key`, `hold`, `session`) must then pass `check_subject`; `reason` and `justification` must be strings (the kernel's own guard refuses an empty one, recorded `ADM-R01`). Object params are passed unchanged: a form the kernel does not rebuild byte for byte is its recorded `SEC-R09`. Any other type, or a missing or extra param, raises `ValueError`: 400 `invalid_request` on the API, and an `invalid_request` refusal on the CLI socket.
+* **`K` and `P`.** `P` is `caller.principal`. `K = CommandKey("operator:" + request_id_of(P, caller.channel_identity, nonce))`: a command key the nonce fixes, so a retry with the same nonce rebuilds the same action and digest, and a new nonce is a new command (step 2's single use).
+* **The order rule (cancel and close).** `broker_identity` row `kind = 'order_id' AND value = broker_order_id`; its command row; `A = AccountId(*json.loads(command.account))`. No row, or `command.strategy != strategy`, gives `Refusal("refused", M, None, "build")` with legacy's text, Python `repr` quotes included: for a cancel `M = f"{broker_order_id!r} is not a broker id {strategy!r} has recorded — refusing"` (`src/runtime/execution_gateway/__init__.py:1191-1193`); for a close `M = f"{broker_order_id!r} is not a position {strategy!r} has recorded"` (`src/runtime/owner_exposure.py:86-87`).
+* **The close position.** `position_id = projections.position_id(command_key, leg_role)` of that row. No `position` row gives the close's not-a-position refusal above. A row with `owned_quantity <= 0` gives `Refusal("refused", f"{broker_order_id!r} holds nothing provable to close (state {state!r})", None, "build")`, with `state` the row's (`owner_exposure.py:91-93`).
+  * **The quantity, in legacy's order** (`owner_exposure.py:94-101`): absent, `Q = owned_quantity`. Given, `q = float(quantity)`; a `TypeError` or `ValueError`, a non-finite `q`, or `q <= 0` is 400 `invalid_quantity` (`src/interfaces/console/api/routes/exposure.py:56-66`). Then `Q = min(q, owned_quantity)`, legacy's clamp. **Only after the clamp**, `Q` must be whole (`float(Q).is_integer()`), and becomes `int(Q)`; otherwise 400 `invalid_quantity`. So `100.5` with 75 owned closes 75, as legacy. A fractional quantity below the owned amount (legacy sent it) is an [open owner item](#open-owner-items).
+  * **Fork call (close):** the whole position unless a quantity is named, clamped to what is owned, at market, as legacy.
+* **The latch rule (`SEC-R21`).** With `session`: `S = session`, and `A` is that `session` row's account; with no such row, `Refusal("SEC-R21", "ambiguous_target", None, "build")`, and nothing reaches the kernel. Without it: `registry.get(strategy)` gives the candidate ID; the `session` rows with `state = 'OPEN'` whose `candidate_ids` hold it are the matches. Exactly one gives (its account, its session ID). Zero or several: `Refusal("SEC-R21", "ambiguous_target", None, "build")`, and the caller names the session. No registry composed and no `session`: `SEC-R22` (`owner_absent`). The strategy stays a confirmation (step 2).
+* **The hold rule.** `H` is `hold` when given. Otherwise the engaged `safety_state` rows (`kind = 'hold' AND scope = strategy AND state = 'engaged'`, by reason): none gives `Nothing("not_held")`; exactly one gives its reason; several give `SEC-R21`, naming the reasons. `J` is `justification`, or `"at holds clear"` when absent.
+* **The summary** is the line the CLI prints before its prompt: for cancel and close, legacy's `This sends a <verb> to the broker for <id>.` (`deploy/at:4301`); for hold release, `This lets <strategy> send orders again.` (`:4367`); for latch unlock, `This lifts the loss latch of session <S> for every strategy on it; the next breach latches it again.`; for kill release, `This removes a safety gate and re-enables every new order.`
+
+#### Reads (`interfaces/api.py`)
+
+`OperatorReads(reader, relay, registry)`. A read needs no request, no confirmation and, on the owner API, no session or CSRF token (**Fork call (reads):** legacy's GET routes needed reachability only, `registry.py:52-56`). The owner (`accounts` None) reads everything; a delegate reads rows of its accounts only.
+
+| Read | Owner API | CLI | Source | A delegate |
+|---|---|---|---|---|
+| Kill | `GET /kill` | `at kill-switch status` | the channel's `kill_status` | as the owner |
+| Holds | `GET /holds` | `at holds status` | `safety_state` rows of kind `hold`, engaged | as the owner (a hold has no account) |
+| Latch | `GET /loss-latch` | `at loss-latch status` | `safety_state` rows of kind `latch`, with their session's account | its accounts |
+| Positions | `GET /positions` | — | `position` rows | its accounts |
+| Orders | `GET /orders` | — | `broker_identity` rows of kind `order_id`, with their command's account, strategy and state | its accounts |
+| Commands | `GET /commands` | — | `command_identity` rows | its own principal's |
+| One command | `GET /commands/{key}` | `at commands status <key>` | the channel's `command_status` | its own, else `SEC-R14` |
+| Alerts | `GET /alerts` | `at alerts` | the channel's `alerts`, then `RECONCILIATION_ESCALATED` events | `SEC-R14` |
+| Events | `GET /events?after=<n>` | — | `events_page(n, 500)` | `SEC-R14` |
+
+* `EVENTS_PAGE = 500` is a page size, a transport bound like step 5's frame limit. `after` absent is 0; not a non-negative integer is 400.
+* With the kernel unreachable, the channel's parts are `null` and `kernel_reachable` is false; the ledger parts still answer.
+* No read is scrubbed: the ledger holds no secret value (step 3).
+
+#### The owner API (`interfaces/api.py`)
+
+`OwnerApi(door, reads, settings)` is a plain ASGI callable (`async def __call__(scope, receive, send)`), standard library only. It answers `lifespan` with startup and shutdown complete. The ASGI server is the optional extra `operator = ["uvicorn==0.54.0"]` in `pyproject.toml`, legacy's pinned version (`deploy/constraints.txt`), imported only by `serve`. No kernel composition imports `interfaces/api.py`.
+
+**Routes**, under `PREFIX = "/owner/api/v1"`:
+
+| Method and path | Name | Body |
+|---|---|---|
+| `POST /session` | open a session | `{}` (empty, or an empty object) |
+| `POST /session/end` | end it | `{}` |
+| `POST /strategies/{strategy}/hold` | `hold_engage` | exactly `reason` |
+| `POST /strategies/{strategy}/loss-latch/unlock` | `latch_unlock` | `reason`, and `session` optional |
+| `POST /ai/pauses/{pause_id}/clear` | `pause_clear` | exactly `reason` |
+| `POST /exposure/cancel` | `cancel` | `strategy`, `broker_order_id`, `reason`; other fields ignored |
+| `POST /exposure/close` | `close` | the same, and `quantity` optional; other fields ignored |
+
+Plus the read routes above. Nothing else is served: kill engage and release and hold release have no route (step 1's door rules), and step 7 adds the rest. An unknown path is 404 `not_found`; a known path with another method is 405 `method_not_allowed`.
+
+* **Fork call (field handling):** the exposure routes ignore unknown fields as legacy (`exposure.py:20-34`); the latch unlock refuses any other field (`src/interfaces/console/api/routes/loss_latch.py:30-32`); the pause clear takes exactly its reason (legacy schema `{pause_id, reason}`, `src/authoring/capabilities/ai_management.py:42`, with the path field).
+* **Headers:** `x-owner-session` (the session ID), `x-owner-csrf-token`, `x-request-id` (the nonce), `x-owner-client` (the client label; absent is `default`, malformed is 400).
+* **The nonce.** An `x-request-id` that fully matches `[A-Za-z0-9_-]{22,64}` after `strip()` is the request's nonce. A missing or malformed one is replaced by a fresh `new_nonce()`, as legacy replaced it (`security.py:21-22`), and that nonce is returned in the envelope's `request_id`, so the caller can resend with it. **Fork call (the nonce):** a mutation without one is not refused.
+
+**Reachability** (`reachable(peer, headers, public_host, auth_header) -> "loopback" | "proxy" | None`), legacy's `reachable` copied with its provenance (`security.py:27-74`):
+
+* `LOOPBACK = {"127.0.0.1", "::1", "localhost"}`; `FORWARDING_HEADERS = ("x-forwarded-for", "forwarded", "x-real-ip")`, each counted only when non-blank after `strip()`.
+* The host is the `host` header stripped and lower-cased; `[v6]:port` gives `v6`; one colon splits off the port; otherwise the text is kept.
+* With no public host: a proxied request is refused; otherwise a loopback peer and a loopback host give `loopback`.
+* With a public host: a loopback peer, loopback host and no forwarding header give `loopback`. Otherwise the host must equal the public host, the peer must be loopback, `auth_header` must be set, and that header non-blank: `proxy`. Anything else is `None`.
+* `None` is `SEC-R02`.
+
+**The loopback peer's user** (`peer_uid(client, server, tables) -> int | None`, Linux). On the `loopback` route only, the connecting process's uid is read from the kernel's TCP tables: `tables()` returns the text of `/proc/net/tcp` and `/proc/net/tcp6`. A line matches when its `local_address` is the ASGI scope's `client` (address and port) and its `rem_address` is the scope's `server`: that is the caller's own socket, and its `uid` column is the caller's uid. Addresses decode as the kernel writes them: each 8-hex-digit word is 4 bytes in reverse order (`bytes.fromhex(w)[::-1]`), one word for IPv4 and four for IPv6; the port is 4 hex digits. No match, or an unreadable table, is `None`.
+
+* The `loopback` route is admitted only when the uid is `config.http.proxy_uid` or a uid whose `uid:<n>` entry in `interfaces.principals` is the owner; otherwise 403 `owner_access_refused` (`SEC-R02`). The `proxy` route is unchanged.
+* An SSH tunnel's forwarded connection is opened by the owner's own `sshd` session process, under the owner's uid, so the tunnelled owner keeps access when that uid is mapped.
+* **Deviation — for owner review (who is the owner on the loopback route; stricter).** Legacy admitted any local process that reached loopback (`security.py:45-74`), so any local service could act as the owner. The target admits only the owner's mapped login uids and the proxy's uid. Keeping legacy means dropping this check. Listed in [Open owner items](#open-owner-items).
+
+**The order of checks.** Every route runs these in order; the first that fails decides. Nothing before row 11 mints, and only row 12 reaches a kernel entry point.
+
+| # | Check | Failure |
+|---|---|---|
+| 1 | Route and method | 404 or 405 |
+| 2 | Reachability, then the loopback peer's user | 403 `owner_access_refused` (`SEC-R02`) |
+| 3 | `authenticate(ApiEvidence(route, header value or None, client))` | 401 `SEC-R01` (a blank proxy identity) |
+| 4 | A read: answered here | 403 `SEC-R14` for a delegate on an owner-only read |
+| 5 | Mutations: `origin` or else `referer` present and its host not loopback or the public host | 403 `mutation_refused` (`SEC-R03`) |
+| 6 | `relay.sync()` | 503 `kernel_unreachable` |
+| 7 | `authorizer.session(x-owner-session, caller, x-owner-csrf-token)` | 401 `SEC-R01`, or 403 `mutation_refused` (`SEC-R03`) |
+| 8 | The nonce: the header's, or a minted one | never fails |
+| 9 | The body: a `content-length` that is not an integer, or above the cap, refused before reading; then counted while it arrives. Then, in this order: an empty body is `{}`; otherwise `json.loads(raw)` as legacy (`security.py:131-134`), a `UnicodeDecodeError` or `json.JSONDecodeError` refused; the value must be an object; the route's fields | 400 `invalid_request` |
+| 10 | `build_call` | 400 `invalid_quantity` for the quantity rule, other `ValueError`s 400 `invalid_request`, a `Refusal` 409 with its code |
+| 11 | `authorizer.execute`, with no confirmation (the owner API's rows ask none) | 409 with its code; `EpochMoved` is 401 `SEC-R01` |
+| 12 | `relay.submit` | the answer |
+
+* **Fork call (origin):** a mutation with neither `Origin` nor `Referer` passes, as legacy (`security.py:77-83`); a present one must name a loopback or the public host. `Origin: null` names no host and is refused.
+* **Fork call (body):** the cap counted while the body arrives, an empty body read as `{}`, plain `json.loads`, and a JSON object only (`security.py:115-135`). So `NaN` parses, as legacy; a `NaN` quantity is then 400 `invalid_quantity`, and a `NaN` reason 400 `invalid_request` (not a string).
+* `POST /session` runs rows 1–6 (so the origin check applies), then `open_session(caller)`; it answers `{"session_id", "csrf_token", "epoch"}`. `POST /session/end` runs rows 1–9 and ends the session; no request is minted.
+
+**The answer**, legacy's envelope (`src/interfaces/console/api/contract.py:11-44`): `{"api_version": "v1", "request_id", "ok", "data", "error"}` with `cache-control: no-store`. `request_id` is the request's nonce (row 8): the header's, or the minted one. `error` is `null` or `{"code", "message"}`.
+
+| Result | Status | `ok` | `error.code` | `data` |
+|---|---|---|---|---|
+| `committed`, `replayed`, `outcome` or `answer`, with no refusal inside the outcome | 200 | true | — | the answer's wire |
+| An `outcome` holding a refusal | 409 | false | the refusal's code | the answer's wire |
+| A door or kernel `Refusal` | 409 | false | its code (`refused` for the order and position rules) | `{"refusal": its wire}` |
+| `unreachable` | 503 | false | `kernel_unreachable` | null |
+| `ambiguous` after the retry | 503 | false | `outcome_unknown` | `{"request_id"}`: send it again with the same `x-request-id` |
+
+The status codes 403, 400 and 409 and the codes `owner_access_refused`, `mutation_refused`, `invalid_request` and `refused` are legacy's (`registry.py:52-75`; `contract.py:23-44`): **Fork call (the failure shape)**. Every refusal is logged at `WARNING` on `autonomous_trading.operator` with its code and the channel identity; no body is logged.
+
+#### The CLI socket (`interfaces/api.py`)
+
+* `parse_cgroup_unit(text) -> str | None` reads a `/proc` cgroup file's text. It takes the line starting `0::` (cgroup v2), else returns `None`. It splits the path on `/`. When any part starts with `user@`, the answer is `None` (the per-user manager's tree is not a system service). Otherwise it is the last part ending in `.service`, or `None` (a login `session-<n>.scope`).
+* `unit_of(pid)` reads `/proc/<pid>/cgroup`. An unreadable file raises `OSError`, and the server refuses the peer `SEC-R12`: a peer that cannot be shown to be outside a service is not admitted.
+* `CliSocketServer(door, path, *, socket_gid, unit_of)`, Linux only, starts as step 5's server does: a directory owned by the operator's uid with no group or other write bit, an exclusive lock on `<path>.lock`, the stale socket unlinked, bound under umask `0o117`, `chown` to `socket_gid` (the `at-operators` group) and `chmod 0o660`.
+* **One connection is one session.** At accept: `peer_cred`, then `unit_of(pid)`, then `authenticate(CliEvidence(uid, pid, unit))` and `open_session`. Messages are one JSON object per line, read with `readline(MAX_MESSAGE + 1)` and decoded by `decode_frame` (strict JSON: the socket is new, so no legacy form applies); a `FrameError` answers the `invalid_request` refusal below; a line with no newline within `MAX_MESSAGE` closes the connection. There is no timeout between messages: legacy's prompt had no deadline (`deploy/at:734`).
+
+  | Message | Reply |
+  |---|---|
+  | `{"op": "prepare", "name", "params", "nonce"}` | `{"ok": true, "challenge": {"confirmation_id", "prompt", "summary"}}`; the expected text is never sent |
+  | `{"op": "execute", "name", "params", "nonce", "confirmation_id", "typed"}` (the last two null for a row with no confirmation) | `{"ok": true, "answer": the answer's wire}` |
+  | `{"op": "read", "name", "params"}` | `{"ok": true, "data"}` |
+
+  A refusal is `{"ok": false, "refusal": its wire}` (an authentication refusal answers the first message). **After any refusal, or after an `execute`'s answer, the session ends and the connection closes** (step 1); `OperatorDoor` ends the session, so the door core behaves the same without a socket. Any other message shape, or a `ValueError` from `build_call`, answers `{"ok": false, "refusal": {"code": "invalid_request", "message", "command_key": null, "decision": "cli"}}` and closes the connection.
+* `relay.sync()` runs before `open_session` and before each `prepare` and `execute`.
+
+#### The `at` commands (`interfaces/cli.py`)
+
+* `OperatorClient(path, *, server_uid, server_gid)` connects as step 5's client does: `socket_problem`, connect with `CONNECT_TIMEOUT_S`, `peer_cred(sock).uid == server_uid`. Each failure raises `KernelUnreachable`. Then `send(message) -> dict` per line, with `REPLY_TIMEOUT_S` per reply; a reply that is not one object, or a timeout, raises `KernelUnreachable("ambiguous")`.
+* `OperatorLink(connect, *, nonce=new_nonce)` implements step 4's `KernelLink`: `engage` and `release` run one connection each (`release` sends `prepare` then `execute` with the raw typed text); `kill_engaged` and `present_inputs` read `kill`. A refusal returns `Refusal(code, message, command_key, decision)`; `committed` and `replayed` return the answer; `unreachable` and `ambiguous` raise `KernelUnreachable`.
+* `main(argv, *, environ, out, ask, user, now) -> int`. The environment: `AT_DEPLOYMENT_ROOT` (absolute; the kill-switch root), `AT_OPERATOR_SOCKET`, `AT_OPERATOR_UID`, `AT_OPERATOR_GID` and `AT_PROFILE` (the settings profile). SLICE-11's `at` wrapper sets them. A missing socket setting makes the link `None` (unreachable). A missing root makes `at kill-switch` print `AT_DEPLOYMENT_ROOT is not set: the kill file cannot be found` and return 1.
+* **Commands**, each one connection, `ask` returning `None` with no terminal (legacy's `[ -t 0 ]`):
+
+  | `at` command | Name | Confirmation (step 1's row) | Legacy |
+  |---|---|---|---|
+  | `kill-switch on\|off\|status` | step 4's command, over `OperatorLink` | `DISENGAGE` for `off` | `deploy/at:4239-4286` |
+  | `holds status` | read | — | `:4334-4394` |
+  | `holds engage <strategy> --reason TEXT` | `hold_engage` | none | new |
+  | `holds clear <strategy> [--hold REASON] [--justification TEXT]` | `hold_release` | the strategy ID | `:4364-4392` |
+  | `loss-latch status` | read | — | `scripts/loss_latch.py:52-59` |
+  | `loss-latch unlock <strategy> --reason TEXT [--session ID]` | `latch_unlock` | the strategy ID | `scripts/loss_latch.py:60-75` |
+  | `pauses clear <id> --reason TEXT` | `pause_clear` | none | new on the CLI |
+  | `exposure cancel\|close <strategy> <broker_order_id> --reason TEXT [--quantity N]` | `cancel`, `close` | the broker order ID | `deploy/at:4288-4306`; `src/interfaces/cli/exposure.py:19-62` |
+  | `bindings approve --file PATH`; `bindings revoke <id> --reason TEXT` | `binding_approve`, `binding_revoke` | none | new |
+  | `grants issue --file PATH`; `grants revoke <id> --reason TEXT` | `grant_issue`, `grant_revoke` | none | new |
+  | `recovery advance`; `recovery fence --file PATH` | `recovery_advance`, `recovery_fence` | none | new |
+  | `attempts resolve <command_key> --attempt N --file PATH` (the file holds `{legs, observation}`) | `attempt_resolve` | none | new |
+  | `commands status <key>`; `alerts` | reads | — | new |
+
+  A `--file` holds one JSON object, read with `decode_frame`'s strict rules; an unreadable or malformed file prints `cannot read <path>: <reason>` and returns 1 before connecting.
+* **Flow of a confirmed command:** `prepare`; print the summary; `ask(prompt)`; unless the typed text, trimmed by the row's rule, equals what the person named, print the legacy cancel line and return 1, sending nothing more; else `execute`. A refused `prepare` prints `refused: <code> <message>` and returns 1.
+* **Legacy messages kept:** `cancelled — nothing sent` (exposure, `deploy/at:4303`); `cancelled — <strategy> stays held` (`:4370`); `<strategy> is not held — nothing to clear` and return 0 (`Nothing("not_held")`, `:4383`); for the latch, `an unlock needs a reason; nothing was changed` when the reason is blank, then `a loss-latch unlock requires an interactive terminal` when `ask` gives `None`, then `confirmation did not match; <strategy> stays latched`, each returning 1 (`scripts/loss_latch.py:61-73`; `deploy/at` turned the script's refusal into exit 1). A command-line error prints its usage line and returns 1, as legacy's `die`. **Fork call (the `at` names, prompts, trims and messages).**
+* **Answers printed:** `committed`: `recorded (sequence <last>)`; `replayed`: `already recorded (sequence <n>): nothing was done again`; `outcome`: `<verb> admitted as command <key>` (0) or `refused: <code> <message>` (1); `refusal`: `refused: <code> <message>` (1); `unreachable`: `the operator process is not reachable: nothing was sent` (1); `ambiguous`: `the outcome is unknown: run at commands status <key>`, or for an operation with no command `run the same command again` (1).
+* `src/autonomous_trading/__main__.py`: `python -m autonomous_trading operator serve` calls `api.serve(os.environ)`; any other argument list calls `cli.main` with `sys.stdin.isatty()` deciding whether `ask` reads `input()` or returns `None`, `getpass.getuser()` and the current UTC time.
+
+#### The composition (`interfaces/api.py`)
+
+* `parse_operator(section) -> OperatorConfig` reads the profile's `operator` section, exactly: `owner` (the owner principal's value), `relay` (this process's service principal's value, listed in `channel.relays`), `principals` (`{key: {"principal", "kind", "accounts": [[broker, account], ...] | null}}`, checked by `identity_map`), `kernel: {socket, uid, gid, release}`, `cli: {socket, gid}`, `http: {host, port, proxy_uid}` (`proxy_uid` an int ≥ 0, or null when no proxy runs), `ledger` and `deployment_root`. Paths are absolute; `http.host` is `127.0.0.1` or `::1` (**Fork call:** legacy served the owner API on loopback, behind an SSH tunnel or the local proxy, `config/defaults.yaml:651-654`); `http.port` is an int from 1 to 65535. Anything else raises `ValueError` naming `operator.<key>`. SLICE-11's profile loader calls it; `serve` reads the file named by `AT_OPERATOR_CONFIG`.
+* `compose_operator(settings, config, *, client, reader, registry, secrets, monotonic) -> Operator`. Every argument is required. It raises `SettingsError` naming `interfaces.request_ttl_secs`, `interfaces.session_ttl_secs` or `interfaces.sessions_per_identity` when unbound, and `ValueError` when `secrets` holds any secret (the operator's scope is empty, step 3). It builds:
+  * `Authorizer(KernelClock(client, monotonic, on_epoch=…), owner=Principal(config.owner, "human"), principals=…, doors=LEGACY_DOORS, epoch=UNSEEN, via=Principal(config.relay, "service"), request_ttl_secs=…, session_ttl_secs=…, sessions_per_identity=…)`;
+  * then sets `clock.on_epoch = authorizer.observe_epoch`;
+  * `Relay(client, authorizer)`, `OperatorReads(reader, relay, registry)`, `OperatorDoor(authorizer, relay, reads, registry, lock=threading.Lock())` (the channel call runs outside the lock, since a repeated request is replayed by the kernel) and `OwnerApi(door, reads, settings, config, tables=_proc_tcp_tables)`, returned as one `Operator`.
+* `serve(environ)`: settings from `loader.resolve(environ["AT_PROFILE"], environ)`; the config; `KernelChannelClient`; `LedgerReader.open(config.ledger)`; the `CliSocketServer` on a thread; then `uvicorn.run(app, host, port, log_config=None)`. Without the extra it exits with `the operator extra is not installed`. It imports no adapter that sends and resolves no broker credential (PRF-SEC-09 checks this in step 8).
+* `deploy/systemd/at-operator.service`, a template in legacy's convention (`__NAME__` placeholders substituted by SLICE-11's `deploy/install.py`): `User=__OPERATOR_USER__`, `Group=__OPERATOR_USER__`, `SupplementaryGroups=__CHANNEL_GROUP__`, `Environment=AT_PROFILE=__PROFILE__ AT_OPERATOR_CONFIG=__OPERATOR_CONFIG__`, `ExecStart=__INSTALL_DIR__/.venv/bin/python -m autonomous_trading operator serve`, `UMask=0077`, `Restart=on-failure`, `RestartSec=5`, `NoNewPrivileges=true`, `PrivateTmp=true`, and no `EnvironmentFile`: the operator holds no secret.
+
+#### Fork calls and deviations in this step
+
+* **Fork calls**, each named above: reachability; the nonce (minted when missing); origin; body (plain `json.loads`); the failure shape; reads with reachability only; field handling per route; close; the `at` names, prompts, trims and messages; the loopback bind. Also kept: no submission rate limit; the owner API offers no kill or hold release; legacy's console aliases.
+* **Deviations:**
+  * a session per caller: `POST /session`, `x-owner-session` and its own CSRF token (the slice-level replay Deviation);
+  * **for owner review:** the loopback route admits only the owner's mapped uids and the proxy's uid, where legacy admitted any local process;
+  * a close quantity that is still fractional after the clamp is refused (400 `invalid_quantity`): the target's close counts whole units, where legacy sent the float. Listed in [Open owner items](#open-owner-items);
+  * one typed confirmation releases one hold reason (the kernel records holds per reason); with several, the person names one with `--hold`;
+  * the latch unlock route also takes an optional `session`, so a strategy that maps to several sessions can still be unlocked from the console;
+  * every session open and mutation first reads the kernel's epoch, so a session never outlives a kernel restart (F-SEC4); with the kernel down a mutation answers 503, as legacy's owner API refused when the Tier-1 authority was down;
+  * the console keys: with several environment names set, the first in code-point order wins; the prefix override is not read;
+  * `holds status` and `loss-latch status` read the ledger, where legacy read its own files.
+* No score, threshold or money value is set. 1,048,576 is legacy's body cap; 500 is a page size; 900 and 2 are synthetic test values.
+
+#### What later steps take from step 6
+
+* **Step 7:** adds its routes to `OwnerApi`'s table and its names to `build_call`, through the same order of checks.
+* **Step 8:** the MCP process; PRF-SEC-09 inspects `compose_operator`'s process.
+* **Step 10:** the console's backend opens `POST /session` and sends a fixed `x-owner-client: console`, so its sessions share one cap bucket that no other client can drain. It sends `x-owner-session`, `x-owner-csrf-token` and an `x-request-id` per action, and resends the same `x-request-id` on `outcome_unknown`. On a 401 `SEC-R01` (the session expired, was capped, or the kernel restarted) it opens a new session and resends the same `x-request-id` **once**; a second 401 is shown to the person.
+* **SLICE-11:** the profile's `operator` section and settings; the `at` wrapper's environment; the `at-operators` group; the operator user in the channel group; rendering and enabling the unit.
+
+### Tests
+
+Both files use the `simulation` fixture, `RecordedClock` at `START` (`2026-11-02T09:15:00.000000Z`), `SIM_PRINCIPALS` (uid 1001 the owner, uid 1002 `TEST_PRINCIPAL`, uid 1003 `ops`, `proxy:synthetic-test@example.test` `TEST_PRINCIPAL`), and step 5's `ChannelCore` with an inline submit, the relay peer `at-operator-sim.service` (uid 1500, pid 4100) and `CHANNEL_RECEIPT`. `LoopbackClient(core, peer)` is the test's `KernelChannelClient`: each call builds the frame, calls `core.handle`, and returns a `Reply`; `Lost(client, n)` raises `ChannelAmbiguous("timeout")` after the first `n` execute calls have reached the kernel. The reader is `LedgerReader.open` on the world's ledger. `monotonic` is the clock's `elapsed`. Every identity, nonce, reason and duration is labelled synthetic; each hex value is the SHA-256 of the canonical text beside it, computed at deepening.
+
+* `[["owner","human"],"owner-api:local","nonce-operator-api-00001"]` → `87d26739400cedb59c64dbdfb2740631e44e8fac46cedd1b23efefcb6b97fa75`.
+* `["operator-request/1","hold_engage",{"account":null,"subject":"buyer_edge"},{"reason":"synthetic reason"}]` → `c018c033d5a6132b98ed3f8c8475cf56603b9c82f48beae0c0b22c118099880b`.
+* `[["owner","human"],"uid:1001","nonce-operator-000000001"]` → `01c1bc0d96bf40b4502274766df7758c01a158158b89283debaefff1027718b9`; `["operator-request/1","kill_release",{"account":null,"subject":null},{"reason":"at kill-switch off"}]` → `1999940887f9d3f3680c5c44274f84e7bb8b4da8ca0ef9dbb116741554878cff`; the same with `kill_engage` and `"at kill-switch on"` → `d9042df8b0e37470ecf364262ff6127ddfd508f2d80c2cb1ddec533758b86362`.
+* Cancel, nonce `nonce-operator-000000002`: `[["owner","human"],"uid:1001","nonce-operator-000000002"]` → `69c1163a8ede4c818596f31f35b176eefd43a7f2ca85a8188736c84c2a3ccf2a`, the command key `operator:` plus it, and
+  `["operator-request/1","cancel",{"account":["sim","acct-sim"],"subject":"E2"},{"action":{"account":["sim","acct-sim"],"broker_order_id":"E2","command_key":"operator:69c1163a8ede4c818596f31f35b176eefd43a7f2ca85a8188736c84c2a3ccf2a","verb":"cancel"},"reason":"synthetic reason"}]` → `e7bbe0b1cdf1e3ae112294df6a28e810173327f217f1cfb96becf60646a464f1`.
+* Close, nonce `nonce-operator-000000003`: `[["owner","human"],"uid:1001","nonce-operator-000000003"]` → `5c400e1f43e02810aaa62cca012ebb574451f221508fbda9b8260c8407019990`; `position_id("k-entry", "primary")` is the SHA-256 of `["k-entry","primary"]`, `c9d408f975e07f19db88171b037befc1c83a161885dbd20dfcf11e811d98161b`; and
+  `["operator-request/1","close",{"account":["sim","acct-sim"],"subject":"E1"},{"action":{"account":["sim","acct-sim"],"command_key":"operator:5c400e1f43e02810aaa62cca012ebb574451f221508fbda9b8260c8407019990","order":{"kind":"market"},"position_id":"c9d408f975e07f19db88171b037befc1c83a161885dbd20dfcf11e811d98161b","quantity":75,"verb":"close"},"reason":"synthetic reason"}]` → `9a239a3c1b4ae10ddbb76aa2bb23c53e1ff0fd457c22332a45a6582c68883caf`.
+* `["operator-request/1","latch_unlock",{"account":["sim","acct-sim"],"subject":"sim:acct-sim:NSE-FO-sim:2026-11-02"},{"reason":"synthetic reason","strategy":"buyer_edge"}]` → `bba18487d0840c51b5609dfad0f9d281bb7c01f0a7004b50bb9f90d2e09881d7`.
+* Proxy fingerprints: `synthetic-test@example.test` → `d2138883a8090049`; `synthetic-owner@example.test` → `ca6a4062fd2a2c32`.
+
+**`tests/integration/test_owner_api.py` (T-64), PRF-SEC-07.** The app is called directly with ASGI scopes (`asyncio.run`); no server or HTTP library. The world is `admission_world(policy=OFF, kernel_safety=True, receipt=CHANNEL_RECEIPT)`; the settings' cap is 1,048,576. `OwnerApi`'s `tables` is a fake returning one `/proc/net/tcp` line for the scope's client, uid 1001 (the owner), unless a case names another; `http.proxy_uid` is 1600 (synthetic).
+
+| Group | Cases |
+|---|---|
+| Reachability | Each row its own expectation, with no public host unless named. Peer `127.0.0.1`, host `127.0.0.1:8000`: `loopback`. Peer `::1`, host `[::1]:8000`: `loopback`. Host `localhost`: `loopback`. Peer `10.0.0.5`: 403. Host `example.test`: 403. With `x-forwarded-for: 1.2.3.4`, `forwarded: for=1.2.3.4` or `x-real-ip: 1.2.3.4`: 403 each; with `x-forwarded-for: "  "`: `loopback`. Public host `console.example.test`, header `x-panel-user`: host `Console.Example.TEST:443` from `127.0.0.1` with `x-panel-user: synthetic-owner@example.test` is `proxy`, the owner, `owner-proxy:ca6a4062fd2a2c32`; the header absent or `"  "`: 403; the peer `10.0.0.5`: 403; host `other.example.test`: 403; a loopback host with no forwarding header: `loopback`; a loopback host with `x-forwarded-for`: 403. Public host set and `auth_header` empty: the public host is 403. Each 403 has `error.code` `owner_access_refused` |
+| Loopback user | `peer_uid` over synthetic text: client `127.0.0.1:50000`, server `127.0.0.1:8000`, the line `0: 0100007F:C350 0100007F:1F40 01 00000000:00000000 00:00000000 00000000 1001 0 12345` gives 1001; the same with the addresses swapped (the server's own socket) gives `None`; `::1` as `00000000000000000000000001000000` gives the line's uid; no line gives `None`. On the loopback route: uid 1001 (owner-mapped) passes; uid 1600 (the proxy) passes; uid 1002 (`TEST_PRINCIPAL`, mapped but not the owner) and uid 1005 (unmapped) are 403 `owner_access_refused`; `None` is 403. The proxy route with uid 1005 passes (unchanged) |
+| Sessions | `POST /session`: a 32-hex `session_id`, a 43-character token, and the writer's epoch; with `origin: https://evil.example.test`: 403 `mutation_refused`. Cap 2 with `x-owner-client: console-sim`: a third session drops the first, and a mutation with the first answers 401 `SEC-R01`; a session with `x-owner-client: script-sim` is kept. `x-owner-client: "a b"`: 400. `POST /session/end`, then a mutation with that session: 401. **Expiry (lifetime 900 s):** a session opened at `START`, the clock advanced 900,000 ms: the hold engage with nonce `nonce-operator-api-00002` is 401 `SEC-R01`, nothing minted; a new `POST /session` and the same nonce: 200 `committed`, one `HOLD_ENGAGED` |
+| Mutation checks | On `POST /strategies/buyer_edge/hold` with `{"reason": "synthetic reason"}`, each alone, every other check passing, no event written: `origin: https://evil.example.test` 403 `mutation_refused`; `origin: null` 403; `referer: http://127.0.0.1:3000/x` passes; no origin and no referer passes; no CSRF token, a wrong one, and `é`: 403, no exception; the proxy owner's session ID and token presented from loopback: 403; no `x-owner-session`: 401. **The nonce:** no `x-request-id`, 21 characters and 65 characters: 200 `committed` each, the envelope's `request_id` a 22-character minted nonce, and the recorded `request_id` the SHA-256 of `[["owner","human"],"owner-api:local",<that nonce>]` |
+| Body | `content-length: 1048577`: 400 before `receive` is called. No length and two chunks of 600,000 bytes: 400, and `receive` was called exactly twice. `content-length: abc`: 400. An empty body on `POST /session`: 200. `not json`, `[]`, `{"reason": NaN}` (parses; not a string), `{"reason": "x", "extra": 1}`, `{}` and `{"reason": 5}`: 400 `invalid_request` each. `{"reason": "x", "reason": "synthetic reason"}`: 200 (plain `json.loads` keeps the last, as legacy). The exposure cancel with an extra `note` field: accepted. The exposure close with `"quantity": NaN`, `0`, `-1` and `"abc"`: 400 `invalid_quantity` each |
+| Relay record | The hold engage, loopback, nonce `nonce-operator-api-00001`: 200, `data.kind` `committed`. Its `OPERATOR_REQUEST` has `request_id` `87d2…fa75`, `argument_digest` `c018…880b`, channel `owner-api`, `channel_identity` `owner-api:local`, `via` `["svc:operator-sim","service"]`, `confirmation_id` null; `HOLD_ENGAGED` is by `owner`. Through the proxy as `TEST_PRINCIPAL` (no `hold_engage` grant): 409 `SES-R02`, one `OPERATOR_REQUEST_REFUSED` with `channel_identity` `owner-proxy:d2138883a8090049` |
+| CUJ-SEC-2 | The committed hold engage sent again in the same session with the same nonce: 200, `data.kind` `replayed`, `data.sequence` the first record's, no new event. The same nonce with `{"reason": "other reason"}`: 409 `SEC-R04`. Then the composition shuts down and a new one opens on the same ledger (a new epoch), and the client reaches the new composition's core: the old session's resend answers 401 `SEC-R01`. A new session and the same nonce: 200 `replayed`, the request still carrying the first epoch |
+| Ambiguity | `Lost(client, 1)`: the hold engage reaches the kernel, the reply is lost, the relay resends: 200 `replayed`, exactly one `HOLD_ENGAGED`. `Lost(client, 2)`: 503 `outcome_unknown` with `data.request_id`; resent with the same nonce over a plain client: 200 `replayed` |
+| Unreachable | A client whose every call raises `ChannelRefused("missing")`: `POST /session` and the hold engage answer 503 `kernel_unreachable`; `GET /holds` answers 200 from the ledger with `kernel_reachable` false; nothing is minted |
+| Latch | `buyer_edge` maps to `SESSION` through a registry stub (`get("buyer_edge")` has `candidate_id` `CANDIDATE`): the unlock answers 409 `LED-R09` (not tripped), recorded with digest `bba1…81d7`, which proves the request bound. `other_strategy` (not registered): 409 `SEC-R21`. With `"session": "sim:acct-sim:NSE-FO-sim:2026-11-02"`: `LED-R09`. With `"session": "sim:acct-sim:NSE-FO-sim:2026-11-03"` (no such row): 409 `SEC-R21`, no event written. No registry and no session: 409 `SEC-R22` |
+| Reads | `GET /kill`: `engaged` false, `inputs` empty, `watched` null (no inputs composed), `input_state` equal to `comp.safety.kill_input_state`, `kernel_reachable` true. After the hold engage, `GET /holds` lists `buyer_edge` reason `operator`. `GET /events?after=0` as the owner: every event in order; as `TEST_PRINCIPAL` through the proxy: 403 `SEC-R14`; `after=-1`: 400. `GET /commands/k-unknown`: `{"status": null}` |
+| Envelope and routes | Every answer has exactly the five envelope keys and `cache-control: no-store`. `POST /kill-switch/release` and `POST /strategies/buyer_edge/hold/release`: 404. `GET /strategies/buyer_edge/hold`: 405. The route table holds exactly the routes listed above |
+
+**`tests/integration/test_operator_commands.py` (T-63), PRF-SEC-06.** The door core (`OperatorDoor` with `CliEvidence`) runs on every platform; the **Linux** group uses a real socket (`skipif(sys.platform != "linux")`). The world is `admission_world(ACK, policy=OFF, kernel_safety=True, kernel_holdings=True, kernel_positions=True, protection_loop=False, receipt=CHANNEL_RECEIPT, kill_inputs=KillInputs.resolve(False, ("run/KILL",), tmp_path))`. `filled_entry(world)` makes position `c9d4…161b` (75, `buyer_edge`, order `E1`); entry `k-e2` (`make_intent(intent_id="i-2")`) is admitted and acknowledged as `E2`, unfilled.
+
+| Group | Cases |
+|---|---|
+| CUJ-SEC-1 | `at kill-switch on` through `OperatorLink` (uid 1001): the file is written, `KILL_ENGAGED` by `owner` with digest `d904…6362`. `at exposure cancel buyer_edge E2 --reason "synthetic reason"`, typed `E2`, nonce `…002`: `COMMAND_ADMITTED` for `operator:69c1…cf2a` with `OPERATOR_REQUEST` digest `e7bb…64f1` in the same transaction, admitted under kill. `at exposure close buyer_edge E1`, typed `" E1\t"` (spaces and tabs trimmed), nonce `…003`: `COMMAND_ADMITTED` for `operator:5c40…9990`, quantity 75, digest `9a23…3caf`, one decision. Typed `E2` for the close: `cancelled — nothing sent`, return 1, the event count unchanged. With new nonces each: `--quantity 100`: quantity 75 (clamped); `--quantity 100.5` with 75 owned: quantity 75 (clamped first, then whole); `--quantity 1.5`: `refused: invalid_quantity`, return 1, nothing recorded; `--quantity nan`: the usage line, return 1 (legacy's argument check). `at exposure cancel " buyer_edge " " E2 " --reason " synthetic reason "` builds the same target and args as the unpadded command (fields stripped). An order of another strategy: `refused: refused 'E2' is not a broker id 'other_strategy' has recorded — refusing`, return 1 |
+| Kill release | Kill engaged from the file. `at kill-switch off`, typed `DISENGAGE`, nonce `…001`: the file removed, `KILL_RELEASED` with request ID `01c1…18b9` and digest `1999…8cff`, return 0. Typed `disengage`: return 1, the file kept, no prepare sent. **Consumed:** with a session the test keeps open (calling the `Authorizer` and `Relay` directly), after the release commits, a second `execute` of the same challenge with nonce `…004` is `SEC-R08` from the `Authorizer`, and nothing is sent |
+| Catalogue | One case per name, each through `prepare` (where the CLI row asks) and `execute`, checking the recorded `OPERATOR_REQUEST`'s operation, target and channel `owner-cli` with `channel_identity` `uid:1001`: hold engage then clear of `buyer_edge` (typed `buyer_edge`, `released_reason` `operator`, justification `at holds clear`) commit; a second clear prints `buyer_edge is not held — nothing to clear`, return 0; with holds `operator` and `recovery` engaged, `holds clear buyer_edge` is `SEC-R21` naming both, and `--hold recovery` releases that one; the latch unlock (typed `buyer_edge`) is `LED-R09`, recorded; with `--session sim:acct-sim:NSE-FO-sim:2026-11-03` (no row) it is `SEC-R21` before any prompt, nothing recorded; pause clear `pause-synthetic` is `LED-R09`, recorded; grant issue (file `wire(test_grant(grant_id="g-cli"))`) and revoke commit; binding approve (file `wire(StandingBinding("b-cli", SCOPE, POLICY_ID, (CANDIDATE,), "2026-11-01", "2026-11-30"))`) and revoke commit; attempt resolve of `k-none` is `DOM-R04`, recorded. In `simulation([], advance=False, grant=False, receipt=CHANNEL_RECEIPT)`: the fence for `old-host` commits first, then the advance |
+| Doors | uid 1002 (`TEST_PRINCIPAL`) `holds engage`: `SES-R02`, recorded with `operator_credential`. uid 1005 (unmapped): `SEC-R01` at the first message, nothing recorded. `CliEvidence(1001, 4242, "at-kernel.service")`: `SEC-R12` (F-SEC13). After any refusal the door has ended the session: the next message on it is `SEC-R01`. An owner-API caller asking `kill_release` through the door: `SEC-R13`. The latch unlock with no terminal (`ask` gives `None`): `a loss-latch unlock requires an interactive terminal`, return 1, no `prepare` sent; a blank reason: the reason line, return 1 |
+| Epoch | A CLI session open, then a new composition on the same ledger: the session's `execute` is `SEC-R01`, and `Authorizer.epoch` is the new one |
+| Cgroup | `parse_cgroup_unit`: `0::/system.slice/at-kernel.service` → `at-kernel.service`; `0::/user.slice/user-1001.slice/session-3.scope` → `None`; `0::/user.slice/user-1001.slice/user@1001.service/app.slice/x.service` → `None`; `1:name=systemd:/system.slice/a.service` alone → `None`; an empty text → `None` |
+| Names | The parser accepts every `at` command in the table and gives a usage line and return 1 for `at exposure flip`, `at holds` with an unknown verb and `at loss-latch unlock` with no strategy |
+| Boundary | Parsed with `ast`: `interfaces/api.py` imports no `adapters.openalgo`, no `adapters.simulated_broker`, no `bootstrap` and no `settings.secrets.resolve`; `src/autonomous_trading/__main__.py` imports `interfaces.api` only inside the `operator serve` branch |
+| Linux (owner API) | `OwnerApi` with the real `/proc` tables, served by `uvicorn` on `127.0.0.1` and a free port in a thread, called with `http.client` from the test process: with the test's uid mapped to the owner, `POST /session` is 200; with a map that does not name it, 403 `owner_access_refused` |
+| Linux | `CliSocketServer` in `tmp_path`, with `socket_gid` the test's own gid and `unit_of` injected as `lambda pid: None`: the socket mode is `0o660`; `OperatorClient` as the test's own uid (mapped to the owner for this group) runs the kill engage and release; with `unit_of` `lambda pid: "at-kernel.service"` the first reply is `SEC-R12`; a directory with mode `0o777` refuses to start; a second server on the same path refuses `locked`; `unit_of(os.getpid())` equals `parse_cgroup_unit` of `/proc/self/cgroup` |
+
+Every existing test keeps its expectations. `tests/unit/test_policy_parameters.py` gains the console keys: no environment gives `""`, `""` and 1,048,576; `MCP_CONSOLE_HOST=Console.Example.TEST` gives `console.example.test`; `AT__CONSOLE__PUBLIC_HOST=a.test` with `MCP_CONSOLE_HOST=b.test` gives `a.test`; `AT__CONSOLE__OWNER_API__MAX_BODY_BYTES=0` gives 1,048,576; `-1` and `abc` raise `SettingsError`.
+
+### Break checks
+
+Each mutation is applied after its anchor is checked present exactly once, run against the listed file, and restored byte for byte (md5). The minimum set; "as built" records the final table.
+
+| Change | Test that must fail |
+|---|---|
+| Reachability accepts a proxied loopback request with no public host | Reachability |
+| The proxy route skips the loopback-peer check | Reachability |
+| Origin compared after the session, so a cross-origin request with a good token passes | Mutation checks |
+| The CSRF token not checked on mutations | Mutation checks |
+| The body cap checked only on `content-length` | Body (two chunks) |
+| `relay.sync()` removed before the session check | CUJ-SEC-2 (the old session) |
+| The relay does not resend on ambiguity | Ambiguity |
+| `consumed` never called | Kill release (consumed: the second `execute` mints) |
+| The command key from `new_nonce()` instead of the request ID | CUJ-SEC-2; CUJ-SEC-1 (digests) |
+| The close quantity not clamped | CUJ-SEC-1 (`--quantity 100`) |
+| The whole-number check before the clamp | CUJ-SEC-1 (`--quantity 100.5`) |
+| A missing nonce refused instead of minted | Mutation checks (the nonce) |
+| The loopback route admits any uid | Loopback user |
+| A `--session` with no row passed to the kernel | Latch (no event written) |
+| The latch rule takes the first of several sessions | Latch |
+| A CLI peer in a unit accepted (`unit` dropped from the evidence) | Doors |
+| The session kept after a refusal | Doors |
+| A delegate reads `/events` | Reads |
+| `parse_cgroup_unit` keeps a `user@` unit's child | Cgroup |
+
+### Files
+
+| File | Change |
+|---|---|
+| `src/autonomous_trading/interfaces/api.py` | New: `PREFIX`, the headers, `LOOPBACK`, `FORWARDING_HEADERS`, `EVENTS_PAGE`, `UNSEEN`, `reachable`, `peer_uid`, `KernelClock`, `EpochMoved`, `Answer`, `Relay`, `Call`, `Nothing`, `build_call`, `OperatorReads`, `OperatorDoor`, `Operator`, `OwnerApi`, `parse_cgroup_unit`, `unit_of`, `CliSocketServer`, `OperatorConfig`, `parse_operator`, `compose_operator`, `serve` |
+| `src/autonomous_trading/interfaces/cli.py` | `OperatorClient`, `OperatorLink`, `main` and the commands; step 4's `kill_switch` unchanged |
+| `src/autonomous_trading/__main__.py` | New |
+| `src/autonomous_trading/kernel/ledger/store.py` | `LedgerReader.rows`, `LedgerReader.events_page` |
+| `src/autonomous_trading/settings/schema.py`, `src/autonomous_trading/settings/loader.py`, `src/autonomous_trading/settings/secrets.py`, `src/autonomous_trading/resources/defaults.yaml` | The three console keys and their two aliases |
+| `deploy/systemd/at-operator.service` | New (template) |
+| `pyproject.toml` | The `operator` extra |
+| `tests/integration/test_operator_commands.py`, `tests/integration/test_owner_api.py` | New (T-63, T-64) |
+| `tests/unit/test_policy_parameters.py` | The console keys |
+
+No new tree delta: `interfaces/api.py`, `src/autonomous_trading/__main__.py` and `deploy/systemd/at-operator.service` are in the target tree, and the tests are T-63 and T-64.
+
+### Completion conditions (step 6)
+
+* **Targeted tests only, no full suite.** On Windows: the two new files (the Linux group skipped), `tests/integration/test_kill_inputs.py` (`interfaces/cli.py`), `tests/integration/test_unix_channel.py` (the client and frames used), `tests/unit/test_policy_parameters.py` and `tests/unit/test_secret_references.py` (settings and aliases), and the existing test files that use `LedgerReader` (found with a search of `tests/`). All pass, with no existing expectation changed.
+* **The Linux groups (the CLI socket and the owner API's loopback user) run on the EC2,** once, in a throwaway folder under `~/claude-desktop/outputs` made from an `OA_NEW` git bundle, with `~/at-dev`'s environment and the project's safe test runner, as step 5's run. No live checkout or service is touched; the folder is removed afterwards. PRF-SEC-06's CLI-socket rows and PRF-SEC-07's loopback-user row count from this run only; the test needs the `operator` extra in that environment.
+* All code is written and committed in `OA_NEW` only; `git diff --name-only` names exactly the files above, in one commit. Nothing is pushed.
+* Every break check fails a listed test, the Linux ones in the EC2 run; every file is restored (md5). `ast.parse` passes on every edited Python file, `yaml.safe_load` on `resources/defaults.yaml`, and `tomllib` on `pyproject.toml`.
+* The build starts on the coordinator's word; every cited line is re-read on the head it starts from.
+* PRF-SEC-06 and PRF-SEC-07 pass; CUJ-SEC-1 and CUJ-SEC-2 behave as written.
+* This file records step 6 "as built", with any Deviation or Fork call found while building.
 
 ## Step 7 — the legacy owner mutations (outline)
 
@@ -2234,10 +2572,12 @@ Deepened after step 8 is built. Authority: the spec's [Operator UI](../../design
 
 ## Open owner items
 
-The standing rules settle every money fork. These two touch kill or owner rights, but legacy's live behaviour cannot be kept as it was, so they are logged for the owner's review:
+The standing rules settle every money fork. These touch kill, owner rights or a close, but legacy's live behaviour cannot be kept as it was, so they are logged for the owner's review:
 
 * **Deleting the kill file no longer releases kill.** To keep legacy, the kernel would have to release kill with no principal holding `kill_release`, against Q-014. Recommendation: keep the stricter rule; `at kill-switch off` does both steps.
 * **The CLI owner must be a mapped login uid.** Legacy's loopback rule would let any local service act as the owner on the socket that replaces Tier-1's, which never admitted one. Recommendation: keep the explicit map.
+* **The console's loopback route admits only the owner's mapped uids and the proxy's uid** (step 6). Legacy admitted any local process that reached loopback (`src/interfaces/console/api/security.py:45-74`). The SSH-tunnelled owner keeps access. Recommendation: keep the check.
+* **A fractional close quantity below the owned amount** (for example 1.5 of 75) is refused with `invalid_quantity` (step 6): the target's close counts whole units, and legacy sent the float to the broker (`src/runtime/owner_exposure.py:94-101`). Above the owned amount it clamps to the whole position, as legacy. Recommendation: keep the refusal, which sends nothing the target cannot represent.
 
 The earlier question on typed confirmations for `grant_admin`, `recovery_advance`, `attempt_resolve` and `binding_authorize` is settled by the fork rule: none, as legacy. The recommendation stays as a listed improvement.
 

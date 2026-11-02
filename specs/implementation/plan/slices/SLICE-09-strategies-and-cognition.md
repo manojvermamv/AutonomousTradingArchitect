@@ -86,10 +86,11 @@ Each keeps legacy's live behaviour because it touches entries, sizes or review s
 18. **Review deadline:** the blueprint's `deadline_seconds`, at most 300 s per team and 120 s per role (`service.py:279-282`; `blueprint.py:118-121`).
 19. **Management context sources** keep their 300 s freshness (RFL `:4481`, `:4496`).
 20. **An ENTER the kernel did not record is never reviewed or submitted** (RFL `:6828`, `:6832-6839`): legacy planned only the decisions its file held. A refused decision record journals an alert; the abstention is recorded, the ENTER abandoned (`decision_unrecorded`); a kernel fault leaves the decision to be recorded first on the next pass.
+21. **BuyerEdge scores with no Greeks priced** (coordinator, 2 November 2026). Legacy's live BuyerEdge scored every bar with no Greeks priced, because of a legacy defect: the Greeks batch is fetched about 0.7 ms after the bar's stamp, and `greeks_at` takes only batches at or before the stamp (`scans.py:316-331`; TASK-S09-08 characterization 3: 673 of 673 bars on 23 and 30 October). The port reproduces that result: its assembly gives the scorer no Greeks (no `ce_delta`, `pe_delta` or `gex_levels`), and the Gamma shadow reports no gamma, as legacy's did.
 
 **Not a fork: deciding on the sealed bar.** The pass decides a window only once SLICE-08 has sealed it, waiting at most `strategies.host.seal_wait_ms`. That changes the bar legacy decided on (legacy read the ticks flushed by the confirmation point, RFL `:3424-3427`), and it is the owner-approved Q-030 rule applied by SLICE-08, not a fork. Step 3's parity walks include bars at the seal boundary, where a tick arrived on time but after legacy's flush, so the difference is visible and bounded.
 
-**Spec-only improvements, listed, not made:** submitting a decided-but-unsent intent after recovery under B1's view-age check (call 11); rebuilding BuyerEdge's state after a restart by re-walking the session's bars (call 10); scoring gamma and IV regime at `score_max=0` to match POL-024's "research-only" (call 4); an age bound on BuyerEdge's scoring view (call 5).
+**Spec-only improvements, listed, not made:** submitting a decided-but-unsent intent after recovery under B1's view-age check (call 11); rebuilding BuyerEdge's state after a restart by re-walking the session's bars (call 10); scoring gamma and IV regime at `score_max=0` to match POL-024's "research-only" (call 4); an age bound on BuyerEdge's scoring view (call 5); pricing the Greeks, so BuyerEdge's Greeks components and Gamma shadow see the minute's batch (call 21), for the owner.
 
 ## Deviations
 
@@ -614,17 +615,165 @@ Commit `e4948d0` on `slice-08`, on top of `ee6aec9` (SLICE-10 step 4). It change
 
 **Open:** the intent spec's carried text and the module index's tree delta for `008_decisions.sql` (the coordinator's).
 
-## Step 3 — BuyerEdge (outline)
+## Step 3 — BuyerEdge
 
-Deepened after step 2 is built and SLICE-08 step 3 names carries 3–5. **First, TASK-S09-08's characterizations**, each recorded with its evidence before code:
+The authorities are the spec's [strategy host](../../design/strategies-and-cognition.md#the-strategy-host-strategiesworkerpy) and legacy's live BuyerEdge at 445eb116: `src/strategies/buyer_edge.py` (`BE`), `src/data/replay_engine/scorer.py` (`SC`), `src/runtime/market_view.py` (`MV`), `src/data/marketdata/scans.py`, and RFL. Step 3 is TASK-S09-08 and TASK-S09-11 (characterizations, recorded before any code), then TASK-S09-03 (PRF-STR-04). It builds on step 2 as built (`e4948d0`) and on SLICE-08's reads, all built: the view's spot series through the cutoff (`View.spot_series`), the exact-minute chain poll (`View.chains(minute=)`) and the day's Greeks through the cutoff (`View.greeks_day`, `View.greeks_at`). **The fork rule applies to the whole step:** the scorer, its configuration, its inputs, their order of state updates, the bound clock and the intent mapping are legacy's exactly. Nothing is tuned, cleaned or corrected; a defect found is recorded, never fixed here. No score, threshold or money value is set.
 
-1. Every live registry row (id, kind, authority, enabled), the deployed host's `--poll`, and the account it trades, read from the live host's registry and unit without changing them (read-only, under the boundary rule). The rows are carried unchanged into `strategies.registry.*`; `--poll` binds `strategies.host.pass_secs`.
-2. Which bar series the library runner walks for BuyerEdge (`ctx.close` and `ctx.at`: tick bars or history bars, and the bar's stamp), so the trigger and `as_of` match legacy.
-3. Whether a chain poll's minute stamp and the Greeks batch's `at` meet `greeks_at`'s "at or before the stamp" rule for the bar stamp legacy passes (`scans.py:316-331`), on the captured days, so the assembly's parity walks include the boundary.
+**In plain words.** First, facts are read from the running legacy system without changing it: which strategies it runs and how, which bars BuyerEdge walks, how its Greeks line up with the bar, which scorer and library versions run, and whether its orders pass a second loss limit in the MCP process (they do not). Then BuyerEdge's scoring is copied over unchanged, fed the same market data in the same order, and proven to give the same answer as the old code, bar after bar, over whole sessions and over sessions restarted midway.
 
-Then the port: the scorer, `BotConfig` and `to_intent` copied unchanged (with the numpy and pandas dependency recorded in `requirements.lock`); the input assembly over the view, keeping legacy's order of state updates (the previous assembled minute set before the spot frame is checked; the chain history appended only after a full assembly); the clock bound to the bar's stamp for each call; the intent and abstention mapping; the `reset_on_restart` state; the view policy `market.views.buyer_edge`.
+### Decisions
 
-**Golden walks.** `scripts/gen_buyer_edge_parity.py` (**T-54**), run once against a legacy checkout, never in the suite, as SLICE-06's and SLICE-08's generators, writes `tests/fixtures/strategies/buyer_edge_golden.json` (**T-53**). Each case is a contiguous walk from a fresh engine and view: from the session's start, and from restart points mid-session (a fresh engine whose first bar is later, as a restart gives). Walks run over seeded synthetic days and over stretches of recorded days (provenance in `tests/fixtures/manifests.json`), and contain gap minutes: no chain for the minute, no spot frame, an unusable chain, missing Greeks, and bars at the seal boundary. For every bar the case records the raw store records legacy read, the clock it bound, its `score_kwargs`, and the `SignalResult` and `Intent`. `tests/unit/test_buyer_edge_parity.py` (**T-52**) replays each walk in order through one fresh target engine and assembly and compares every bar, field by field, floats as `repr` strings. Break checks include: appending chain history before the spot frame succeeds; not setting the previous minute when the frame fails; an unbound clock; a per-bar fresh engine.
+#### What legacy does here
+
+* **The strategy.** `create` builds `BuyerEdgeStrategy` around `scorer_for(DEFAULT_SCORER, ...)` (`BE:2496-2509`), `DEFAULT_SCORER = "extracted"` (`BE:2093`): `RealScorer` over this module's own `SignalEngine(BotConfig())` (`BE:2431-2469`), one engine for the whole session (`BE:2422-2429`). The live driver passes only `underlying`, `day` and `name` (`BE:2492-2494`), so no `min_score_schedule` applies. `SPEC` declares `warmup_bars` 20 and needs `("spot", "chain", "greeks")` (`BE:2105-2114`).
+* **One bar** (`BE:2388-2406`): `spot = ctx.close[0]`; none gives NOTHING `"no close on this bar"`. Otherwise `RealScorer(ctx=, spot=, stamp=ctx.at)` (`SC:111-160`) assembles the bar, binds the module's `get_ist_now` to the stamp for the one call and restores it after (`SC:129-143`), and calls `engine.score(**view.score_kwargs(instrument))` (`SC:168-173`). An unassembled bar returns `None` (`SC:121-127`).
+* **The assembly** (`MV:759-799`): `inputs_at(store, underlying, day, stamp, previous=<the last assembled minute>)`, the exact-minute chain (`MV:848-860`). A chain without spot takes `ctx.close` as spot and recomputes the ATM strike and straddle (`MV:766-773`). No chain: `"no chain for this minute"`; an unusable chain: refused. **The previous assembled minute is set before the spot frame is checked** (`MV:783`). The spot frame is read through the stamp (`MV:784-787`; `:956-993`). **Only then** are the chain rows appended to the history (`MV:789`) and smoothed by `OIFlowAnalyzer.smooth_chain_rows` over the last five (`MV:789-791`). The Greeks kwargs follow (`MV:795`; exact minute, `scans.py:273-282`, `:316-331`); there is no age bound (`MV:214-217`, `:333-338`).
+* **The spot frame** (`spot_frame`, `MV:956-993`). The day's spot records are kept when their `at` parses and its instant is at or before the stamp's instant, then stable-sorted by instant (`MV:963-971`), so records with one instant stay in file order. Each kept record becomes a row (`MV:972-990`): `close = d.get("close", d.get("ltp"))`, and a `None` close skips the record; `open`, `high` and `low` are `d.get(<field>, close)` (the close stands in only when the key is absent); `volume` is `d.get("volume", 0) or 0`. The index entry is `pd.Timestamp(at)`, converted to IST (`tz_convert(store.IST)`) only when its offset is not IST's. No rows gives `None` (`MV:991-992`); otherwise `pd.DataFrame(rows, index=pd.DatetimeIndex(index))`.
+* **The chain rows' order.** `snapshot_matching` takes the first stamp in `sorted(index)` whose minute matches, then that stamp's records in file order (`store.py:1126-1133`). `inputs_from_rows` takes spot from the first row that has one (`MV:874-878`), flattens the rows in that order (`MV:879`), and `atm_of` takes the first of equally near strikes (`min`, `MV:835`). `greek_kwargs` takes the first raw row at the ATM strike (`MV:639-640`). The order therefore decides the ATM strike, the straddle and the Greeks row when strikes are equidistant or a poll holds more than one expiry.
+* **The Greeks refresh** (`MV:585-625`). The Greeks cache is reread only when the stamp's minute is past the newest cached minute, the source is refreshable, and at least `GREEKS_REFRESH_SECS` (20 s, `MV:74-75`) have passed on the monotonic clock since the last read (`MV:603-611`). A failed read keeps the previous cache (`MV:616-620`). So live, a minute's batch can be missing from the cache when that minute is scored.
+* **The mapping** (`to_intent`, `BE:2228-2322`): `signal = str(result.signal or "").upper()`, `score = float(result.score or 0)`. Components come from each `ScoreComponent`'s `label`; unavailable ones are named in `tags`. `conviction = min(1.0, |score| / 100)` on every result. `ACTING = {"EXECUTE"}` (`BE:2127`): anything else, a `None` result included, is NOTHING with `reasons[0]` or `"signal=<signal or none>"`. An `EXECUTE` with no direction is NOTHING `"no direction"`. Otherwise ENTER with `direction` (`CE` or `PE`) and `reason` `reasons[0]` or `"score=<score:.0f>"`. The gamma shadow and the session-adjusted floor shadow ride in `tags` only (`BE:2235-2239`, `:2289-2292`; Fork call 4).
+
+#### TASK-S09-08: characterizations (evidence records, read-only on the live host)
+
+Each is recorded in `tests/fixtures/manifests.json` with its source and the command that read it, before code. Nothing on the live host is changed.
+
+1. **Rows and the pass.** Every live registry row (id, kind, authority, enabled, underlying), the account traded, and the deployed unit's `--poll`. The rows are carried unchanged into `strategies.registry.*` (BuyerEdge's at `trade`, `autoregister.py:421-426`); `--poll` binds `strategies.host.pass_secs` (Fork call 1).
+2. **The bars walked.** Which series the library runner walks for BuyerEdge (tick bars or history bars) and the text of `ctx.at` (its zone and form), so the host's `BarContext.at` and the trigger match. A difference stops the step for the coordinator.
+3. **The Greeks minute boundary and refresh.** On the captured days, whether a chain poll's minute stamp and the Greeks batch's `at` meet `greeks_at`'s "at or before the stamp" rule for the stamp legacy passes (`scans.py:316-331`), so the golden walks include the boundary. With it, whether the 20-second refresh throttle (`MV:603-611`) left a scored minute's batch out of legacy's cache: the decision records' Gamma shadow coverage (`priced_legs`) shows what the cache priced at each scored bar.
+4. **The scorer bound live.** The live registry row's `module` (`src.strategies.buyer_edge:create`), and the SHA-256 of the deployed `src/strategies/buyer_edge.py` and `scripts/strategy_factories.py` against the 445eb116 blobs. Equal hashes mean `DEFAULT_SCORER = "extracted"` (`BE:2093`) and the driver's three arguments (`BE:2492-2494`) are what runs. The decision records' floor shadow (`effective_min_score_shadow`, recorded on every scan) shows `applied: false`. `monolith` is not ported.
+5. **The live interpreter and libraries.** `<live venv>/bin/python -c "import sys,numpy,pandas;print(sys.version,numpy.__version__,pandas.__version__)"`. The three are pinned with `==` in OA_NEW's `pyproject.toml`, and the golden generator (T-54) runs under them.
+
+**Evidence records** (read 2 November 2026, about 11:42–11:46 IST, during a live session; read-only). Each script is under `~/claude-desktop/scripts/` on `debian-oa`, reached with `C:\Windows\System32\OpenSSH\ssh.exe debian-oa "bash ~/claude-desktop/scripts/<name>"` (Python probes: `~/AutonomousTrading/.venv/bin/python -I <script> ~/claude-desktop/outputs/s09c`). Secrets cannot appear by construction: the scripts print named non-secret fields only, read `.env` only through a `grep -E` of named keys, and print environment-variable names, never values. Recorded days were copied first (`cp -p`) into `~/claude-desktop/outputs/s09c/` and read there. Nothing in `~/AutonomousTrading` was written, and no unit was started or stopped.
+
+| # | Command | Output | Reading |
+|---|---|---|---|
+| 1 | `s09c_probe1.sh`, `s09c_probe2.sh`, `s09c_probe9.sh` (`run/strategies/strategies.json`, fields `id kind authority enabled exchange module`; `systemctl cat at-strategy.service`) | `buyer_edge`: `library`, `trade`, enabled, `NFO`, `src.strategies.buyer_edge:create`. `ai_ema_cross`: `ai_worker`, `none`, enabled, `NSE`, `src.strategies.ai_ema_cross:main` (running as its own child). `ema_cross_spot`: `worker`, `none`, disabled. `ema_crossover`: `library`, `none`, disabled. The unit runs `scripts/run_framework_live.py --underlying NIFTY --name buyer_edge --poll 20`. Execution URL key `OPENALGO_API_URL=http://127.0.0.1:5000`; the decision records of 30 October say `broker_environment: analyze` | Four rows, carried unchanged. No row has an `underlying` field: NIFTY comes from the unit's `--underlying`. One OpenAlgo account, at `127.0.0.1:5000`. `strategies.host.pass_secs` binds 20 |
+| 2 | `s09c_probe6.sh`, `s09c_probe7.py` (decision records of 23 and 30 October); RFL `:51-56` | `at` is `2026-10-30T10:12:00+05:30` (the minute's start, ISO, `+05:30`); `bar_index` 20 on the first record of each day; `provenance.market.cursor.kind` `confirmed_bar_index`; `timeframe` `1m` | Legacy walks confirmed one-minute tick bars (`ticks.bars`), numbered from the day's first bar; `ctx.at` is the bar's start minute in IST. The host's `BarContext.at` and trigger must be that instant. No difference from the plan, so the step continues |
+| 3 | `s09c_probe8.py` (output kept in `~/claude-desktop/outputs/s09c/char3.txt`) | 23 Oct: 355 decisions; the stamp's minute holds a Greeks batch only **after** the stamp on all 355 (batch `09:35:00.000726`, stamp `09:35:00`); `priced_legs` 0 on all 355. 30 Oct: 318 decisions, the same on all 318. One chain poll per minute; each poll holds one expiry | Legacy's `greeks_at` left every leg of every scored bar unpriced on both days: the batch is fetched just after the minute's start, which is the stamp. The throttle had no visible effect, because nothing was priced. This is a legacy defect, recorded, not fixed: the port gives the scorer no Greeks, and the golden walks match legacy's no-Greeks scores (Fork call 21) |
+| 4 | `s09c_probe3.sh` (`sha256sum` of the deployed file against `git show 445eb116:<path> \| sha256sum`) | `src/strategies/buyer_edge.py` `8e1d7b7f…09b5dc` both; `scripts/strategy_factories.py` `2c73be03…dc5e16` both. Live `HEAD` `c7f9e3df`; the decision records' `provenance.code.git.commit` `445eb116514d`, `dirty: false`. `effective_min_score_shadow` on all 318 records of 30 Oct: `schedule original, base 40, floor 40, applied false`; no record names `min_score_schedule` | The live process binds `extracted`, with no `min_score_schedule` |
+| 5 | `s09c_probe1.sh`: `~/AutonomousTrading/.venv/bin/python -c "import sys,numpy,pandas;print(sys.version,numpy.__version__,pandas.__version__)"`; `s09c_probe10.sh` (`pip list`) | `3.13.5 (main, Aug 10 2026, 12:06:59) [GCC 14.2.0] 2.5.3 3.0.6`; `openalgo 2.0.5` | Pins: `numpy==2.5.3`, `pandas==3.0.6`, `openalgo==2.0.5`; `requires-python` unchanged; the golden walks are generated under 3.13.5 |
+
+#### TASK-S09-11: the MCP Risk Guard's `daily_loss_limit`
+
+The question is whether legacy's live strategy orders pass the Risk Guard, whose `daily_loss_limit` (₹5,000, `config/profiles/enforcing.yaml:104`) refuses when the day's P&L is below its floor or unavailable (`src/interfaces/mcp/core/riskguard.py:637-681`). Reading the code at 445eb116 suggests they do not: the strategy path submits through `ExecutionGateway.submit` (RFL `:3321`), which sends through `core.openalgo.execution_client` (`src/runtime/execution_gateway/__init__.py:1910`), and nothing on that path imports the Risk Guard. That is inference from the consumer, so it is measured at the source: on the live host, read-only, the client's endpoint and whether a strategy order of a recorded day reached the MCP process (its log or Risk Guard checks for that order's time). The record names the evidence. The read-only commands, run from `~/AutonomousTrading`:
+
+1. The host key lines only, never the whole `.env`: `grep -E '^(HOST_SERVER|OPENALGO_HOST|OPENALGO_API_URL|AT_CONFIG_FILE|MCP_CONFIG_FILE)=' .env`.
+2. Who listens on the execution port and the gateway ports, without process IDs: `ss -ltnpH | awk '{print $4, $6}' | grep -E ':(5000|8000|8001) '`.
+3. The Risk Guard audit logs (`risk_guard.audit_log`: `run/riskguard.audit.jsonl` in `enforcing.yaml`, `run/risk-audit.jsonl` in `defaults.yaml`): their rows by `tool` and `allowed`, any order-classified tool, and the audit rows on each day that has strategy orders, set against those orders' `at` times in `run/orders/<day>.jsonl`. The scripts print no arguments.
+4. The SHA-256 of the deployed `src/runtime/execution_gateway/__init__.py` and `src/interfaces/mcp/core/openalgo.py` against `git show 445eb116:<path> | sha256sum`.
+
+**Evidence record** (2 November 2026, `s09c_probe3.sh` and `s09c_probe4.sh`, as in TASK-S09-08's records):
+
+| Read | Output |
+|---|---|
+| Key lines | `OPENALGO_API_URL=http://127.0.0.1:5000`; `AT_CONFIG_FILE` and `MCP_CONFIG_FILE` both `config/profiles/readonly.yaml`; `HOST_SERVER` and `OPENALGO_HOST` not set |
+| Listeners | `127.0.0.1:5000` (no process name visible to this user; the port `OPENALGO_API_URL` names); `127.0.0.1:8000` and `:8001` are `python`, the three running `src/interfaces/mcp/gateway.py` processes |
+| Gateway profile | `readonly.yaml` extends `enforcing.yaml`, but mounts no order-capable domain (`control` and `openalgo` absent) and sets `risk_guard.orders_disabled: true` |
+| Audit logs | `risk-audit.jsonl`: 26 rows, 4 Oct to 23 Oct, tools `analysis_pattern_health`, `analysis_trade_kpis`, `monitoring_pnl_curve` (7 each) and 5 owner-API rows (`POST /orders/reconcile` ×3 on 16 Oct, `POST /exposure/close` ×2 on 18 Oct). `riskguard.audit.jsonl`: 1 row (`analysis_warehouse_status`, 4 Oct). **No order-placing tool in either** |
+| Strategy orders | 711 order records over 9 days (9, 14, 15, 16, 19, 21, 22, 23, 30 October), all during the session (for example, 30 Oct from 10:14:08 to 15:15:09 IST). The audit rows on those days fall at other times and are reads or owner-API calls |
+| Hashes | `execution_gateway/__init__.py` `a1e60a53…149b92` and `openalgo.py` `f9aed7bb…6087b`: deployed equal the 445eb116 blob |
+
+**TASK-S09-11 is closed: not carried (coordinator, 2 November 2026). Verdict: legacy's strategy orders do not pass the Risk Guard.** The execution client sends straight to OpenAlgo at `127.0.0.1:5000`, the Risk Guard has audited no order on any strategy-order day, and no module on the strategy path imports it (`src/runtime/` and RFL have no reference; the Tier-1 importer lists the Risk Guard's daily-loss check as outside Tier-1, `src/tier1/importer/sources.py:175-177`). Nothing is carried. The latch remains the only loss stop on the strategy path, as legacy.
+
+*Also observed:* the deployed unit's drop-in `/etc/systemd/system/at-strategy.service.d/entry-limits.conf` sets `MCP_LIMITS__MAX_DAILY_LOSS_AMOUNT=4000`, among other `MCP_LIMITS__*` values, for the strategy process. This is consistent with Q-002: legacy merges limits field by field, so the live daily loss limit is `min(4000, 3600)` = ₹3,600 (traced earlier by the coordinator; not re-traced here).
+
+* **If they pass it:** the check is carried unchanged into the kernel's admission as a PRF-PRT-05 row (the ₹5,000 value as bound, refusing when P&L is unavailable), specified as a step 3b before BuyerEdge is built, for the owner's review.
+* **If they do not:** nothing is carried; the record says so, and the latch (₹3,600, Q-002) remains the only loss stop on the strategy path, as legacy.
+
+#### The port (`strategies/buyer_edge.py`)
+
+* **Copied unchanged:** the scorer module's code from `BE:1` through the end of `SignalEngine` and `BotConfig` (`BE:289-357`, `:1862-2045`, with every helper class they reach, `OIFlowAnalyzer` included), `ACTING` and `to_intent`, with `DEBUG_ENABLED` and `INFO_ENABLED` off (`BE:2451-2452`). Only imports change: `src._root` and the framework's `Intent` types are not imported. `to_intent`'s result becomes a `Signal` with the same kind, direction, conviction, reason, components and tags. `score` is the result's `float(result.score or 0)`, carried under `signal_score` (Fork call 7). The copied range is listed by line in the as-built record, with each file's SHA-256 against the legacy blob.
+* **Dependencies.** The scorer needs numpy and pandas, which are not yet OA_NEW dependencies. `pyproject.toml` pins the live libraries with `==`, from characterization 5: `numpy==2.5.3`, `pandas==3.0.6`, and `openalgo==2.0.5`, the live SDK whose `ta.ema`, `ta.rsi` and `ta.vwap` the scorer calls (`BE:1304-1364`). `requires-python` stays `>=3.11` (coordinator, 2 November 2026). The golden walks were generated under Python 3.13.5, and the test compares floats as `repr(float(x))` (**proposed tree delta** `requirements.lock` if the coordinator wants a lock file).
+* **The assembly** (`BuyerEdgeInputs`, in the same file) reads only the trigger's `View`. It reproduces `MV:759-799` and `inputs_at`'s fields exactly:
+  * the exact-minute chain poll of the trigger minute (`View.chains(minute=trigger)`). `chains` returns the poll nearest expiry first; the assembly re-sorts its records by `seq`, which is legacy's file order (`store.py:1126-1133`), before it takes spot, flattens the rows and picks the ATM strike;
+  * the spot frame, built exactly as `MV:963-993` from `View.spot_series`: keep the records with `instant(event_at) <= instant(ctx.at)` (the stamp, not the view's cutoff), stable-sorted by instant; skip a record whose `close` is `None` (`payload.get("close", payload.get("ltp"))`); `open`, `high` and `low` are `payload.get(<field>, close)`; `volume` is `payload.get("volume", 0) or 0`; the index is `pd.Timestamp(event_at)` in IST, converted only when its offset is not IST's; no rows is "no spot history at or before this minute";
+  * no Greeks (Fork call 21). `greek_kwargs` (`MV:627-663`) is reproduced with every `greeks_at` answering none, as on every recorded live bar: the chain row's `ce_bid`, `ce_ask`, `pe_bid`, `pe_ask` and `sf_ltp` are passed, and `ce_delta`, `pe_delta` and `gex_levels` never are. When the view holds no Greeks record of the date, the kwargs are `{}` and the shadow says "no greeks recorded for this day" (`MV:633-634`, `:691-693`), as legacy's empty cache did. The Gamma shadow (`MV:686-724`) runs `profile_from_chain` (`src/analysis/options/gex.py`, copied unchanged) with no gamma.
+  
+  The same order of state updates: the previous assembled minute is set before the frame is checked; the chain history (a `deque` of five) is appended only after a full assembly. The same refusals and reasons are recorded in `tags["unscored"]`.
+* **The clock.** `get_ist_now` is bound to the trigger's `ctx.at` for the one `engine.score` call and restored in `finally`, as `SC:129-143`.
+* **State.** One engine and one assembly per host process and exchange date: `state` `in_memory`, `restoration` `reset_on_restart` (Fork call 10). The engine's OI z-score buffers, zone state, previous straddle and previous spot carry across bars. A restart starts empty, journalled as `STATE_RESET` with cause `host_restart` (step 2 as built). Legacy binds one engine to one `day` (`BE:2496-2504`, `:2422-2429`), so when a trigger's exchange date differs from the previous trigger's, the engine and the assembly are rebuilt before that bar, journalled as `STATE_RESET` with cause `session_change`.
+* **Descriptor:** id `buyer_edge`, family `options_buyer`, `decision_method` `deterministic`, `warmup_bars` 20, underlying `NIFTY` (characterization 1: the unit's `--underlying`), `score_source` `signal_score`, `requested_authority` `none` (the file's declaration, `BE:2116`; the row's `trade` decides). The view policy is `market.views.buyer_edge`, bound by the release:
+  * `chain` and `greeks` joined `exact_minute`, `spot` `at_or_before` (Fork call 6);
+  * `stale` `report` with no bound on every stream (Fork call 5);
+  * `bars`: confirmed one-minute tick bars, `ctx.at` the bar's start minute in IST (characterization 2).
+
+### Tests
+
+`tests/unit/test_buyer_edge_parity.py` (**T-52**). The golden expectations are generated once from legacy, as SLICE-08's gap parity; every other value is labelled synthetic and computed by hand.
+
+| Group | Cases |
+|---|---|
+| Golden walks (PRF-STR-04) | `scripts/gen_buyer_edge_parity.py` (**T-54**), run once against a legacy checkout and never in the suite, writes `tests/fixtures/strategies/buyer_edge_golden.json` (**T-53**). Each case is a contiguous walk from a fresh engine: from the session's start, and from restart points mid-session. Walks cover seeded synthetic days and stretches of recorded days (provenance in `tests/fixtures/manifests.json`), and include gap minutes: no chain, no spot frame, an unusable chain, missing Greeks, a Greeks batch fetched just after the stamp (characterization 3), a chain without spot, and bars at the seal boundary. Two synthetic walks pin the chain order: one whose spot is exactly midway between two strikes, and one whose poll holds more than one expiry, with records stored in an order that differs from nearest-expiry-first (no recorded day has such a poll). For every bar the case records the raw store records legacy read, the bound clock, `score_kwargs`, the `SignalResult` and the `Intent`. **Seal-boundary bars** store two expectations: legacy's value, and the target's expected value. They may differ only in the fields that come from `ctx.close` (the spot fallback and its ATM strike and straddle, `MV:766-773`) and in the "no close on this bar" NOTHING; every other field is equal. The generator runs under characterization 5's Python 3.13.5, numpy and pandas, and checks that legacy priced no Greeks on any bar (Fork call 21). The test replays each walk in order through one fresh target engine and assembly over a market store holding the same records, and compares every bar field by field, floats as `repr(float(x))` |
+| Mapping | Hand-written `SignalResult` stubs: `EXECUTE` with `CE`; with no direction; `WAIT`; a `None` result; an unavailable component; both shadows; each gives the `Signal` legacy's `to_intent` gives, field by field |
+| Clock | The engine's clock reads the trigger during `score` and the original after, also when `score` raises |
+| State | Two bars through one host: the second sees the first's buffers. A restart starts empty and journals `STATE_RESET` (`host_restart`). A two-session walk through one host: the first bar of the second exchange date sees a fresh engine and assembly, equal to a fresh walk of that date, and journals `STATE_RESET` with cause `session_change` |
+| Host | BuyerEdge through step 2's host and `ScriptedKernel` on a recorded stretch: the published intents equal the golden walk's, mapped to `Intent` by step 2's rule |
+
+Break checks are chosen when the step is built. They include at least: the chain history appended before the frame succeeds; the previous minute not set when the frame fails; an unbound clock; a fresh engine per bar; the floor or coverage gate changed; a shadow applied; chain rows left nearest expiry first; the frame cut at the view's cutoff instead of `ctx.at`; no rebuild when the exchange date changes.
+
+### Files
+
+| File | Change |
+|---|---|
+| `src/autonomous_trading/strategies/buyer_edge.py` | New: the scorer copied unchanged, the assembly, the mapping, `DESCRIPTOR`, `create` |
+| `pyproject.toml` | numpy, pandas and the OpenAlgo SDK pinned `==` to characterization 5 and the live venv |
+| `scripts/gen_buyer_edge_parity.py` | New (T-54): the one-off generator |
+| `tests/fixtures/strategies/buyer_edge_golden.json` | New (T-53) |
+| `tests/fixtures/manifests.json` | The characterization records and the walks' provenance |
+| `tests/unit/test_buyer_edge_parity.py` | New (T-52) |
+
+### Completion conditions (step 3)
+
+* TASK-S09-08's five records and TASK-S09-11's record exist with their evidence before `buyer_edge.py` is written; a carried Risk Guard check is specified and reviewed first.
+* Every golden walk passes bar by bar; the copied scorer's lines match legacy's blob, as recorded.
+* The step's tests and the existing tests that exercise the changed files pass; the break checks each fail a test, and every file is restored (md5).
+
+### Step 3 as built
+
+**In plain words.** BuyerEdge now runs in the new system, copied line for line from the old one. Replayed over the same market data, it gives the old system's answer on every bar, including 40 bars of a real session where the old system's own records show the same decisions.
+
+Commit `412baa6` on `slice-08`, on top of `e6cfb28`. It changes 8 files (3,587 lines added). Not pushed.
+
+**Choices and corrections made while building:**
+
+| Topic | As built |
+|---|---|
+| Copied lines | `src/autonomous_trading/strategies/buyer_edge.py` holds legacy's `BE:13-30`, `BE:80-2045` and `BE:2130-2322` byte for byte (SHA-256 of those ranges `56a7710b…f10b6ba`; legacy blob `8e1d7b7f…09b5dc`, equal to the deployed file). `BE:31-77`, the `_load_ta` shim, becomes `from openalgo import ta`. `MV:78-99`, `:147-174`, `:805-891` and `src/analysis/options/gex.py:16-128` are copied unchanged. `Intent` is bound to an adapter that returns the host's `Signal`, so `to_intent` itself is unchanged |
+| The OpenAlgo SDK | The scorer calls `ta.ema`, `ta.rsi` and `ta.vwap` (`BE:1304-1364`), so `openalgo==2.0.5` (the live venv's) is a pinned dependency beside `numpy==2.5.3` and `pandas==3.0.6`. The strategy host imports the SDK's indicators only; it holds no client or key |
+| Chain payload | SLICE-08 stores one chain record per poll and expiry, its rows under `response`; legacy stored one record per row. The assembly reads the poll's records in `seq` order and each record's rows in order, which is legacy's file order |
+| No Greeks | `greek_kwargs` keeps the chain row's quotes (`ce_bid`, `ce_ask`, `pe_bid`, `pe_ask`, `sf_ltp`) and never passes `ce_delta`, `pe_delta` or `gex_levels`; with no Greeks record of the date it is `{}`, as legacy's empty cache (Fork call 21) |
+| Spot | On every recorded bar the chain rows carry no `spot`, so legacy scored with `ctx.close` as spot (`MV:766-773`); the port does the same |
+| Session change | `StrategyHost._strategy_object` rebuilds a `reset_on_restart` object when the trigger's exchange date changes and journals `STATE_RESET` with cause `session_change` (`worker.py`, a step 2 file) |
+| `tags["unscored"]` | An unassembled bar's NOTHING carries legacy's refusal text there; every other tag is legacy's |
+| Golden walks | Two recorded stretches (30 October from the first scored bar, 40 bars: 40 of 40 equal the live decision records; 23 October from a fresh engine at bar 130, 30 bars: 26 of 30 equal, the first four differing because the engine starts empty) and three synthetic days. 3.2 MB. Of the Greeks only the first walked minute's batch is kept, since the port reads only whether one exists |
+| Platform | The golden walks were generated on Linux under Python 3.13.5; the test passed on Windows under Python 3.14.0 with the same numpy, pandas and openalgo, every float equal as `repr(float(x))` |
+| Existing test changed | `tests/unit/test_strategy_registry.py`: one assertion, because the production package now registers BuyerEdge (no row, so never runnable) |
+| `tests/fixtures/manifests.json` | Did not exist; created with the golden walks' provenance and the characterization summary |
+
+**Tests:** `tests/unit/test_buyer_edge_parity.py` (17 cases). A targeted run passed 208 cases (1 skipped): this file, `test_strategy_invocation.py`, `test_strategy_registry.py`, `tests/recovery/test_crash_boundaries.py`, `tests/contracts/test_capabilities.py`, `test_secret_references.py` and `test_canvas_causality.py`. The full suite was not run. `ast.parse` passes on every edited Python file and `json.loads` on both fixtures.
+
+**Break checks** (`s09c_breaks.py`): all 16 failed a listed test, and every file was restored (md5).
+
+| Break | Caught by |
+|---|---|
+| The chain history appended before the frame succeeds | Synthetic walks; previous-minute test; host test |
+| The previous minute not set when the frame fails | Synthetic walks; previous-minute test; host test |
+| An unbound clock | Every walk; clock test; host test |
+| A fresh engine per bar | Every walk; state test; clock test; host test |
+| The floor changed (40 to 41) | Every walk; floor-shadow test; host test |
+| The coverage gate changed (0.70 to 0.71) | Every walk; host test |
+| The floor shadow applied | Every walk |
+| The Gamma shadow applied as `gex_levels` | Every walk; host test |
+| A Greek priced (Fork call 21 broken) | Every walk |
+| Chain rows left nearest expiry first | Multi-expiry walk; chain-order test |
+| The frame cut at the view's cutoff, not `ctx.at` | Every walk; host test |
+| The frame's high always the close | Recorded walks; host test |
+| The frame's volume without `or 0` | Spot-frame test |
+| A zero close taken as no close | Gaps walk |
+| No rebuild when the exchange date changes | Host test |
+| The session change journalled as a restart | Host test |
+
+**Open:** the module index's tree delta for `tests/fixtures/manifests.json` and the `openalgo` dependency (the coordinator's).
 
 ## Step 4 — blueprints and assembly (outline)
 
@@ -639,6 +788,8 @@ The spec's [Providers and run records](../../design/strategies-and-cognition.md#
 The spec's [Entry review](../../design/strategies-and-cognition.md#entry-review-cognitionreviewpy), [Model-generated intents](../../design/strategies-and-cognition.md#model-generated-intents-strategiesmodel_strategypy) and [Exit advice](../../design/strategies-and-cognition.md#exit-advice-cognitionadvicepy). Builds the review producer up to the result, always answering; its submission through `kernel.policy.record_review`; CP-C1 and CP-C2; the proposal purpose and `model_strategy.py`; advice recording and the application request (the human route is SLICE-10's). Tests: `tests/integration/test_review_producer.py` (**T-57**) in a simulation composition with the SLICE-04 kernel as built, covering acceptance rows `README.md:1237` and `:1243` and a PAUSE reviewed for an entry refused at A4 (its pause starts; the next intent in scope is `paused`); `tests/unit/test_model_strategy.py` (**T-58**) on recorded proposals; the CP-C rows of `tests/recovery/test_crash_boundaries.py`.
 
 ## Step 7 — the boundary and replay (outline)
+
+* **Carried from step 3 (2026-11-02):** BuyerEdge imports the OpenAlgo SDK's `ta` functions (`openalgo==2.0.5`). The capability boundary allows `openalgo.ta` only; any other `openalgo` import from `strategies/` (the broker client) is refused, with a test and a break check.
 
 Extends `tests/contracts/test_capabilities.py` (PRF-XC-02's file) with PRF-STR-09: an `ast` scan of every module under `strategies` and `cognition` for imports of the ledger writer, the order adapters and the simulated broker, and for constructions of `ReviewApplication` and `Plan`; the spawned host and role environments carry no broker key; no settings, policy or locked-evidence write path; advice alone produces no action. The OS part of D09 is SLICE-11's. Adds PRF-STR-11 to `tests/integration/test_shared_engine.py`: a simulated session (market store, BuyerEdge and EMA cross, a scripted review team, one host crash and restart) is recorded, then re-run in a replay composition with only the replay backend; invocation IDs, state revision digests, outputs, decision records and reviews match the recorded run (Combined-F5, A05-F2; `README.md:366`, `:800`).
 
