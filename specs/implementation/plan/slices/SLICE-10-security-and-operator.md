@@ -2565,18 +2565,337 @@ Commit `0400d25` on `slice-08`, after `412baa6` (SLICE-09 step 3), which touched
 | A delegate reads `/events` | `OperatorReads.events`' `_owner_only` | Reads |
 | `parse_cgroup_unit` keeps a `user@` unit's child | its `user@` test | Cgroup |
 
-## Step 7 — the legacy owner mutations (outline)
+## Step 7 — the legacy owner mutations
 
-Deepened after step 6 is built. Authority: the spec's [Other legacy owner mutations](../../design/security-and-operator.md#other-legacy-owner-mutations).
+<a id="step-7--the-legacy-owner-mutations-outline"></a>
 
-* **First:** re-list every mutating route of the legacy owner API, the HTML console API and the console's MCP write allowlist at 445eb116. Any route missing from the spec's table is added to it before building.
-* **Builds:**
-  * each route under `/owner/api/v1`, reaching the kernel (`binding_authorize` for deactivate and policy activation and rollback) or its owning module;
-  * `SEC-R22` while an owner is not composed;
-  * `at orders reconcile` as a read of the day's reconciliation findings, and `at orders clear-conflict` as the mapped explanation;
-  * the advice-application route over `application_request` (SLICE-09), bound as `advice_apply`.
-* **Tests:** `tests/integration/test_operator_routes.py` (tree delta **T-69**): every table row, and advice application with a fake `application_request` before SLICE-09.
-* **Done when:** PRF-SEC-13 passes.
+The authorities are the spec's [Other legacy owner mutations](../../design/security-and-operator.md#other-legacy-owner-mutations), the `advice_apply` row of its [Operator commands](../../design/security-and-operator.md#operator-commands-interfacesclipy-interfacesapipy), REQ-SEC-011 and PRF-SEC-13 (TASK-S10-07). Step 7 builds on steps 1–6 as built (`0400d25` on `slice-08`). It adds routes, names and `at` commands to step 6's operator process, and changes one door row (below). Every `OA_NEW` citation is at `0400d25`. Every legacy citation is at 445eb116 (`deploy/at` and `scripts/*` opened with `git show`). It changes no kernel check, event kind or migration: the kernel's `advice_apply` binding, `SEC-R20` and `SEC-R22` exist since step 2 (`kernel/admission.py:574-579`; `kernel/ports.py:127-129`). The console's MCP writes are step 8's.
+
+**In plain words.** The console and the `at` command can change many things besides the safety switches: AI settings, strategy settings, policies, promotion modes, jobs and the tick watch. This step gives each of those buttons and commands a home in the new system, so none disappears quietly.
+
+* **Applying an AI exit suggestion** goes to the kernel as a checked, recorded request. It is refused while trading is stopped, as today.
+* **Approving a candidate for the next session** also goes to the kernel, as a standing binding.
+* **Every other change** goes to the part of the system that owns it. Until that part is built, the button answers "not available yet" (`SEC-R22`), and this step lists which later slice brings it.
+* **Two order-repair commands** have nothing to repair in the new design. They now show what reconciliation found instead.
+* **Two commands keep legacy's behaviour where the spec had changed it.** Deactivating a strategy still only stops it starting again. Activating a policy is still always refused, as today.
+
+### Decisions
+
+#### The re-listing (done at deepening)
+
+Every mutating route of the legacy owner API (`src/interfaces/console/api/routes/*`, `registry.py:55` counts every non-GET method as a mutation), of the HTML console API (`src/interfaces/console/routes.py:422-729`) and of the recorder's control route (`src/interfaces/mcp/domains/monitoring/server.py:131-150`) was opened. So was every `at` command that writes owner state. Each has exactly one row below. **Kind** is `kernel` (bound and recorded by the kernel), `routed` (to an owner port, `SEC-R22` until composed) or `mapped` (answered here; nothing to do in the target). Paths are under `PREFIX`.
+
+| # | Legacy mutation | Legacy | Name | Kind | Owner API | `at` |
+|---|---|---|---|---|---|---|
+| 1 | Advice apply | `src/interfaces/console/api/routes/ai_management.py:90`; `src/authoring/capabilities/ai_management.py:716-753`, `:889-891`, `:959` | `advice_apply` | kernel | `POST /ai/advice/{advice_id}/apply` | `at ai advice apply <advice_id> --reason TEXT` |
+| 2 | Candidate approval | `src/interfaces/console/api/routes/candidate_activation.py:34-52`; `deploy/at:4021-4030`; `scripts/candidate_activation.py:33-45` | `candidate_approve` | kernel (`binding_authorize`) | `POST /strategies/{strategy}/candidate-activation/approve` | `at candidate activate <strategy> --candidate D --profile-version V --profile-digest P --reason TEXT` |
+| 3 | Pause clear (CLI twin) | `src/authoring/capabilities/ai_management.py:870-875`, `:942-945` | `pause_clear` | kernel (step 6) | (step 6) | `at ai pauses clear <pause_id> --reason TEXT` |
+| 4 | Policy activate | `src/interfaces/console/api/routes/strategies.py:82-88`; `src/authoring/capabilities/strategy_policy.py:218-231`; `deploy/at:6567-6611` | `policy_activate` | mapped | `POST /strategies/{strategy}/policy/activate` | `at strategy policy activate <strategy> [--session-start]` |
+| 5 | Orders reconcile | `src/interfaces/console/api/routes/reconciliation.py:11-59`; `deploy/at:4317-4322` | `orders_reconcile` | mapped | `POST /orders/reconcile` | `at orders reconcile --day D --owner S [--apply --reason TEXT]` |
+| 6 | Orders clear-conflict | `deploy/at:4323-4329` | `orders_clear_conflict` | mapped | — | `at orders clear-conflict <order> --reason TEXT [--broker-order-id ID] [--apply]` |
+| 7 | Strategy deactivate | `strategies.py:30-35`; `routes.py:462-463`; `src/runtime/strategy_host/lifecycle.py:556-571`; `deploy/at:6514-6528` | `strategy.deactivate` | routed: `configuration` (a write of the registry row's `enabled`) | `POST /strategies/{strategy}/deactivate`; `POST /registry/action` (`deactivate`) | `at strategy deactivate <id>` |
+| 8 | Strategy activate | `routes.py:462-463`; `lifecycle.py:490-555`; `deploy/at:6514-6528` | `strategy.activate` | routed: `configuration` (a write of `enabled`) | `POST /registry/action` (`activate`) | `at strategy activate <id>` |
+| 9 | Register, write script, delete, stage and roll back strategy config | `routes.py:442-461`; `deploy/at:6418-6465`, `:6467-6494` | `registry.register`, `registry.write_script`, `registry.delete`, `registry.stage_config`, `registry.rollback_config` | routed: `strategies` | `POST /registry/action` | `at strategy register --name N --family F [--id ID] [--kind K] (--module M \| --file F) [--exchange X]`; `at strategy script <id> --write FILE` |
+| 10 | Policy validate, preview, diff (POST reads), stage, rollback, propose | `strategies.py:48-79`, `:91-107`; `strategy_policy.py:234-243`; `deploy/at:6567-6611` | `policy.validate`, `policy.preview`, `policy.diff`, `policy.stage`, `policy.rollback`, `policy.propose` | routed: `configuration` | `POST /strategies/{strategy}/policy/{verb}` | `at strategy policy <verb> <strategy> [--file F] [--snapshot F] [--against N] [--reason TEXT] [--by NAME]` |
+| 11 | AI config validate, stage, activate, rollback; blueprint and exit-blueprint validate, stage | `ai_management.py:74-83`; `src/authoring/capabilities/ai_management.py:588-662`, `:820-861` | `ai.config.validate`, `ai.config.stage`, `ai.config.activate`, `ai.config.rollback`, `ai.blueprint.validate`, `ai.blueprint.stage`, `ai.exit-blueprint.validate`, `ai.exit-blueprint.stage` | routed: `cognition` | `POST /ai/config/{strategy}/{verb}`, `/ai/blueprint/{strategy}/{verb}`, `/ai/exit-blueprint/{strategy}/{verb}` | `at ai config\|blueprint\|exit-blueprint <verb> <strategy> …` (legacy's flags) |
+| 12 | Advice generate, evidence build, designer run | `ai_management.py:91-94`; `src/authoring/capabilities/ai_management.py:701-715`, `:754-769` | `ai.advice.generate`, `ai.evidence.build`, `ai.designer.run` | routed: `cognition` | `POST /ai/advice/{strategy}/{day}/{structure_instance_id}/generate`, `/ai/evidence/{strategy}/build`, `/ai/designer/{strategy}/run` | `at ai advice generate …`, `at ai evidence build <s>`, `at ai designer run <s>` |
+| 13 | Promotion approval mode | `src/interfaces/console/api/routes/promotion_approval.py:24-33`; `deploy/at:4432-4435`; `scripts/promotion_approval.py:44-55` | `promotion.mode` | routed: `research` | `POST /promotion-approval/{family}/mode` | `at promotion mode <family> <mode> --reason TEXT` |
+| 14 | Dataset lineage repair | `src/interfaces/console/api/routes/lineage_repair.py:43-61`; `deploy/at:4436-4439`; `scripts/lineage_repair.py:68-80` | `lineage.repair` (owner API and CLI); `lineage.plan` (CLI only) | routed: `research` | `POST /promotion/lineage-repair` (exactly `dataset`, `reason`, `dataset_identity`) | `at promotion repair-lineage <dataset> --reason TEXT [--apply]` |
+| 15 | Run a named operation | `src/interfaces/console/api/routes/operations.py:25-28`; `routes.py:577-596` | `operation.run` | routed: `research` | `POST /operations/{operation}`; `POST /operations` (body `key`) | — |
+| 16 | Global settings write; override set and delete | `routes.py:547-575`; `src/interfaces/console/api/routes/configuration.py:15-27` | `settings.write`, `config.set`, `config.delete` | routed: `configuration` | `POST /settings`; `PUT` and `PATCH /config/{key}`; `DELETE /config/{key}` | — |
+| 17 | Tick watch start (console and recorder) | `routes.py:648-693`; `monitoring/server.py:131-150` | `ticks.watch` | routed: `market` (SLICE-11's market host); mapped if that host subscribes when it starts (below) | `POST /ticks/watch` | — |
+| 18 | Playbook render (a POST read; runs nothing) | `routes.py:695-729` | `playbook.render` | routed: `playbooks` | `POST /playbooks` | — |
+
+* **Not step 7's.** These legacy rows are owned elsewhere:
+  * The console's MCP writes (`admin_console/src/config/tools.ts:95-110`) are step 8's.
+  * The rows step 6 already serves are not repeated.
+  * The legacy owner API's GET reads that step 6 does not serve move with the console's reads to the MCP surface (steps 8 and 10).
+  * The `at` reads of owner state (`at ai status|decisions|pauses list|advice list|show`, `at strategy list|config|policy get|schema`, `at promotion status`) arrive with their owners (SLICE-09, SLICE-11, SLICE-12).
+  * The remaining `at` families stay with the slices the spec names: `advisor`, `jobs`, `warehouse`, `ticks`, `backfill`, `prune`, `backup`, `restore`, `config`, `approver`, `strategy setup|start|stop|off|new`, `install`, `update`, `restart` and the endpoint commands.
+* **The spec's table at build.** Following the outline's rule, the build first brings the spec's [legacy-mutation table](../../design/security-and-operator.md#other-legacy-owner-mutations) and the `advice_apply` catalogue row in line with this table:
+  * **Rows added:** the playbook render (18), the recorder's tick watch citation (17), the candidate approval's `at` door (2), the `at ai` and `at strategy` twins (3, 7–12), and `at promotion` (13, 14).
+  * **Rows corrected:** advice apply is offered on the CLI (1); activate and deactivate write `enabled` through configuration staging, not a binding revoke (7, 8); policy activate is a mapped refusal (4); policy rollback stages (10).
+  * Each correction is a **Fork call** below. The slice-level Fork call "the doors" reads "advice application on both" after the build.
+
+#### Owner ports (`interfaces/api.py`)
+
+* `OwnerPort` is a protocol with one method, `apply(name: str, params: Mapping, *, actor: str, nonce: str) -> Mapping | Refusal`. `actor` is the caller's channel identity, legacy's attribution string (`owner-api:local`, `owner-proxy:<fingerprint>`, `uid:<n>`). `nonce` is the request's nonce, so an owner may treat a resend as one act. The owner records the act in its own store, with `actor`, as legacy's owners recorded `by` (`routes.py:441`; `ai_management.py:560`).
+* `AdviceApplications` is a protocol: `application_request(advice_id: str, principal: Principal, reason: str) -> CloseRequest | ModifyRequest | AdviceApplied | Refusal`.
+* `CandidateApprovals` is a protocol: `approval_binding(strategy, candidate_digest, profile_version, profile_digest, reason, principal) -> StandingBinding | Refusal`.
+* `OwnerPorts`, frozen, every field defaulting to `None`:
+
+  | Field | Type | Owner (slice) | Rows |
+  |---|---|---|---|
+  | `advice` | `AdviceApplications` | `cognition/advice.py` (SLICE-09) | 1 |
+  | `candidates` | `CandidateApprovals` | `research/promotion.py` (SLICE-12) | 2 |
+  | `strategies` | `OwnerPort` | `strategies/registry.py` (SLICE-09) | 9 |
+  | `configuration` | `OwnerPort` | the configuration spec's staging (SLICE-11) | 7, 8 (a write of the registry row's `enabled`, `strategies/registry.py:38`, legacy's `registry.update(enabled=…)`, `lifecycle.py:565`), 10, 16 |
+  | `cognition` | `OwnerPort` | `cognition/blueprint.py` and `cognition/advice.py` (SLICE-09) | 11, 12 |
+  | `research` | `OwnerPort` | `research/promotion.py`, `research/datasets.py`, `research/jobs.py` (SLICE-12) | 13, 14, 15 |
+  | `market` | `OwnerPort` | the market process's host (SLICE-11), which carries the socket and the five-minute re-subscribe from SLICE-08 (see the SLICE-08 file's step on ticks) | 17 |
+  | `playbooks` | `OwnerPort` | legacy's playbook templates, ported with the console (step 10) | 18 |
+
+* `compose_operator` gains `owners: OwnerPorts = OwnerPorts()`. `serve` passes `OwnerPorts()`, so every port is `None` and every routed row and both kernel rows answer `SEC-R22`. Each owning slice composes its port into `serve`; that is its hand-off, not a change here.
+
+#### `AdviceApplied` (`contracts/identity.py`)
+
+`AdviceApplied(status: str, reason: str, command_id: str)`, frozen: legacy's `AdviceApplication` shape for its two successful no-send answers (`src/runtime/ai_management/advice.py:929-935`, `:980-987`). `status` must be `applied`; `reason` must be one of legacy's two texts; `command_id` is `""` or passes `CommandKey`'s rule. Anything else raises `ValueError`.
+
+* `KEEP` advice, recorded by the advice owner: `AdviceApplied("applied", "human application recorded", "")`.
+* The advice was applied before by the same principal with the same reason: `AdviceApplied("applied", "already applied", <the earlier command's key>)`.
+
+It lives in `contracts`, so SLICE-09 returns it without importing `interfaces`.
+
+#### The kernel rows (`build_call`)
+
+`_PARAMS` gains these rows, and `_TEXT` gains `advice_id`, `candidate_digest`, `profile_version` and `profile_digest`:
+
+* `advice_apply`: (`{"advice_id", "reason"}`, none).
+* `candidate_approve`: (`{"strategy", "candidate_digest", "profile_version", "profile_digest", "reason"}`, none).
+
+`build_call` takes one more argument, `owners`, and is `-> Call | Nothing | Applied | Mapped | Refusal`. It dispatches the mapped names (`policy_activate`, `orders_reconcile`, below) **before** the `_PARAMS` check, since they are not in `_PARAMS`; any other name not in `_PARAMS` still raises `ValueError`. Routed names never reach `build_call` (`OperatorDoor.route`). `Applied(status, reason, command_id)` is frozen: the door's form of `AdviceApplied`, and no request is minted for it.
+
+* **`advice_apply`.**
+  1. `owners.advice is None` gives `Refusal("SEC-R22", "owner_absent", None, "build")`. Nothing is minted, sent or recorded.
+  2. `r = owners.advice.application_request(advice_id, caller.principal, reason)`.
+  3. A `Refusal` is returned as it is: its code and message are the advice owner's, legacy's reasons (`advice_not_found`, `advice was already applied`, `advice expired`, `position state changed since advice`, …; `advice.py:913-991`).
+  4. An `AdviceApplied` gives `Applied(r.status, r.reason, r.command_id)`.
+  5. A `CloseRequest` or `ModifyRequest` gives `Call("advice_apply", OperatorTarget(r.account, advice_id), {"action": _action_wire(r), "reason": reason}, None, "")`.
+  6. Anything else raises `TypeError`: a defect in the owner, which the API answers 500 `owner_api_failure`.
+
+  The action's command key is the advice owner's, so one advice is one command: the kernel's single-use rule refuses a second command for it (`SEC-R04`, `kernel/admission.py:567-568`). The kernel then compares the action with its own advice port (`SEC-R09` on a difference), refuses it under kill (`SEC-R20`), and admits it like any human close or modify.
+* **`candidate_approve`.** `owners.candidates is None` gives `SEC-R22` (as above). Otherwise `r = owners.candidates.approval_binding(strategy, candidate_digest, profile_version, profile_digest, reason, caller.principal)`.
+  * A `Refusal` is returned as it is.
+  * A `StandingBinding` gives `Call("binding_authorize", OperatorTarget(r.scope.account_id, r.binding_id), {"step": "authorize", "binding": wire(r)}, None, "")`: the same operation, target and args as step 6's `binding_approve`, so the kernel's own checks decide.
+  * The reason is held by the promotion owner's record, as legacy's approval record held it.
+
+#### The mapped rows (`build_call`, `OperatorReads`)
+
+Nothing is minted for these and no port is called.
+
+* **`policy_activate`** takes `strategy` (from the path) and `session_start` (optional). Other body fields are ignored, as legacy read `payload.get` (`strategies.py:85-88`). `session_start` is judged by truthiness, as legacy's `bool(payload.get("session_start"))` (`:88`): `1` and `"no"` are true, `0`, `""`, `null` and absent are false. The answer is `Mapped(result)`, frozen, with legacy's result:
+  * `session_start` falsy: `{"ok": false, "activated": null, "reason": "policy activation is allowed only at a session boundary"}`;
+  * otherwise: `{"ok": false, "activated": null, "reason": "strategy policy activation requires an owner-approved candidate tuple; a strategy name and actor are insufficient"}` (`strategy_policy.py:223-231`).
+  * Legacy's unknown-strategy check between the two (`:226-228`) is not repeated: the target's strategy names live in the registry, which the operator may not have.
+  * **Fork call (policy activate):** legacy never activated a policy here; activation is the candidate approval (row 2).
+* **`orders_reconcile`.** The body must be exactly `day`, `owner` and `reason`, each a non-blank string. Otherwise the answer is `Mapped({"ok": false, "reason": "day, owner and reason are required"})` or, for a blank value, `"day, owner and non-empty reason are required"` (`reconciliation.py:20-25`). A `day` that is not `YYYY-MM-DD` is 400 `invalid_request`. Otherwise the answer is `Mapped({"ok": true, "applied": false, "findings": reads.reconciliation(caller, day, owner), "note": RECONCILE_NOTE})`. The constant is `RECONCILE_NOTE = "nothing to apply: reconciliation records ownership from broker evidence as it arrives; attribute an order by hand with at attempts resolve"`.
+* **`OperatorReads.reconciliation(caller, day, owner) -> list | Refusal`.** It is owner-only (`SEC-R14` for a delegate), like the alert read.
+  1. For each `reconciliation_fact` row, in `first_sequence` order, the event at `first_sequence` is read with `events_page(first_sequence - 1, 1)`. Its `event_time[:10]` must equal `day`.
+  2. Every NSE session time (03:45–10:00 UTC) falls on the same UTC and IST date, so this is the trading date.
+  3. `strategy`: for a `conflict` row, the `command_key` of that same `CONFLICT_RECORDED` event (its payload, `kernel/lifecycle.py:475-478`), then that key's `command_identity` row's `strategy`. It is `None` when the event's `command_key` is null or has no row, and for every `foreign` and `escalate` row (a foreign order has no command).
+  4. A row is kept when its `strategy` is `owner` or `None`.
+  5. Each row is `{"kind", "key", "reason", "sequence", "strategy"}`.
+* **Tick watch (row 17), conditional.** Legacy's route existed because the scheduler's job could join a stream but never start one (`routes.py:651-666`). The socket and the re-subscribe move to SLICE-11's market host. If that host subscribes when it starts, the deadlock is gone, and SLICE-11 makes row 17 mapped: `ticks.watch` answers the host's subscription state as a read (`Mapped({"ok": true, …})`) and calls no port. Until SLICE-11 says which, row 17 stays routed to `market` and refuses `SEC-R22`.
+
+#### Routed rows (`OperatorDoor.route`)
+
+`ROUTED` maps each routed name to its `OwnerPorts` field (the table above).
+
+`OperatorDoor.route(session_id, caller, csrf, name, params, nonce) -> Routed | Refusal` runs, under the door's lock where it calls the `Authorizer`:
+
+1. `authorizer.session(session_id, caller, csrf)`. A refusal answers as in step 6 (401 `SEC-R01`, 403 `mutation_refused`).
+2. `caller.principal != authorizer.owner` gives `Refusal("SEC-R13", "owner_only", None, "door")`. Q-014 gives delegates only the kernel operations; legacy had one owner.
+3. The port is `None`: `Refusal("SEC-R22", "owner_absent", None, "door")`.
+4. Otherwise `result = port.apply(name, params, actor=caller.channel_identity, nonce=nonce)`, outside the lock. A `Refusal` is returned; a mapping gives `Routed(dict(result))`. One `INFO` line goes to `autonomous_trading.operator` with the name, the channel identity, the nonce and `ok`; params are never logged.
+
+No kill check is added: legacy's console writes were not refused under kill (`src/core/framework/execution/killswitch.py:19-25` refuses only automatic and non-owner commands). **No new gate.**
+
+#### The owner API routes (`interfaces/api.py`)
+
+`_MUTATIONS` and `ROUTES` gain the paths in the re-listing table, under step 6's order of checks.
+
+* **Methods.** Step 6's row 1 now looks up each path's methods: `PUT` and `PATCH /config/{key}` and `DELETE /config/{key}`; `POST` otherwise. `{key}` matches `.+` (legacy's `{key:path}`); every other path field matches `[^/]+`. Each is URL-decoded and must pass `check_subject`, else 400 `invalid_request`.
+* **Rows 1–9 are step 6's for every new route.** Row 6 (`relay.sync()`) runs for routed rows too, so with the kernel unreachable they answer 503 `kernel_unreachable`. A session lives only in one kernel epoch (F-SEC4). This is a Deviation for the owner (below).
+* **The body.**
+  * **Kernel rows:** `advice_apply` takes exactly `reason`; `candidate_approve` exactly its four fields (`candidate_activation.py:39-45`). Anything else is 400 `invalid_request`.
+  * **Mapped rows:** as above.
+  * **Lineage repair:** `POST /promotion/lineage-repair` takes exactly `dataset`, `reason` and `dataset_identity` (`lineage_repair.py:46-53`): an extra or missing field is 400 `invalid_request`. It routes to `lineage.repair` with those three; the identity check against the dataset's manifest is the owner's (`:56-58`). `lineage.plan` is CLI-only: legacy's plan was a GET read, which step 7 does not serve.
+  * **Routed rows:** `csrf` and `by` are dropped first. They are the HTML API's body fields: the token now rides the header, and attribution is the caller's (`routes.py:433-441`). A remaining body field with a path field's name is 400 `invalid_request` (`ai_management.py:57-59`). The params are the path fields plus the body.
+  * **Name mapping:** `POST /registry/action` takes its name from `action`: `register`, `write_script`, `delete`, `stage_config` and `rollback_config` give `registry.<action>`; `activate` and `deactivate` give `strategy.activate` and `strategy.deactivate`, with `id` as `strategy`. Any other `action` gives `Mapped({"ok": false, "message": "unknown action '<action>'"})` (`routes.py:464-465`). `POST /operations` takes `key` as `operation`.
+* **Row 10** is `build_call` for kernel and mapped rows, and `route` for routed ones. **Row 11** mints for kernel rows only.
+* **The answer**, added to step 6's table:
+
+  | Result | Status | `ok` | `error.code` | `data` |
+  |---|---|---|---|---|
+  | `Applied` | 200 | true | — | `{"ok": true, "application": {"applied": true, "status", "reason", "command_id"}}`, legacy's shape (`src/authoring/capabilities/ai_management.py:743-753`) |
+  | `Mapped` or `Routed` whose result has `ok` false | 409 | false | `refused`; message from `reason`, `message` or `error`, else `refused` (`contract.py:28-44`) | the result |
+  | `Mapped` or `Routed` otherwise | 200 | true | — | the result |
+  | A port's `ValueError` or `KeyError` | 400 | false | `invalid_request` | null |
+  | Any other exception from a port | 500 | false | `owner_api_failure`, message `"<TypeName>: <text>"` | null |
+
+  The last two are legacy's (`src/interfaces/console/api/registry.py:72-76`): **Fork call (the failure shape)**.
+
+#### The CLI socket and the `at` commands (`interfaces/api.py`, `interfaces/cli.py`)
+
+* **The socket.** `CliSession` sends a routed or mapped name through the existing `execute` message, with `confirmation_id` and `typed` null. The reply is `{"ok": true, "routed": result}` or `{"ok": true, "mapped": result}`; an `Applied` replies `{"ok": true, "applied": {"status", "reason", "command_id"}}`. The session then ends, as after any `execute`. No new message kind is added.
+* **The commands added.** Each uses one connection; usage lines are legacy's.
+
+  | `at` command | Name | Typed confirmation (checked by `at` before it sends) | Output |
+  |---|---|---|---|
+  | `ai advice apply <advice_id> --reason TEXT` | `advice_apply` | none (legacy had none) | step 6's answer lines; `Applied`: `advice <advice_id>: applied — <reason>`, and ` (command <command_id>)` when `command_id` is not empty, 0 |
+  | `ai pauses clear <pause_id> --reason TEXT` | `pause_clear` | none | step 6's |
+  | `candidate activate <strategy> --candidate D --profile-version V --profile-digest P --reason TEXT` | `candidate_approve` | no terminal: `candidate approval requires an interactive terminal`, 1. Prompt `Type the full candidate digest to approve: `; trimmed with `strip()`; must equal `D`, else `candidate digest confirmation did not match; no approval was written`, 1 (`scripts/candidate_activation.py:33-45`) | step 6's |
+  | `promotion mode <family> <mode> --reason TEXT` | `promotion.mode` | no terminal: `a promotion approval mode switch requires an interactive terminal`, 1. Prompt `Type the family name to confirm: `; `strip()`; must equal `<family>`, else `confirmation did not match; <family> is unchanged`, 1 (`scripts/promotion_approval.py:44-55`) | the routed result |
+  | `promotion repair-lineage <dataset> --reason TEXT [--apply]` | `lineage.plan`, then with `--apply` `lineage.repair` | with `--apply`: no terminal: `a lineage repair requires an interactive terminal`, 1. Prompt `Type the full dataset identity to record this repair: `; `strip()`; must equal the plan's `identity`, else `confirmation did not match; no repair was written`, 1 (`scripts/lineage_repair.py:68-80`). Then `lineage.repair` with `dataset`, `reason` and `dataset_identity` (the typed identity), the owner API's params. The plan and the repair are two connections | the routed result |
+  | `strategy activate\|deactivate <id>`; `strategy register …`; `strategy script <id> --write FILE`; `strategy policy validate\|preview\|diff\|stage\|rollback <strategy> …` | rows 7–10 | none | the routed result |
+  | `strategy policy activate <strategy> [--session-start]` | `policy_activate` | none | the mapped result, then `policy activate refused`, 1 |
+  | `ai config\|blueprint\|exit-blueprint validate\|stage\|activate\|rollback <strategy> …`; `ai advice generate <strategy> <day> <structure_instance_id> --instrument X --reason TEXT`; `ai evidence build <s>`; `ai designer run <s>` | rows 11–12 | none | the routed result |
+  | `orders reconcile --day D --owner S [--apply --reason TEXT]` | the `reconciliation` read | none | below |
+  | `orders clear-conflict <order> --reason TEXT [--broker-order-id ID] [--apply]` | the `reconciliation` read | none | below |
+
+  * The flags of the `at ai` and `at strategy` rows are legacy's, parsed into the same params the route takes:
+    * `--file` is read as one JSON object into `candidate`, by step 6's `--file` rule;
+    * `--snapshot` becomes `snapshot` and `--against N` becomes `against`;
+    * `--by` is accepted and ignored, since attribution is the caller's;
+    * `--session-start` becomes `session_start: true`;
+    * `register` sends `name`, `kind`, `module`, `source` (the `--file` text), `strategy_id`, `exchange` and `strategy_family`, as legacy's `register` call (`deploy/at:6418-6465`; `src/authoring/capabilities/ai_management.py:820-891`).
+  * **Usage errors.** An `at ai` usage error returns 2, as legacy's `at ai` parser returned (`src/authoring/capabilities/ai_management.py:973-978`). The others return 1, step 6's rule.
+  * **The routed result** prints `json.dumps(result, sort_keys=True)` on one line, legacy's `at ai` output (`:979-980`). It returns 0 unless `ok` is false, then 1. A refusal prints `refused: <code> <message>` and returns 1. So until each owner is composed, every routed command prints `refused: SEC-R22 owner_absent` and returns 1. The owning slice ports its own legacy result lines.
+  * **`at orders reconcile`.**
+    * Each kept row prints `  <kind> <key> <reason> (sequence <n>)`; with none, it prints `  no reconciliation findings for <owner> on <day>`. The exit code is 0.
+    * `--apply` without `--reason` is a usage error. With `--apply`, the rows are followed by `  ` and `RECONCILE_NOTE`, and the exit code is still 0: the day's ownership is already recorded.
+  * **`at orders clear-conflict`.**
+    * It prints the `conflict` rows whose broker order ID is `--broker-order-id`, or, without it, whose `CONFLICT_RECORDED` event at `first_sequence` names `<order>` as its `command_key`, the same derivation as the read above. Without `--apply` the exit code is 0.
+    * With `--apply` it then prints `  not available: a recorded conflict blocks no send and holds no marker to clear; money it keeps reserved is released only by reconciliation evidence` and returns 1. The CLI socket's `read` gains `reconciliation` (`{day, owner}`); `clear-conflict` calls it with `owner` empty and filters on the order itself.
+
+#### The door table (`interfaces/authorization.py`)
+
+`("owner-cli", "advice_apply")` changes from `_NO` to `_YES` (offered, no confirmation): legacy's `at ai advice apply` (`src/authoring/capabilities/ai_management.py:889-891`, `:959`, `:967-973`). Every other row is unchanged. **Fork call (advice on the CLI).**
+
+#### Fork calls and deviations in this step
+
+* **Fork calls:**
+  * **Every row's door and effect are legacy's, by the spec's rule.** Advice apply on both doors. Candidate approval with its typed digest on the CLI only. Promotion mode and lineage repair with their typed confirmations. `at ai pauses clear` kept beside step 6's `at pauses clear`.
+  * **Activate and deactivate.** Legacy wrote the registry row's `enabled` (`lifecycle.py:565`); deactivate withdraws permission to start and does not stop the running strategy or refuse its entries (`:556-571`). In the target, `enabled` is a registry row of the configuration (`strategies/registry.py:38`), so both route to configuration staging (SLICE-11) as a write of `enabled`, not to a binding revoke: a revoke would refuse new entries at once, a money change. The stronger act stays available as `at bindings revoke`. Legacy's activate checks (`lifecycle.py:490-555`) are the configuration owner's to port.
+  * **Policy activate** is always refused, with legacy's texts. **Policy rollback** stages for the next session (`strategy_policy.py:234-243`) and is routed to configuration staging.
+  * **No kill check on routed rows.** Advice under kill is refused by the kernel (`SEC-R20`).
+  * **Typed confirmations** are checked by `at` before it sends, as legacy's scripts checked them, so they are not step 1's challenges. The candidate's `binding_authorize` row keeps no challenge (step 1).
+  * **The failure shape:** 409 `refused`, 400 `invalid_request` and 500 `owner_api_failure`.
+  * **Output and exit codes:** `at ai` prints a JSON line and returns 2 on a usage error.
+* **Deviations:**
+  * **Paths.** The HTML API's writes move under `/owner/api/v1` with the owner API's guards (session, CSRF header, nonce), and its body `csrf` and `by` fields are ignored. Attribution is the caller's channel identity, where legacy recorded the `by` a caller supplied.
+  * **Advice output.** `at ai advice apply` prints step 6's answer lines, not legacy's JSON, because it is a kernel operation like `at exposure`.
+  * **For owner review: routed rows need the kernel reachable** (step 6's row 6). Legacy's console writes did not need the Tier-1 authority. Keeping legacy would mean sessions that outlive the kernel's epoch (F-SEC4). Host commands that need no kernel are SLICE-11's `at` commands.
+  * **Owner-only.** Routed rows are owner-only (`SEC-R13 owner_only`); legacy had no delegate.
+  * **Mapped answers.** `at orders reconcile` and `POST /orders/reconcile` read the day's findings and repair nothing. `at orders clear-conflict --apply` returns 1 with the explanation. Listed, not made: a human release of money a recorded conflict keeps reserved.
+  * **Policy activate's unknown-strategy text** is not repeated.
+* No score, threshold or money value is set.
+
+#### Refused until a later slice (`SEC-R22`), listed for the owner
+
+| Rows | Refused until | Owner |
+|---|---|---|
+| 1 (advice apply: the door's `advice` port and the kernel's advice port) | SLICE-09 step 6 | `cognition/advice.py` |
+| 9 (strategy register, script, config stage and rollback) | SLICE-09 | `strategies/registry.py` |
+| 7, 8 (strategy activate and deactivate, a write of `enabled`) | SLICE-11 | the configuration spec's staging |
+| 11, 12 (AI config, blueprints, advice generate, evidence, designer) | SLICE-09 | `cognition/blueprint.py`, `cognition/advice.py` |
+| 10, 16 (policy staging, settings and overrides) | SLICE-11 | the configuration spec's staging |
+| 2, 13, 14, 15 (candidate approval, promotion mode, lineage repair, named operations) | SLICE-12 | `research/promotion.py`, `research/datasets.py`, `research/jobs.py` |
+| 17 (tick watch) | SLICE-11 (the market host's port, or mapped if it subscribes at start) | the market process's host |
+| 18 (playbook render) | step 10 | the ported console |
+
+#### What later steps take from step 7
+
+* **SLICE-09, SLICE-11 and SLICE-12:** each composes its `OwnerPorts` fields into `serve`, with `apply` taking the names listed for it under [integration](#changes-other-files-need-integration). SLICE-09 also provides:
+  * `application_request` returning `AdviceApplied("applied", "human application recorded", "")` for `KEEP` and `AdviceApplied("applied", "already applied", <earlier command_id>)` for an advice already applied by the same principal and reason (refusing `advice was already applied` otherwise);
+  * the kernel's `AdmissionPorts.advice` over the same store;
+  * an advice command key that is a valid `CommandKey`.
+* **Step 10:** the console's writes use the routes above. `POST /registry/action`, `/settings`, `/operations`, `/ticks/watch` and `/playbooks` keep legacy's body fields, so `write.ts`'s callers change only their path and headers.
+
+### Tests
+
+**`tests/integration/test_operator_routes.py` (T-69), PRF-SEC-13.** It uses step 6's fixtures: `LoopbackClient` and `core_of`, the `Op` helper, `exposure_world`, `SIM_PRINCIPALS`, `RecordedClock` at `START`, and the API's scope helper. They are copied into the new file, or imported from step 6's files if the build moves them to `tests/conftest.py` unchanged.
+
+The world is step 6's `exposure_world`: position `c9d4…161b` holds 75 of `buyer_edge`, order `E1`. Its kernel advice port is a `FixtureAdvice` holding one entry, `advice-synthetic-1` → `action_wire(CLOSE_A)`.
+
+* `CLOSE_A = CloseRequest(CommandKey("advice:advice-synthetic-1"), OWNER, ACCT, "c9d408f975e07f19db88171b037befc1c83a161885dbd20dfcf11e811d98161b", 75, MarketOrder())`.
+* `FakeApplications(entries)` is a test-only `AdviceApplications`. `application_request` returns `entries[advice_id]` (a request, an `AdviceApplied` or a `Refusal`), and `Refusal("advice_not_found", "stored advice id was not found", None, "owner")` for an unknown ID.
+* `RecordingPort(answer)` is a test-only `OwnerPort`. It appends `(name, params, actor, nonce)` to `calls` and returns `answer`, or raises it when it is an exception.
+
+Every identity, nonce, reason and digest is synthetic. Each hex value is the SHA-256 of the canonical text beside it, computed at deepening; step 6's `87d2…fa75` was recomputed by the same method as a check.
+
+* `[["owner","human"],"owner-api:local","nonce-operator-api-00021"]` → `930ab26bcc33c16db7ff2b9dfbffee23bda64ce0b0bc82fa26d51f673fd74ff5`.
+* `[["owner","human"],"owner-api:local","nonce-operator-api-00022"]` → `87c9324e566c13e363341d21df76b14c65f78ba848bb56a5f5d9a301e4aeb38c`.
+* `[["owner","human"],"owner-api:local","nonce-operator-api-00023"]` → `fe12f843a50e19d85defc2223066950469337545857ea3f7e62a5be53b7c9115`.
+* `[["owner","human"],"uid:1001","nonce-operator-000000021"]` → `20e4ec09b7c10485ed097f5083f5e9c18a24a9a4f5320fc8eb522b96cb097bb9`.
+* The advice digest:
+  `["operator-request/1","advice_apply",{"account":["sim","acct-sim"],"subject":"advice-synthetic-1"},{"action":{"account":["sim","acct-sim"],"command_key":"advice:advice-synthetic-1","order":{"kind":"market"},"position_id":"c9d408f975e07f19db88171b037befc1c83a161885dbd20dfcf11e811d98161b","quantity":75,"verb":"close"},"reason":"synthetic reason"}]` → `7d9588eb18173d8317921aa64fd460f1feb78c1afbedfb9c8332982c867669b6`.
+* The candidate binding, `StandingBinding("b-cand", SCOPE, "a" * 64, ("c" * 64,), "2026-11-03", "2026-11-03")`, has this digest:
+  `["operator-request/1","binding_authorize",{"account":["sim","acct-sim"],"subject":"b-cand"},{"binding":{"binding_id":"b-cand","candidate_ids":["cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"],"first_date":"2026-11-03","last_date":"2026-11-03","policy_binding_id":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","scope":[["sim","acct-sim"],"NSE-FO-sim"]},"step":"authorize"}]` → `7ce28370a2e29d563462bb0b170a24e1637d23b935440c19eecc37b8d52c22b4`.
+
+| Group | Cases |
+|---|---|
+| Re-listing | The test holds `LEGACY_MUTATIONS`: the 18 rows above, each with its name, kind and owner-API path or `at` words. Each row with an owner-API path is in `ROUTES` with its methods. Each row with an `at` command parses to its name. Each kernel name is in `_PARAMS`, each routed name in `ROUTED` with its port field, and each mapped name answers without a port. `ROUTES` equals step 6's routes plus exactly the new paths, nothing else |
+| Advice (API) | `owners.advice = FakeApplications({"advice-synthetic-1": CLOSE_A})`. `POST /ai/advice/advice-synthetic-1/apply`, `{"reason": "synthetic reason"}`, nonce `nonce-operator-api-00021`: 200, `data.kind` `outcome`. `COMMAND_ADMITTED` for `advice:advice-synthetic-1`, quantity 75, and in the same transaction an `OPERATOR_REQUEST` with `request_id` `930a…4ff5`, digest `7d95…69b6`, operation `advice_apply`, channel identity `owner-api:local` and `confirmation_id` null. Resent with the same nonce: 200 `replayed`, no new event. A new nonce `…00022` with the same fake: the kernel refuses `SEC-R04` (one command per advice), 409, one `OPERATOR_REQUEST_REFUSED` with request ID `87c9…b38c` |
+| Advice under kill | Kill engaged first (`at kill-switch on`). The same apply, nonce `…00021`: 409 `SEC-R20`; `OPERATOR_REQUEST_REFUSED` code `SEC-R20`; no `COMMAND_ADMITTED`; the position still holds 75 |
+| Advice (CLI) | `at ai advice apply advice-synthetic-1 --reason "synthetic reason"`, uid 1001, nonce `nonce-operator-000000021`, no prompt asked: return 0, output `advice_apply admitted as command advice:advice-synthetic-1` (step 6's line, which names the command's name: `interfaces/cli.py:411`), and the `OPERATOR_REQUEST` has `request_id` `20e4…7bb9`, the same digest `7d95…69b6`, channel `owner-cli`. `LEGACY_DOORS[("owner-cli", "advice_apply")]` is offered with confirm `none` |
+| Advice, nothing to send | The fake returns `AdviceApplied("applied", "human application recorded", "")` for `advice-keep`: API 200, `data` `{"ok": true, "application": {"applied": true, "status": "applied", "reason": "human application recorded", "command_id": ""}}`, and the ledger's event count is unchanged; CLI: `advice advice-keep: applied — human application recorded`, return 0. `AdviceApplied("applied", "already applied", "advice:advice-synthetic-1")`: 200 with that `command_id`; CLI `advice advice-keep: applied — already applied (command advice:advice-synthetic-1)`; no event. `AdviceApplied("already_applied", "already applied", "")` and `AdviceApplied("applied", "done", "")` raise `ValueError` at construction |
+| Advice refusals | An unknown ID: 409 `advice_not_found`, no event (the refusal is the owner's, before any request). `owners.advice` `None`: 409 `SEC-R22`, no event, the `Authorizer` minted nothing (its consumed set unchanged). The fake present but the kernel's advice port `None` (`advice=None` world): 409 `SEC-R22` from the kernel, one `OPERATOR_REQUEST_REFUSED`. The fake returning `CLOSE_A` with quantity 74, while the kernel's port holds 75: 409 `SEC-R09`. The fake returning a `Grant`: 500 `owner_api_failure` |
+| Candidate | `owners.candidates` returns the binding above. `POST /strategies/buyer_edge/candidate-activation/approve` with the four fields (`candidate_digest` `sha256:` + `"c" * 64`, `profile_version` `v3`, `profile_digest` `"d" * 64`, reason `synthetic reason`), nonce `…00023`: 200 `committed`; `BINDING_AUTHORIZED` for `b-cand`; `OPERATOR_REQUEST` `request_id` `fe12…9115`, digest `7ce2…22b4`. A missing or extra field: 400. `owners.candidates` `None`: 409 `SEC-R22`. CLI: typed `" sha256:ccc…c\t"` (whitespace trimmed) commits; typed `sha256:c` prints the mismatch line, return 1, no prepare or execute sent; no terminal: the terminal line, return 1 |
+| Mapped | `POST /strategies/buyer_edge/policy/activate` with `{}`: 409 `refused`, message `policy activation is allowed only at a session boundary`, `data.activated` null. With `{"session_start": true, "note": 1}`, `{"session_start": 1}` and `{"session_start": "no"}` (truthy): 409 with the candidate-tuple message. With `{"session_start": 0}`, `""` or `null`: the session-boundary message. `build_call("policy_activate", …)` answers `Mapped` though the name is not in `_PARAMS`. No port is called and the event count is unchanged. `at strategy policy activate buyer_edge --session-start` prints the result and `policy activate refused`, return 1 |
+| Routed | With `OwnerPorts()`: one request per routed route (each path in the table, with a minimal valid body) answers 409 `SEC-R22`, and the event count is unchanged. With `configuration = RecordingPort({"ok": True, "id": "buyer_edge"})` and `strategies = RecordingPort({"ok": True, "id": "buyer_edge"})`:<br>• `POST /strategies/buyer_edge/deactivate` with `{}` gives 200, and `configuration.calls` is `[("strategy.deactivate", {"strategy": "buyer_edge"}, "owner-api:local", <nonce>)]`; `strategies.calls` stays empty. `POST /registry/action` with `{"action": "activate", "id": "buyer_edge"}` reaches `configuration` as `strategy.activate`.<br>• `POST /promotion/lineage-repair` with `{"dataset": "d1", "reason": "r", "dataset_identity": "i1"}` reaches `research` as `("lineage.repair", {"dataset": "d1", "reason": "r", "dataset_identity": "i1"}, …)`; without `dataset_identity`, or with an extra field, it is 400 with no call.<br>• `POST /registry/action` with `{"action": "write_script", "id": "buyer_edge", "source": "x", "csrf": "t", "by": "mallory"}` gives `("registry.write_script", {"action": "write_script", "id": "buyer_edge", "source": "x"}, "owner-api:local", …)`.<br>• `{"action": "rename", "id": "x"}` gives 409 `refused` `unknown action 'rename'`, with no call.<br>• `RecordingPort({"ok": False, "reason": "no strategy 'x'"})` gives 409 `refused` with that message and the result in `data`.<br>• `PATCH /config/console/public_host` with `{"value": "a.test"}` reaches `configuration` as `("config.set", {"key": "console/public_host", "value": "a.test"}, …)`; `DELETE` reaches it as `config.delete`; `GET /config/x` is 405.<br>• A body `{"strategy": "other"}` on `/ai/config/buyer_edge/stage` is 400.<br>• A port raising `ValueError("bad")` gives 400; one raising `RuntimeError("boom")` gives 500 `owner_api_failure` `RuntimeError: boom`.<br>• No CSRF token gives 403 `mutation_refused`, with no call.<br>• `TEST_PRINCIPAL` through the proxy gives 409 `SEC-R13`, with no call.<br>• Under kill, the deactivate still reaches the port (no new gate) |
+| Routed (CLI) | `at promotion mode options_buyer automatic_when_bar_passes --reason "synthetic reason"`, typed `options_buyer`, with `research = RecordingPort({"ok": True})`: return 0, prints `{"ok": true}`, one call `promotion.mode` with actor `uid:1001`. Typed `x`: `confirmation did not match; options_buyer is unchanged`, return 1, no call. `at strategy deactivate buyer_edge` with `OwnerPorts()`: `refused: SEC-R22 owner_absent`, return 1. `at ai config stage` with no `--file`: return 2 |
+| Reconciliation | Over a stub reader:<br>• `reconciliation_fact` rows `{"kind": "foreign", "key": "[\"X9\"]", "reason": "", "first_sequence": 7}` (event time `2026-11-02T04:00:00.000000Z`) and `{"kind": "conflict", "key": "[\"E1\"]", "reason": "after_rejected", "first_sequence": 9}` (`2026-11-03T04:00:00.000000Z`). The `CONFLICT_RECORDED` event at sequence 9 has `command_key` `k-entry`, whose `command_identity` row has strategy `buyer_edge`. The stub holds **no** `broker_identity` row for `E1`, so the strategy can only come from the event. A third row, `conflict` `["E7"]` at sequence 11 on `2026-11-03` with `command_key` null, has strategy null.<br>• Day `2026-11-02`, owner `buyer_edge`: only the `X9` row, strategy null. Day `2026-11-03`, owner `buyer_edge`: the `E1` row (strategy `buyer_edge`) and the `E7` row (strategy null). Owner `other`: only the `E7` row. A delegate: `SEC-R14`.<br>• `at orders reconcile --day 2026-11-03 --owner buyer_edge` prints `  conflict ["E1"] after_rejected (sequence 9)`, then the `E7` line, return 0. With `--apply --reason r` it adds the note line, return 0. `--apply` alone is usage, return 1.<br>• `at orders clear-conflict k-entry --reason r` prints the `E1` row, return 0. With `--apply` it adds the not-available line, return 1.<br>• `POST /orders/reconcile` with `{"day": "2026-11-03", "owner": "buyer_edge"}` gives 409 `day, owner and reason are required`. With `reason` it gives 200, `applied` false, the two findings |
+| Linux | Over step 6's real `CliSocketServer` in `tmp_path`, as step 6's Linux group: `at ai advice apply advice-synthetic-1 --reason "synthetic reason"` commits as in the CLI group |
+
+**Existing expectations that change.** These two, each because of a decision above; every other existing test keeps its expectations:
+
+* `tests/unit/test_operator_authorization.py`: the set of rows not offered loses `("owner-cli", "advice_apply")`.
+* `tests/integration/test_owner_api.py`: "the route table holds exactly the routes listed above" now reads step 6's routes plus step 7's.
+
+### Break checks
+
+Each mutation is applied after its anchor is checked present exactly once, run against the listed file, and restored byte for byte (md5). This is the minimum set; "as built" records the final table.
+
+| Change | Test that must fail |
+|---|---|
+| `advice_apply` mints a request when `owners.advice` is `None` | Advice refusals (the `Authorizer`'s consumed set; no `SEC-R22` before minting) |
+| An `AdviceApplied` sent to the kernel as a request | Advice, nothing to send (event count) |
+| The CLI door row for `advice_apply` back to `_NO` | Advice (CLI) |
+| The advice action's command key replaced by the door's `operator:` key | Advice (API) (`COMMAND_ADMITTED` key; the kernel's `SEC-R09`) |
+| A routed row skips the owner-only check | Routed (`SEC-R13`) |
+| A routed row calls the port before the session and CSRF check | Routed (no CSRF token: no call) |
+| `csrf` and `by` passed to the port | Routed (`registry.write_script` params) |
+| A kill check added to routed rows | Routed (under kill) |
+| Policy activate routed to a port | Mapped (no port call) |
+| The candidate digest confirmation skipped by `at` | Candidate (CLI mismatch) |
+| The reconciliation read drops its owner filter | Reconciliation |
+| The strategy taken from `broker_identity` instead of the event's `command_key` | Reconciliation (no `broker_identity` row: `E1` loses its strategy) |
+| Mapped names dispatched after the `_PARAMS` check | Mapped (`ValueError` instead of `Mapped`) |
+| `session_start` compared with `is True` | Mapped (`1` and `"no"`) |
+| Deactivate routed to `strategies` | Routed (`configuration.calls`) |
+| One routed path removed from `ROUTES` | Re-listing |
+| A port's `RuntimeError` answered 400 | Routed (500 `owner_api_failure`) |
+
+### Files
+
+| File | Change |
+|---|---|
+| `src/autonomous_trading/interfaces/api.py` | `OwnerPort`, `AdviceApplications`, `CandidateApprovals`, `OwnerPorts`, `ROUTED`, `Applied`, `Mapped`, `Routed`, `RECONCILE_NOTE`; `_PARAMS` and `build_call` (with `owners`) for the kernel and mapped rows; `OperatorDoor.route`; `OperatorReads.reconciliation`; the new routes and methods; `CliSession`'s routed, mapped and applied replies; `compose_operator(…, owners=OwnerPorts())`; `serve` passing `OwnerPorts()` |
+| `src/autonomous_trading/interfaces/cli.py` | The `at` commands added |
+| `src/autonomous_trading/interfaces/authorization.py` | The `("owner-cli", "advice_apply")` row |
+| `src/autonomous_trading/contracts/identity.py` | `AdviceApplied` |
+| `tests/integration/test_operator_routes.py` | New (T-69) |
+| `tests/unit/test_operator_authorization.py`, `tests/integration/test_owner_api.py` | The two expectations named above |
+
+No new tree delta: the test is T-69, and every other file is in the target tree.
+
+### Completion conditions (step 7)
+
+* **Targeted tests only, no full suite.** On Windows, these must all pass, with no existing expectation changed except the two named above (the Linux groups skip there):
+  * the new file;
+  * `tests/integration/test_owner_api.py` and `tests/integration/test_operator_commands.py` (the operator process);
+  * `tests/unit/test_operator_authorization.py` (the door table);
+  * `tests/unit/test_authority_grants.py` (the advice binding);
+  * `tests/integration/test_unix_channel.py` (the channel's `advice_apply` call);
+  * `tests/contracts/` (the new contract).
+* **The Linux group runs on the EC2,** once, in a throwaway folder under `~/claude-desktop/outputs` made from an `OA_NEW` git bundle, with `~/at-dev`'s environment and the project's safe test runner, as step 6's run. No live checkout or service is touched, and the folder is removed afterwards. The group counts toward PRF-SEC-13 from this run only.
+* All code is written and committed in `OA_NEW` only. `git diff --name-only` names exactly the files above, in one commit. Nothing is pushed.
+* The spec's table and the `advice_apply` catalogue row are corrected first, as the re-listing says, in the same session.
+* Every break check fails a listed test, and every file is restored (md5). `ast.parse` passes on every edited Python file.
+* The build starts on the coordinator's word. Every cited line is re-read on the head it starts from.
+* PRF-SEC-13 passes: every row reaches its disposition, and advice application produces one bound close or modify through admission and is refused under kill.
+* This file records step 7 "as built", with any Deviation or Fork call found while building.
 
 ## Step 8 — the AI tools and disclosure (outline)
 
@@ -2635,6 +2954,20 @@ The earlier question on typed confirmations for `grant_admin`, `recovery_advance
 * **Ledger spec:** `OPERATOR_REQUEST` (index `operator_request`), `OPERATOR_REQUEST_REFUSED`, `CREDENTIAL_BOUND` in the event catalogue.
 * **Execution-domain spec:** `scrub` on the adapter's evidence and log writes.
 * **Strategies spec:** the advice route's operation name `advice_apply` and its refusal under kill.
+* **Owner ports (step 7).** Each later slice composes its `OwnerPorts` field into the operator's `serve` and takes over these names; until then each answers `SEC-R22`:
+
+  | Slice | Field | Names |
+  |---|---|---|
+  | SLICE-09 | `advice` | `application_request` (row 1), with the kernel's `AdmissionPorts.advice` over the same store |
+  | SLICE-09 | `strategies` | `registry.register`, `registry.write_script`, `registry.delete`, `registry.stage_config`, `registry.rollback_config` |
+  | SLICE-09 | `cognition` | `ai.config.validate`, `ai.config.stage`, `ai.config.activate`, `ai.config.rollback`, `ai.blueprint.validate`, `ai.blueprint.stage`, `ai.exit-blueprint.validate`, `ai.exit-blueprint.stage`, `ai.advice.generate`, `ai.evidence.build`, `ai.designer.run` |
+  | SLICE-11 | `configuration` | `strategy.activate`, `strategy.deactivate` (a write of `enabled`), `policy.validate`, `policy.preview`, `policy.diff`, `policy.stage`, `policy.rollback`, `policy.propose`, `settings.write`, `config.set`, `config.delete` |
+  | SLICE-11 | `market` | `ticks.watch`; or row 17 made mapped if the market host subscribes when it starts |
+  | SLICE-12 | `candidates` | `approval_binding` (row 2) |
+  | SLICE-12 | `research` | `promotion.mode`, `lineage.plan`, `lineage.repair`, `operation.run` |
+  | SLICE-10 step 10 | `playbooks` | `playbook.render` |
+
+* **SLICE-14 (cutover).** Before the new system replaces legacy live, no row of step 7's re-listing may still answer `SEC-R22`: every `OwnerPorts` field is composed in the live profile's `serve`, or its row is mapped with its reasoning written down. The cutover checks this from the composed operator (every field non-`None`, or the row listed as mapped) and does not proceed while any legacy owner action would be refused.
 * **Module index:** tree deltas T-60…T-69 (step table above). **Delivery plan:** the SLICE-10 row and TASK-S10-01…10. **Traceability:** REQ-SEC-008…011.
 
 ## Completion conditions

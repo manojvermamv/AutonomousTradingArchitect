@@ -954,6 +954,56 @@ Each is applied with its anchor checked first (exactly one occurrence, the text 
 * `git diff --stat` against the branch head at the start of step 4 names only the files above.
 * PRF-STR-05's clauses each pass a group: blueprint refusals (Blueprint refusals, Tool budget); each role outcome (Outcomes, Supervision); required and optional failures with legacy's consequences, duplicates, late results and malformed synthesis (Assembly, Supervision); varied completion order gives one result (Assembly, Supervision); the risk role refused (Committee); the deadline never extended (Deadlines and plan, Supervision).
 
+### Step 4 as built
+
+**In plain words.** The AI review team now exists without its model calls. Team descriptions are checked with today's rules and limits; each role runs as its own small program with no broker key and today's limits, is stopped at its deadline, and its answer is labelled precisely. If a required role does not contribute, or time runs out, the review is "unavailable", exactly as today. Nothing here can block a trade.
+
+Commit `126eff1` on `slice-08`, on top of `0400d25` (SLICE-10 step 6). It changes the 8 files of the step's table (2,062 lines added, 1 removed). Not pushed.
+
+**Choices and corrections made while building:**
+
+| Topic | As built |
+|---|---|
+| Pin failure text | `profile_resolution_failed:<exception type name>`, as legacy (`TM:425`), never the message |
+| `max_tokens` | Must be an int (not a bool) of 1–4,096, as the text says; legacy's `_bounded` also took a float or numeric string (`AT:59-63`, `:104`) |
+| Secret refusal in task text | Legacy's `_refuse_secrets` on the task (`AT:154-155`) is not ported; the profile's keys are still checked against legacy's allow-list. A gap for step 5, which sees the resolved values |
+| Public helpers | `plan_order`, `classify`, `output_digest` and `sha256_hex` are module functions, so the tests and step 5 use them directly |
+| `assemble` | Raises `ValueError` if a planned task has no outcome; inside `run` that becomes `team_unavailable` |
+| Run state | `state.json` records only launched tasks; a pending task has no row, so the sweep has nothing to cancel for it |
+| Role credential | `CognitiveAgentRuntime(…, delegated=None)` passes the role credential into `role_environment`; empty until step 5 supplies one |
+| Loader test | The YAML cases replace the loader's `_defaults` with the packaged defaults plus a `cognition` section |
+| The 7-task plan case | Checked through `plan_order` (the eight task names in order), not by running seven children |
+| Linux cases on the EC2 | OA_NEW has no environment there, so `~/claude-desktop/scripts/s09d_linux_tests.sh` unpacks the working tree and a throwaway venv under `~/claude-desktop/outputs/s09d/`, which reuses `~/at-dev`'s packages through a `.pth` file. Nothing is installed or downloaded, and nothing shared is changed |
+| Existing tests changed | None |
+
+**Tests:** `tests/unit/test_cognition_assembly.py`, 80 cases: on Windows (Python 3.14.0) 78 passed and the 2 Linux-only cases were skipped; on the EC2 (Linux, Python 3.13.5) all 80 passed, twice. The targeted set ran twice on Windows: this file, `tests/contracts/test_capabilities.py`, `tests/unit/test_strategy_invocation.py`, `tests/unit/test_policy_parameters.py` and `tests/unit/test_secret_references.py`, 185 passed and 3 skipped each time. The full suite was not run. `ast.parse` passes on every new or edited Python file.
+
+**Break checks** (`s09d_breaks.py`, anchors checked first, one at a time, every file restored byte for byte with md5 checked): all 19 failed a listed test. 17 ran on Windows and the two Linux-only checks on the EC2. One anchor was first a line prefix, which left a syntax error, so the check erred rather than failed; it was corrected to the whole line and re-run.
+
+| Break | Caught by |
+|---|---|
+| `MAX_ROLE_DEADLINE_SECONDS` 120 → 121 | Blueprint refusals |
+| `max_tokens` default 300 → 400 | Pins |
+| An optional role's pin failure ignored | Pin failure and scope; Deadlines and plan |
+| An abstention counted as a contribution (in `assemble`) | Assembly |
+| An optional non-contribution treated as required | Assembly |
+| `completed_at > deadline` written `>=` | Assembly |
+| Consequences 1 and 2 swapped | Assembly; Stage gating |
+| `task_deadline` without the role's seconds | Deadlines and plan; Task deadline; Receipts |
+| The last receipt wins | Receipts (`twice`) |
+| A late receipt accepted | Receipts (`late`) |
+| A later stage started after a required failure | Stage gating |
+| The broker key not removed | Environment |
+| A committee of three accepted | Committee and setting |
+| Freshness with `>=` | Tools |
+| The `except Exception` around run steps 3–5 removed | A run that raises |
+| The `finally` slot release removed | A run that raises; Capacity with threads |
+| A task without a pool slot failed at once | Full pool |
+| The sweep not killing a matching child (Linux; the text's "re-launching" has no code to break, since the sweep launches nothing) | Sweep |
+| `apply_child_limits` setting no `RLIMIT_AS` (Linux) | Environment |
+
+**Open:** the committee check still has no caller (an X item for the coordinator); `_refuse_secrets` is for step 5; `providers.consult` and the role credential are step 5's.
+
 ## Step 5 — providers and records (outline)
 
 The spec's [Providers and run records](../../design/strategies-and-cognition.md#providers-and-run-records-cognitionproviderspy-cognitionrecordspy). Ports the backends, Retry-After and the circuit, budgets and the chain (inactive while `cognition.providers.fallback` is `inactive`); the pause warning through `operations/telemetry.py`; the run record and its evidence publication; the record store; replay from recorded responses. Test file: `tests/unit/test_provider_records.py` (**T-56**), with a fake HTTP transport serving 200, 400 with `response_format`, 429 with finite, date and non-finite hints, and a provider that reports no model; replay tests make any socket raise.
