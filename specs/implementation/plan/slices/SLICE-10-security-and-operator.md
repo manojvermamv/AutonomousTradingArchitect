@@ -2897,6 +2897,55 @@ No new tree delta: the test is T-69, and every other file is in the target tree.
 * PRF-SEC-13 passes: every row reaches its disposition, and advice application produces one bound close or modify through admission and is refused under kill.
 * This file records step 7 "as built", with any Deviation or Fork call found while building.
 
+### Step 7 as built
+
+**In plain words.** Every legacy owner button and command now has a home. Applying an AI exit suggestion and approving a candidate go to the kernel, which checks and records them. Applying a suggestion is refused while trading is stopped. Every other change goes to its owning part of the system, and answers "not available yet" (`SEC-R22`) until that part is built. The two order-repair commands show what reconciliation found. Nothing in the kernel changed.
+
+Commit `4e2756c` on `slice-08`, after `126eff1` (SLICE-09 step 4), which touched none of the cited files. It changes exactly the seven files in the step's table (+1,343 −29). Nothing is pushed. No new Deviation or Fork call was found.
+
+**Choices made while building:**
+
+| Topic | As built |
+|---|---|
+| The reconciliation read | `day` and `owner` may be null: all days, every strategy. `at orders clear-conflict` reads with both null and filters on the order itself. Each row also carries `command_key` (from the `CONFLICT_RECORDED` event; null otherwise), so `clear-conflict` can match `<order>` without a second read. With no matching row it prints `  no recorded conflict for <order>` |
+| The two notes | `RECONCILE_NOTE` and `CLEAR_CONFLICT_NOTE` live in `interfaces/cli.py`; `interfaces/api.py` imports the first. `api` already imports `cli`, so the other direction would be circular |
+| `at strategy register` and `script --write` | They send the owner API's `POST /registry/action` body (`action`, `id`, `name`, `kind`, `module`, `source`, `exchange`, `strategy_family`; or `action`, `id`, `source`), so both doors give the owner one shape. The text's `strategy_id` became the route's `id` |
+| `OperatorDoor.route` | It runs `relay.sync()` itself, so the CLI path also needs the kernel reachable (the owner API's row 6 already did) |
+| Unexpected exceptions | Any exception other than `ValueError` or `KeyError` from a door call answers 500 `owner_api_failure`, for every name, as legacy's route wrapper did (`src/interfaces/console/api/registry.py:74-76`). Before, it escaped the ASGI call. On the CLI socket it is an `owner_api_failure` refusal |
+| `AdviceApplied` | `command_id` must also pass `CommandKey`'s character rule when not empty |
+| `at promotion repair-lineage --apply` | If the plan is refused, or has `ok` false, it prints the plan and returns its code without prompting |
+| Tests | The delegate's `SEC-R13` is proved through the CLI (uid 1002, `TEST_PRINCIPAL`) rather than the proxy: the same `OperatorDoor.route` check. `tests/integration/test_owner_api.py`'s route-table case builds step 7's half from `api._STEP7`; `tests/integration/test_operator_routes.py` holds the explicit 18-row list and compares it with `ROUTES` exactly |
+
+**Tests** (targeted only):
+
+* Windows: `tests/integration/test_operator_routes.py` (12 passed, 1 skipped) with `tests/integration/test_owner_api.py`, `tests/integration/test_operator_commands.py`, `tests/unit/test_operator_authorization.py`, `tests/unit/test_authority_grants.py`, `tests/integration/test_unix_channel.py` and `tests/contracts/`: **233 passed, 10 skipped**. The two expectations named above changed; no other did. `ast.parse` passes on every edited Python file.
+* Linux (EC2): the three operator files, **39 passed, 1 skipped**. Step 7's Linux group (`at ai advice apply` over the real CLI socket) passes there, and step 6's CLI-socket group passes again. The skip is step 6's served owner-API case, which needs `uvicorn`; it was not installed, because that case is unchanged and outside step 7.
+  * **Setup.** A bundle of a snapshot commit (no branch moved) was fetched into a fresh folder `~/claude-desktop/outputs/s10g-linux`, with its own venv holding only the project's `[test]` extra. Neither `~/at-dev` nor its environment was used.
+  * **The runner.** OA_NEW's own `scripts/safe_tests.py` ran it at nice 19 under a user scope with `MemoryMax=1G` and `MemorySwapMax=0`, during market hours. It refused 20 times on its 2,012 MB memory floor (available 1,949–2,010 MB) before memory allowed the run; the script retried and never bypassed the floor.
+  * **Cleanup.** The folder, bundle and scripts were removed by the script's exit trap and checked gone. No live checkout or service was touched.
+
+**Break checks** (`s10g_breaks.py` in the session scratchpad; anchors checked present exactly once, one mutation at a time, every file restored byte for byte, md5 verified): 17 of 17 failed a listed test, all on Windows.
+
+| Change | Anchor | Test that failed |
+|---|---|---|
+| `advice_apply` goes on when `owners.advice` is `None` | `build_call`'s `if owners.advice is None` | Advice refusals |
+| An `AdviceApplied` sent to the kernel as a request | `return Applied(…)` | Advice, nothing to send |
+| The CLI door row for `advice_apply` back to `_NO` | `_CONFIRMED` | Advice (CLI) |
+| The advice action's command key replaced by the door's `operator:` key | the advice `Call` | Advice (API) |
+| A routed row skips the owner-only check | `route`'s `caller.principal != owner` | Routed |
+| A routed row calls the port before the session and CSRF check | `_handle`'s row 7 and `route`'s session check | Routed |
+| `csrf` and `by` passed to the port | `_step7_params`' `body.pop` | Routed |
+| A kill check added to routed rows | before `route`'s port lookup | Routed |
+| Policy activate routed to a port | `ROUTED` | Mapped |
+| The candidate digest confirmation skipped by `at` | `_candidate`'s comparison | Candidate |
+| The reconciliation read drops its owner filter | `reconciliation`'s `owner` test | Reconciliation |
+| One routed path removed from `ROUTES` | `_STEP7`'s `/playbooks` | Re-listing |
+| A port's `RuntimeError` answered 400 | `_handle`'s 500 | Routed |
+| The strategy taken from `broker_identity` instead of the event's `command_key` | `reconciliation`'s `payload.get("command_key")` | Reconciliation |
+| Mapped names dispatched after the `_PARAMS` check | `build_call`'s `MAPPED` test | Mapped |
+| `session_start` compared with `is True` | `_mapped`'s truthiness | Mapped |
+| Deactivate routed to `strategies` | `ROUTED` | Routed |
+
 ## Step 8 — the AI tools and disclosure (outline)
 
 Deepened after step 7 is built. Authority: the spec's [MCP surface](../../design/security-and-operator.md#mcp-surface-interfacesmcppy) and [Read scope and disclosure](../../design/security-and-operator.md#read-scope-and-disclosure-interfacesauthorizationpy-interfacesmcppy).

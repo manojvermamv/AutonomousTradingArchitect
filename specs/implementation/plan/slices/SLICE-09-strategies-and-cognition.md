@@ -1004,9 +1004,315 @@ Commit `126eff1` on `slice-08`, on top of `0400d25` (SLICE-10 step 6). It change
 
 **Open:** the committee check still has no caller (an X item for the coordinator); `_refuse_secrets` is for step 5; `providers.consult` and the role credential are step 5's.
 
-## Step 5 — providers and records (outline)
+## Step 5 — providers and records
 
-The spec's [Providers and run records](../../design/strategies-and-cognition.md#providers-and-run-records-cognitionproviderspy-cognitionrecordspy). Ports the backends, Retry-After and the circuit, budgets and the chain (inactive while `cognition.providers.fallback` is `inactive`); the pause warning through `operations/telemetry.py`; the run record and its evidence publication; the record store; replay from recorded responses. Test file: `tests/unit/test_provider_records.py` (**T-56**), with a fake HTTP transport serving 200, 400 with `response_format`, 429 with finite, date and non-finite hints, and a provider that reports no model; replay tests make any socket raise.
+<a id="step-5--providers-and-records-outline"></a>The authority is the spec's [Providers and run records](../../design/strategies-and-cognition.md#providers-and-run-records-cognitionproviderspy-cognitionrecordspy) section, A05-F5 (`README.md:853`), POL-032, POL-033, POL-036 and POL-037, and legacy's advisor at 445eb116. Step 5 is TASK-S09-05 (PRF-STR-06). It builds `cognition/providers.py` and `cognition/records.py`, makes small edits to `cognition/runtime.py`, `cognition/blueprint.py`, `settings/schema.py`, `settings/loader.py`, `settings/secrets.py`, `resources/defaults.yaml` and `bootstrap.py`, and adds `tests/unit/test_provider_records.py` (**T-56**), on step 4 as built (OA_NEW `126eff1` on `slice-08`, or the branch head when the build starts). It takes step 4's open items: `providers.consult(packet)`, the role credential, and legacy's secret check on role task text. It stops at a recorded run: turning a run into a `Review`, `record_review`, CP-C1 and CP-C2 are step 6's. Legacy citations are at 445eb116. `HT` is `src/runtime/advisor/backends/http.py`, `CN` `…/backends/chain.py`, `RP` `…/backends/replay.py`, `RU` `…/backends/rule.py`, `AD` `src/runtime/advisor/__init__.py`, `BG` `src/runtime/advisor/budget.py`, `AC` `src/runtime/advisor/activation.py`, `ST` `src/runtime/ai_management/store.py`, `MON` `monitoring/advisor_availability.py`; `AT`, `CH` and `TM` are step 4's. **The fork rule applies to the whole step.** Every retry, pause, budget, fail-open answer and default is legacy's, and each is logged as a Fork call. No score, threshold or money value is set. The only shipped value is legacy's 15-minute pause-warning bound (review R-7). No cognition setting is read by the kernel's composition, so none can stop it composing. Nothing here can stop an entry: every failure ends as a role that did not contribute, and step 4's assembly turns that into `unavailable`, which the kernel applies as `proceed_unavailable`.
+
+**In plain words.** This step makes the AI team's model calls real, and writes down every one. A role either asks a model over the internet (an OpenAI-style endpoint) or runs a fixed rule. It asks once. The only exception is today's: if the endpoint rejects the "answer in JSON" option, it asks once more without it. When the provider says "slow down", the system waits as long as the provider asks, but never past today's market close. If such a pause lasts more than the owner's limit (approved at 15 minutes), it raises one warning. A failed call is recorded as "provider error". It is never read as ALLOW or BLOCK. Spending limits stay empty, as today, so nothing is refused for cost. The backup-provider chain is built but stays switched off until the owner decides. Every call keeps the model that was asked for, the model that actually answered ("unknown" when the provider does not say), the exact prompt and the whole response. All of it goes into a tamper-evident record. The API key never reaches a file, a log or a record. A recorded day can be replayed from these records without reaching any provider. A gap in the recording shows as "unavailable". Nothing here can block a trade.
+
+### Decisions
+
+#### What legacy does here
+
+* **Backends** are registered by name (`AD:279-300`). Teams may use only `rule` and `http` (`AT:21`). `chain` and `replay` serve the worker path.
+* **`http`** (`HT:407-1007`) reads its key only from `ADVISOR_API_KEY` (`HT:78`). Without a key it abstains `not_configured` and calls nothing (`HT:866-870`). Without an activated prompt it does the same (`HT:873-886`). The system message is the prompt plus `RESPONSE_CONTRACT` (`HT:173-186`, `:590-595`), and the user message is `render(ctx)` (`HT:280-348`). Defaults: timeout 20.0 s, temperature 0.0, `max_tokens` 300, `json_mode` true, 40 bars, 7 strikes, pace 0 (`HT:92`, `:125-131`, `:158`, `:410-425`). A call makes one request with no retry, except one resend without `response_format` after a 400 (`HT:698-710`). The reply is read by `view_from_reply`, which keeps only `abstain`, `direction`, `conviction` and `reason` (`HT:231-277`). An answer cut off at `max_tokens`, or one that is not JSON, is `invalid_output` (`HT:1003-1006`). No choices is a provider failure (`HT:995-997`). The provider-reported `model`, `id` and `system_fingerprint` are kept apart from the requested model (`HT:983-993`). Tokens come from `usage`. Cost is `unpriced` while both prices are 0 (`HT:1010-1028`; `config/defaults.yaml:783-785`). The reply is cut to 2,000 characters (`HT:1001`). Error metadata is bounded and scrubbed of the key (`HT:1079-1138`).
+* **The circuit** (`HT:719-841`) lives in each advisor instance. Statuses 408, 429, 500, 502, 503 and 504 are transient (`HT:164`). A finite Retry-After above 0 is honoured in full, but never past today's session close, and the clamp is flagged (`HT:773-782`, `:1037-1046`). Otherwise the wait is `min(300, max(0.1, 30·2^(streak−1)))` (`HT:783-786`). A 429 opens the circuit at once. Other transient failures open it after 2 in a row or on a half-open probe (`HT:790-798`). A non-transient status opens a 300 s `configuration_error` window (`HT:800-809`). A success closes the circuit (`HT:823-841`). Retry-After is read as seconds or an HTTP date. Non-finite or unparsable values are `unknown` (`HT:1055-1076`). **A team role's child builds a fresh advisor** (`CH:35`), so its circuit never outlives one call. Only the long-lived worker advisor carried one.
+* **Status** (`AD:323-350`): `held`, then `advice` (no abstention), then `timeout` (the failure name contains "timeout"), then `backend_error` (the backend raised), then `provider_error` (any other failure), then the abstention's tags (`provider_backoff` and `provider_failure` give `provider_error`; then `backend_error`, `not_configured`, `budget_exhausted`, `invalid_output`), else `abstained`.
+* **The team child** (`CH:40-58`): `json.loads(view.reason)` must pass the role schema. A role's typed output therefore travels as the `reason` of a non-abstaining view, which needs a `direction` and a `conviction`.
+* **Secret refusal** (`AT:154-155`): `_refuse_secrets({"team_task": json.dumps(task)})` refuses three shapes (`AC:58-60`, `:71-79`). It is raised while profiles are pinned, so it becomes `profile_resolution_failed:ActivationError` (`TM:415-421`), and any such pin gives `required_role_failed`.
+* **Rule** (`RU:47-101`, `:135-200`, `:206-225`): `breakout` and `ema_cross` over `ctx.bars`. An unknown signal raises when the backend is built.
+* **Chain** (`CN:17-18`, `:107-131`): members are tried in order. Only `provider_error`, `timeout`, `backend_error`, `not_configured` and `budget_exhausted` fall through. When all fail, the result is `budget_exhausted` if every member gave that, `not_configured` if every member gave that, else `provider_error`.
+* **Budgets** (`BG:131-186`): `advisor.budgets` is `{}` (`config/defaults.yaml:758`). With no cap, the answer is `allowed` and no ledger is touched.
+* **The pause warning** (`MON:132-167`): the pause runs from the first record of the trailing backoff run to the last record's scheduled probe. It warns when that is strictly more than `monitoring.advisor_pause_warn_minutes` (15, `config/defaults.yaml:1792`). A value of 0 or less turns it off (`MON:142-143`).
+* **Records** (`ST:20-432`): an append-only JSONL file whose rows are hash-chained, plus an atomically replaced `state.json`. A torn tail that the state never published is cut off. Transitions are fixed.
+* **Replay** (`RP:57-93`) answers by bar sequence and abstains on a gap.
+* **The live legacy makes no provider call.** Step 4 found no blueprint live, and `ai_ema_cross` is disabled (Excluded).
+* **Characterization (read-only, 2 November 2026; review R-1).** The probe `~/claude-desktop/scripts/s09e_budgets.py` reads the live budget value. It ran in `~/AutonomousTrading` under the live venv (`-I -B`, `nice -n 19`), with the strategy unit's `AT_CONFIG_FILE` (`config/profiles/readonly.yaml`, as step 4's probe recorded it; `.env` was not opened). It printed one value, `json.dumps(config.get('advisor.budgets'))`, which was `{}`. The value is kept in `~/claude-desktop/outputs/s09e/budgets.txt`. The checkout showed 0 changed files afterwards.
+
+#### The backends (`cognition/providers.py`)
+
+* **`consult(packet, *, environ=os.environ, work_dir=None, clock=time.time, transport=None, forbid=forbid_network) -> dict`** is what step 4's production child calls. `work_dir` defaults to the packet file's directory (the run directory). It returns `{"status", "reason", "failure", "detail", "attempts", "circuit"}`. `status` is one of legacy's nine statuses or `replay_gap`. `detail` is `{"provider_status", "provider_error_code"}` from the last attempt. `circuit` is the circuit state after the call, or `None`. It never returns a model answer for a failed call. Its order:
+  1. If `environ` names `AT_COGNITION_REPLAY_DIR`, it calls `forbid()` and answers by replay (below). Nothing else runs.
+  2. If `packet["backend"]` is `chain`, it answers `not_configured` with the reason `"provider fallback is inactive (POL-036 open)"`, builds no member and records no attempt (**Fork call**: the chain is inactive).
+  3. It builds the role's backend from `packet["profile"]`. A build error is raised, `_child_main` records `status` `null` with the exception's type name, and step 4 classifies that as `unavailable` `backend_error` (`CH:35`, `:59-61`).
+  4. It runs one attempt and writes its evidence files (below).
+* **`rule`.** `RuleBackend(signal="breakout")` takes legacy's `breakout` and `ema_cross` unchanged (`RU:47-200`). It reads `packet["inputs"]["bars"]["value"]` as `ctx.bars`; a role without the `bars` scope sees `[]`. Its view's `reason` is prose, so step 4 classifies it as `invalid` `invalid_typed_output` (**Fork call**: a rule role cannot contribute a typed output, as in legacy). An unknown signal raises `ProviderConfigError("unknown rule signal …")`.
+* **`http`** (`HttpBackend`). Legacy's code paths are kept in order: key, prompt, backoff check, request, success or failure (`HT:850-1007`). The changes:
+  * **Configuration.** Only the pinned profile is read. `model` and `url` are required and non-empty; if either is missing it raises `ProviderConfigError`. **Deviation:** legacy filled `model`, `url` and `reasoning_effort` from `advisor.http.*` (`config/defaults.yaml:774-779`); here the pin is the whole configuration. Defaults are legacy's (**Fork call**): `timeout` 20.0, `temperature` 0.0, `max_tokens` the pin's (300 by default), `json_mode` true, `bars` 40, `chain_strikes` 7, pace 0, `reasoning_effort` none unless pinned (one of `low`, `medium`, `high`, else it raises). `budget_strategy` is recorded only. `prompt_root`, `prompt_version` or `catalog_digest` present answers `not_configured`, reason `"the prompt store and the model catalog are not built; the prompt is the role's instruction"` (**Deviation**). There is no live management profile, so no live profile uses them.
+  * **The key.** `environ["ADVISOR_API_KEY"]` (`HT:78`). If it is absent or empty, the answer is `not_configured` with legacy's text (`HT:867-870`), and the transport is never built.
+  * **The prompt (Deviation).** The system message is `f"{instruction}\n\n{RESPONSE_CONTRACT}"`, with `instruction` the pinned instruction and `RESPONSE_CONTRACT` copied from `HT:173-186`. An empty instruction answers `not_configured` (`HT:881-886`). A pinned `prompt_digest` that differs from `sha256_hex(instruction)` answers `not_configured`, reason `"pinned prompt digest does not match"` (`HT:647-650`). The user message is `canonical_json({"task", "output_schema", "identity", "request", "inputs", "team"})` from the packet. `inputs["bars"]["value"]` is cut to `[-bars:]`. The chain rows are cut to the `chain_strikes` nearest the spot, then sorted by strike (`HT:292`, `:321-330`, applied as legacy applies them). **Deviation:** legacy rendered an `AdvisorContext` as text (`HT:280-348`) and put the strategy's activated prompt in the system message. There is no prompt store here, because the target packet has no `AdvisorContext`.
+  * **The request.** `POST url` with headers `Content-Type: application/json` and `Authorization: Bearer <key>`. The body is `{"model", "messages", "temperature", "max_tokens"}`, plus `"response_format": {"type": "json_object"}` when `json_mode`, plus `"reasoning_effort"` when set. **Fork call:** after an HTTP 400 to a body that carried `response_format`, the request is sent once more without it (`HT:705-710`). There is no other retry.
+  * **The transport.** `Transport.post(url, body: bytes, headers, timeout) -> HttpResponse(status: int, headers: dict, body: bytes)`, with lower-cased header names. The default `UrllibTransport` uses `urllib.request` with an opener whose `HTTPRedirectHandler` subclass refuses every redirect: `redirect_request` returns `None`, so any 3xx comes back as a non-2xx answer and is never followed (review R-4; a redirect would send the key to another host). A non-2xx answer is returned, not raised. A socket timeout raises `TransportTimeout`. Any other connection failure raises `TransportError`. A 2xx answer that is not a JSON object becomes a failure named `ResponseNotJson`, with status `unknown`.
+  * **Success** (`HT:954-1007`). `effective_model` is `payload["model"]` when it is a non-empty string, else `"unknown"` (A05-F5). `response_id` and `system_fingerprint` are kept when present, else `None`. `tokens` is `{"prompt", "completion", "total"}` from `usage`, else `None`. `cost` is `{"status": "unpriced"}` (**Fork call**: legacy's prices are 0; no price setting is ported). Then legacy's choices, `finish_reason` and `view_from_reply` rules apply unchanged.
+  * **Failure** (`HT:921-952`, `:1079-1130`). Legacy's bounded metadata (code 120, state 120 and message 300 characters) and legacy's reason text are kept: `"<host> did not answer: HTTP <status> (<code>): <message>"`. Every form of the key is scrubbed from each field **before** it is cut to 120 or 300 characters, as legacy's `_safe_text(…)[:300]` does (`HT:1116-1122`; review R-6), so a cut can never leave part of a key. The `failure` field is the exception's type name.
+* **Statuses.** `consultation_status(view, failure, *, backend_raised)` is copied from `AD:323-350`, without `held` (no quality hold is ported). A provider failure is therefore `provider_error` or `timeout` (POL-037) and is never parsed for an action.
+* **Scrubbing (no key in any file, log or record).** Before any text is cut, written or returned, the child replaces every form of the key, as `settings/secrets.py` `_forms` computes them (raw, JSON-escaped and both URL quotings), with `***` (`MARKER`). This covers the reason, the metadata, the request body and the response body. The request's headers are never recorded. A response's headers are kept only for these names: `retry-after`, `x-request-id`, `x-goog-request-id`, `request-id`, `content-type`, `date`. Exceptions are recorded by type name only. `providers.py` logs nothing.
+
+#### Retry-After and the circuit (`cognition/providers.py`)
+
+* **`retry_after(headers, now) -> float | "unknown"`** is `HT:1055-1076` with `now` an epoch instant: seconds as `max(0.0, s)` when finite; an HTTP date as `max(0.0, date − now)`; anything else `"unknown"`.
+* **`secs_to_session_close(now) -> float | None`** is `HT:1037-1046` over `contracts.market.calendar("nse-fo/v1")` (`contracts/market.py`, the one calendar): 15:30 at offset +05:30 on `now`'s local date, minus `now`, or `None` when that is 0 or less.
+* **`Circuit`**, a frozen value `(state, streak, open_until, last)`. `state` is `closed`, `open`, `half_open` or `configuration_error`. `open_until` is an epoch value, or 0.0 for none. `last` holds the last failure's metadata. `Circuit.closed()` is the start state. The rules are legacy's (**Fork call**, `HT:719-841`), with an epoch clock in place of legacy's monotonic one:
+  * **Before a call** (`HT:727-732`, `:891-898`): with `open_until > 0` and `open_until − now > 0`, it answers a backoff. The status is `provider_error`, the reason is `"provider_backoff: <label>; next probe at <UTC>"`, the attempt's `failure_class` is `backoff`, and nothing is sent. With `open_until > 0` and no time left, the state becomes `half_open`. A state of `open` or `configuration_error` at call time also becomes `half_open`.
+  * **After a failure:** legacy's arithmetic with `TRANSIENT_STATUS`, base 30, maximum 300, threshold 2 and the floor 0.1. `clamped` is true only when the session close shortened a finite hint. `next_probe_at` is the stored UTC form of `open_until`, or `"not_applicable"`.
+  * **After a success:** streak 0, `closed`, `open_until` 0.0.
+* **Scope (Fork call).** A packet may carry `"circuit"`. If it does not, the call starts from `Circuit.closed()`. Step 4's runtime never passes one, so a team role's circuit lasts one call, as legacy's fresh advisor in each child did (`CH:35`). A review after a 429 asks the provider again. **`CircuitBook`** holds circuits in memory for the process's life, keyed `(consumer, provider, model)`, as legacy's worker advisor held its own (`HT:536-539`). A restart starts closed (`HT:801-802`). Its caller is step 6's proposal path, with the strategy as `consumer`. `CircuitBook.state(key)` returns the circuit to put in a packet. `CircuitBook.observe(key, circuit, attempt)` stores the circuit and appends the row `(started_at, backoff, next_probe_at, provider_status)` that the pause warning reads. `backoff` is `state` in `open` or `configuration_error`, or a backoff answer.
+* **The pause warning (Fork call, `MON:132-167`).** `pause_warning(rows, warn_minutes) -> PauseWarning | None` is a pure function. If `warn_minutes` is 0, or the last row is not `backoff`, there is no warning. Otherwise the run starts at the first row of the trailing run of `backoff` rows, and `minutes = (last.next_probe_at − first.started_at) / 60`. It warns only when `minutes > warn_minutes`. `PauseWarning(consumer, provider, model, since, next_probe_at, paused_minutes=round(minutes, 1), warn_minutes, provider_status, what)`, where `what` is `f"AI advisor paused for {round(minutes)} min by {cause}"`, and `cause` is `provider rate limit` when the last status is 429, else `provider backoff`. `CircuitBook.observe` returns a warning **once per run**, the first time a run qualifies. **Deviation (once per run):** legacy's monitor re-derived its finding at every read, so the same pause was reported again at each check (`MON:170-259`). **Deviation (delivery):** legacy's finding went to its monitoring report. Here, delivery through `operations/telemetry.py` is SLICE-11's, which builds that module. Until then the warning is appended to the record store (kind `provider_pause_warning`) and logged at WARNING with `what` only. The setting is `operations.telemetry.advisor_pause_warn_minutes` (below).
+
+#### Budgets and the chain (`cognition/providers.py`)
+
+* **Budgets (Fork call, POL-033).** `budget_decision(budgets, provider, strategy, day)` is legacy's `_limits` and `_decision` (`BG:131-180`) for a fresh counter. With `{}` it gives `allowed` true, reason `""`, and `remaining` calls and amount `"unlimited"`. `consult` refuses nothing for budget. `unlimited(budgets) -> bool` is true for a mapping in which legacy's `_limited(_limits(provider, budgets))` is false for every key, `*` included. That holds for `{}` and for entries whose caps are all 0, `None` or absent (`BG:48-49`, `:183-186`). The live value is `{}` (characterization above). **Deviation:** a real cap is refused by `compose_cognition`, never by the settings loader, so a capped budget can never stop the kernel from composing (no new gate; review R-1). A real cap needs legacy's durable per-day ledger (`BG:42-105`), which is listed, not built.
+* **Chain (Fork call, POL-036 open).** `ChainBackend(members)` is `CN:54-131`: members are tried in order, legacy's fall-through set and final statuses apply, a nested chain is refused, and every member's attempt is kept in order. It is built and unit-tested on its own. `consult` never runs it, because `cognition.providers.fallback` accepts only `inactive`.
+
+#### Evidence a call leaves (the child)
+
+* **Attempt files** are written in the run directory with step 4's atomic writer. For `http`, each exchange `m` writes `<task>.a<n>.x<m>.request.json` (`{"url_host", "body"}`) and `<task>.a<n>.x<m>.response.json` (`{"http_status", "headers", "body"}`; `body` is the response text decoded as UTF-8 with replacement, kept whole, after scrubbing). For `rule`, the attempt writes `<task>.a<n>.response.json` (`{"signal", "view"}`). A file whose serialized size exceeds `MAX_BYTES` (262,144, the child's `RLIMIT_FSIZE`) is not written. Its entry records `kept: false` and `bytes: <n>`, and the answer is unchanged. **Deviation 11 of the slice:** whole bodies, not 2,000 characters.
+* **Where attempts go (review R-5).** `_child_main` writes the reply's `attempts` and `circuit` to `<task>.attempts.json` (`{"run_id", "task_id", "attempts", "circuit"}`) **before** it writes the receipt, never into the receipt. The receipt therefore keeps step 4's shape and size, and attempt metadata can never push a contribution over the role's `output_bytes` (`invalid_receipt`). If the attempts file is over `MAX_BYTES` it is not written, and the recorder records `attempts_unreadable: true`.
+* **The attempt** (an entry of that file's `attempts` list): `{"n", "backend", "provider", "requested_model", "effective_model", "response_id", "system_fingerprint", "prompt_digest", "context_refs", "settings_digest", "started_at", "ended_at", "status", "failure_class", "provider_status", "provider_error_code", "retry_after", "clamped", "circuit_state", "next_probe_at", "tokens", "cost", "exchanges", "response_file"}`. The fields are:
+  * `provider`: the URL's host, lower-cased, or `"rule"`.
+  * `context_refs`: for each scope in the packet's `inputs`, in order, `{"scope", "source", "view_id", "observed_at", "partition"}`.
+  * `settings_digest`: `sha256_hex` of the effective backend configuration after defaults (for `http`: `backend`, `model`, `url`, `timeout`, `temperature`, `max_tokens`, `json_mode`, `reasoning_effort`, `bars`, `chain_strikes`, `budget_strategy`; for `rule`: `backend`, `signal`).
+  * `exchanges`: `[{"m", "request_file", "response_file", "http_status", "kept", "bytes"}]`.
+  * `retry_after`, `clamped`, `next_probe_at`: legacy's values or `None` when not applicable.
+  * `started_at`, `ended_at`: epoch seconds from `clock`.
+* **Step 4 edits (`cognition/runtime.py`).**
+  * `_child_main` writes `<task>.attempts.json` (above), then the receipt, unchanged. `classify` is unchanged.
+  * `_UNAVAILABLE_STATUSES` gains `replay_gap`, so a replay gap is `unavailable` with cause `replay_gap` (slice Deviation 12).
+  * `CognitiveAgentRuntime` gains `replay_dir=None`. `launch` gives the child `role_environment(env)`, where `env` is the runtime's `delegated` credential **for an `http` role only** (step 4's "empty for `rule`") plus `{"AT_COGNITION_REPLAY_DIR": replay_dir}` when it is set.
+
+#### Secret refusal on role task text (`cognition/blueprint.py`; step 4's open item)
+
+* **`SECRET_SHAPES`** are copied from `AC:58-60`: `AIza[0-9A-Za-z_\-]{10,}`; `sk-[0-9A-Za-z_\-]{20,}`; and `(?i)\b(api[_-]?key|secret|passphrase)\b\s*[:=]\s*\S+`.
+* **`ActivationError(ValueError)`** carries legacy's message: `"team_task looks like it carries a credential. …"`, never the value (`AC:76-79`).
+* **`refuse_secrets(values)`** is `AC:71-79`.
+* **Where it runs (Fork call).** `pin_role` calls `refuse_secrets({"team_task": json.dumps({"name": role.name, "backend": role.backend, "config": config, "instruction": instruction})})` after the 4,096-character check. `json.dumps` has legacy's default separators (`AT:155`). A match is a failed pin, `profile_resolution_failed:ActivationError`, so any such role, optional ones included, makes the run `required_role_failed` (step 4's rule 2).
+
+#### Run records (`cognition/records.py`)
+
+* **`run_id(purpose, subject, configuration_digest, blueprint_digest, lineage_digests, evaluation="primary") -> str`** is `sha256_hex` of those six fields as a mapping. `purpose` is `entry_review`, `exit_advice` or `intent_proposal`. **Reading of the spec:** its `RunRecord` names two purposes; `exit_advice` is added because step 4's runtime runs it. `subject` is exactly one of `{"intent_ref"}`, `{"position_ref"}` or `{"invocation_id"}`, for the three purposes in that order. A second request for the same subject gets the same `run_id`. A live re-evaluation on recorded inputs passes another `evaluation` label and gets a new `run_id` (the spec's replay rule).
+* **`RunRecorder(publish, store, clock, *, secrets, providers)`**:
+  * `publish(content) -> str` is the kernel's evidence port, as `InProcessKernel.publish` in step 2. Here it is in process; SLICE-10's channel replaces it.
+  * `store` is a `RecordStore`.
+  * `secrets` is the process's `Secrets`.
+  * `providers` is `{"budgets": {}, "fallback": "inactive"}`, as bound.
+* **`record_run(result, blueprint, pins, request, *, subject, configuration_digest, evaluation, run_dir) -> RunRecorded(run_id, run_ref, sequence)`** works in this order:
+  1. If `store.current(run_id)` exists with kind `cognition_run`, it returns that row and publishes nothing (idempotent).
+  2. It publishes the request as `request_ref` (review R-2): `{"kind": "cognition_request", "run_id", "purpose", "strategy", "payload", "identity", "results": [every ToolResult as a mapping of its seven fields], "deadline_secs": deadline − started_at, "blueprint": blueprint.as_dict(), "pins": [each RolePin as a mapping of its nine fields, in blueprint role order]}`. Its digest is the `request_digest`. Pins hold no credential: the allow-list and `refuse_secrets` keep one out.
+  3. For each task in `result.roles` it reads `<task>.attempts.json` in `run_dir` (review R-5), and requires `run_id` and `task_id` to match. It reads no attempt from the receipt. The attempts are read even for a `late` task. A missing or unreadable file, or a non-list `attempts`, is recorded as `attempts: []` with `attempts_unreadable: true`.
+  4. For each attempt, in `n` order, it reads each file entry with `kept` true and requires a JSON object; otherwise it raises `RecordError`. If `secrets.contains_secret(canonical_json(obj))`, it applies `secrets.scrub(obj)` and sets the attempt's `scrubbed` to true. It publishes the result to get each exchange's `request_ref` and `response_ref`.
+  5. It publishes each contribution's `{"schema", "payload"}` as `output_ref`, and requires the ref to equal the outcome's `output_digest`.
+  6. It builds and publishes the run record. Every reference is published before the record that names it (Combined-F2).
+  7. It calls `store.create(run_id, kind="cognition_run", state=terminal, payload={"run_ref", "purpose", "subject", "outcome", "cause", "evaluation"})`.
+* **The run record** (the spec's `RunRecord`, A05-F5): `{"kind": "cognition_run", "schema": 1, "run_id", "purpose", "subject", "request_digest", "blueprint_digest", "configuration_digest", "lineage_digests", "request_ref", "evaluation", "providers", "started_at", "deadline", "completed_at", "limits", "roles", "synthesis", "result", "terminal_state"}`. The fields are:
+  * `request_ref` and `request_digest`: the published request's digest (step 2 above); both name it.
+  * Times: in the stored UTC form (`contracts.identity.format_utc`).
+  * `roles`: one `RoleRecord` per task, in plan order: `{"role", "task", "required", "outcome", "cause", "output_ref", "output_digest", "late", "duplicate": duplicates > 0, "duplicates", "attempts"}`. Each attempt is the child's attempt, with these changes:
+    * file names are replaced by `request_ref` and `response_ref` (the last exchange's);
+    * `prompt_version` is the role's `instruction_version`;
+    * `scrubbed` is added.
+  * `synthesis`: `{"lead", "output_digest", "parser_version": "445eb116"}` when the lead contributed, else `None`.
+  * `result`: `{"outcome", "cause", "payload"}`.
+  * `terminal_state`: `completed` for `result`, `unavailable` otherwise. Step 6's CP-C2 writes `cancelled`.
+* **`RecordStore(root)`** is `ST:74-432` copied: `events.jsonl`, `state.json`, `.lock`, schema 1, legacy's event fields, states and transitions, the torn-tail rule, the verified-prefix cache and legacy's error texts. **Deviations:** each digest is `sha256_hex(canonical_json(row less integrity_sha256))`, 64 hex digits without legacy's `sha256:` prefix (as in step 4). `at` is in the stored UTC form. The lock is `fcntl.flock` on POSIX and `msvcrt.locking` on Windows. Files are 0600 and the root 0700 on POSIX. The root is cognition's own, `<cognition root>/records`, and never the ledger.
+* **`record_pause_warning(warning)`** calls `store.create(sha256_hex([consumer, provider, model, since]), kind="provider_pause_warning", state="active", payload=<the warning's fields>)`. It is idempotent.
+
+#### Replay (`cognition/providers.py`, `cognition/records.py`)
+
+* **`stage_replay(run_record, resolve, replay_root)`** reads each recorded attempt's response from the evidence store and writes `<replay_root>/<run_id>/<task_id>.json` as `{"attempts": [{"n", "backend", "status", "failure_class", "provider_status", "provider_error_code", "retry_after", "next_probe_at", "response": <resolved content or null>}]}`. Here `task_id` is `sha256_hex([run_id, task])`, step 4's.
+* **The replay composition** is given no credential. Its runtime has `replay_dir=replay_root` and its own work root and record store. Every role answers through replay, whatever its backend.
+* **`replay_request(run_record, resolve) -> (blueprint, pins, request)`** rebuilds the run from the records alone (review R-2):
+  * The blueprint is `TeamBlueprint.from_dict` of the published request's `blueprint`, and its `digest` must equal the run record's `blueprint_digest`.
+  * The pins are `RolePin`s rebuilt from its `pins`. `lineage_digests(pins)` must equal the run record's.
+  * The request is `TeamRequest` with the recorded `run_id` (so task IDs match), `purpose`, `strategy`, `payload`, `identity` and `ToolResult`s.
+  * Its `deadline` is `clock() + deadline_secs`, the recorded span `deadline − started_at` measured from the replay's own start.
+  * A digest that does not match raises `RecordError`. Nothing is read from settings, profiles or `config/teams.yaml`.
+* **Replay in the child.** `forbid_network()` first installs, through `sys.addaudithook`, a hook that raises `ReplayNetworkRefused` on the audit events `socket.connect` (which also covers `connect_ex`), `socket.getaddrinfo`, `socket.gethostbyname`, `socket.sendto`, `socket.sendmsg` and `subprocess.Popen` (review R-3). It cannot be removed, so it binds every socket path in the child, including `_socket`. Because it binds the whole process, it is installed only in the replay child; in-process tests pass `consult(…, forbid=<a recorder>)`, whose default is `forbid_network`. Then:
+  * A missing task file answers `replay_gap`, with reason `"no recorded consultation for task <task> of run <run_id>"`.
+  * Otherwise each recorded attempt is answered in `n` order:
+    * an `http` attempt's `response` goes through the same success and failure parsing as a live answer;
+    * a `rule` attempt's stored `view` is returned;
+    * a `backoff` attempt is answered from its metadata.
+  * An attempt that needs a response whose `response` is null answers `replay_gap`.
+  * No transport is built. The attempts it reports carry `"replayed": true`.
+* **Deviation (slice Deviation 12):** legacy abstained on a gap and keyed replay by bar sequence (`RP:57-63`). Here a gap is `unavailable` (`replay_gap`), keyed by run and task.
+
+#### Settings and composition
+
+* **`settings/schema.py`** gains three fields, each `None` by default:
+  * `providers_fallback: str | None`;
+  * `providers_budgets: str | None`, a canonical JSON text: `"{}"` when the bound mapping is unlimited, else the mapping's own canonical text;
+  * `advisor_pause_warn_minutes: int | None`, with legacy's 15 shipped as its default (review R-7; `config/defaults.yaml:1792`, owner-approved under POL-032).
+* **`settings/loader.py`** extends `_COGNITION`, read by the same loop:
+  * `("providers_fallback", "cognition", "providers_fallback", "AT_COGNITION_PROVIDERS_FALLBACK", ("inactive",))`;
+  * `("providers_budgets", "cognition", "providers_budgets", "AT_COGNITION_PROVIDERS_BUDGETS", "budgets")`;
+  * `("advisor_pause_warn_minutes", "operations", "advisor_pause_warn_minutes", "AT_OPERATIONS_ADVISOR_PAUSE_WARN_MINUTES", "non_negative")`.
+
+  `_check` gains the kind `"budgets"`, which **never raises**. A YAML mapping, or an environment text that `json.loads` reads as a mapping, reads as `"{}"` when `unlimited` is true, else as its canonical JSON text. Any other value (a non-mapping, unparsable text, or an entry that makes legacy's `_limits` raise) is kept as the text `canonical_json({"unreadable": str(value)})`. `compose_cognition` refuses it. **Reading of the spec:** the loader reads one level under a section, so `cognition.providers.fallback`, `cognition.providers.budgets` and `operations.telemetry.advisor_pause_warn_minutes` are bound one level down, as `committee_risk_critic` was. `resources/defaults.yaml` ships `operations: {advisor_pause_warn_minutes: 15}`, legacy's value; nothing else is shipped. **Deviation:** the pause bound is whole minutes (legacy read a float); 0 turns it off, as legacy's `<= 0` did.
+* **`settings/secrets.py`** `SCOPES` gains `"cognition": frozenset({("advisor", "api_key")})`, resolved at process start (SLICE-11).
+* **`bootstrap.compose_cognition(settings, *, work_root, record_root, publish, clock, sleep, secrets, child_command=None) -> Cognition(runtime, recorder, circuits)`** refuses, in this order:
+  * with `RefusingParameterUnbound`: `cognition.committee.risk_critic`, `cognition.providers.fallback`, `cognition.providers.budgets`, `operations.telemetry.advisor_pause_warn_minutes`, each when unbound;
+  * with `BudgetCapUnsupported("cognition.providers.budgets: a call or amount cap needs the budget ledger, which is not built (POL-033)")`: a budgets text other than `"{}"`.
+
+  Only cognition's composition refuses; the kernel's and the strategy host's never read these settings. It sets `delegated = {"ADVISOR_API_KEY": secrets["advisor/api_key"].reveal()}` only when `secrets` holds that key, else `{}`. In the second case an `http` role answers `not_configured` (**Fork call**, `HT:866-870`). `compose_cognition_replay(settings, *, work_root, record_root, replay_root, publish, clock, sleep, child_command=None)` applies the same refusals and takes no `secrets`. `compose_cognition_runtime` (step 4) is unchanged.
+
+#### Hand-offs
+
+* **Step 6** builds:
+  * the `Review` from a recorded run;
+  * `record_review`, CP-C1 and CP-C2 (CP-C2 writes `terminal_state` `cancelled`);
+  * the proposal path's packet with `CircuitBook.state((strategy, provider, model))`, its `observe` call and `record_pause_warning`.
+* **Step 7's capability scan** sees `cognition` import `settings.secrets` (names, `Secrets`), `contracts.identity` and `contracts.market`, and nothing under `kernel`. `providers.py` is the only module that opens a socket.
+* **SLICE-11** delivers the pause warning through `operations/telemetry.py` and resolves the `cognition` secret scope.
+
+#### Fork calls in this step
+
+Each keeps legacy's behaviour at 445eb116, for the owner's review:
+
+1. No in-call retry, except the one resend without `response_format` after a 400.
+2. Retry-After honoured in full up to the session close, with the clamp flagged; a non-finite or unparsable hint takes the capped backoff (30 s doubling, at most 300).
+3. A 429 opens the circuit at once; other transient failures open it after 2 in a row or on a half-open probe; a non-transient status opens a 300 s configuration window.
+4. A team role's circuit lasts one call, so a review after a 429 asks again. The circuit is carried only per consumer, in memory, for the process's life.
+5. The pause measure: from the first backoff row to the scheduled probe, warning when strictly more than the bound (legacy's 15 by default), 0 turning it off.
+6. `{}` budgets refuse nothing.
+7. The chain's fall-through set and final statuses; the chain stays inactive.
+8. Every provider failure is `provider_error` or `timeout`, never an action.
+9. A typed output travels as a non-abstaining view's `reason`, so a rule role never contributes.
+10. No key, or no instruction, is `not_configured` with no call.
+11. Legacy's `http` defaults.
+12. Cost `unpriced`.
+13. A secret-shaped task text fails the pin, optional roles included.
+
+#### Deviations in this step
+
+* The prompt is the role's pinned instruction. The user message is canonical JSON of the packet. The prompt store and model catalog keys answer `not_configured`.
+* There is no configuration fallback for `model`, `url` or `reasoning_effort`.
+* A real budget cap is refused by cognition's composition, never by the loader; budgets that legacy treats as unlimited read as `{}`.
+* One pause warning per backoff run; legacy's monitor reported the same pause again at every check.
+* The pause warning is a record and a log line until SLICE-11's telemetry; legacy's went to its monitoring report.
+* The pause bound is whole minutes.
+* Redirects are never followed.
+* Attempts are kept in their own file beside the receipt.
+* Replay rebuilds the run from its published request, blocks the network with an audit hook, and measures the deadline from the replay's start.
+* The circuit runs on an epoch clock.
+* Whole response bodies are kept, scrubbed, and a file over 262,144 bytes is not kept (slice Deviation 11).
+* `replay_gap`, keyed by run and task (slice Deviation 12).
+* The record store's 64-hex digests and its Windows lock.
+* `exit_advice` is a run purpose.
+* The credential goes to `http` children only.
+
+**Listed, not made:** carrying a circuit across review runs; legacy's durable budget ledger for non-empty caps; a price setting for `cost`; the quality hold (`held`).
+
+### Tests
+
+`tests/unit/test_provider_records.py` (**T-56**). Every value is labelled synthetic, and every expectation is written by hand from the rules above. Digests are computed in the test with `hashlib.sha256` over `json.dumps(…, sort_keys=True, separators=(",", ":"), ensure_ascii=False)`.
+
+The fixtures, all synthetic:
+
+* `T0 = 1793608200.0` is 2026-11-02T08:30:00Z, 14:00 at +05:30, a Monday; the close is `T0 + 5400`.
+* `KEY` is built in the test as `"sim-advisor-" + "k" * 16`, so no literal key-shaped text sits in the file.
+* `FakeTransport` returns scripted `HttpResponse`s and counts its calls.
+* `HTTP_PIN` is `{"model": "sim-model", "url": "https://sim.invalid/v1/chat/completions"}` with instruction `"synthetic role"`.
+* `ALLOW` is step 4's.
+* `REPLY(view)` is a 200 body whose `choices[0].message.content` is `json.dumps(view)`. `V_ALLOW` is `{"abstain": false, "direction": "CE", "conviction": 0.5, "reason": json.dumps(ALLOW)}`.
+
+`consult` is called in process with `environ`, `work_dir=tmp_path`, `clock` and `transport` injected. The end-to-end cases run step 4's production child (`python -I -m autonomous_trading.cognition.runtime`, with the package installed in the test environment) against a local `http.server` on 127.0.0.1 that the test starts. No file is added to the tree.
+
+**Circuit cases** (each from `Circuit.closed()` unless stated; the next-probe time is checked in the stored UTC form):
+
+| Case | Expected |
+|---|---|
+| 429, `retry-after: 21600`, at `T0` | streak 1, `open`, `open_until` `T0+5400`, `retry_after` 21600.0, `clamped` true, `next_probe_at` `2026-11-02T10:00:00.000000Z` |
+| 429, `120`, at `T0` | `open_until` `T0+120`, `clamped` false |
+| 429, `inf` (also `nan`, `""`, `soon`, no header), at `T0` | `retry_after` `"unknown"`, `open_until` `T0+30` |
+| 429, `Mon, 02 Nov 2026 08:32:00 GMT`, at `T0` | `retry_after` 120.0, `open_until` `T0+120` |
+| 429, `0.05`, at `T0` | `open_until` `T0+0.1`, `clamped` false |
+| 429, `21600`, at `T0+7200` (after the close) | `open_until` `T0+7200+21600`, `clamped` false |
+| 503, no header, at `T0` | streak 1, `closed`, `open_until` 0.0, `next_probe_at` `"not_applicable"`; a second 503 at `T0+1`: streak 2, `open`, `open_until` `T0+61` |
+| A state of streak 3, then 503 / streak 4, then 503 | delays 240 and 300 |
+| 401 / 418 at `T0` | streak 0, `configuration_error`, `open_until` `T0+300`, error class `configuration` / `non_retryable` |
+| `open_until` `T0+120` after a 429 with code `RESOURCE_EXHAUSTED`; consult at `T0+60` | 0 transport calls, `provider_error`, reason `provider_backoff: HTTP 429 (RESOURCE_EXHAUSTED); next probe at 2026-11-02T08:32:00.000000Z`, `failure_class` `backoff` |
+| The same at `T0+120`, the server answering 200 | `half_open` before the call, 1 call, then `closed`, streak 0 |
+| The `inf` case's state at `T0+30`, then 503 | half-open probe, streak 2, `open_until` `T0+90` |
+| `secs_to_session_close` | `T0`: 5400.0; `T0+5399`: 1.0; `T0+5400`: `None` |
+
+| Group | Cases |
+|---|---|
+| `http` (PRF-STR-06) | **200 with** `"model": "sim-model-2026-10-01"`, `"id": "sim-resp-1"`, `"system_fingerprint": "fp_sim"` and usage 120/30/150. Expected: status `advice`, reason `json.dumps(ALLOW)`; `requested_model` `sim-model`, `effective_model` `sim-model-2026-10-01`, the ID and fingerprint kept, tokens `{"prompt": 120, "completion": 30, "total": 150}`, cost `{"status": "unpriced"}`, one exchange. The request body carries `model`, `temperature` 0.0, `max_tokens` 300 and `response_format` `{"type": "json_object"}`; the system message is `"synthetic role\n\n" + RESPONSE_CONTRACT`. `prompt_digest` equals the hand-computed `sha256_hex("synthetic role")`, and `settings_digest` the hand-computed digest of the effective configuration. **200 without `model`:** `effective_model` `"unknown"`. **400, then 200:** two exchanges; the second body has no `response_format`; `advice`. **400 with `json_mode` false:** one exchange, `provider_error`, `configuration_error`. **429** with `{"error": {"code": 429, "status": "RESOURCE_EXHAUSTED", "message": "quota exceeded"}}` and also a `choices` entry holding `V_ALLOW`: `provider_error`, reason `sim.invalid did not answer: HTTP 429 (RESOURCE_EXHAUSTED): quota exceeded`. Through step 4's `classify`, that receipt is `unavailable` `provider_error`, never a contribution (POL-037). **`TransportTimeout`:** `timeout`, which `classify` makes `timeout` `provider_timeout`. **`finish_reason` `length`:** `invalid_output`. **Content `"I think CE"`:** `invalid_output` (reason `the model did not return JSON`). **`{"abstain": true, "reason": "flat"}`:** `abstained`. **`choices` `[]`:** `provider_error`. **2xx body `not json`:** `provider_error`, `failure` `ResponseNotJson`. **No `ADVISOR_API_KEY`:** `not_configured`, 0 transport calls. **Instruction `""`:** `not_configured`. **Config `prompt_root` `"x"`:** `not_configured`. **`prompt_digest` `"0"*64`:** `not_configured`; equal to `sha256_hex("synthetic role")`: `advice`. **No `model`:** raises `ProviderConfigError`. `context_refs` for inputs `spot` and `chain` are two entries in that order, without values. **Redirect (review R-4; with `UrllibTransport`, against two local `http.server`s on 127.0.0.1):** the first answers `302` with `Location` naming the second. The answer is `provider_error`, `provider_status` 302, and the second server receives 0 requests. **Key scrubbed before the cut (review R-6):** with `KEY` set to `"sim+adv/" + "k" * 24` (so its URL-quoted forms differ), a 429 whose `error.message` is `"m" * 290 + KEY + "tail"` gives a recorded message of exactly `"m" * 290 + "***tail"` (297 characters; cut first, it would have kept 10 characters of `KEY`). No prefix of `KEY` of 4 characters or more, in any of its forms, appears in the reason, the attempts file or any exchange file. **Trimming:** 50 bars give the last 40 in the user message; 12 chain rows at strikes 100…1200 (step 100) with spot 640 give the 7 strikes 300…900 |
+| `rule` | **15 closes alternating 100, 102 (ending 100), then 102.5:** `advice`, `CE`, conviction 1.0, reason `close 102.5 broke the session high 102 by 25.00% of range`; through `classify`, `invalid` `invalid_typed_output`. **Only those 15 closes:** `abstained`, `15 bars, warmup is 15`. **`ema_cross` with 16 bars:** `abstained`, `16 bars, need 22 for a 21-EMA cross`. **Signal `contribute:ALLOW`:** raises `ProviderConfigError` |
+| Statuses | `consultation_status` on hand-built views: a view with no abstention and failure `"x"` is `advice`; abstaining with failure `ReadTimeout` is `timeout`; `backend_raised` is `backend_error`; failure `HTTPError` is `provider_error`; tags `provider_backoff`, `provider_failure`, `backend_error`, `not_configured`, `budget_exhausted`, `invalid_output` give their statuses; none gives `abstained` |
+| Chain | `ChainBackend` over fake members: [`provider_error`, `advice`] returns the second answer, attempts in order [a, b]. [`abstained`, …] returns the abstention; b is never called. [`invalid_output`, …] returns a's answer. [`not_configured`, `not_configured`] gives `not_configured`. [`budget_exhausted`, `budget_exhausted`] gives `budget_exhausted`. [`timeout`, `backend_error`] gives `provider_error`, reason `chain adapters failed: a (timeout), b (backend_error)`. A member named `chain` raises. `consult` with backend `chain` gives `not_configured`, reason `provider fallback is inactive (POL-036 open)`, no attempts, no member built |
+| Budgets and settings | `budget_decision({}, "sim.invalid", "sim_a", "2026-11-02")`: `allowed` true, `reason` `""`, `remaining.calls` `"unlimited"`. 50 consults in a row with budgets `{}` each reach the transport. Loader (`resolve()` never raises for budgets): `cognition: {providers_budgets: {}}` reads `"{}"`; `{"*": {"calls_per_session": 0}}`, `{"sim.invalid": {"amount_per_session": 0, "currency": ""}}` and `{"*": null}` read `"{}"` (legacy's unlimited); `{"*": {"calls_per_session": 5}}` reads its canonical text `{"*":{"calls_per_session":5}}`; `{"*": {"calls_per_session": -1}}` and `[1]` read as `{"unreadable": …}` texts; environment `" {} "` reads `"{}"`, `not json` reads as an unreadable text. **The kernel still composes with a capped budget bound:** `compose_simulation` with settings resolved from `{"*": {"calls_per_session": 5}}` returns a composition, and `compose_strategy_host` composes. `compose_cognition` with that cap, or an unreadable text, raises `BudgetCapUnsupported`. `providers_fallback` `inactive` reads; `active` raises. `advisor_pause_warn_minutes` unbound in the profile reads the shipped 15; `0` reads 0; `-1` and `1.5` raise. `compose_cognition` with each of the four set unbound (the pause bound explicitly `null`) raises `RefusingParameterUnbound` naming the spec key, in the stated order. With `Secrets()` empty, an `http` role's child environment has no `ADVISOR_API_KEY`. With a synthetic `advisor/api_key`, an `http` child has it and a `rule` child does not |
+| Pause warning | Rows `(started_at, backoff, next_probe_at, status)`, `warn_minutes` 15. `[(T0, true, T0+5400, 429)]`: warning, `paused_minutes` 90.0, `what` `AI advisor paused for 90 min by provider rate limit`. `T0+900`: none. `T0+901`: warning, `paused_minutes` 15.0, `what` `… 15 min …`. `[(T0−60, false, None, 200), (T0, true, T0+600, 429), (T0+300, true, T0+600, 429), (T0+600, true, T0+1200, 429)]`: one warning, `since` `T0`, 20.0 min. Through `CircuitBook.observe`, a further `(T0+700, true, T0+1200, 429)` gives no second warning. Then `(T0+1300, false, None, 200)` and `(T0+1400, true, T0+2400, 503)` give a second warning, `paused_minutes` 16.7, `what` `AI advisor paused for 17 min by provider backoff`. `warn_minutes` 0: none. Last row not backoff: none. `record_pause_warning` twice: one store row |
+| Secret refusal | `pin_role` with these instructions fails with `failure` `profile_resolution_failed:ActivationError`, config `{}` and instruction `Profile resolution failed.`: `"use api_key=sim1"`, `"x " + "sk-" + "a"*20`, `"AIza" + "b"*10`, `"Passphrase: sim"`, and a config `{"model": "sk-" + "a"*20, …}`. `"the secret is patience"` passes. A run with a refused pin on optional `spec_b` is `required_role_failed` with no child (step 4's rule 2). The failure text never contains the matched value |
+| Run records | A hand-built `TeamResult` for step 4's `VALID` (all three contributing `ALLOW`), with hand-written receipts, `<task>.attempts.json` files and exchange files in `tmp_path`, and an in-memory `publish` that logs its order. The run record's fields equal the hand-written expectation. `request_ref` equals `request_digest` and the hand-computed digest of the request content, including `deadline_secs` 60.0 for `started_at` 1000.0 and `deadline` 1060.0. The published request's `blueprint` and `pins` equal `VALID.as_dict()` and the three pins' fields. `run_id` and every `output_ref` equal hand-computed digests, and `output_ref` equals `output_digest`. The request, every exchange and output ref are published before the run record, and the run record before the store row. The store row is sequence 1 with `previous_integrity_sha256` `""` and a hand-computed `integrity_sha256`; `terminal_state` is `completed`. A response body of 5,000 characters is kept whole (its resolved content equals the file). An attempt entry with `kept` false has `response_ref` `None`. A second `record_run` publishes nothing and appends nothing. An attempts file holding `KEY` in its metadata is published with `***` and `scrubbed` true. A receipt that carries an `attempts` key is ignored for attempts (only the file is read). An attempts file naming another `task_id` gives `attempts_unreadable` true. **Receipt boundary (review R-5):** with a role's `output_bytes` N set to the hand-computed size of its contribution receipt, and an attempts file 20,000 bytes long, step 4's `classify` reads the receipt as a `contribution`, and the recorder records every attempt. A `late` task's attempts are recorded with `late` true. A `deadline_expired` result gives `terminal_state` `unavailable` and `synthesis` `None` |
+| Record store | Three `create`s give sequences 1, 2, 3, chained. Line 2's payload edited on disk raises `RecordStoreError("invalid AI management integrity at line 2")`. An unterminated fourth line that the state never published is cut off: three rows, and the file ends in a newline. `created → running → completed` passes; then `running` raises `record is terminal in state 'completed'`, and `completed` again returns the row without appending. The target `bogus` raises. The same ID with another kind raises. **Linux only:** `events.jsonl`, `state.json` and `.lock` are 0600, the root 0700 |
+| Replay (PRF-STR-06) | `stage_replay` of the run-record case writes one file per task with the resolved responses. `consult` in process with `AT_COGNITION_REPLAY_DIR` set, `forbid` a recorder and `transport` a factory that raises if built: `forbid` is called once, before anything else, and the answer has the same status and reason as recorded for `http` (`advice`, `json.dumps(ALLOW)`) and `rule`. **The audit hook (review R-3), in a subprocess** (`python -I -c`, which calls `forbid_network()`, then attempts each of the following; the test reads its exit lines): `socket.create_connection(("127.0.0.1", 9))`, `_socket.socket().connect_ex(("127.0.0.1", 9))`, a UDP `socket.socket(AF_INET, SOCK_DGRAM).sendto(b"x", ("127.0.0.1", 9))`, `socket.getaddrinfo("localhost", 80)`, `socket.gethostbyname("localhost")`, `sendmsg` on a UDP socket (POSIX only) and `subprocess.Popen([sys.executable, "-c", "pass"])`. Each raises `ReplayNetworkRefused`. A local UDP listener started by the test receives 0 datagrams. **`replay_request`** on the run-record case gives `VALID`, its three pins and the recorded `TeamRequest` fields. With `clock` 5000.0 the deadline is 5060.0. A request whose `blueprint` is edited raises `RecordError`. A missing task file gives `replay_gap`, and `classify` makes it `unavailable` `replay_gap`. A response staged `null` gives `replay_gap`. A recorded `backoff` attempt replays as `provider_error` with its recorded reason |
+| End to end | **Live recording:** the local server answers `V_ALLOW` for `spec_a`, `spec_b` and the lead (`http` pins naming its URL), and its 429 body and error message echo `KEY`. `VALID` with all three `http` gives `result` `ALLOW`. `record_run` gives `completed`, three roles with one attempt each, `effective_model` as the server reports it. **Key scan:** no byte sequence of `KEY` or of its JSON-escaped or URL-quoted forms appears in any file under `tmp_path` (run directory, receipts, record store, published objects), nor in the captured log text. A second live run where `spec_b`'s endpoint answers 429 gives `result` with `unavailable_optional` `("spec_b",)` and `spec_b`'s attempt `provider_error`. **Replay:** the server is stopped. The test drops every in-memory object of the live run and builds the blueprint, pins and request with `replay_request` from the run record and the evidence store alone (review R-2). `compose_cognition_replay` re-runs it under its `run_id`. It gives an equal `TeamResult` (outcome, payload, each role's outcome and `output_digest`) and a run record whose roles' `output_digest`s equal the recorded ones. One task's replay file deleted gives that role `unavailable` `replay_gap`, and `required_role_failed` when it is `spec_a` |
+
+**Changed existing tests:** `tests/unit/test_secret_references.py` if it lists `SCOPES` (the `cognition` row); a test that lists every `Settings` field or loader row gains the three fields. The builder names each in the as-built table. `tests/unit/test_cognition_assembly.py` is not changed. Its scripted child writes no `attempts`, and the `delegated` split leaves its `env` cases equal, because its runs pass no credential.
+
+### Break checks
+
+Each is applied with its anchor checked first (exactly one occurrence, its text recorded in the as-built table), one at a time, run against `test_provider_records.py`, and restored byte for byte with an md5 check. At least:
+
+| Change | Test that must fail |
+|---|---|
+| A 429 opens only at the streak threshold | Circuit (429 at `T0`) |
+| The session-close clamp removed | Circuit (21600 at `T0`) |
+| A non-finite Retry-After taken as a number | Circuit (`inf`) |
+| `minutes > warn_minutes` written `>=` | Pause warning (`T0+900`) |
+| A warning on every qualifying row | Pause warning (the second backoff row) |
+| `effective_model` falls back to the requested model | `http` (200 without `model`) |
+| The 400 resend removed | `http` (400, then 200) |
+| A failed call's body parsed for an answer | `http` (429 with `V_ALLOW`) |
+| The chain falls through on `abstained` | Chain |
+| `consult` builds the chain | Chain |
+| A replay gap answered `abstained` | Replay |
+| `forbid_network()` not called | Replay |
+| The audit hook without `socket.sendto` | Replay (the subprocess's UDP case) |
+| Redirects followed (urllib's default handler) | `http` (redirect: the second server receives a request) |
+| The key scrubbed after the 300-character cut | `http` (key at character 290) |
+| Attempts written into the receipt | Run records (receipt boundary) |
+| The request not published (`request_ref` absent) | Run records; End to end (replay from records) |
+| The replay deadline taken from the recorded epoch | Replay (`replay_request` at 5000.0) |
+| The loader raises on a real budget cap | Budgets and settings (the kernel composes) |
+| `compose_cognition` accepts a real cap | Budgets and settings |
+| The child's scrub removed | End to end (key scan); Run records |
+| The run record published before its references | Run records |
+| The record store's integrity check skipped | Record store |
+| `refuse_secrets` removed from `pin_role` | Secret refusal |
+| The response body cut to 2,000 characters | Run records (5,000 characters) |
+| The credential passed to `rule` children | Budgets and settings |
+
+### Files
+
+| File | Change |
+|---|---|
+| `cognition/providers.py` | New: `consult`, `Transport`, `HttpResponse`, `UrllibTransport`, `TransportError`, `TransportTimeout`, `ProviderConfigError`, `RuleBackend`, `HttpBackend`, `ChainBackend`, `RESPONSE_CONTRACT`, `view_from_reply`, `consultation_status`, `retry_after`, `secs_to_session_close`, `Circuit`, `CircuitBook`, `PauseWarning`, `pause_warning`, `budget_decision`, `unlimited`, `forbid_network` (the audit hook), the redirect-refusing opener, `ReplayNetworkRefused`, the replay answerer |
+| `cognition/records.py` | New: `run_id`, `RunRecorder`, `RunRecorded`, `RecordError`, `RecordStore`, `RecordStoreError`, `stage_replay`, `replay_request`, `record_pause_warning` |
+| `cognition/runtime.py` | `_child_main` writes `<task>.attempts.json` before the receipt; `replay_gap` among the unavailable statuses; `replay_dir`; the credential only to `http` children |
+| `cognition/blueprint.py` | `SECRET_SHAPES`, `ActivationError`, `refuse_secrets`, the check in `pin_role` |
+| `settings/schema.py` | `providers_fallback`, `providers_budgets`, `advisor_pause_warn_minutes` |
+| `settings/loader.py` | Three `_COGNITION` rows and the `"budgets"` kind, which never raises |
+| `resources/defaults.yaml` | `operations: {advisor_pause_warn_minutes: 15}` |
+| `settings/secrets.py` | `SCOPES["cognition"]` |
+| `bootstrap.py` | `compose_cognition`, `compose_cognition_replay`, `BudgetCapUnsupported` |
+| `tests/unit/test_provider_records.py` | New (T-56, PRF-STR-06) |
+
+**No new tree delta:** both modules are in README §6 and the module index, and the test file is T-56. One setting ships a value: `operations.advisor_pause_warn_minutes` 15, legacy's. There is no ledger migration and no event kind.
+
+### Completion conditions (step 5)
+
+* **Targeted tests only:** `tests/unit/test_provider_records.py`, `tests/unit/test_cognition_assembly.py` (the runtime and blueprint edits), `tests/contracts/test_capabilities.py`, `tests/unit/test_strategy_invocation.py` (it composes through `bootstrap.py`), `tests/unit/test_policy_parameters.py` and `tests/unit/test_secret_references.py`. They pass twice in a row locally. **The Linux-only cases** (the record store's file modes, and step 4's limit and sweep cases with the edited runtime) run on the EC2 in a throwaway folder, `~/claude-desktop/outputs/s09e/`, through a script in `~/claude-desktop/scripts/` like step 4's `s09d_linux_tests.sh`. It unpacks the working tree and a throwaway venv that reuses `~/at-dev`'s packages through a `.pth` file. Nothing is installed or downloaded, nothing shared is changed, and the folder is removed afterwards. Every break check fails a listed test, and every file is restored (md5). `ast.parse` passes on every new or edited Python file.
+* `git diff --stat` against the branch head at the start of step 5 names only the files above and any changed test the as-built table names. SLICE-10 step 7 is being built in OA_NEW now and may touch `settings/loader.py`, `resources/defaults.yaml` or `bootstrap.py`; step 5's builder starts from its as-built head.
+* PRF-STR-06's clauses each pass a group:
+  * requested and effective model, `unknown` when unreported, and prompt identity (`http`; End to end);
+  * chain attempt order, and the chain refused while `inactive` (Chain);
+  * Retry-After clamped at the close and a non-finite hint backed off (Circuit cases);
+  * one warning past 15 minutes (Pause warning);
+  * `{}` budgets refuse nothing (Budgets and settings);
+  * a 429 is `provider_error`, never an action (`http`; End to end);
+  * replay answers from records with the network refused, and a gap is `replay_gap` (Replay; End to end).
 
 ## Step 6 — review, proposals and advice (outline)
 
