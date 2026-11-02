@@ -53,7 +53,7 @@ Who may trade, the kill rules and the limits stay as today.
 | 1 | `OperatorRequest` (with `epoch` and `channel_identity`) and `argument_digest` (`contracts/identity.py`). In `interfaces/authorization.py`: the channel table, the identity map, relay rules, sessions bound to identity, kernel epoch, lifetime and cap; nonces and retry identity; the confirmation table with `prepare` and `execute`, the request minted at `execute`. Pure and in memory | PRF-SEC-01, PRF-SEC-02 |
 | 2 | The kernel's binding check (`kernel/authority.py`): `Authenticated.request` and `via`, `authority.bind` in every human entry point. Its refusals: `SEC-R04`, `-R07` (admission and dispatch), `-R08`, `-R09`, `-R10`, `-R19`, `-R20`. `OPERATOR_REQUEST` and its index table (migration, tree delta **T-67**); bounded `OPERATOR_REQUEST_REFUSED`; the `kernel:safety` kill-input exemption. The disarmed authentication table in `bootstrap.py` is replaced by step 1's | PRF-SEC-03 |
 | 3 | `settings/secrets.py`: references, protected sources, the live `env_source` warning for broker credentials, per-service scope, `Secret`, child environments, `scrub` and `redact`. `CREDENTIAL_BOUND`; `scrub` on the kernel's evidence and log writes; secret references in `config/live.example.yaml` | PRF-SEC-04 |
-| 4 | Kill inputs, on every platform. The kernel reads `risk_guard.kill_switch` and `risk_guard.kill_switch_file` (alias `MCP_KILL_SWITCH_FILE`) before each claim, on each wake and before `OPERATING`, and `kernel:safety` records `KILL_ENGAGED`. `SEC-R16`; the live refusal of an empty path; `at kill-switch on`, `off` and `status` in `interfaces/cli.py`, with the file written first | PRF-SEC-12 |
+| 4 | Kill inputs, on every platform. The kernel reads `risk_guard.kill_switch` and `risk_guard.kill_switch_file` (alias `MCP_KILL_SWITCH_FILE`) before each claim, on each wake and before `OPERATING`, and `kernel:safety` records `KILL_ENGAGED`. `SEC-R16`; the `kill_file_unwatched` alert for an empty path; `at kill-switch on`, `off` and `status` in `interfaces/cli.py`, with the file written first | PRF-SEC-12 |
 | 5 | `adapters/unix_channel.py`: the kernel socket, attestation of service and relay peers (main pid of an approved unit, its own uid, process identity), the exact contract version and release digest, framing, the epoch on every reply | PRF-SEC-05 |
 | 6 | The operator process (`interfaces/api.py`, `deploy/systemd/at-operator.service`): the owner API (reachability, origin, per-session CSRF, nonce, body cap), the CLI socket (mapped login users only), the relay. The catalogue's routes and `at` commands in `interfaces/cli.py`, the latch's strategy-to-session mapping, reads, alerts and the event stream | PRF-SEC-06, PRF-SEC-07 |
 | 7 | The legacy-mutation table: every other owner mutation's door, routed to its owner or mapped, `SEC-R22` until an owner is composed; the advice-application route (`advice_apply`, REQ-SEC-011) | PRF-SEC-13 |
@@ -157,7 +157,7 @@ Each **Fork call** keeps legacy's live behaviour because it touches who may trad
 * **Fork call — peer attestation** on the kernel socket: Linux uid, systemd unit and process identity (`service.py:270-284`; `README.md:1145`).
 * **Deviation — CLI owner (logged for the owner's review).** The CLI connects to the operator process's socket. The CLI owner is an explicitly mapped login uid outside any service, instead of any process reaching loopback (`exposure.py:48-56`). This keeps the Tier-1 rule that no service process acts as the owner (`service.py:270-277`).
 * **Deviation — kill file removal (kill rights; logged for the owner's review).** Deleting the file without `at kill-switch off` no longer releases kill. Release is a recorded `KILL_RELEASED` by a principal holding `kill_release` (POL-002, Q-014); legacy released when the file was gone (`deploy/at:4280`).
-* **Deviation — empty kill path.** A live composition refuses to start with an empty `risk_guard.kill_switch_file`, where legacy then watches nothing (`config/defaults.yaml:133`; `deploy/at:4262-4270`).
+* **Fork call — empty kill path.** A composition with an empty `risk_guard.kill_switch_file` starts as legacy does, reading only the flag; recovery raises the alert `kill_file_unwatched`, and `at kill-switch on` says trading is not stopped and exits 1 unless the kernel recorded kill (`config/defaults.yaml:133`; `deploy/at:4252-4270`).
 * **Deviation — audit in the ledger.** `OPERATOR_REQUEST` and bounded `OPERATOR_REQUEST_REFUSED` replace the side JSONL row (`security.py:92-112`; LD-15). Legacy's attribution strings are kept.
 * **Deviation — replay.** A CSRF token per session and identity, a nonce per mutation, and sessions dropped at a kernel epoch change, replace one token per process (`security.py:13`; `write.ts:41-45`).
 * **Deviation — binding for every privileged operation,** with consumption recorded in the ledger. Legacy binds only cancel and close, and keeps used IDs in memory (`owner_command.py:60-62`).
@@ -1369,19 +1369,312 @@ Commit `ba2face` on `slice-08`, after `53b7d97` (SLICE-08 step 6), which touched
 
 **Break checks** (`s10c_breaks.py` in the session scratchpad; anchors checked first, one mutation at a time, every file restored byte for byte, md5 verified). On Windows 28 of 28 failed a listed test. The two POSIX rows (`permissions` and `owner` not raised) ran on Linux: 2 of 2 failed `test_sources_warn_never_refuse`.
 
-## Step 4 — kill inputs (outline)
+## Step 4 — kill inputs
 
-Deepened after step 3 is built. Authority: the spec's [Kill inputs](../../design/security-and-operator.md#kill-inputs). Cross-platform: plain file and setting reads, no socket.
+<a id="step-4--kill-inputs-outline"></a>
 
-* **Builds:**
-  * the input check in the kernel (a contribution to `kernel/safety.py` and `kernel/coordinator.py`), run before every claim, on each wake and before `OPERATING`;
+The authorities are the spec's [Kill inputs](../../design/security-and-operator.md#kill-inputs) section, CUJ-SEC-6, and F-SEC8 and F-SEC11 in its [failure modes](../../design/security-and-operator.md#failure-modes-and-crash-points). Step 4 builds on steps 2 and 3 as built (`cb439ce`, `ba2face` on `slice-08`). It uses step 2's kill-input exemption (`kernel:safety` may engage kill, with reason `kill_file` or `kill_flag` only) and step 1's `kill_release` door rule. It adds no socket, process or event kind. The check is plain file and setting reads, so every case runs on Windows and Linux. Every `OA_NEW` citation is at `ba2face`; every legacy citation is at 445eb116 (`deploy/at` and `config/defaults.yaml` opened with `git show`).
+
+**In plain words.** The kill file and the kill setting work as today. Create the file, or set `risk_guard.kill_switch`, and the kernel stops trading before its next order. It does so at start, on every pass and before every send, even if nothing else is running, and it writes down that it did. `at kill-switch on` writes the file first, with today's text, so stopping never waits on any service. It also tells the kernel when it can. `at kill-switch off` asks you to type `DISENGAGE`, removes the file, and asks the kernel to lift kill. Deleting the file alone no longer lifts kill, as you accepted, and kill cannot be lifted while the file or the setting is still there. If the setting names no kill file, trading still starts, as today. The start raises an alert, and `at kill-switch on` tells you trading is not stopped unless the kernel recorded kill. You can still cancel and close your own orders under kill, as today.
+
+### Decisions
+
+#### The inputs (`kernel/safety.py`)
+
+* `KillInputUnreadable(Exception)` carries the path it could not check.
+* `KillInputs`, exactly:
+
+  ```python
+  @dataclass(frozen=True, slots=True)
+  class KillInputs:
+      flag: bool
+      files: tuple[str, ...]
+  ```
+
+  `__post_init__` raises `ValueError` unless `flag` is a `bool` (no other type), and `files` is a tuple of distinct `str` paths, each absolute (`os.path.isabs`), possibly empty. The property `watched` is `bool(self.files)`.
+* **The deployment root.** One fixed directory that does not change between releases (SLICE-11 installs it; releases live beneath or beside it), shared by the kernel, the CLI and the MCP process. Legacy resolved against the repository root, which an in-place update left unchanged (`src/core/framework/execution/killswitch.py:68-85`). Resolving against a release directory would move the kill file at every release, so a `touch` of the old path would stop nothing.
+* `KillInputs.resolve(flag, texts, root) -> KillInputs` builds it from the settings, and is the only builder: the kernel, the CLI (below) and the MCP process (step 8) each call it with the same settings and the same `root`.
+  * Each text is stripped, and an empty one is skipped. `~` is expanded.
+  * An absolute path is kept; a relative one is joined to `root`.
+  * Duplicates are dropped, keeping first-seen order.
+  * `root` must be absolute (`ValueError`).
+* `present() -> str | None` is legacy's `engaged` order (`killswitch.py:88-100`): `"kill_flag"` when `flag` is set, else `"kill_file"` when any file exists, else `None`.
+  * **Exists** means `os.stat(path)` succeeds, for a file, a directory or anything else, as legacy's `Path(path).exists()` (`killswitch.py:100`).
+  * **Absent** is exactly what that call treats as absent on legacy's runtime, Python 3.13.5 on the live host (`pathlib._abc._ignore_error`, read there):
+    * an `OSError` whose `errno` is `ENOENT`, `ENOTDIR`, `EBADF` or `ELOOP`;
+    * an `OSError` whose `winerror` (read with `getattr`) is 21, 123 or 1921;
+    * a `ValueError` (a path the platform cannot encode, such as one holding NUL).
+  * Every other `OSError` raises `KillInputUnreadable(path)`.
+  * Nothing is cached: every call reads, because the file must be able to appear while the kernel runs (`killswitch.py:92-94`).
+* `present_files() -> tuple[str, ...]` lists the files that exist, by the same rule.
+* `present_inputs() -> tuple[str, ...]` names what is present: `"risk_guard.kill_switch"` when the flag is set, then `present_files()`. A path whose check raises is named as `"<path> (unreadable)"`.
+
+#### The check (`kernel/safety.py`)
+
+* `SAFETY_AUTH = Authenticated(SAFETY, "in_process", request=None, via=None)`, built once in `kernel/safety.py`. The file joins the `Authenticated(` builder set in `tests/contracts/test_capabilities.py`, as step 2 said (`_BUILDERS`).
+* `Safety(…, kill_inputs: KillInputs | None = None)` keeps it as `self.kill_inputs`. `None` means not composed: the check does nothing.
+* `Safety.present_kill_inputs() -> tuple[str, ...]` is `self.kill_inputs.present_inputs()`, or `()` when none are composed. The CLI's link reads it, so a refusal and the status name the kernel's own paths.
+* `check_kill_inputs() -> str` returns one of these, in this order:
+  * `"off"` when no inputs are composed, or when `self.authority.stage()` is neither `RECOVERY_WRITING` nor `OPERATING` (nothing is read);
+  * `"unreadable"` when `present()` raises (nothing recorded);
+  * `"absent"`;
+  * `"held"` when an input is present and `killed()` is already true (nothing recorded);
+  * `"engaged"` after `engage_kill(SAFETY_AUTH, reason)` commits, where `reason` is `present()`'s answer.
+
+  A `LED-R09` from that commit (kill engaged since `killed()` was read) is also `"held"`. Any other refusal is impossible for `kernel:safety` in `RECOVERY_WRITING` or `OPERATING` (`BUILTIN`, step 2), and raises `WriterLost`, as every failed kernel commit does. The event is `KILL_ENGAGED` with payload `{"reason": "kill_file" | "kill_flag", "principal": ["kernel:safety", "kernel"]}` and no `OPERATOR_REQUEST`.
+* `self.kill_input_state` keeps the last answer, for status reads (step 6).
+
+#### Where the kernel checks (`kernel/coordinator.py`, `kernel/recovery.py`)
+
+| Where | Call | When the answer is `"unreadable"` |
+|---|---|---|
+| `Coordinator.run_pass`, after the returns and `observation_loop.drain()` (`kernel/coordinator.py:418`) and before the stage test (`:419`), when `self.safety` is not `None` | `self.safety.check_kill_inputs()` | The pass returns at once, as a non-`OPERATING` pass does (`:419-420`): no protection, no sweep, no claim |
+| In the claim loop, right before `self._revalidate(…)` (`:459`) | the same | The loop stops; the command and every later one wait this pass |
+| `Coordinator.dispatch_inline`, before `self._revalidate(cmd, inline=True)` (`:370`) | the same | `Outcome(key, None, "not_sent", "unchanged", "none", {}, None, False, None)`, as the `WAIT` ticket returns (`:377-378`): nothing claimed and no refusal recorded |
+| `Recovery.run`, right after `self._bind_credentials()` (`kernel/recovery.py:173`), in `RECOVERY_WRITING` | the same, through `self.coordinator.safety` | Nothing recorded |
+| `Recovery._advance_record` (`:376-380`), before its `RECOVERY_STAGE` | the same | Nothing recorded; the advance proceeds, and the first pass then claims nothing |
+
+* A present input is therefore recorded as `KILL_ENGAGED` before the claim. The claim is then refused by the kill matrix at revalidation (`kernel/safety.py:472-480`; `kernel/coordinator.py:298-300`). The owner's cancel and close under kill keep their matrix rows (`safety.py:473-476`).
+* **Fork call (an unreadable input sends nothing).** Legacy's guard raised at the send boundary when the check itself failed (`killswitch.py:99-100`, `:111`), so nothing was sent while the error lasted, and nothing was recorded. The target claims nothing while it lasts and records nothing. It neither engages kill nor treats the input as absent.
+* `Recovery.run` adds `"kill_inputs"` to its report when inputs are composed: the answer of its own start check, the call after `_bind_credentials()` (`"absent"`, `"held"`, `"engaged"` or `"unreadable"`). It appends the alert `kill_file_unwatched` to `self.alerts` when `watched` is false.
+* "On each wake" is met by the pass check: the host (SLICE-11) runs `run_pass` on every wake.
+
+#### Release: `SEC-R16` (`kernel/safety.py`, `kernel/authority.py`)
+
+* `_MESSAGES` (`kernel/authority.py:81-87`) gains `"SEC-R16": "kill_input_present"`.
+* `_commit` gains one keyword: `_commit(self, auth, use, kind, payload, texts, *, target, args, kill_reason=None, after_auth: Callable[[], Refusal | None] | None = None)`. It calls `after_auth()` **after** bind, after `_authorized` and after the text guard (`kernel/safety.py:229-239`), and before the commit. A `Refusal` it returns is returned through `self.authority.refused(auth, refusal)`. Only `release_kill` passes it, as `after_auth=self._kill_input_check`.
+* `_kill_input_check()`: when `self.kill_inputs` is composed and `present()` is not `None`, the release is `Refusal("SEC-R16", "kill_input_present", None, "KILL_RELEASED")`, returned through `authority.refused` (so a bound request records `OPERATOR_REQUEST_REFUSED` once). A person without `kill_release` therefore still gets `SES-R02`, and learns nothing about the inputs.
+* When `present()` raises `KillInputUnreadable`, the release is also `SEC-R16`: an input the kernel cannot read may be present, and legacy stayed engaged while its check failed.
+* **Deviation — kill file removal** (the slice-level Deviation, accepted by the owner: [combined answers](../../decisions/owner-answers-2026-10-27.md#combined-answers-slices-0914-2026-10-30), "Stricter behaviours"). Kill is ledger state. Removing the file releases nothing; only `KILL_RELEASED` by a principal holding `kill_release` does.
+
+#### Settings (`settings/schema.py`, `settings/loader.py`, `resources/defaults.yaml`)
+
+* `Settings` gains `kill_switch: bool = False` and `kill_switch_files: tuple[str, ...] = ()`, the raw texts. They are plural because the environment may name more than one (below). Both have defaults, as legacy shipped `false` and `""` (`config/defaults.yaml:132-133`). They are not refusing settings.
+* `resources/defaults.yaml` gains `risk_guard: {kill_switch: false, kill_switch_file: ""}`.
+* `settings/secrets.py`'s `_ENV_ALIASES` gains legacy's two kill aliases, `"MCP_KILL_SWITCH": "risk_guard.kill_switch"` and `"MCP_KILL_SWITCH_FILE": "risk_guard.kill_switch_file"` (`src/config/__init__.py:115-116`). Its `env_path` stays legacy's rule. `child_environment` compares only with `BROKER_KEY_PATH`, so it does not change.
+* `loader.resolve` reads both keys (importing `env_path` inside the function, since `settings.secrets` imports the loader):
+  * **Names.** Every environment name `n` with `env_path(n) == "risk_guard.kill_switch"` (or `…_file`): the alias, `AT__RISK_GUARD__KILL_SWITCH` in any letter case after `AT__`, and `MCP_RISK_GUARD__KILL_SWITCH`. When at least one is set, the environment replaces the YAML value, as legacy's overrides did (`src/config/__init__.py:441-444`, `:452-462`).
+  * **The flag's value** is legacy's coercion then `bool` (`_coerce`, `src/config/__init__.py:232-261`; `killswitch.py:97`). The text is stripped and lower-cased:
+    * `1`, `true`, `yes`, `on` engage;
+    * `0`, `false`, `no`, `off`, `""`, `none`, `null` do not;
+    * an integer or a float engages unless it is zero;
+    * a JSON array or object engages unless it is empty;
+    * any other text engages.
+
+    A YAML value engages if and only if `bool(value)`, as legacy read the setting (`killswitch.py:96-97`): `false`, `null`, `0`, `""` and empty collections do not; any other value does, a quoted `"false"` included.
+  * **The file's value:** the stripped text; `""`, `none` and `null` name no file.
+  * **Order.** The names that are set are taken in code-point order of the name (`sorted`), and their values read in that order.
+  * **More than one name set** (legacy applied them in environment order, last wins, `:456-460`, which is not reproducible): the flag engages if any value engages. Every distinct file text is kept, in that order, with later duplicates dropped. For `MCP_KILL_SWITCH_FILE=/k1` and `AT__RISK_GUARD__KILL_SWITCH_FILE=/k2`, `kill_switch_files == ("/k2", "/k1")`, because `AT__…` sorts before `MCP_…`.
+  * Nothing here raises: no value of either key refuses to load.
+* **Fork call (legacy's kill keys, names and coercion).** Both keys, legacy's aliases and generic names, legacy's coercion, and the environment over YAML are kept. Where legacy's answer depended on environment order, the target resolves towards stopping. Neither input can be turned into a refusal to start.
+
+#### No kill file named: an alert, not a refusal
+
+* A composition whose `KillInputs.watched` is false starts as legacy did, with the flag still read (`config/defaults.yaml:133`; `deploy/at:4252-4257`). `Recovery.run` raises the alert `kill_file_unwatched`.
+* **Fork call (no new start gate).** This is the slice-level "Fork call — empty kill path", and the spec's Kill inputs section, its policy inputs and PRF-SEC-12 now say the same. A refusal would stop real trading in a case where legacy traded. The CLI's loud "not stopped" message (below) keeps legacy's warning to the person.
+
+#### The composition (`bootstrap.py`)
+
+`compose_simulation(…, kill_inputs: KillInputs | None = None)` passes it to `Safety` (`bootstrap.py:220-222`). It raises `ValueError` when `kill_inputs` is given and either `admission is None` (no kernel `Safety` is composed, so the inputs would be read by nothing) or `admission.safety is not None` (a fixture safety port would judge the claim instead of the kernel's matrix). The simulation composes none unless a test passes one, so `FRESH` and every existing kind list are unchanged. SLICE-11's live composition always passes `KillInputs.resolve(settings.kill_switch, settings.kill_switch_files, <the fixed deployment root>)`.
+
+#### The CLI (`interfaces/cli.py`)
+
+A new module holding the `kill-switch` command only. Step 6 adds the other commands, the operator-process link and `__main__.py`. It imports `kernel.safety.KillInputs`, `interfaces.authorization.LEGACY_DOORS`, and `contracts` types.
+
+* `KernelUnreachable(Exception)`.
+* `KernelLink`, a protocol of four methods:
+  * `kill_engaged() -> bool`;
+  * `present_inputs() -> tuple[str, ...]`, the kernel's `Safety.present_kill_inputs()`;
+  * `engage(reason: str) -> Committed | Refusal`;
+  * `release(typed: str, reason: str) -> Committed | Replayed | Refusal`.
+
+  Each raises `KernelUnreachable` when the kernel cannot be asked. Step 6 implements it over the operator process. Until then the link is `None`, which every action treats as unreachable.
+* `cli_inputs(settings, root) -> KillInputs` is `KillInputs.resolve(settings.kill_switch, settings.kill_switch_files, root)`, the kernel's own builder with the same fixed deployment root, so the CLI writes and removes exactly the files the kernel watches.
+* `kill_switch(action, *, settings, root, link, out, ask, user, now) -> int`:
+  * `inputs = cli_inputs(settings, root)`;
+  * `fallback` is `<root>/run/KILL`, legacy's unwatched path (`deploy/at:4256`, `RUN_DIR`, `:36`);
+  * `ask(prompt) -> str | None` returns the typed line, or `None` with no terminal (legacy's `[ -t 0 ]`, `deploy/at:724`);
+  * `user` is the login name (`getpass.getuser()`, legacy's `id -un`);
+  * `now` is an aware UTC `datetime`.
+* Actions and their legacy aliases (`deploy/at:4258-4285`): `on` and `engage`; `off`, `clear` and `disengage`; `status`, the default. Any other action prints `usage: at kill-switch [on|off|status]` and returns 1.
+
+**`on`** — the file first, so stopping never waits on a service:
+
+1. Targets are every path in `inputs.files`, or `[fallback]` when none is watched. For each target, `os.makedirs(parent, exist_ok=True)`, then write `engaged by <user> at <now as %Y-%m-%dT%H:%M:%SZ>\n` (`deploy/at:4260-4261`). An `OSError` from either the `makedirs` or the write prints `could not write <path>: <strerror>`, counts that target as not written, and continues with the next.
+2. Then `link.engage("at kill-switch on")`:
+
+   | Kernel answer | Line printed |
+   |---|---|
+   | `Committed` | `the kernel recorded kill` |
+   | `LED-R09` | `the kernel already had kill engaged` |
+   | Unreachable or `None` | `the kernel was not told (not reachable); it engages from the file before its next claim` |
+   | Another refusal | `the kernel refused the record (<code> <label>)` |
+3. The result, decided in this order (the first that applies):
+   1. No target was written: it returns 1, whatever the kernel answered.
+   2. Watched and at least one file written: it prints `KILL SWITCH ENGAGED — the kernel refuses every new order` and returns 0, whatever the kernel answered (recorded, already engaged, unreachable, or another refusal). The written file stops trading before the next claim.
+   3. Not watched, and the kernel recorded kill or already had it: it prints `kill is recorded, but no kill file is watched: a later touch would not stop trading` and returns 0.
+   4. Not watched otherwise (unreachable, `None`, or another refusal): it prints legacy's warning (`deploy/at:4265-4269`): `FILE WRITTEN, BUT TRADING IS NOT STOPPED`, `no kill-switch file is configured, so the kernel is watching nothing.`, and `set risk_guard.kill_switch_file (or MCP_KILL_SWITCH_FILE) to <fallback>, then restart`. It returns 1.
+
+**`off`** — confirm, remove, then release:
+
+1. `inputs.flag` set: it prints `kill stays engaged: risk_guard.kill_switch is set; unset it first` and returns 1, asking nothing.
+2. No file present, and the link answers `kill_engaged() == False`: it prints `it was already off — nothing to do` (`deploy/at:4274`) and returns 0, asking nothing.
+3. It prints `This removes a safety gate and re-enables every new order.` and asks `Type DISENGAGE to confirm`, the door rule's prompt (`LEGACY_DOORS[("owner-cli", "kill_release")]`).
+4. Unless `typed is not None and rule.trimmed(typed) == rule.text` (spaces and tabs trimmed, exact case; `""` never matches, step 1), it prints `cancelled — kill switch stays engaged` (`deploy/at:4279`) and returns 1. The file is untouched.
+5. It removes every file in `present_files()`. A missing file is no error; a removal that raises prints `could not remove <path>: <strerror>`, and kill stays engaged.
+6. `link.release(typed, "at kill-switch off")`, with the raw typed text, which step 1's `Authorizer` checks again:
+
+   | Kernel answer | Line printed | Returns |
+   |---|---|---|
+   | `Committed` or `Replayed` | `the block is lifted — new orders are allowed again` (`deploy/at:4280`) | 0 |
+   | `SEC-R16` | `kill stays engaged: still present: <link.present_inputs(), comma-separated>`, the kernel's own paths (local `present_inputs()` when the link cannot be asked a second time) | 1 |
+   | `LED-R09` | `it was already off — nothing to do` | 0 |
+   | Unreachable or `None` | `the file is removed, but kill stays engaged in the ledger until the kernel records the release: run at kill-switch off again when the operator process is up` | 1 |
+   | Another refusal | `kill stays engaged: <code> <label>` | 1 |
+
+**`status`** — the inputs are the kernel's `link.present_inputs()`, or the local `inputs.present_inputs()` when the link cannot be asked:
+* for each present file, `ENGAGED  <path>  <its first line>` (`deploy/at:4282`);
+* for the flag, `ENGAGED  by risk_guard.kill_switch`;
+* for an unreadable path, `cannot check <path>`.
+
+Then `ENGAGED  in the ledger` when `kill_engaged()` is true, or `the kernel is not reachable: its kill state is unknown` when it cannot be asked. When nothing is engaged, `trading is not blocked` (`deploy/at:4283`). It returns 0.
+
+* **Fork call (the CLI's file half).** `on` writes with legacy's content, with no prompt and no service. `off` asks legacy's `DISENGAGE` with legacy's prompt and trim (step 1's row). The unwatched case keeps legacy's loud message and exit 1 when trading is not stopped.
+* **Deviation — the kernel half.** `on` also records `kill_engage` for the person, and `off` releases through the kernel, so the release is recorded. `off` no longer stops at "no file" (`deploy/at:4274`) unless the kernel also reports kill released, because kill is ledger state.
+
+#### Fork calls and deviations in this step
+
+* **Fork calls**, each named above:
+  * legacy's kill keys, names and coercion, resolving towards stopping;
+  * an unreadable input sends nothing;
+  * no kill file named is an alert, not a refusal;
+  * the CLI's file half.
+
+  Also unchanged: the owner's cancel and close under kill (the matrix), and that the file needs no permission check (the spec).
+* **Deviations:**
+  * kill file removal releases nothing (accepted by the owner);
   * `SEC-R16`;
-  * the legacy keys and alias, and the live refusal of an empty path;
-  * `at kill-switch on|off|status` in `interfaces/cli.py`. `on` writes the file with legacy's content, then asks the operator process to record `kill_engage`, reporting if it cannot. `off` asks `DISENGAGE`, removes the file, then requests `kill_release`.
+  * `KILL_ENGAGED` by `kernel:safety` records what legacy only read;
+  * the CLI's kernel half.
+* No score, threshold or money value is set.
 
-  Until step 6 builds the operator process, the CLI's kernel half reports "not reachable" and the file half works alone.
-* **Tests:** `tests/integration/test_kill_inputs.py` (tree delta **T-68**) on a composed simulation with a temporary file: CUJ-SEC-6, F-SEC8, F-SEC11 and every row of PRF-SEC-12.
-* **Done when:** PRF-SEC-12 passes on Windows and Linux.
+#### What later steps take from step 4
+
+* **Step 5:** no change. The kill check is in-process.
+* **Step 6:** the operator process implements `KernelLink` over the kernel channel and composes the CLI's `main` with the fixed deployment root; status reads `Safety.kill_input_state`.
+* **Step 8:** the MCP process builds the same `KillInputs` with `KillInputs.resolve` and the same fixed root, and reads the ledger's kill state, so its write tools refuse at once (the spec).
+* **SLICE-11:**
+  * fixes one deployment root that does not change between releases, and passes it to the kernel, the CLI and the MCP process alike;
+  * runs `run_pass` on every wake;
+  * surfaces the `kill_file_unwatched` alert;
+  * installs a kill-file directory the kernel's user can read and the operators' group can write.
+
+### Tests
+
+`tests/integration/test_kill_inputs.py` (tree delta **T-68**) holds PRF-SEC-12, CUJ-SEC-6, F-SEC8 and F-SEC11. Every case runs on Windows and Linux.
+
+**Synthetic values.**
+* The kill file is `tmp_path / "run" / "KILL"`, the root `tmp_path`, and the user `synthetic-user`.
+* The CLI's `now` is `datetime(2026, 11, 2, 9, 15, tzinfo=timezone.utc)`, so its content is exactly `engaged by synthetic-user at 2026-11-02T09:15:00Z\n`.
+* Worlds are `admission_world(…, kernel_safety=True, kill_inputs=…)` and `action_world(…, kernel_safety=True, kill_inputs=…)`, so the claim uses the kernel's matrix. An entry is `world.request(make_intent(), "k-1")`, admitted through `coordinator.admit_entry`. `ACK = [{"result": "ack", "order_id": "E1"}]`.
+* `SimulationLink(comp, uid)` is the test's stand-in for step 6's link:
+  * `engage` and `release` call `operator_call` with `CliEvidence(uid, 4242, None)`, then `comp.safety.engage_kill` or `release_kill`;
+  * `kill_engaged` is `comp.safety.killed()`, and `present_inputs` is `comp.safety.present_kill_inputs()`;
+  * a `Down` link raises `KernelUnreachable` from every method.
+* `KILL_SETTINGS` is a `Settings` built as the fixture builds one, with `kill_switch_files=("run/KILL",)`. Its inputs are `KillInputs.resolve(False, ("run/KILL",), tmp_path)`, and the CLI gets the same `settings` and `root=tmp_path`.
+
+| Group | Cases |
+|---|---|
+| Inputs | `KillInputs.resolve(False, ["run/KILL"], tmp_path).files == (str(tmp_path / "run" / "KILL"),)`. After `os.chdir` to another temporary directory, it still names that path. `" "` and `""` are skipped. A duplicate is dropped. `~/x` expands. A relative `root` raises `ValueError`. `present()`: `None` with nothing; `"kill_file"` with the file; `"kill_file"` with a directory at the path; `"kill_flag"` with the flag alone and with flag and file together. With `os.stat` monkeypatched for the path to raise, one case each: `OSError(errno.ENOENT, …)`, `ENOTDIR`, `EBADF` and `ELOOP` give `None`; an `OSError` subclass whose class attribute `winerror` is 21, 123 or 1921 (errno 0) gives `None`; `ValueError` gives `None`; `PermissionError` (`EACCES`) and `OSError(errno.EIO, …)` raise `KillInputUnreadable` naming the path. A path holding NUL, with `os.stat` not patched, gives `None`. `present_inputs()` with flag and file: `("risk_guard.kill_switch", <the file>)`. `KillInputs(1, ())` and a relative file raise `ValueError` |
+| Same files | With `KILL_SETTINGS` and `root=tmp_path`, `cli_inputs(settings, tmp_path)` equals the kernel's `comp.safety.kill_inputs`. That holds for `("run/KILL",)` and for an absolute text. `kill_switch("on", settings=KILL_SETTINGS, root=tmp_path, link=None, …)` writes exactly `comp.safety.kill_inputs.files`. The next pass records `KILL_ENGAGED` (`kill_file`). `status` with a `SimulationLink` names that path |
+| Settings | `resolve("test", env)` with no environment: `kill_switch is False`, `kill_switch_files == ()`. Flag text to value, one case each: `1`, `true`, `Yes`, `on`, `2`, `0.5`, `[0]` and `maybe` engage; `0`, `false`, `OFF`, `no`, `""`, `none`, `null`, `0.0`, `[]` and `{}` do not. Under `MCP_KILL_SWITCH`, `AT__RISK_GUARD__KILL_SWITCH`, `AT__risk_guard__kill_switch` and `MCP_RISK_GUARD__KILL_SWITCH` alike. `MCP_KILL_SWITCH_FILE=/k1` and `AT__RISK_GUARD__KILL_SWITCH_FILE=/k2`: `kill_switch_files == ("/k2", "/k1")`. `MCP_KILL_SWITCH_FILE=none` names none. `MCP_KILL_SWITCH=0` with `AT__RISK_GUARD__KILL_SWITCH=1` engages. **YAML** (with `loader._defaults` monkeypatched): `kill_switch: "false"` (a quoted string) engages; `false`, `null`, `0` and `""` do not; `1` engages. No value raises |
+| Pass (F-SEC8) | `admission_world(ACK)` with the file inputs. Admit `k-1`; create the file; `dispatch(world)`. `KILL_ENGAGED` by `kernel:safety`, reason `kill_file`, comes before `DISPATCH_REFUSED` of `k-1` (code `PRT-R01`, dependency `safety`). `broker.calls == []` |
+| Wake | The same world with no admitted command: create the file, then one `run_pass()`. One `KILL_ENGAGED` is recorded. A second pass records nothing more (`"held"`). **Stage:** a fresh world with the file present, its `recovery.stage` set to `"INSPECTING"` by hand: `check_kill_inputs()` returns `"off"`, records nothing and raises nothing |
+| Composition | `compose_simulation` with `kill_inputs` and `admission=None`: `ValueError`. With `admission_ports(kernel_safety=False)` (a fixture safety port): `ValueError`. With `kernel_safety=True`: composes |
+| Claim | Admit `k-1`. Wrap `comp.safety.kill_inputs` in `TouchAfter(inputs, calls=1)`, whose `present()` creates the file after answering its first call. One `run_pass()`: the pass-top check answers absent, the claim check engages, and `k-1` is `DISPATCH_REFUSED` `PRT-R01`. `broker.calls == []` |
+| Inline | `admission_world(ACK)` built with no file. Then create the file, and call `coordinator._submit_admitted(fixture_entry.request, fixture_entry.application, fixture_entry.plan)`. The outcome is refused with `PRT-R01`, `KILL_ENGAGED` is recorded first, and `broker.calls == []`. **Unreadable:** a second world, with `os.stat` raising `PermissionError` for the path: the outcome is `not_sent` with canonical `"unchanged"`, no `DISPATCH_REFUSED` and no `KILL_ENGAGED` is written, and `broker.calls == []` |
+| Start (CUJ-SEC-6, F-SEC11) | A world on the ledger; admit `k-1`; `comp.recovery.shutdown(True)`. Then `kill_switch("on", …, link=None)` returns 0. The file holds exactly the synthetic content. The output names "not reachable". Reopen on the same ledger with the file inputs and `reopen=True`. In the new epoch, `KILL_ENGAGED` by `kernel:safety` (`kill_file`) comes before that epoch's first `RECOVERY_STAGE`, and `report["kill_inputs"] == "engaged"`. `dispatch(world)` refuses `k-1` with `PRT-R01`, and `broker.calls == []` |
+| Advance | A world that authorizes nothing before `OPERATING`: `simulation([], advance=False, grant=False, calendar=admission_calendar(), admission=admission_ports(kernel_safety=True), kill_inputs=…)`. A first epoch's routine check 2 declines, so the stage stays `RECOVERY_WRITING`, with no file at start. Create the file. `owner_advance(comp)` commits. `KILL_ENGAGED` by `kernel:safety` is the event immediately before that `RECOVERY_STAGE` to `OPERATING`, each in its own decision |
+| Flag | Inputs `KillInputs(True, (), tmp_path)`: one pass records `KILL_ENGAGED` with reason `kill_flag`. With flag and file together: `kill_flag` |
+| Release | Kill engaged from the file. The owner's bound `kill_release` (`DISENGAGE` typed) while the file exists: `SEC-R16`, with one `OPERATOR_REQUEST_REFUSED`. Remove the file; the same call with a new nonce commits `KILL_RELEASED`. With the flag set: `SEC-R16`. `ops` (uid 1003, no `kill_release`) with the file present: `SES-R02`, not `SEC-R16`. With `os.stat` raising `PermissionError`: `SEC-R16` |
+| File removal | Kill engaged from the file. Delete the file and run two passes: kill is still engaged, a newly admitted `k-2` is refused `PRT-R01`, and no `KILL_RELEASED` exists |
+| Unreadable | Admit `k-1`; monkeypatch `os.stat` to raise `PermissionError` for the path; `run_pass()`. Nothing is claimed, no `KILL_ENGAGED` is written, `broker.calls == []`, and `k-1` is still `ADMITTED`. Restore `os.stat`, with no file: the next pass claims `k-1` |
+| Unwatched | A world with `KillInputs(False, (), tmp_path)` starts and advances routinely when its checks hold. `recovery.alerts` holds `kill_file_unwatched`. `report["kill_inputs"] == "absent"` |
+| Owner under kill | `action_world([{"result": "ack", "order_id": "o-stop"}, {"result": "ack", "order_id": "C1"}], kernel_safety=True, kernel_conflicts=True, kill_inputs=…)`. In order: (1) Create the file and run `run_pass()`: `KILL_ENGAGED` (`kill_file`). (2) An entry `k-e1` by `TEST_PRINCIPAL` is refused at admission, `PRT-R01`. (3) The owner's close `k-x1` naming `E1` (`action_auth`, the owner on the CLI) is admitted, then **waits** on `dispatch(world)`: the entry's protective stop `o-stop` still rests, and conflict row 3 holds a market close while a resting protective order exists (`kernel/safety.py:548-549`). (4) The owner's cancel `k-c1` of `o-stop` is admitted, and `dispatch(world)` claims and sends it, allowed under kill for a human cancel of an order with quantity remaining (`kernel/safety.py:473-474`). (5) Set the observation to show `o-stop` cancelled (`world.orders` with `o-stop` in state `cancelled`, then `world.fresh()`), and `dispatch(world)` again: `k-x1` is claimed and sent. `broker.calls` holds the cancel then the close, and nothing else |
+| CLI on | Watched, link `None`: returns 0; the content is exact; the output holds `KILL SWITCH ENGAGED` and `not reachable`. Watched, with a `SimulationLink` to the owner (uid 1001): returns 0, and `KILL_ENGAGED` is by `owner` with args reason `at kill-switch on`. **File first:** a link whose `engage` asserts the file already exists passes. Unwatched, link `None`: the fallback is written; the output holds `FILE WRITTEN, BUT TRADING IS NOT STOPPED` and the `set risk_guard.kill_switch_file` hint; returns 1. Unwatched, with a `SimulationLink`: returns 0 with the "no kill file is watched" line. The file's parent unwritable (`os.makedirs` monkeypatched to raise `PermissionError`): the output names `could not write`, it returns 1, and the link is still asked. A link whose `engage` returns `Refusal("SES-R02", "grant_scope", None, "KILL_ENGAGED")`: watched, it prints `the kernel refused the record (SES-R02 grant_scope)` and returns 0; unwatched, it prints the not-stopped warning and returns 1 |
+| CLI off | Kill engaged from the file, with a `SimulationLink`. `ask` returns `None`, `"disengage"`, `""`, or `"DISENGAGE\r"`: each returns 1, prints `cancelled — kill switch stays engaged`, and keeps the file. `" DISENGAGE\t"`: the file is removed, `KILL_RELEASED` committed, the lifted line printed, and 0 returned. With link `None` (or a `Down` link): the file is removed, the "stays engaged in the ledger" line printed, 1 returned, and no `KILL_RELEASED`. With the flag set: 1 returned, `ask` never called. No file and kill released: `it was already off — nothing to do`, 0 returned, `ask` never called. **Kernel paths:** after the CLI removes its file, a second kill file `tmp_path / "other" / "KILL"`, watched by the kernel only (its `KillInputs` names both), still exists. The release is `SEC-R16`, the line names `tmp_path / "other" / "KILL"` from `link.present_inputs()`, and 1 is returned |
+| CLI status | Nothing engaged: `trading is not blocked`. The file present: `ENGAGED  <path>  engaged by synthetic-user at 2026-11-02T09:15:00Z`. The flag: `ENGAGED  by risk_guard.kill_switch`. Link `None`: the "not reachable" line. Every case returns 0. `at kill-switch flip` returns 1 with the usage line |
+| Guard | `tests/contracts/test_capabilities.py`'s `_BUILDERS["Authenticated("]` is `{"bootstrap.py", "kernel/protection.py", "kernel/safety.py"}`. Its docstring's break check (`:151`) names `kernel/coordinator.py`, since `kernel/safety.py` is now an allowed file. `test_decisions_built_only_by_the_kernel` and `test_authenticated_never_replaced` pass |
+
+### Break checks
+
+Each mutation is applied after its anchor is checked present exactly once, run against the listed test file, and restored byte for byte with an md5 check. Each must fail a test.
+
+| Change | Anchor | Test that must fail |
+|---|---|---|
+| The pass-top check removed | `run_pass`'s `check_kill_inputs()` before the stage test | Wake |
+| The stage condition removed | `check_kill_inputs`'s `RECOVERY_WRITING`/`OPERATING` test | Wake (stage) |
+| The claim check removed | the call before `self._revalidate(cmd, inline=False, …)` | Claim |
+| The inline check removed | the call before `self._revalidate(cmd, inline=True)` | Inline |
+| The inline unreadable path records a refusal | the inline call's `"unreadable"` return | Inline (unreadable) |
+| `kill_inputs` accepted without the kernel's `Safety` | `compose_simulation`'s `ValueError` | Composition |
+| The start check removed | `Recovery.run`'s call after `_bind_credentials()` | Start |
+| The advance check removed | `Recovery._advance_record`'s call | Advance |
+| The flag ignored | `KillInputs.present`'s `if self.flag` | Flag; Inputs |
+| The file before the flag | `present`'s order | Flag (`kill_flag` with both) |
+| A directory not counted (`os.path.isfile`) | `present`'s `os.stat` | Inputs |
+| An unreadable input taken as absent | `present`'s `KillInputUnreadable` raise | Unreadable; Inputs |
+| Only `FileNotFoundError` and `NotADirectoryError` absent (legacy's set narrowed) | `present`'s absent-error test | Inputs (`ELOOP`, `EBADF`, `winerror` 21) |
+| A `ValueError` raised, not absent | the same | Inputs (the NUL path) |
+| An unreadable input engages kill | `check_kill_inputs`'s `"unreadable"` branch | Unreadable |
+| A relative path from the working directory | `resolve`'s join with `root` | Inputs (after `os.chdir`) |
+| `SEC-R16` removed | `release_kill`'s input check | Release; CLI off |
+| `SEC-R16` before authorization | the check's place in `_commit` | Release (`ops` gives `SEC-R16`) |
+| `SEC-R16` passes an unreadable input | the check's `KillInputUnreadable` branch | Release |
+| The environment does not replace YAML | `loader.resolve`'s kill block | Settings |
+| The flag read as strict `bool` text | the coercion | Settings (`maybe`, `2`, `[0]`) |
+| A YAML value read by the text rule instead of `bool(value)` | the YAML branch | Settings (YAML `"false"`) |
+| The files kept in environment order instead of name order | the `sorted` | Settings (`("/k2", "/k1")`) |
+| The CLI resolves its own paths (against the working directory) | `cli_inputs`'s `KillInputs.resolve(…, root)` | Same files |
+| The CLI's `SEC-R16` line names its local inputs | the `SEC-R16` row's `link.present_inputs()` | CLI off (kernel paths) |
+| A generic name ignored (alias only) | the `env_path` filter | Settings (`AT__risk_guard__kill_switch`) |
+| Conflicting flags: last one wins | the `any(...)` | Settings |
+| An unwatched composition refuses to start | `Recovery.run`'s alert | Unwatched |
+| `on` asks the kernel before writing | `kill_switch`'s order | CLI on (file first) |
+| `on` unwatched returns 0 when the kernel was not told | the unwatched result | CLI on |
+| `on` watched returns 1 when the kernel refuses | the result's order | CLI on (`SES-R02`) |
+| `off` removes the file before the confirmation | `kill_switch`'s order | CLI off (`disengage` keeps the file) |
+| `off` trims all whitespace | the `rule.trimmed` comparison | CLI off (`"DISENGAGE\r"`) |
+| `off` reports lifted when the kernel was unreachable | the unreachable row | CLI off |
+| A `kernel:safety` `Authenticated` built in `kernel/coordinator.py` | a constructor added there | Guard |
+
+### Files
+
+| File | Change |
+|---|---|
+| `src/autonomous_trading/kernel/safety.py` | `KillInputUnreadable`, `KillInputs`, `SAFETY_AUTH`, `Safety`'s `kill_inputs`, `present_kill_inputs`, `check_kill_inputs`, `kill_input_state`, `_commit`'s `after_auth`, `_kill_input_check`, `release_kill`'s `SEC-R16` |
+| `src/autonomous_trading/kernel/authority.py` | `_MESSAGES["SEC-R16"]` |
+| `src/autonomous_trading/kernel/coordinator.py` | The pass, claim and inline checks |
+| `src/autonomous_trading/kernel/recovery.py` | The start and advance checks, the report key, the alert |
+| `src/autonomous_trading/bootstrap.py` | `compose_simulation`'s `kill_inputs` |
+| `src/autonomous_trading/settings/schema.py`, `src/autonomous_trading/settings/loader.py` | `kill_switch`, `kill_switch_files` |
+| `src/autonomous_trading/settings/secrets.py` | `_ENV_ALIASES`' two kill aliases |
+| `src/autonomous_trading/resources/defaults.yaml` | `risk_guard` |
+| `src/autonomous_trading/interfaces/cli.py` | New: `KernelUnreachable`, `KernelLink`, `cli_inputs`, `kill_switch` |
+| `tests/integration/test_kill_inputs.py` | New (T-68) |
+| `tests/contracts/test_capabilities.py` | `kernel/safety.py` in the `Authenticated(` builder set; the docstring's break check at `:151` names `kernel/coordinator.py` |
+
+No new tree delta: `interfaces/cli.py` is in the target tree and the test file is T-68.
+
+### Completion conditions (step 4)
+
+* The step's tests pass, and the whole suite passes once after the last edit, on Windows. The step has no platform-only case.
+* Every break check fails a listed test, and every file is restored (md5). `ast.parse` passes on every edited Python file, and `yaml.safe_load` on `resources/defaults.yaml`.
+* `git diff --name-only` names exactly the files in the table above, in one commit.
+* No existing expectation changes: no composition outside this step's tests composes `KillInputs`.
+* The build starts on the coordinator's word, after SLICE-09 step 1 lands in `OA_NEW`. Every cited line is re-read on that head.
+* PRF-SEC-12 passes, as the spec now states it (an empty path starts and raises `kill_file_unwatched`).
+* This file records step 4 "as built", with any Deviation or Fork call found while building.
 
 ## Step 5 — the kernel's local channel (outline)
 

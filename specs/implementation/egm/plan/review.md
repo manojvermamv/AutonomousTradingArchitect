@@ -806,3 +806,13 @@ One fresh combined design and readiness review of [SLICE-10 step 3](../../plan/s
 | R-3…R-6 | Major | Break checks that could not fail | Distinct synthetic values, offsets and cases |
 | R-7 | Major | The instruments GET carries the key in its URL | Fork call with the residual exposure named; SLICE-11 stops query strings in OpenAlgo's access log |
 | R-8…R-10 | Minor | Traceback context, legacy's `env_path`, the SHA mutation's anchor | `from None`; `env_path` ported; anchored in `Secrets.bound()` |
+
+## SLICE-09 step 1 review (2026-11-02)
+
+One fresh combined design and readiness review of [SLICE-09 step 1](../../plan/slices/SLICE-09-strategies-and-cognition.md#step-1--the-registry), before any code. 1 Blocker, 1 Major, 5 Minor (R-1…R-7). All resolved in the text, then built (`8eb3a12`; 1,389 passed, 2 skipped; 23 of 23 break checks).
+
+| # | Sev | Finding (short) | Resolution |
+|---|---|---|---|
+| R-1 | Blocker | One bad row or ceiling stopped every strategy | Fork call: a missing or unknown authority reads `none` with a note; any other row defect refuses only that row (`STR-R11`); an absent ceiling stays unbound |
+| R-2 | Major | A shared helper could change behaviour without changing the `CandidateId` | `code` must equal the same-package modules actually imported (`STR-R03`) |
+| R-3…R-7 | Minor | File-read spy, note order, code ambiguity, blank requests, the simulation package set | Applied |
