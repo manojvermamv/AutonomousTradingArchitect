@@ -1248,6 +1248,36 @@ No new file and no new tree delta.
 * Every break check fails its listed test, and every file is restored (md5). `ast.parse` passes on every edited Python file; `yaml.safe_load` on `resources/defaults.yaml`.
 * `git diff --stat` against the step's start names only the files above.
 
+### Step 3a as built
+
+**Built** in OA_NEW `3529f24` on `slice-08`, one commit, the 17 files of the Files table, after two step 3 commits the full suite asked for: `ca530b7` (`kernel/admission.py` read `market.sources.IST`, which `tests/unit/test_market_windows.py`'s layering guard forbids; it now keeps its own IST constant, and the guard is unchanged) and `829b038` (the missing `serve_kernel` `SIGTERM` case in `tests/contracts/test_capabilities.py`, Linux only, and the statistics-through-admission row in `tests/unit/test_admission_checks.py`, where another strategy's admitted entry is the desk's open structure and a new entry is refused `ADM-R13` with `Desk already has an open option structure (1/1)`).
+
+**Run.** Windows, Python 3.14 (`.venv-slice01`), through `scripts/safe_tests.py`: the completion conditions' files plus `tests/unit/test_market_windows.py`, `tests/integration/test_kernel_host.py`, `tests/unit/test_admission_checks.py` and `tests/contracts/test_operator_ui_routes.py`, twice in a row after the last source change: 813 passed and 12 skipped each time. Linux, on the EC2, once, in a throwaway folder with its own Python 3.13 venv built by `uv` from `requirements.lock` (removed afterwards): `tests/integration/test_unix_channel.py` and the two Linux-relevant `tests/contracts/test_capabilities.py` cases, 37 passed, none skipped. The 22 break checks (`s11d_breaks.py` in the session scratchpad) each fail a listed test, and every file was restored (md5). `ast.parse` passes on all 16 edited Python files; `yaml.safe_load` on `resources/defaults.yaml`. Not run: the full suite.
+
+**Differences from the text above**, each smaller than a decision:
+
+| Text | As built | Why |
+|---|---|---|
+| `_admit(…) -> tuple[Peer, dict] \| Refusal` | Returns the module's own `_Refused` (code and reason), as `ChannelCore` already raised internally | The refused reply needs the code and the label, not a ledger `Refusal` |
+| `REVIEW_REPLY_TIMEOUT_S = MAX_REVIEW_SECONDS + REPLY_TIMEOUT_S` | `adapters/unix_channel.py` keeps its own `MAX_REVIEW_SECONDS = 300.0`, labelled as `cognition.review`'s; a test asserts 360.0 | The channel client loads no module outside `contracts` (`test_boundary`) |
+| `KernelChannelClient` gains two keywords | Also four methods, `resolve_intent`, `review_binding`, `resolve`, `record_review`, one per new operation | One client call per method, as the six service operations |
+| `MarketHost(…)` | Also `wait=` (a test seam for the main thread's wait) and `start_threads()`; the services are `bootstrap.serve_market`, `serve_strategy` and `serve_cognition`, reached from `run` for a production profile | Wiring; no new behaviour |
+| `OpenAlgoTickSocket(…, connect=websocket.create_connection)` | `connect(url, timeout)`; `keepalive_secs` keyword (default 20); a `waits` list and `state()` for the heartbeat | Test seams and the heartbeat's `ticks` object |
+| The review peers are the `strategy:` service peers | Filtered on `principal.value` | `Peer.principal` is a `Principal` |
+| `ReviewChannelClient.request` raises on a reply other than `answered` | It raises `ChannelAmbiguous` with the outcome | The host's `_request_review` treats any exception as a failed request, as built |
+| Row 17 mapped | `ticks.watch` also leaves `ROUTED`; `tests/integration/test_operator_routes.py`'s re-listing row 17 reads `mapped` | One kind per row |
+| Tests: the watch's reconnect re-sends `authenticate` and both subscriptions | The watch group uses a stand-in socket; the re-send after a reconnect is proved in the socket group (`test_authenticate_resubscribe_and_reconnect`) | One owner per behaviour |
+| Tests: unsealed windows `[09:31, 09:32]`, `next_wake` 09:31:07 | `[09:31, 09:32]` at `through` and `[09:32]` at the head; `next_wake` at 09:32:30 is 09:33:00 (the minute before 09:32's 09:33:07) | The text's two expectations used two different heads |
+| Tests: the stop group through `serve` | The stop group calls `_stop_sequence` directly, with the socket connected and silent and a write blocked in `_HandOffStore`; the reference writer thread is a daemon | `serve`'s loop would run the queued write before stopping; a non-daemon writer hung pytest under the break check that leaves futures pending |
+| Tests: the strategy host against a kernel subprocess | Linux: `ChannelKernel` and `ReviewChannelClient` over sockets served in the test process (the strategy's grant issued first, as `test_services` does); the cognition operations and the review core run on every platform through `handle` | `tests/conftest.py` has no kernel child; the in-process server exercises the same socket, peer and frame path |
+| Tests: `serve_kernel`'s `SIGTERM` releases the lease `clean` | Exit 0 and the heartbeat `stopped` with `exit_code` 0; the lease is `None` or `clean` | The child binds no account, so it takes no lease |
+| `tests/conftest.py` | `prod_profile` gains `market.ticks` (legacy's 10, 1, 30, 15, labelled synthetic) and `paths` (`run`, `evidence`) | The new required fields |
+| EC2 runs through `scripts/safe_pytest.py` | `~/at-dev`'s runner imports legacy's `src.config` and runs `~/at-dev/.venv`; OA_NEW's own `scripts/safe_tests.py` refuses below 2012 MB available, and the host had 1.84–1.93 GB. The run used `systemd-run --user --scope` with `MemoryMax=1G`, no swap, `CPUQuota=50%`, `nice 19` and idle I/O, one run at a time | The coordinator's throwaway venv, with the legacy runner's limits |
+
+**Left in OA_NEW, untracked:** the `build/` directory from step 2's first runs (unchanged; deleting it is the owner's call).
+
+**Carried, unchanged:** every item under "Open, carried" above.
+
 ## Step 4 — the supervisor (outline)
 
 Deepened after step 3 is built: the runtime spec's [supervisor](../../design/runtime-isolation-observability-deployment.md#the-supervisor-operationssupervisorpy).
