@@ -896,3 +896,11 @@ One fresh combined review each, before any code (the owner's trimmed routine: ta
 |---|---|---|---|
 | SLICE-11 step 2 (entrypoints, manifest, limits) | 2 Blocker, 3 Major, 2 Nit | Fork: the kernel refuses an unbound settings revision, as legacy; new step 3a (market host loop, channel client); the latch budget is the lower of policy and account limits, as legacy | `3b891d0`; 19 of 19 break checks |
 | SLICE-12 steps 2–3 (trials, jobs; locked access, datasets) — first bundle | 7 Major, 3 Nit | The research broker-key check enforced per claim; legacy's slice-limit check restored (Fork call); fit on development rows only; legacy's purge floor from a bound setting; crash leftovers reported | not yet built |
+
+## SLICE-11 steps 3 and 3a, SLICE-12 steps 4–5 reviews (2026-11-03)
+
+| Step | Findings | Key resolutions | Built |
+|---|---|---|---|
+| SLICE-11 step 3 (kernel host loop) | 2 Blocker, 6 Major, 1 Nit | Fork calls: protection on grid passes only; exit 71 restarts as legacy; legacy's P&L sum, broker `ltp` mark, attested capital, full-fill cooldown; unsent entries refused at stop | `e58ab2f`; 23 of 23 break checks (10 on money Fork calls) |
+| SLICE-11 step 3a (market host, channel client, review socket) | 5 Major, 1 Minor, 1 Nit | Bounded `next_wake`; fault backoff; bounded stop with the final commit; per-principal op sets (cognition cannot submit); reviews served in parallel as legacy | not yet built |
+| SLICE-12 steps 4–5 (fills and costs, replay; RL tiers) | 2 Blocker, 5 Major | Exam fills are legacy's producer quote path; no new promotion gates (POL-044 and the baseline allowlist removed, listed for the owner); replay with cognition off and sockets refused; loaded-code digest check | not yet built |
