@@ -464,6 +464,26 @@ No kernel module, schema, event kind or migration changes.
 * `git diff --name-only` names exactly the files above; one commit in OA_NEW; nothing pushed.
 * This file records step 2 "as built", with any Fork call or Deviation the build adds.
 
+### Step 2 as built
+
+**In plain words.** The log of research attempts and the one-at-a-time research queue now exist in the new system. Every attempt is written before it runs, closes once, and is counted however it ends; a damaged file is named, not hidden. A worker that dies has its job and its open attempts marked as interrupted when its time runs out. Both research workers check their settings, credentials and service before every job, and each ran one real job in a separate process in the tests. Nothing here touches trading.
+
+Commit `d4e8cb2` on `slice-08`, on top of `e3805f1` (step 1's absolute-import fix for the Canvas guard) and `3b891d0` (SLICE-11 step 2). It adds `research/trials.py`, `research/jobs.py`, `tests/unit/test_research_attempts.py` and `tests/integration/test_research_worker.py`, and changes `settings/schema.py`, `resources/defaults.yaml`, `tests/recovery/test_crash_boundaries.py` and `tests/unit/test_settings_resolver.py`: 8 files, 2,730 lines added, 1 removed. Not pushed.
+
+**Choices and corrections made while building:**
+
+| Topic | As built |
+|---|---|
+| Legacy values | Every trial-file length and hash in T-81 equalled legacy's on the first run (`15df…73c8`, `77a0…4168`, the lineage and resume digests) |
+| Windows job child (**Deviation**, Windows test hosts only) | A venv's `python.exe` on Windows is a launcher that runs the interpreter as its own child, so the PID the supervisor records is the launcher's. The child's handoff check accepts the recorded identity as its own process or, on Windows only, its parent. `ProcessProbe.terminate(pid, True)` on Windows runs `taskkill /T /F /PID`, so the launcher and the interpreter both end. POSIX is unchanged: `os.killpg` |
+| The child's check | The child reruns `check` without both systemd reads, the unit and the slice envelope (the text named the unit only); both describe the unit the supervisor already checked. **Deviation** |
+| A job of the other profile | Its `progress` is set to "job belongs to a different research worker profile" so the record shows it; legacy returned the text without writing it |
+| Lineage test | The exam record is written by hand after the case's opens. Step 1's `migrate_legacy` reads a locked record with no access row as globally ineligible, so a later `open` refuses (legacy's fail-closed reading); the test documents it |
+| Resume test | Break check "seed left out" first survived: the seed-8 checkpoint's digest was fixed in the test, and it still differed. The test now builds the checkpoint from a real seed-8 attempt's `compatibility`, so dropping the seed makes it equal and the resume is accepted |
+| Break checks | 16, the listed set: each fails a listed test, every file restored (md5). Script: `s12b_breaks.py` in the session scratchpad |
+
+**Tests run (Windows, targeted only):** `tests/unit/test_research_attempts.py`, `tests/integration/test_research_worker.py`, `tests/recovery/test_crash_boundaries.py`, `tests/unit/test_settings_resolver.py`, `tests/contracts/` and `tests/unit/test_canvas_causality.py`: 231 passed, twice in a row; T-81 twice more after its last edit. CP-R8a, CP-R8b and CP-R9 killed a real child process each (exit 86); T-83 ran real supervisor and job-child processes. `ast.parse` passes on every edited file. The Linux branch of the probe is **not checked**. **Flake seen once, not this step's:** `tests/contracts/test_installed_artifact.py::test_settings_revision` forges a wrong revision as `"0" + revision[1:]`, which equals the real one whenever the revision starts with `0` (about one run in 16); it passed alone and in both full runs after. Recorded for SLICE-11's owner.
+
 ## Step 3 — locked access, datasets and the freeze
 
 <a id="step-3--locked-access-datasets-and-the-freeze-outline"></a>
@@ -624,6 +644,27 @@ No kernel module, schema, event kind or migration changes.
 * Every break check fails a listed test and every file is restored (md5). `ast.parse` passes on every edited Python file. Every legacy-derived hex value in the tests is recomputed from legacy's code as above.
 * `git diff --name-only` names exactly the files above; one commit in OA_NEW; nothing pushed.
 * This file records step 3 "as built", with any Fork call or Deviation the build adds.
+
+### Step 3 as built
+
+**In plain words.** The one-time exam now works in the new system exactly as in the old one: three records written in a fixed order, the dataset written before the spend is recorded, and every crash point leaving the exam days spent and the half-built dataset unusable. A read-only check lists what a crash leaves behind. Every evaluation over exam days can leave its note. A learned normaliser records what it learned from and never relearns on exam rows. Finished candidates are frozen by the old system's fingerprint, and a model strategy's prompt and model are part of its identity. Nothing here touches trading.
+
+Commit `d9536ce` on `slice-08`, on top of `d4e8cb2` (step 2). It adds `research/datasets.py`, `research/candidates.py`, `tests/unit/test_dataset_fitting.py` and `tests/unit/test_candidate_freeze.py`, and changes `research/trials.py`, `research/bundles.py`, `settings/schema.py`, `settings/loader.py` (the `horizons` kind), `resources/defaults.yaml`, `tests/recovery/test_crash_boundaries.py` and `tests/unit/test_research_attempts.py`: 11 files, 3,758 lines added, 8 removed. Not pushed.
+
+**Re-checked against step 2 as built, before building:** every "(re-check at build)" decision held unchanged: `_publish_once`, `_locked_oos_open` on `.locked-oos-open.lock`, the `.closed.json` name, the ledger's `clock` and `new_id`, the attempt-first extensions order, and expiry closing a job's running trials (CP-R4).
+
+**Choices and corrections made while building:**
+
+| Topic | As built |
+|---|---|
+| Legacy values | Every legacy-derived length and hash in T-84 and T-85 equalled legacy's on the first run: the declaration, the exam's open and closing files, both access rows, `read_claim_digest`, the walk-forward, purging and row-eligibility values, the partition declaration and all five bundle digests |
+| The baseline's advisor | `RowSource` gained `baseline_advisor(strategy) -> str`, which `build` calls before any read, as legacy checked the baseline's declared advisor before reading (`datasets/__init__.py:1843-1852`). The text put the advisor in the `RowBatch`, which arrives after the read claim and would spend the partition on a refusal. **Deviation** from the text, legacy's order kept |
+| The registry on POSIX | The registry uses joined paths with an `lstat` that refuses links on every platform, POSIX included; the text kept `dir_fd` on POSIX. **Deviation:** a narrower race window is left open on POSIX between the check and the open; research-only, no money path |
+| `EvaluationError` | Defined in `research/datasets.py` for `locked_evidence`; step 4's evaluation imports it from there |
+| `build`'s settings | `build` reads `settings.promotion_directional_horizons`; the tests pass a stand-in object with that one attribute, legacy's `(5, 15, 30)` for the scripted exam and the synthetic `(1,)` for the fits |
+| Break checks | 16, the listed set: each fails a listed test, every file restored (md5). Script: `s12c_breaks.py` in the session scratchpad |
+
+**Tests run (Windows, targeted only):** `tests/unit/test_dataset_fitting.py`, `tests/unit/test_candidate_freeze.py`, `tests/unit/test_research_attempts.py`, `tests/integration/test_research_worker.py`, `tests/recovery/test_crash_boundaries.py`, `tests/unit/test_settings_resolver.py`, `tests/contracts/` and `tests/unit/test_canvas_causality.py`: 259 passed, 1 skipped (Golden, T-86 absent), twice in a row. CP-R2…CP-R7 and CP-R10 killed a real child process each (exit 86). `ast.parse` passes on every edited file.
 
 ## Step 4 — replay and evaluation (outline)
 
