@@ -799,6 +799,29 @@ Each is applied with its anchor checked first (exactly one occurrence), one at a
 * `git diff --stat` against the step's start names only the files above.
 * PRF-CFG-01 (Every command; Resources and schema), PRF-CFG-04 (Substitution; One identity per artifact set), PRF-CFG-10's resolver, channel and store parts (Handshake; Paths and credentials; the channel and store cases), PRF-CFG-11 (M1–M7; R-5 end to end) and PRF-XC-02's production part (Kernel binds the order half; Market binds the market half) each pass a named group.
 
+### Step 2 as built
+
+**Built** in OA_NEW `3b891d0` on `slice-08` (from `b8574eb`), one commit, 27 files: `pyproject.toml`, `.pre-commit-config.yaml`, `.github/workflows/verify.yml`, `__main__.py`, `bootstrap.py`, `settings/schema.py`, `settings/loader.py`, `resources/defaults.yaml`, `kernel/admission.py`, `kernel/safety.py`, `adapters/unix_channel.py`, `market/store.py`, `market/view.py`, `market/ingest.py`, `interfaces/api.py`, `interfaces/mcp.py`, and eleven test files (the Files table's, plus `tests/conftest.py`).
+
+**Run** locally on Windows, Python 3.14 (`.venv-slice01`), through `scripts/safe_tests.py`: the targeted set of the completion conditions plus step 1's loader readers (`tests/unit/test_policy_parameters.py`, `tests/unit/test_cognition_assembly.py`, `tests/unit/test_provider_records.py`, `tests/unit/test_secret_references.py`), twice in a row after the last change: 973 passed and 14 skipped each time. An earlier run had one failure in `tests/unit/test_cognition_assembly.py::test_capacity_with_threads`; it passed alone three times and in every later run. SLICE-09 recorded that test as timing-sensitive, and step 2 touches no code it runs. The installed-artifact test built the wheel, installed it with `--require-hashes` from PyPI into a release directory outside the checkout, and ran every command's `--check`; a run takes about three minutes. `ast.parse` passes on every edited Python file; `yaml.safe_load` passes on `resources/defaults.yaml`, `.pre-commit-config.yaml` and `verify.yml`; `tomllib` passes on `pyproject.toml`. The 19 break checks (`s11b_breaks.py` in the session scratchpad: the Break checks table's 19 rows) each fail a listed test, and every file was restored (md5). Not run: Linux, the full suite, and the workflow on GitHub.
+
+**Differences from the text above**, each smaller than a decision:
+
+| Text | As built | Why |
+|---|---|---|
+| `run` calls `prepare` first, which resolves the secrets | `run` resolves and masks, then makes every start refusal (artifact, `settings_revision`, required settings), and only then resolves the secrets and installs logging. `prepare` keeps the spec's whole order for its callers and tests. A secret that cannot be resolved is the stderr line `refused: SEC-R18 …`, exit 1 | A refused start should open no secret. The first installed run hit the missing synthetic key before the `settings_revision` refusal |
+| `COMPOSITIONS`: observation's command is `at-observer` | Observation has no command until step 5 declares `at-observer`; its row checks the unit only (or `native_observation`) | Otherwise every first-release check reports a command this release does not declare. The text's own composition cases expect `[]` with the unit present |
+| `at --check` over a missing profile prints one `problem:` line | It also prints `CFG-R06 artifact_mismatch: bundle.json …`, and the test asserts that the `AT_PROFILE` line is present | An unreadable profile reads as `production` (step 1), so `at` reports the artifact check too. `at` still never refuses |
+| The latch cases' budget text `"3600"` | `"3600.00"` with no account layer: the policy's `RiskPolicy("3600.00")` text, as before. `"3000"` with the account's `3000.0` | `budget` returns the policy's own decimal; only the account's float becomes `Decimal("3000")` |
+| The installed wheel built with `--no-build-isolation` | `pip wheel <copy> --no-deps` with build isolation, over a copy of `pyproject.toml` and `src/` under the test's temporary directory | `.venv-slice01` has no setuptools. Building from the checkout left a `build/` directory there; the copy writes nothing into the checkout |
+| The Files table | Also `tests/conftest.py`: `prod_profile`, `write_profile`, `SYN_VIEW(S)`, `SYN_ACCOUNT`, shared by the capabilities and installed tests | One production profile for both |
+| `_compose_kernel`'s three new keywords | A fourth, `store_handshake`, passed to `StoreMarket`; `compose_production` also takes `secrets=` (the process's resolved scope; resolved there when absent); `api.serve` also takes `section=` (the profile's `operator` section) | Wiring the text describes; no new behaviour |
+| The kernel test asserts the composition's port | It also asserts the alert `handshake_mismatch market_store absent`: no market process wrote the store in that test | The kernel reports the absent handshake, as the text says |
+
+**Left in OA_NEW, untracked:** a `build/` directory from the first installed-artifact runs, before the fixture built from a copy. It is not in the commit. Deleting it is the owner's call.
+
+**Carried, unchanged:** every item under "Open, not built in this step" and the step 3, step 3a, step 4 and step 7 hand-offs above.
+
 ## Step 3 — the kernel host (outline)
 
 Deepened after step 2 is built: the runtime spec's [kernel host](../../design/runtime-isolation-observability-deployment.md#the-kernel-host-kernelhostpy) and Fork calls 2–4.

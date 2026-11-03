@@ -889,3 +889,10 @@ One fresh combined review each, before any code (the owner's trimmed routine: ta
 | SLICE-10 step 10 (console) | see above | — | `75420a6`; 22 of 22 break checks; full suite 1,927 passed; SLICE-10 complete |
 | SLICE-11 step 1 (settings contract) | 2 Blocker, 5 Major, 1 Nit | Fork call: an unreadable limit blocks entries only; start refusals only where legacy refused (others become problems and alerts); the drop-in's nine limits carried by the installer (step 7) | `a4e6fbc`; 18 of 18 break checks |
 | SLICE-12 step 1 (bundles, custody) | 4 Major, 1 Minor | Genesis root as a Deviation; no licence check and `additive` ok as legacy (Fork calls 22, 23; stricter rules listed for the owner); tail re-witnessed at open; non-blocking witness | not yet built |
+
+## SLICE-11 step 2 and SLICE-12 steps 2–3 reviews (2026-11-03)
+
+| Step | Findings | Key resolutions | Built |
+|---|---|---|---|
+| SLICE-11 step 2 (entrypoints, manifest, limits) | 2 Blocker, 3 Major, 2 Nit | Fork: the kernel refuses an unbound settings revision, as legacy; new step 3a (market host loop, channel client); the latch budget is the lower of policy and account limits, as legacy | `3b891d0`; 19 of 19 break checks |
+| SLICE-12 steps 2–3 (trials, jobs; locked access, datasets) — first bundle | 7 Major, 3 Nit | The research broker-key check enforced per claim; legacy's slice-limit check restored (Fork call); fit on development rows only; legacy's purge floor from a bound setting; crash leftovers reported | not yet built |
