@@ -3779,6 +3779,63 @@ No new tree delta: `operator_ui/*` and `interfaces/api.py` are in the target tre
 * All code is written and committed in `OA_NEW` only, in one commit; `node_modules/` and `.next/` are not committed. `git diff --name-only` names exactly the files above. Nothing is pushed. The build starts on the coordinator's word, and every cited line is re-read on the head it starts from.
 * PRF-SEC-11 passes. This file records step 10 "as built", with any Deviation or Fork call found while building, and the by-hand checklist's result.
 
+### Step 10 as built
+
+**In plain words.** The console now lives in the new system with every screen unchanged. Its saves go to the new owner API through one session the console keeps for itself, and a lost session is reopened and the save resent once with the same request number. The console still offers no way to stop trading, lift a hold or a latch, or place, change or cancel an order. Pages whose data belongs to parts not yet built answer "not available yet". The playbook library came across. The console installs, type-checks, lints and builds with legacy's own tool versions.
+
+Commit `75420a6` on `slice-08`, after `9067a24` (SLICE-09 step 7), which touched none of these files. 124 files (+24,931 −11): the 119 tracked files under `operator_ui/` with `PROVENANCE.txt` (111 copied from `admin_console/`, 6 of them changed, plus `src/api.ts` and the 7 playbooks), `interfaces/api.py`, the new T-66 test, `test_owner_api.py` and `test_operator_routes.py`. No `node_modules/`, `.next/`, `next-env.d.ts` or `*.tsbuildinfo` is committed. Nothing is pushed. No new Fork call was found.
+
+**Choices made while building:**
+
+| Topic | As built |
+|---|---|
+| The copy | `git show 445eb116:<path>` written byte for byte for each of the 111 files and the 7 playbooks; a check afterwards found exactly the six changed files differing from legacy |
+| The lockfile | npm 10.8.2's `npm install --package-lock-only` also added six nested `@tailwindcss/oxide-wasm32-wasi` bundle entries that legacy's lockfile lacks. The lockfile was instead written from legacy's (which round-trips through `JSON.stringify(…, 2)` byte for byte), changing only the top-level `name` and `packages[""]` (`name`, `devDependencies`, `engines`), as the text requires. `npm ci` installed 700 packages from it |
+| The BFF body | `route.ts` parses the browser's JSON (a non-JSON body is 400 `request body is not JSON`) and `api.ts` serialises it again; legacy forwarded the raw text |
+| The session | `api.ts` adds `ready()`: it opens a session when none is held, at most twice, because a concurrent 401 may drop a session that was just opened |
+| `newTraceId` | `(globalThis.crypto as Crypto).getRandomValues(new Uint8Array(6))`: TypeScript narrows `crypto` to `never` in the fallback branch of `"randomUUID" in crypto` |
+| Reads not owner-only | `GET /ops/kill-switch` answers every caller, like step 6's kill read; `GET /` answers any authenticated caller. Every routed read is owner-only |
+| Query and path | A query parameter repeated, or naming a path field, is 400 `invalid_request` |
+| No kernel import | The flag's input name is the constant `KILL_FLAG_INPUT = "risk_guard.kill_switch"` in `interfaces/api.py`, not an import of `kernel.safety`, so the operator still imports no kernel module |
+| The Node compile | `tsc` with `--target es2022 --module es2022 --moduleResolution bundler --skipLibCheck`: without the last two, `@types/node` and `@types/react` do not resolve in a single-file compile |
+| An existing test | `test_operator_routes.py::test_relisting` compared `ROUTES` with step 6's and step 7's rows; it now adds the step 10 GET rows, imported as `STEP10_GETS` from `test_owner_api.py`. It is not in the step's Files table. `test_owner_api.py`'s own route test reads `api._STEP7` and passes unchanged; there was no `parse_operator` key-set test, so the `playbooks` cases are in the Playbooks group |
+| The scrub test | An `OwnerApi` built with a `Secrets` resolved from an `env` reference and swapped into the `Operator` with `dataclasses.replace` |
+
+**Tests** (targeted only), Windows, Node 20.19.5, npm 10.8.2, the `.venv-slice01` venv:
+
+* `tests/contracts/test_operator_ui_routes.py` (T-66): **11 passed**, the Node group included (compiled with the pinned TypeScript 5.9.3).
+* With `tests/contracts/`, `tests/integration/test_owner_api.py`, `test_operator_routes.py` and `test_operator_commands.py`: **136 passed, 3 skipped**. The skips are earlier steps' Linux-only cases; step 10 has none, so **the EC2 was not used**.
+* In `operator_ui/`: `npm ci` (700 packages), `npm run typecheck` (no error), `npm run lint` (0 errors and 10 warnings, all in unchanged legacy files: `data-table.tsx`'s React Compiler notice and `no-unused-expressions` in copied code; the four changed or new source files lint clean) and `npm run build` (`next build`, every route compiled). No tracked file changed after the build.
+* `ast.parse` passes on the four edited Python files.
+* **Not run:** legacy's by-hand browser checklist (`e2e/checklist.cjs`). It needs Playwright 1.62.1 and a downloaded browser, plus a simulation operator process and the console MCP profile. It counts as no proof, and it stays for the run before SLICE-11 enables the console.
+
+**Break checks** (`s10j_breaks.py` in the session scratchpad; each anchor checked present exactly once, one mutation at a time, every file restored byte for byte, md5 verified, the working and staged diffs unchanged afterwards): 22 of 22 failed a listed test. Twenty-one failed on an assertion. "The 401 retry loops" made the Node driver exit non-zero, so the group errored at its fixture.
+
+| Change | Test that failed |
+|---|---|
+| The 401 retry mints a new `x-request-id` | Client retries |
+| The 401 retry loops | Client retries (the driver) |
+| The `outcome_unknown` resend dropped | Client retries |
+| A 403 retried | Client retries |
+| `x-owner-client` not sent on a write | Client writes |
+| A browser header (`origin`) passed on | Client writes |
+| Session open not single-flight | Client sessions |
+| A non-loopback `baseUrl` accepted | Client answers |
+| A 401 drops the held session unconditionally | Client sessions (k) |
+| The segment check removed | Segments |
+| `crossSite` removed from POST | Cross-site |
+| `exposure/cancel` added to the POST allowlist | Writes |
+| `traceFrom` back to `{8,64}` | Trace id |
+| A toolchain entry back to a range | Toolchain |
+| `tools.ts` edited | Provenance |
+| A routed read open to a delegate | Routed reads |
+| A routed read requiring a session | Routed reads |
+| `by_flag` from the file | Kill panel |
+| `FORBIDDEN_PHRASES` dropped from `check` | Playbooks |
+| `render` blanks an unfilled field | Playbooks |
+| Routed-read answers not scrubbed | Routed-read scrub |
+| `Secrets.redact` in place of `scrub` | Routed-read scrub |
+
 ## Open owner items
 
 The standing rules settle every money fork. These touch kill, owner rights or a close, but legacy's live behaviour cannot be kept as it was, so they are logged for the owner's review:
