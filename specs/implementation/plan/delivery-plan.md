@@ -129,6 +129,7 @@ Task IDs are stable. SLICE-01 tasks are its file rows. Tasks of a stub slice are
 | TASK-S11-10 | 11 | First-release and production compositions; boundary handshakes | PRF-CFG-01, PRF-CFG-04, PRF-CFG-07, PRF-CFG-10, PRF-XC-02 (production part) |
 | TASK-S11-11 | 11 | Telemetry | PRF-OPS-06 |
 | TASK-S11-12 | 11 | Production staging (owner's word) | PRF-CFG-09 |
+| TASK-S11-13 | 11 | The market host loop, and the channel `KernelPorts` client with the strategy host's and cognition's service loops (slice step 3a) | The slice file's step 3a tests |
 | TASK-S12-01 | 12 | Evidence scopes, bundles, the custody chain, restore reconciliation with the ledger witness | PRF-RES-01, PRF-RES-03, PRF-RES-02 |
 | TASK-S12-02 | 12 | Trials with attempt links, jobs, the research-job port, two worker profiles | PRF-RES-04, PRF-RES-05, PRF-RES-06, PRF-RES-02 |
 | TASK-S12-03 | 12 | Datasets, the locked three-store sequence, fit records, `CandidateBundle/v1`, freeze, `CandidateId` | PRF-RES-07, PRF-RES-08, PRF-RES-02 |

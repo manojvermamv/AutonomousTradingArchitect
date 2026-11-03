@@ -301,6 +301,26 @@ No setting, schema, event kind, kernel module or migration changes.
 * `git diff --name-only` names exactly the files above; one commit in OA_NEW; nothing pushed.
 * This file records step 1 "as built", with any Fork call or Deviation the build adds.
 
+### Step 1 as built
+
+**In plain words.** The record of which market days research has looked at, and of the one-time exam days, now exists in the new system. It writes exactly the bytes and fingerprints the old system writes, so the chain on the server can be continued as it is. Each spend of exam days is handed to the kernel for a note without ever waiting for it. A restored copy is checked against the current chain and that note before research starts. Nothing here touches trading.
+
+Commit `b8574eb` on `slice-08`, on top of `a4e6fbc` (SLICE-11 step 1). It adds the research package (its `__init__.py`, `research/bundles.py`, `research/custody.py`) and `tests/unit/test_custody_ledger.py`, and extends `tests/recovery/test_restore_fencing.py` and `tests/recovery/test_crash_boundaries.py`: 6 files, 3,691 lines added, none removed. Not pushed.
+
+**Choices and corrections made while building:**
+
+| Topic | As built |
+|---|---|
+| Golden fixture | T-86 does not exist yet (TASK-S12-09 has not run). The Golden group skips while the file is absent and compares its `hasher` entries once it exists. Every other value is the hand-computed one above, all equal on the first run |
+| `authority_root` | Kept as the string given, not normalized lexically as legacy did (`custody.py:195-196`). On Windows, legacy's normalization turns `/srv/at/research-custody` into a drive path. For a normalized absolute POSIX path the two are the same string. **Deviation** |
+| Bundle directory name | `bundles/<bundle_id>` on POSIX, as legacy. On Windows the `:` of `sha256:` is written as `_`, because Windows forbids it in a name. `verify_bundle` checks the name the platform writes. **Deviation**, Windows only |
+| `publish` refusals | No rows gives `BundleRefused("no_rows")`. A contract error raised while building is re-raised as `BundleRefused`, and its staging directory is removed. Legacy quarantined it instead (`IM:587-602`, not ported) |
+| Witness client | `acked` is kept per `authority_id` for the client's life; `latest` is called once per authority per client. The thread is a daemon started at the first submission |
+| An added damage case | Removing `tail == self._tail_of(rows[-2])` from `_read_locked` failed no listed test. The Damage group gained a case: the anchor's `pending` names the last event, but its `tail` is two events behind. That case refuses with "custody chain does not match its trusted tail" |
+| Break checks | 19, the listed set plus a second `_matches` row; each fails a listed test, and every file is restored (md5). Script: `s12a_breaks.py` in the session scratchpad |
+
+**Tests run (Windows, targeted only):** `tests/unit/test_custody_ledger.py`, `tests/recovery/test_restore_fencing.py`, `tests/recovery/test_crash_boundaries.py` and `tests/contracts/`. Result: 243 passed, 1 skipped (Golden). The last two runs, after the final test edit, were clean in a row. CP-R1 and CP-RW killed a real child process each (exit 86). `ast.parse` passes on the six files. **Flake seen once:** SLICE-10's `test_stopping_never_touches_the_journal` failed in the first full run (`broker.calls` empty). It passed alone, with its file alone, and in the three full runs after. It is untouched by this step, and it is recorded here for SLICE-10's owner.
+
 ## Step 2 — trials and jobs (outline)
 
 Deepened after step 1 is built. The spec's [Trials and attempts](../../design/research-rl-custody-promotion.md#trials-and-attempts-researchtrialspy) and [Jobs and the research-job port](../../design/research-rl-custody-promotion.md#jobs-and-the-research-job-port-researchjobspy). Ports the trial record and its validation, adds the attempt link, the no-replace close, unreadable reporting and resume; ports the job store, the slot lease, receipts, retries and expiry, adds the running-trial close and duplicate refusal; builds the port; renders the two worker profiles from SLICE-11's contract. Test files: `tests/unit/test_research_attempts.py` (**T-81**); `tests/integration/test_research_worker.py` (**T-83**), with a fake `systemctl` as SLICE-11 uses; CP-R8 and CP-R9 by killing a real worker subprocess. Break checks include: closing twice; replacing a closing record; dropping a crashed attempt from the count; resuming across a changed seed; claiming without writing the lease first.

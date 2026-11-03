@@ -47,7 +47,7 @@
 | 10 | **Owner's word.** The candidate release staged on the production host to `VERIFIED_DISARMED`, not switched; the host's versions and the account limits in force recorded | P | PRF-CFG-09 |
 | 11 | **Owner's word, after POL-O01 is answered.** A real backup restored with the exact candidate artifact and schema on an isolated clean host; crashes, unresolved effects, identity, custody and refusal before fencing exercised | P | D10 rehearsal evidence (`README.md:1232`) |
 
-Steps 1 and 2 come first because every process start, every unit and every test of later steps goes through the resolver, the bundle check and the handshakes. **Step 2 depends on step 8 for production use:** a production kernel needs the send-lease store adapter and bound lease settings, or it refuses even a human advance (`SES-R10`, OA_NEW `kernel/recovery.py:312-315`). Step 2 therefore builds and tests `compose_production` with SLICE-03's fake lease store, and a production composition refuses until `recovery.lease_store` is bound (step 8 builds the adapter; POL-O01 chooses its place). Step 3 comes before step 4 because the supervisor reads the heartbeat the host writes. Step 7 comes after 3–6 because it renders every unit those steps define.
+Steps 1 and 2 come first because every process start, every unit and every test of later steps goes through the resolver, the bundle check and the handshakes. **Step 2 depends on step 8 for production use:** a production kernel needs the send-lease store adapter and bound lease settings, or it refuses even a human advance (`SES-R10`, OA_NEW `kernel/recovery.py:400`, `:409`). Step 2 therefore builds and tests `compose_production` with SLICE-03's fake lease store, and a production composition refuses until `recovery.lease_store` is bound (step 8 builds the adapter; POL-O01 chooses its place). Step 3 comes before step 4 because the supervisor reads the heartbeat the host writes. Step 7 comes after 3–6 because it renders every unit those steps define.
 
 ## Fork calls
 
@@ -61,7 +61,7 @@ The owner's fork rule keeps legacy's live behaviour wherever a choice touches en
 | 4 | A frozen kernel | No watchdog (`deploy/systemd/at-tier1-authority.service:27-43`) | No watchdog; the supervisor reports it and a human acts | A `WatchdogSec` kill and restart |
 | 5 | Entries on a day the calendar cannot confirm | The strategy unit does not start (`deploy/systemd/at-strategy.service:46-48`) | No financial session opens on a day whose status is `unknown` (sessions spec); the strategy host's timer condition is SLICE-09's | — |
 | 6 | Memory limits and the kill order | Trading, the session and the recorder uncapped; the kill order fixed, the owner's exposure path at -400 (`deploy/unit_envelope.py:67-84`, `:100-107`) | The kernel, strategy and market units uncapped (POL-052), with legacy's kill order; the operator relay at -400 | — |
-| 7 | The entry limits | Two live layers: the account's `limits.*`, set by a drop-in (trades per session 5, entries per desk 10, open structures 1, fresh setup, cooldown 300 s, daily loss 4000, drawdown rate 3000 over 15 min; `deploy/systemd/at-strategy-entry-limits.conf:2-11`), read by `Limits.from_env` (`src/core/framework/sizing/gates.py:64-106`) and passed by the live driver (`scripts/run_framework_live.py:3556`, `:7255-7262`); merged with the policy layer field by field: lower set value, larger cooldown, either fresh-setup, the account's drawdown window, the earliest cutoff (`gates.py:109-149`; `src/core/framework/policy/compat.py:39-47`). Live daily loss: the lower of 4000 and ₹3,600 = **₹3,600** | Both layers kept: `account.limits.*` in the deployment configuration (the drop-in's values, bound by the owner after step 10 records what is in force) and the bound policy's layer, merged by legacy's `effective_limits` ported unchanged into admission. OA_NEW's one-layer `SessionLimits` (`contracts/decisions.py:431-446`) alone would have bound 4000 and loosened the limit | — |
+| 7 | The entry limits | Two live layers: the account's `limits.*`, set by a drop-in (trades per session 5, entries per desk 10, open structures 1, fresh setup, cooldown 300 s, daily loss 4000, drawdown rate 3000 over 15 min; `deploy/systemd/at-strategy-entry-limits.conf:2-11`), read by `Limits.from_env` (`src/core/framework/sizing/gates.py:64-106`) and passed by the live driver (`scripts/run_framework_live.py:3556`, `:7255-7262`); merged with the policy layer field by field: lower set value, larger cooldown, either fresh-setup, the account's drawdown window, the earliest cutoff (`gates.py:109-149`; `src/core/framework/policy/compat.py:39-47`). Live daily loss: the lower of 4000 and ₹3,600 = **₹3,600** | Both layers kept: `account.limits.*` in the deployment configuration (the drop-in's values, bound by the owner after step 10 records what is in force) and the bound policy's layer, merged by legacy's `effective_limits` ported unchanged into admission. OA_NEW's one-layer `SessionLimits` (`contracts/decisions.py:466-480`) alone would have bound 4000 and loosened the limit | — |
 | 8 | Which process holds the account's OpenAlgo key | The market poller ran in the MCP gateway with the shared settings file and the key (`deploy/systemd/mcp-gateway.service:40`) | The market process holds the account's key and composes only the market half of the adapter; its unit runs as its own user | Market reads through a read-only route, once one exists for market endpoints |
 
 ## Deviations
@@ -422,22 +422,398 @@ Each is applied with its anchor checked first (exactly one occurrence), one at a
 
 **Carried, unchanged:** every item in "Carried to later steps" above, plus the `requires-python` line for step 2.
 
-## Step 2 — the bundle, its verification, handshakes, limits and compositions (outline)
+## Step 2 — the bundle, its verification, handshakes, limits and compositions
 
-Deepened after step 1 is built: the configuration spec's [bundle manifest](../../design/configuration-artifacts-release.md#bundle-manifest-bootstrappy), [loaded-artifact verification](../../design/configuration-artifacts-release.md#loaded-artifact-verification-bootstrappy), [history compatibility](../../design/configuration-artifacts-release.md#history-compatibility-bootstrappy), [compositions](../../design/configuration-artifacts-release.md#compositions-bootstrappy), [account limits](../../design/configuration-artifacts-release.md#account-limits-bootstrappy) and [boundary handshakes](../../design/configuration-artifacts-release.md#boundary-handshakes-settingsschemapy).
+<a id="step-2--the-bundle-its-verification-handshakes-limits-and-compositions-outline"></a>The authorities are the configuration spec's [packaging](../../design/configuration-artifacts-release.md#packaging-pyprojecttoml-requirementslock), [bundle manifest](../../design/configuration-artifacts-release.md#bundle-manifest-bootstrappy), [loaded-artifact verification](../../design/configuration-artifacts-release.md#loaded-artifact-verification-bootstrappy), [history compatibility](../../design/configuration-artifacts-release.md#history-compatibility-bootstrappy), [compositions](../../design/configuration-artifacts-release.md#compositions-bootstrappy), [account limits](../../design/configuration-artifacts-release.md#account-limits-bootstrappy) and [boundary handshakes](../../design/configuration-artifacts-release.md#boundary-handshakes-settingsschemapy) sections, the runtime spec's [units](../../design/runtime-isolation-observability-deployment.md#units-deploysystemd), the owner's [standing rules](../../decisions/owner-answers-2026-10-27.md#standing-rules-2026-10-30) (the fork rule, and the live-readiness answer that every start-time behaviour stays today's), [step 1 as built](#step-1-as-built), and legacy at 445eb116. Step 2 is TASK-S11-01 (entrypoints, the bundle), TASK-S11-02 (manifest and handshake parts) and TASK-S11-10: PRF-CFG-01, PRF-CFG-04, PRF-CFG-10 (`check_handshake`, the channel and the market store; the mediator and ledger rows are steps 5 and 4), PRF-CFG-11 and PRF-XC-02's production part. It builds on OA_NEW `a4e6fbc` or later. Every OA_NEW citation below is at `a4e6fbc`. **Nothing here opens a secret:** `--check` reads only the `secrets` section's references, and every test value is synthetic, made at run time (`SYNTH` as in step 1).
 
-* **Builds:** `[project.scripts]` for every first-release participant (SLICE-09 and SLICE-10 are built), each with `--check`; a build step that writes `bundle.json` from the built wheel, the lock, the installer and templates, and SLICE-10's UI shipping manifest; the receipt `kernel.recovery` binds; `compose_production` for each participant, with the OpenAlgo order half bound only in the kernel and the market half only in the market process, endpoint contracts only from the bundle, and the lease store required; the first-release table.
-* **Changes in modules other specs own,** each listed in the step's files and reported to that spec: the handshake in `adapters/unix_channel.py` (projection digests beside SLICE-10's version and release checks) and in `market/store.py` and `market/view.py` (the store records the market process's handshake; `StoreMarket` checks it); the account layer and legacy's `effective_limits` in `kernel/admission.py`.
-* **The production composition is exercised class S:** the OpenAlgo adapter talks to the local fake server SLICE-07 built, the lease store is SLICE-03's fake, and no credential exists.
-* **Test files:** `tests/contracts/test_installed_artifact.py` (builds the wheel and installs it into a temporary environment outside the checkout); `tests/contracts/test_capabilities.py` gains PRF-XC-02's production part; `tests/unit/test_admission_checks.py` gains PRF-CFG-11, with golden cases generated once from legacy's `effective_limits`.
+**In plain words.** This step makes the new system installable and lets each of its programs answer "are you ready?". Each program gets its own command (`at-kernel`, `at-market`, `at-strategy` and the rest). Each command has a `--check` mode. It reads the settings, checks the installed files and lists what is missing. It opens no ledger, no market store, no socket, no broker connection and no key, so it never changes a running system. A release now carries a list of every file it is made of, with a fingerprint of each. When a program starts for real on the trading server, it compares the files it actually loaded with that list. The kernel refuses to start on a mismatch, as today's trading authority refuses an unattested release. The market process and the operator relay only report a mismatch: stopping them would stop the trail or the owner's commands, and today's system never stops them for that. Programs that talk to each other also compare the settings they must share. A difference is reported and alerted, never refused, because today nothing compares settings. The account's entry limits from step 1 are merged with the strategy's own limits exactly as today, so the live daily loss limit stays ₹3,600, and an unreadable limit stops new entries only. Nothing here changes when or how the system trades.
+
+### Decisions
+
+#### What legacy does here
+
+* **Start attestation.** The trading authority binds itself to the release before it serves. It refuses to start when the bound receipt is not backed by its digest and `RELEASE_BOUND` event, or when the release in force differs from the one bound (`src/tier1/gateway_route.py:360-399`, called at start, `src/runtime/tier1_authority/service.py:800-808`). "The release" includes the effective configuration: `release.compare` checks the code revision and source digest, **the effective config digest**, the units, the SQLite runtime, the schema and the epoch (`src/tier1/release.py:82-93`, the config at `:87-90`), so a settings change the deploy did not bind refuses the authority's start. Nothing else attests at start. A process started from other code ran, and the authority refused its sends: 25 of them on 14 October 2026 (`deploy/release_check.py:7-11`).
+* **`--check` only reads.** `at update --check` "change[s] nothing" (`deploy/at:1679-1683`); `deploy/session_units.py --check` reads the installed units and says whether they agree (`deploy/session_units.py:32`, `:180`); the release check opens the ledger as a reader and writes nothing (`deploy/release_check.py:20`).
+* **The limits merge.** `effective_limits(account, strategy)` (`src/core/framework/sizing/gates.py:109-149`): of each count, amount and percentage the lower value that is set; the larger cooldown; either fresh-setup; the drawdown gate on when either layer turns it on, its window the account's when the account turns it on, else the strategy's, else 0; the earliest cutoff by clock time, an unparseable one sorted first so the gate refuses on it (`:132`). The live driver merges the account layer into every desk's limits (`src/core/framework/policy/compat.py:39-47`).
+* **Handshakes.** The authority's channel compared the client's code revision only, so a setting change never turned a peer away (SLICE-10's record of `service.py:291-297`). The market poller wrote its records with no check of who reads them.
+
+#### Python and the commands (`pyproject.toml`, `__main__.py`)
+
+* **`requires-python = ">=3.12"`.** Step 1 resolved the lock for 3.12, because `numpy==2.5.3` needs it. **Deviation** from the configuration spec's "keeps `>=3.11`". `version` stays `0.1.0.dev0`; the dependencies, extras and package data are unchanged.
+* **`[project.scripts]`,** exactly these seven:
+
+  | Command | Function | Participant |
+  |---|---|---|
+  | `at-kernel` | `autonomous_trading.bootstrap:main_kernel` | kernel |
+  | `at-market` | `autonomous_trading.bootstrap:main_market` | market |
+  | `at-supervisor` | `autonomous_trading.bootstrap:main_supervisor` | supervisor |
+  | `at-strategy` | `autonomous_trading.bootstrap:main_strategy` | strategy |
+  | `at-cognition` | `autonomous_trading.bootstrap:main_cognition` | cognition |
+  | `at-operator` | `autonomous_trading.bootstrap:main_operator` | operator |
+  | `at` | `autonomous_trading.__main__:main` | at |
+
+  Each `main_<p>()` returns `run("<p>", sys.argv[1:], os.environ)`. `at-cognition` is declared now; the composition table decides whether it runs. No `at-observer` (step 5) and no research command (SLICE-12). `python -m autonomous_trading operator serve` and `mcp serve` stay; `__main__.main` sends both through `run("operator", …)` and `run("mcp", …)`, so they take `--check` too. `at --check` goes to `check("at", …)`; every other `at` argument is the built CLI.
+* **`at-strategy` takes one positional argument,** the strategy id (`at-strategy buyer_edge`; one strategy per process, SLICE-09). A missing or second id is a usage error.
+* **Exit codes,** for every command: 0 done; 1 the start (or the check) refused; 64 a usage error; 78 composed, but this release has no service loop for the participant (below).
+
+#### `--check` (`bootstrap.check`)
+
+`check(participant, argv, environ, out) -> int` runs these in order, and every one runs (a refusal does not stop the later checks):
+
+1. **Settings:** `eff = check_environment(participant, environ)`, which is `effective(environ.get("AT_PROFILE", "test"), environ, participant=participant)`. A `ConfigRefused` is a refusal; nothing after this step runs, because nothing is resolved.
+2. **Artifact,** only for a `production` profile: `load_manifest(environ)`, then `verify_loaded(manifest)` (below). Each problem is a refusal for a participant that refuses on `CFG-R06`, and a problem line for one that reports it (Fork call E). Otherwise the line reads `artifact: unverified (<kind> profile)`.
+3. **Required settings:** every key of `required_fields(participant, eff.profile_kind)` (below) left unbound is the refusal `unbound <key>`.
+4. **Credential references:** for the kernel and the market process with a `production` profile, a scope entry of `SCOPES[<participant>]` with no reference in the `secrets` section is the refusal `no credential reference openalgo/api_key`. Only the identifier is compared; no value is read.
+5. **The participant's own read-only checks:**
+
+   | Participant | Checks |
+   |---|---|
+   | kernel | `budget_check(observation.poll_interval_secs, observation.max_requests_per_minute)`; in production, `parse_peers(eff.section("channel"))` (a `ValueError` refuses `channel`); `market.views` names `protection` (else `unbound market.views.protection`); `AT_DEPLOYMENT_ROOT` set and absolute, else the problem `kill_file_root_unset` (Fork call F) |
+   | market | `market.poll_interval_secs == 60` (`market.ingest.compose`'s built refusal); `market.source.greeks_batch` at most `GREEKS_BATCH_MAX` (50, `market/sources.py`); each `market.source.instruments` row builds a `MarketInstrument` |
+   | supervisor | `budget_check(poll, max, supervisor.max_requests_per_minute)` |
+   | strategy | exactly one id; `HostSettings(pass_secs, seal_wait_ms, review_retry_ms)` builds; `load([PRODUCTION], parse_registry(<strategies.registry>), composition=c)` with `c` `"production"` for a production profile, else `"simulation"`; the id's registration is runnable (else `STR-R14 not_runnable`); its descriptor's `view_policy` is a key of `market.views` |
+   | cognition | `_cognition_refusals(settings)`, as built |
+   | operator | `parse_operator` of `eff.section("operator")`, or, when the profile has no `operator` section, of the file `AT_OPERATOR_CONFIG` names (the built route); neither is `unbound operator` |
+   | mcp | `parse_mcp` and `auth_mode` over the file `MCP_CONFIG_FILE` names, as `mcp.serve` reads it, without resolving a token |
+   | at | none: `at --check` always exits 0 (step 1: nothing may keep the kill switch from engaging) |
+
+   `load` reads the strategy package's source files only; it opens no store.
+
+**Output,** one line each, in this order, to `out`:
+
+```text
+participant: <name>
+profile: <test | simulation | production | research>
+settings: <eff.revision>
+artifact: verified <bundle_digest> | unverified (<kind> profile) | mismatch <count>
+problem: <text>        (each Effective problem, then each reported check, in order found)
+refused: <text>        (each refusal, in order found)
+check: ok | check: refused
+```
+
+A problem never changes the exit code (R-2). Every text names a key, a code, a file path or a count, never a value.
+
+**`--check` never:** opens the ledger (writer or reader), the evidence store, the market store or the strategy store; opens a socket or an HTTP connection; calls `settings.secrets.resolve`; imports `adapters.openalgo`; sets or blanks an environment name; creates, writes or deletes a file or directory. The history check against the live ledger (`compatible`) is the installer's, read-only, at `VERIFIED_DISARMED` (step 7).
+
+#### The start sequence (`bootstrap.run`)
+
+`run(participant, argv, environ) -> int`. With `--check` in `argv` it returns `check(…)`. Otherwise:
+
+1. **`prepare(participant, environ) -> Effective`:** `check_environment`; a `ConfigRefused` exits 1 with its text on stderr (never for `at`). Each `eff.masked` name is set to `""` in `os.environ` and in `environ`. The process's `Secrets` are resolved: `resolve(<refs in scope>, SCOPES[<scope>], live=eff.profile_kind == "production", environ=environ)` for the kernel, the market process and cognition; the operator and MCP processes keep their built resolution; every other participant holds `Secrets(())`. Logging: when the root logger has no handler, `logging.basicConfig(level=INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")` to stderr (journald under systemd); then `secrets.log_filter()` is added to every root handler, and `sys.excepthook` and `threading.excepthook` are replaced by functions that log the exception at CRITICAL through the root logger with `exc_info`, so the filter scrubs a traceback too (SLICE-10's hand-off). Then each problem is logged at WARNING as `settings: <text>`.
+2. **Artifact,** production only: `load_manifest` and `verify_loaded`. A refusing participant exits 1 with each line on stderr; a reporting one logs each at WARNING and goes on.
+3. **Required settings:** an unbound key raises `RefusingParameterUnbound(key)`; exit 1. Not for `at`.
+4. **Compose:** kernel and market through `compose_production` (below); operator through `api.serve(environ, settings=eff.settings, release=<bundle_digest or None>, projections=dict(eff.projections))`, which passes `projections` to its `KernelChannelClient`; MCP through `mcp.serve(environ, settings=eff.settings)`; `at` through the built `cli.main`. `api.serve` and `mcp.serve` gain those keyword arguments (and `api.serve` also `projections`), default `None`, which keeps today's `resolve(environ["AT_PROFILE"], environ)`. With `release` given, the operator's `KernelChannelClient` takes it instead of the config's `kernel.release`, and a config value that differs is the problem `CFG-R03 bad_value: operator.kernel.release` (SLICE-10's hand-off: every client presents its own release's digest).
+5. **Identity record:** when `paths.run` is bound, `<paths.run>/identity/<participant>.json`, written to a temporary name and moved over with `os.replace`, mode `0640`: `{"format": "at-identity/1", "participant", "pid", "bundle_digest" (or null), "artifact": "verified" | "unverified" | "mismatch", "settings_revision", "settings": eff.snapshot(), "problems": [text], "started_utc"}`. Unbound `paths.run` logs one WARNING and writes nothing. Steps 4 and 7 read it.
+6. **Serve,** or exit 78. In this step only the operator, MCP and `at` paths serve. The kernel's loop is step 3 and the supervisor's is step 4. The market, strategy and cognition loops have no step yet (Open, below). Until each exists, `run` composes, writes the identity record, closes what it opened, logs `no service loop in this release`, and exits 78.
+
+#### Required settings (`bootstrap.required_fields`)
+
+`required_fields(p, kind)` is `PARTICIPANTS[p].fields_required`, plus, for a `production` profile:
+
+| Participant | Production adds |
+|---|---|
+| kernel | `ledger.path`, `market.store_path`, `accounts`, `recovery.lease_store`, `openalgo.base_url`, `market.views` |
+| market | `openalgo.base_url`, `market.http_timeout_ms`, the eight `market.source.*` |
+| strategy | `market.store_path`, `market.views`, `strategies.registry` |
+
+The lease timings stay out: without them recovery refuses even a human advance (`SES-R10`, as built), and the kernel cannot send either way. `account.max_worst_case_loss` stays out: admission already refuses entries while it is unbound (`kernel/admission.py:157-158`), and a start refusal would also stop exits.
+
+#### New fields (`settings/schema.py`, `resources/defaults.yaml`)
+
+Each ships `null`, has no environment name, and is appended to `resources/defaults.yaml` inside the mapping its key names (`market:`, `strategies:`) or as a new `openalgo:` mapping. Step 7's example profile carries legacy's values.
+
+| Key | Kind | Scope | Basis |
+|---|---|---|---|
+| `openalgo.base_url` | `text` | kernel, market | Deployment; legacy's `openalgo.rest.base_url`, set by `OPENALGO_API_URL` (`config/defaults.yaml:512`) |
+| `market.views` | `views` (new) | kernel, strategy | SLICE-08: policies bound per release by name. **Joins the `market` projection** (step 1's rule: it joins once it is a field) |
+| `market.source.strike_count`, `.chain_interval_secs`, `.greeks_batch`, `.tick_mode` | `int_pos` | market | SLICE-08's hand-off; legacy 8, 60, 10, 1 (`config/defaults.yaml:1299`, `:1348`, `:1361`) |
+| `market.source.greeks`, `.repair_live` | `bool` (new) | market | Legacy `false`, `true` (`config/defaults.yaml:1325`, `:1374`) |
+| `market.source.tick_symbols` | `text_list` (new) | market | Legacy `[BANKNIFTY, NIFTY]` (SLICE-08) |
+| `market.source.instruments` | `instruments` (new) | market | Set per deployment; empty in legacy's defaults (SLICE-08) |
+| `strategies.registry` | `section` | strategy | Read by `parse_registry` at composition (SLICE-09) |
+
+The new kinds and their normalized values: `bool` → a YAML boolean only (text, 0 and 1 are wrong values); `text_list` → a list of non-empty, stripped `str`, kept in order; `instruments` → a list of mappings of exactly `{name, spot_exchange, option_exchange, live}`, each normalized as `MarketInstrument` normalizes (`market/sources.py`); `views` → a mapping of name to a mapping of exactly the `ViewPolicy` fields (`contracts/market.py`), with `join`, `max_age_secs` and `stale` as lists of `[stream, value]` pairs and `wdef` as `{interval_secs, confirm_lag_secs, alignment}`. The check builds each `ViewPolicy` and requires its `name` to equal its key; any failure is one `CFG-R03` problem and the field stays unbound. Settings holds `market_views` as `{name: ViewPolicy}`; the canonical mapping enters `values`, `revision` and the `market` projection. `openalgo.base_url` is a `text` whose last part is not secret-looking, so the `openalgo.auth.api_key` drop of step 1 is unchanged. **`Effective` gains `refs: tuple[SecretRef, ...]`** (appended, default `()`): the parsed references, which `prepare` needs to resolve. They hold a source and a locator, never a value, and enter no digest or snapshot.
+
+#### The manifest and verification (`bootstrap.py`)
+
+* **`build_manifest(*, wheel, lock, deploy_dir, ui_root, composition, provenance, license) -> dict`** runs inside the release's own interpreter (the installer, step 7, calls it from `<release>/venv` at staging; the tests do the same). `artifact`:
+  * `distribution`: `{name: "autonomous-trading", version, wheel_sha256: sha256 of the wheel file, record_sha256: sha256 of the installed `RECORD` file's bytes}`;
+  * `dependencies`: every installed distribution but the project's, sorted by normalized name, `{name, version, sha256}`, where `sha256` is the SHA-256 of that distribution's installed `RECORD`. Each must be pinned in `requirements.lock` at that version, else `ValueError` naming it. **Deviation:** the spec's "sha256 from requirements.lock"; the lock holds several files' hashes per pin, while `--require-hashes` already enforced them at install, and the `RECORD` hash names what is installed;
+  * `resources`: `{path relative to resources/: sha256}` for every file under the packaged `resources/` (`defaults.yaml`, `events.schema.json`, `canvas.schema.json`, `migrations/001_initial.sql` … `008_decisions.sql` at `a4e6fbc`);
+  * `schema`: `{migration_revision: max number of kernel.ledger.schema.MIGRATIONS (8), events_schema: sha256 of events.schema.json, candidates_schema: null, canvas_schema: sha256 of canvas.schema.json}`;
+  * `readers`: `{"event": sorted [[kind, 1] for every kind in events.schema.json], "candidate": []}`. Every event is written with `schema_version` 1 (`kernel/ledger/store.py:744`);
+  * `runtime`: `{python: platform.python_version(), sqlite_binding: "apsw", sqlite_version: runtime_identity()["sqlite_version"]}`;
+  * `participants`: `{name: status}` from `COMPOSITIONS[composition]`;
+  * `entrypoints`: `{command: "module:function"}` from the installed distribution's console scripts. **Deviation:** a field the spec does not list; `validate_composition` reads it;
+  * `deploy`: `{install_sha256: sha256 of <deploy_dir>/install.py or null, templates: {file name: sha256} for <deploy_dir>/systemd/*}` (`deploy/install.py` is step 7's, so it is `null` until then);
+  * `endpoint_contracts: null` and `measurements: null` until TASK-S07-05's records and TASK-S11-07's approvals exist;
+  * `ui_assets`: with `ui_root`, `{"files": {path: sha256}}` over the files `git ls-files -z operator_ui` lists in the checkout, read from the working tree; else `null`. **This is the UI shipping manifest:** SLICE-10 named none.
+
+  Outside the digest: `provenance` `{git_sha, built_at, builder}` and `license` (`release.license` or `null`). `format` is `"at-bundle/1"`. `bundle_digest(manifest) = digest(manifest["artifact"])` (`kernel/ledger/envelope.py`). `write_manifest(path, manifest)` writes canonical JSON and a newline, and raises `FileExistsError` if the file exists: nothing changes a manifest once written.
+* **Installs use `--no-compile`.** No `.pyc` is in any `RECORD`, so a byte-code file Python writes later can never fail verification. A `.pyc` row in `RECORD` is itself a verification problem.
+* **`load_manifest(environ) -> tuple[dict | None, list[str]]`:** the release directory is `Path(sys.prefix).resolve().parent`, and its name must equal `AT_RELEASE`; the manifest is its `bundle.json`. A missing `AT_RELEASE`, another name, a missing or unreadable file, text that is not JSON, or a `format` other than `at-bundle/1` is one problem, `CFG-R06 artifact_mismatch: bundle.json <reason>`.
+* **`verify_loaded(manifest) -> list[str]`,** each line `CFG-R06 artifact_mismatch: <what>`, checked in this order and all reported:
+  1. `location`: `sys.prefix` resolved is a directory named `venv`, and `autonomous_trading.__file__` resolved lies inside it;
+  2. `version`, `record`, then `file <path>` per `RECORD` row whose `sha256=` hash (URL-safe base64, unpadded) differs from its file's bytes, or whose file is missing;
+  3. `dependency <name>` for each name and version that differs between `importlib.metadata.distributions()` (the project excluded) and `artifact.dependencies`, either way, and for a `RECORD` hash that differs;
+  4. `resource <path>` for each manifest resource whose bytes, through `importlib.resources`, hash differently, and for each packaged resource file the manifest does not list;
+  5. `runtime` when the three runtime values differ.
+
+  It reads files only; it opens no store.
+* **The kernel's bound settings revision (Fork call E, legacy's config binding).** The manifest is immutable, so the settings revision the installer binds for a release lives beside it: `<release>/settings.json`, `{"format": "at-settings-binding/1", "revisions": {participant: revision}}`, which step 7 writes at `VERIFIED_DISARMED` from each `--check`'s `settings:` line. `bound_revision(environ, participant) -> str | None` reads it from the release directory `load_manifest` uses. **At a production kernel start,** an absent file, an absent `kernel` entry, or an entry other than `eff.revision` is the refusal `CFG-R06 artifact_mismatch: settings_revision`, as legacy's authority refused a config digest other than the one bound (`src/tier1/release.py:87-90`). In the kernel's `--check`, an absent file or entry is the problem line `CFG-R06 artifact_mismatch: settings_revision unbound` (the installer runs `--check` before it writes the file), and a differing entry is a refusal. No other participant checks it: legacy bound the configuration only at the authority.
+* **`compatible(manifest, reader) -> list[str]`** over a `LedgerReader`: the stored `migration_revision` (`ledger_meta`) above `artifact.schema.migration_revision` is `CFG-R09 incompatible_history: migration_revision <stored> > <supported>`; each stored `(kind, schema_version)` (`SELECT DISTINCT kind, schema_version FROM ledger_event`) not in `readers.event` is `CFG-R09 incompatible_history: event <kind>/<version>`. The continuity check (`CFG-R11`) is the installer's (step 7); the kernel's own `carried_runnable` stays as built.
+
+#### Which start refuses on `CFG-R06` (Fork call E)
+
+| Participant | On a verification problem | Why |
+|---|---|---|
+| kernel | refuses, and also on `settings_revision` (above) | Legacy's authority refused to start unattested, including on an unbound config digest (above) |
+| strategy | refuses | Withholds new intents only; legacy's authority refused an unattested process's sends |
+| cognition | refuses | The bound review policy's unavailable behaviour applies (A09-F1); no new gate |
+| supervisor | refuses | Holds no money path |
+| market | reports | Refusing would stop the views that protection and the trail read; legacy's poller had no such check |
+| operator | reports | Refusing would remove the owner's API commands (kill, close); legacy's owner API had no such check |
+| mcp | reports | Read-only live; legacy's gateway had no such check |
+| at | reports | Never refuses (step 1) |
+
+"Reports" is a WARNING per line, the identity record's `"artifact": "mismatch"`, and the problem lines of `--check`.
+
+#### Compositions (`bootstrap.py`)
+
+* **`COMPOSITIONS["first_release"]`,** `{participant: (status, commands)}`, in this order: kernel (`required`, `at-kernel`); market (`required`, `at-market`); strategy (`required`, `at-strategy`); cognition (`policy`, `at-cognition`); supervisor (`required`, `at-supervisor`); observation (`required`, `at-observer`, or the native read-only credential, step 5); operator (`required`, `at-operator` and `at`); backup (`required`, none until step 8 names it); canvas (`optional`); telemetry (`optional`); research (`deferred`); rl (`deferred`).
+* **`validate_composition(name, manifest, *, enabled_units, cognition_required, native_observation) -> list[str]`.** For each row, in order, that is `required`, or `policy` with `cognition_required`: each command missing from `artifact.entrypoints` is `CFG-R10 participant_missing: <participant> entrypoint <command>`; the participant's unit (from `PARTICIPANTS`; observation's is `at-observer.service`) missing from `enabled_units` is `CFG-R10 participant_missing: <participant> unit <unit>`. Observation is satisfied by `native_observation` alone. An unknown name is `CFG-R10 participant_missing: composition <name>`. `optional` and `deferred` rows are never reported. **Deviation (signature):** the spec's `(composition, effective, ledger)`; the installer (step 7) supplies the enabled units it rendered and reads the bound review policy through `LedgerReader` for `cognition_required`. BuyerEdge's descriptor declares one market view input (`strategies/buyer_edge.py`), which the market row already requires.
+* **`compose_production(effective, manifest, *, participant, clock, environ, leases=None, policies=None, stats=None)`** composes `kernel` or `market`; any other participant, or a profile kind other than `production`, raises `ValueError`. Both first raise `RefusingParameterUnbound` for each unbound `required_fields` key.
+* **The kernel.** `compose_simulation`'s body (`bootstrap.py:134-285`) moves unchanged into `_compose_kernel(settings, broker, clock, *, <the same keywords>, port_factory=None, contracts=None, relays=None)`. `compose_simulation` keeps its signature and calls it with those three `None`, so every simulation test and PRF-XC-02's simulation test are unchanged. Only when `port_factory` is given (production) does the body differ: the `capacity.synthetic_amount` refusal is skipped (step 1 sets it aside in production, and the coordinator accepts `None`, `kernel/coordinator.py:122`); `port = port_factory(evidence)` right after the `EvidenceStore` is built, and the observation loop reads that port; the reconciliation contracts are `contracts`; `Authority` takes `relays`; no `Authorizer` is built (SLICE-10: a live kernel composes none). `compose_production` passes:
+  * `port_factory`: `lambda ev: OpenAlgoAdapter(settings.openalgo_base_url, secrets["openalgo/api_key"], AccountId(account.broker, account.account_id), clock, ev, http_timeout_ms=settings.http_timeout_ms, exchange=account.exchange, read_budget=None, secrets=secrets)`, imported inside the function; `broker=None`;
+  * `contracts={}` while `artifact.endpoint_contracts` is `null`: the open visibility window, as the loop has today with no contract (`kernel/reconciliation.py:294-300`);
+  * `relays = parse_peers(effective.section("channel")).relays()`, and `authenticated` with every service peer's principal on `local_channel`;
+  * `leases`: the argument when given (tests: SLICE-03's `FakeLeaseStore`); otherwise `lease_store_for(settings.recovery_lease_store)`, which in this step raises `RefusingParameterUnbound("recovery.lease_store")` with the text `no lease-store adapter in this release` (step 8 replaces it);
+  * `receipt = release_receipt(manifest, effective, environ["AT_RELEASE"])`: `{bundle_digest, release_id, verified: {record: true, resources: true, dependencies: true, runtime: true}, settings_revision: effective.revision, settings_snapshot_ref: content_digest(effective.snapshot()), projections: dict(effective.projections), deployment: {the four recovery.* keys: their values or null}}`. After `recovery.run()`, `comp.evidence.publish(effective.snapshot())` stores the snapshot under that digest;
+  * `credentials=secrets` (`Recovery` binds the identifiers, SLICE-10 step 3);
+  * `kill_inputs = KillInputs.resolve(settings.kill_switch, settings.kill_switch_files, environ["AT_DEPLOYMENT_ROOT"])`; with `AT_DEPLOYMENT_ROOT` unset, `KillInputs(settings.kill_switch, <the absolute file texts only>)` and the alert `kill_file_root_unset` (Fork call F);
+  * `admission = AdmissionPorts(safety=None, conflicts=None, busy=None, observations=None, market=None, planner=Planner(), policies=policies, max_worst_case_loss={canonical(wire(account)): settings.account_max_worst_case_loss} or {} when unbound, holdings=None, stats=stats, positions=LEDGER_POSITIONS)`; `policies` and `stats` are required here (`ValueError` when `None`): no step builds the ledger's `SessionStatsPort` or the bundle's bound policies yet (Open, below), so the tests pass the conftest fixtures;
+  * `view_policies = settings.market_views`, and `StoreMarket` takes `handshake=Handshake(bundle_digest, "market_store", CONTRACTS["market_store"], effective.projections)`;
+  * before the writer opens: when `ledger.path` exists, `compatible(manifest, LedgerReader.open(path))`; any line raises `HistoryIncompatible` (a `SettingsError`) with the lines. The ledger's own schema check already refuses a newer migration revision (`kernel/ledger/schema.py:112`); the event check cannot fire for a ledger this or an older bundle wrote.
+
+  After composing, the kernel's `recovery.alerts` gains, each once: `settings_problem <code> <key>` per problem; `account_limits_unreadable` when `settings.account_limits is None`; `handshake_mismatch market_store <field>` per `StoreMarket.handshake_problems` line; `kill_file_root_unset` as above. The channel's `alerts` read (`adapters/unix_channel.py:464-467`) serves them, as built.
+* **The market process.** `secrets` resolved for the `market` scope; `source = OpenAlgoMarketSource(settings.openalgo_base_url, secrets["openalgo/api_key"], clock, http_timeout_ms=settings.market_http_timeout_ms, instruments=<the MarketInstrument rows>, strike_count=…, chain_interval_secs=…, greeks=…, greeks_batch=…, repair_live=…, tick_mode=…, tick_symbols=tuple(…), secrets=secrets)`; `loop = market.ingest.compose(settings, clock, source, instruments=[i.name for i in rows], streams=source.streams(), handshake=Handshake(bundle_digest, "market_store", CONTRACTS["market_store"], effective.projections))`. It returns `MarketComposition(loop, source)`, frozen. It never imports or builds `OpenAlgoAdapter` (PRF-XC-02, production part), and the kernel never builds `OpenAlgoMarketSource`.
+
+#### Handshakes (`settings/schema.py`, `adapters/unix_channel.py`, `market/store.py`, `market/view.py`, `market/ingest.py`)
+
+* **`CONTRACTS = {"channel": "kernel-channel/1", "market_store": "market-store/1", "observation": "observation/1"}`.** The channel's version is `adapters/unix_channel.py`'s `CONTRACT`, unchanged.
+* **`Handshake(bundle_digest: str | None, contract: str, contract_version: str, projections: tuple[tuple[str, str], ...])`,** frozen; `as_dict()` and `Handshake.from_dict(mapping)` (a wrong shape raises `ValueError`). `bundle_digest` is `None` for an unverified participant; two `None`s are equal.
+* **`check_handshake(local, remote, *, needs) -> list[str]`,** each line `CFG-R14 handshake_mismatch: <field>`. A `remote.contract` not in `CONTRACTS`, or not equal to `local.contract`, is the single line `contract`, and nothing else is compared. Then, in order: `contract_version`; `bundle_digest`; `projection <name>` for each name of `needs` in sorted order whose digests differ (a name missing on either side differs). A name in `needs` that is not a key of `SHARED_PROJECTIONS` raises `ValueError`. Paths and credentials are in no projection (step 1), so they never differ here.
+* **The channel.** `_MESSAGE_KEYS` gains `projections` (`adapters/unix_channel.py:52`); check 5 also requires it to be a mapping of `str` to 64 lower-case hex. `KernelChannelClient(…, projections: Mapping[str, str] | None = None)` sends it (`{}` when `None`). `ChannelCore(…, projections: Mapping[str, str] | None = None)`: when given, after check 8 (`release`), `check_handshake(Handshake(self.release, "channel", CONTRACT, local), Handshake(message["release"], "channel", CONTRACT, sent), needs=("market", "recovery"))`. Each line is logged at WARNING once per peer unit and line, and `handshake_mismatch <unit> <field>` joins `comp.recovery.alerts` once. **The call proceeds** (Fork call E). With `None` (today's tests) nothing is compared. A different contract or release stays refused with `SEC-R11`, as SLICE-10 built it. **Deviation:** the spec's `CFG-R14` refusal on the channel is SLICE-10's `SEC-R11` for the code, and a report for the settings.
+* **The market store.** `MarketStore.open(path, clock, *, fault_point=None, handshake=None)`: with a handshake, after the open or upgrade and in one transaction, `CREATE TABLE IF NOT EXISTS writer_handshake (id INTEGER PRIMARY KEY CHECK (id = 1), handshake TEXT NOT NULL, recorded_at TEXT NOT NULL)` and `INSERT OR REPLACE` row 1 with `canonical(handshake.as_dict())` and `clock.now().utc_iso`. `STORE_SCHEMA` stays 2: a table no reader requires changes no reader's schema rule. `_Reads.writer_handshake() -> Handshake | None` (`None` when the table or row is absent). `market.ingest.compose` gains `handshake=None` and passes it on. `StoreMarket(store_path, policies, clock, *, handshake=None)`: with a handshake, at construction `self.handshake_problems = tuple(check_handshake(handshake, recorded, needs=("market",)))`, or `("CFG-R14 handshake_mismatch: absent",)` when none is recorded; without one, `()`. **Reads never depend on it:** a mismatch makes nothing `Unavailable` (Fork call E). The supervisor's check of the store is step 4's.
+
+#### The account limits (`kernel/admission.py`) — Fork call A, completed
+
+* **`effective_limits(account: SessionLimits, strategy: SessionLimits) -> SessionLimits`,** legacy's body (`gates.py:109-149`) ported line for line over `SessionLimits`' field order, with `kernel.planner._hm` (`kernel/planner.py:54-59`, legacy's `_hm`).
+* **`with_account_limits(bound, account)`:** `bound` unchanged when it or its `planner` is `None`; else `dataclasses.replace(bound, planner=dataclasses.replace(bound.planner, limits=effective_limits(account, bound.planner.limits)))`.
+* **`EntryAdmission.admit`,** just before planning (`kernel/admission.py:856-859`): when `self.s.account_limits is None`, `record(Refusal("ADM-R13", "plan_refused", key, "COMMAND_ADMITTED"), "P", stage="session_gates", reason="account_limits_unreadable")`, and the planner is not called. Otherwise the planner gets `policy=with_account_limits(self.policy.bound_policy(intent.session_id), self.s.account_limits)`. `ActionAdmission`, protection, the trail and settlement never read either layer (legacy, `scripts/run_framework_live.py:7594-7606`, `:7798-7804`).
+* **The daily-loss latch reads the merged loss limit too (`kernel/safety.py`).** Legacy's latch, every pass, takes its budget from the merged limits (`effective_limits_for(owner, account_limits)`, `scripts/run_framework_live.py:7984-7988`, into `src/runtime/session_state.py:150-176`). The target's latch takes `budget(risk)` from the policy alone (`kernel/safety.py:177-183`, `:494`). `Safety(…, account_limits: SessionLimits | None = None)` gains the argument, and `_compose_kernel` passes `settings.account_limits`. `latch_budget(risk, account)` is `budget(risk)` with the amount replaced by the lower set value of `Decimal(risk.max_daily_loss_amount)` and `Decimal(account.max_daily_loss_amount)` (the float as is, so 3000.0 is `Decimal("3000")`), and the percentage by the lower set value of `risk.max_daily_loss_pct` and `account.max_daily_loss_pct` (0 or `None` is not set). A percentage applies only with the policy's capital, as `budget` does today. With `account` `None` (unreadable) or `NO_ACCOUNT_LIMITS`, it equals `budget(risk)`: entries are refused anyway while unreadable, and the policy's latch keeps running. `:494` calls `latch_budget(risk, self.account_limits)`. What a trip does, and the unlock, are unchanged.
+* **With `NO_ACCOUNT_LIMITS`** (every test profile), the merge is legacy's normalization of the policy layer alone: a drawdown window with the gate off becomes 0 (case M5c), as legacy's live driver always merged.
+
+#### Repository files
+
+* **`.pre-commit-config.yaml`:** legacy's secrets and accident hooks, same pins: `gitleaks` `v8.21.2`; `pre-commit-hooks` `v5.0.0` with `check-added-large-files` (`--maxkb=2048`), `detect-private-key`, `check-merge-conflict`, `end-of-file-fixer`, `trailing-whitespace`. No lint, determinism or knowledge-map hook (OA_NEW has none of their scripts).
+* **`.github/workflows/verify.yml`,** on push and pull request, `ubuntu-latest`: `actions/checkout@v4` with `fetch-depth: 0`; `actions/setup-python@v5` with `3.12`; `python -m pip install -e ".[test,operator,mcp]"`; `python scripts/safe_tests.py tests/unit tests/contracts` (which includes the installed-artifact test, run outside the checkout by its own fixture); `gitleaks/gitleaks-action@v2` with `GITLEAKS_ENABLE_COMMENTS: "false"` (legacy's). It deploys nothing and holds no project secret; the gitleaks action reads only GitHub's built-in token.
+
+#### Fork calls in this step
+
+* **A (completed).** Legacy's merge, ported unchanged, for the planner's gates and for the daily-loss latch's budget; an unreadable account limit refuses new entries only, with one alert. The R-5 case below proves ₹3,600.
+* **E. Start and boundary checks keep legacy's reach.** `CFG-R06` refuses only where legacy refused, or where the refusal withholds only new entries (the table above). A projection difference on the channel or at the market store, and a bundle difference at the market store, are reported and alerted, never refused: legacy compared only the code revision, and only on the authority's channel. *Listed, not made:* refusing a peer whose settings differ.
+* **F. A kill file with no deployment root is reported,** not refused: the kernel watches the flag and the absolute file paths and raises `kill_file_root_unset`, as legacy started even when it watched nothing (SLICE-10's `kill_file_unwatched`). The installer always sets the root (step 7).
+
+#### Deviations in this step
+
+* `requires-python = ">=3.12"`; `entrypoints` added to the manifest; `dependencies[].sha256` is the installed `RECORD`'s; installs use `--no-compile`; `validate_composition`'s signature; the channel's contract and release refusals stay `SEC-R11`; the UI shipping manifest is defined here (each above).
+* **`market.views` joins the `market` projection,** so step 1's two `market` digests change (Tests). `market.calendar` is still not a field (step 1).
+* **The market store's handshake is an added table** with no schema number change.
+
+#### Open, not built in this step
+
+* **The market host loop** (SLICE-08's `run_once` schedule, the reference-day recording, the ticks socket and its re-subscribe, the MCP `market` port with `ticks.watch`) **and the channel `KernelPorts` client** for the strategy host and cognition: [step 3a](#step-3a--the-market-host-loop-and-the-channel-kernelports-client-for-strategy-and-cognition-outline) (TASK-S11-13).
+* **The ledger's `SessionStatsPort` and the bundle's bound policies** (`AdmissionPorts.stats` and `.policies`, `kernel/ports.py:109-127`): step 3. `compose_production` takes them as arguments until then.
+
+Still open, raised for the coordinator:
+
+* **The adapter's in-send read budget:** `ObservationLoop` has no public budget callable, so `read_budget` is `None`, as the adapter's default.
+* **The operator's registry and the MCP `configuration` port** (SLICE-10's `OwnerPorts`) stay `None`.
+
+Carried as built: step 3 runs the kernel host, the channel server (`ChannelCore` with `submit=host.submit` and the kernel's projections) and the lease-expiry wait; step 4 runs the supervisor, its read share and the store and ledger handshakes; step 7 runs `compatible`, `validate_composition` and `CFG-R11` at activation.
+
+### Tests
+
+Every value is synthetic. `prod(**sections)` and `SYNTH` are step 1's. `VIEW` is the mapping form of the synthetic `protection` policy `tests/integration/test_market_port.py` builds, and `VIEWS = {"protection": VIEW, "buyer_edge": VIEW with name "buyer_edge"}`. `L9` is Fork call A's nine. `Z(**f)` is `NO_ACCOUNT_LIMITS` with the fields `f` replaced. Digests are SHA-256 over `canonical`, computed with Python at deepening.
+
+**`tests/unit/test_admission_checks.py`, PRF-CFG-11.** Each expected tuple was worked by hand from the rules above and agrees with legacy's `effective_limits` run on the same inputs. The tuples are in `SessionLimits`' order: trades, desk entries, open structures, fresh setup, losses, cooldown, loss %, loss amount, profit amount, drawdown on, drawdown loss, drawdown window, cutoff.
+
+| Case | Account | Policy | Expected |
+|---|---|---|---|
+| M1 (R-5) | `SessionLimits(5, 10, 1, True, 0, 300.0, 0.0, 4000.0, 0.0, True, 3000.0, 15, "")` | `Z(max_daily_loss_amount=3600.0)` | `(5, 10, 1, True, 0, 300.0, 0.0, 3600.0, 0.0, True, 3000.0, 15, "")` |
+| M2a | `Z()` | `Z(max_daily_loss_amount=3600.0)` | loss amount 3600.0, all else zero |
+| M2b | `Z(max_daily_loss_amount=4000.0)` | `Z()` | loss amount 4000.0: a 0 never switches the other off |
+| M3 | cooldown 300.0 / 600.0 | 600.0 / 300.0 | 600.0 both ways |
+| M4 | `Z()` | `Z(require_fresh_setup=True)` | fresh setup `True` |
+| M5a | drawdown on, 3000.0, 15 | drawdown on, 1000.0, 30 | on, 1000.0, **15** |
+| M5b | `Z()` | drawdown on, 1000.0, 30 | on, 1000.0, 30 |
+| M5c | `Z()` | drawdown off, 1000.0, 30 | off, 1000.0, **0** |
+| M6a | cutoff `"15:00"` | `"9:30"` | `"9:30"` |
+| M6b | `"9:30"` | `""` | `"9:30"` |
+| M6c | `"15:00"` | `"abc"` | `"abc"` (kept, so the gate refuses on it) |
+| M7 | trades 5, loss % 2.0 | trades 10, losses 8, loss % 1.5, profit 5000.0 | trades 5, losses 8, loss % 1.5, profit 5000.0 |
+
+Then, through admission:
+
+| Group | Cases |
+|---|---|
+| R-5 end to end | `resolve(prod(account={"limits": L9}), {}).account_limits == SessionLimits(5, 10, 1, True, 0, 300.0, 0.0, 4000.0, 0.0, True, 3000.0, 15, "")`. Merged with M1's policy, the planner's `_gate` with `S = SessionStats(0, 0, 0, True, "0", 0, 0, None, "-3600.00", "0", "0", 0, "10:00", None)` refuses with text starting `Daily loss limit hit (₹3600)`; with `S`'s `daily_pnl` `"-3599.99"` it passes. With the account layer alone, `S` passes: the merge is what tightens it |
+| The merged layer reaches the planner | An admission fixture whose bound policy's limits are `Z()`, `account_limits = Z(max_trades_per_session=1)`, stats `trade_count=1`: the entry is refused `ADM-R13` at `P`, stage `session_gates`, reason starting `Max trades/session reached (1/1)` |
+| Unreadable limits stop entries only | `account_limits=None`: an entry the fixture otherwise admits is refused `ADM-R13` at `P` with stage `session_gates` and reason `account_limits_unreadable`, and a planner that raises if called is never called; a close request through `ActionAdmission` on the same composition is admitted as without the change |
+
+**`tests/unit/test_safety_matrix.py`, the latch with the account layer (Fork call A).** The existing latch fixture, policy risk `max_daily_loss_amount` `"3600"` with no percentage:
+
+| Case | Account layer | Session P&L | Expected |
+|---|---|---|---|
+| Latch with the account layer | `Z(max_daily_loss_amount=3000.0)` | `"-3000.00"` | `LOSS_LATCH_TRIPPED` with `budget` `"3000"` |
+| | the same | `"-2999.99"` | no trip |
+| | `NO_ACCOUNT_LIMITS` | `"-3000.00"` | no trip (budget 3600, as built) |
+| | `NO_ACCOUNT_LIMITS` | `"-3600.00"` | trip, `budget` `"3600"` |
+| | `None` (unreadable) | `"-3600.00"` | trip, `budget` `"3600"` |
+| | `Z(max_daily_loss_amount=4000.0)` | `"-3600.00"` | trip, `budget` `"3600"`: the account never loosens the policy |
+
+`latch_budget` unit cases: risk 3600 and account 3000 → `Decimal("3000")`; risk 3600 and account 0 → `Decimal("3600")`.
+
+**`tests/unit/test_settings_resolver.py`, PRF-CFG-10 (`check_handshake`) and the new fields.** `M60 = "23b9c51d72175d2562e536a14cc008654a849cb2a40d62685ea866c516500813"` (the `market` projection of `prod(market={"poll_interval_secs": 60, "bar_confirm_lag_secs": "7"})`), `MNONE = "43d64126fa21bb912ad42ddd8c4dd9312c67dca93eebcadb2d42fc3c4b201de3"` (of `prod()`), `RNONE = "124ae94ea48f80fc82b50ef611b43ba0bd0f7269dc0560d05046eb3abfafe41d"`, `RSET = "158f1e92e8cc9bbeca23d7fd9147e22b7d336955b22ca07e6edc80d84630d6de"` (recovery `standing`, 3, 90, 30). `H = Handshake("a" * 64, "channel", "kernel-channel/1", (("market", M60), ("recovery", RNONE)))`; `needs = ("market", "recovery")` unless named.
+
+| Group | Cases |
+|---|---|
+| Projections (changed from step 1) | `prod(market={"poll_interval_secs": 60, "bar_confirm_lag_secs": "7"})` → `projection("market") == M60` (was `81b7a2…`); `prod()` → `MNONE` (was `77fc2e…`); the two-participant case now expects `M60` for both. Binding `market.views` to `VIEWS` changes the `market` digest |
+| Handshake | `check_handshake(H, H)` → `[]`; remote `bundle_digest` `"b" * 64` → `["CFG-R14 handshake_mismatch: bundle_digest"]`; remote version `"kernel-channel/2"` → `[… contract_version]`; remote contract `"ledger"` → `[… contract]` only, even with a different digest; remote `market` `MNONE` → `[… projection market]`; the same with `needs=("recovery",)` → `[]`; remote `recovery` `RSET` → `[… projection recovery]`; remote without `recovery` → `[… projection recovery]`; both `bundle_digest` `None` → `[]`; remote bundle `"b" * 64` and market `MNONE` → `[… bundle_digest, … projection market]` in that order; `needs=("calendar",)` → `ValueError` |
+| Paths and credentials | The kernel resolved over `prod(market=…60/"7", ledger={"path": <tmp>/a.sqlite}, secrets=<an env reference>)` and the market process over the same `market` section with `ledger.path` `<tmp>/b.sqlite` and no `secrets`: both `market` digests are `M60`, and `check_handshake` of their handshakes with `needs=("market",)` is `[]` |
+| New fields | `market.views` with a policy missing `wdef`, and with a name differing from its key → one `CFG-R03` each, `market_views is None`; `market: {source: {greeks: "yes"}}` and `{greeks: 1}` → `CFG-R03`; `instruments` row without `option_exchange` → `CFG-R03`; `tick_symbols: ["NIFTY", ""]` → `CFG-R03`; `openalgo: {base_url: ""}` → `CFG-R03`; `strategies: {registry: [1]}` → `CFG-R03`. `openalgo: {base_url: "http://127.0.0.1:5000", auth: {api_key: SYNTH}}` → `openalgo_base_url == "http://127.0.0.1:5000"` and one `CFG-R04` (`openalgo.auth.api_key`), as step 1 |
+
+The step 1 Fields row still holds: every new field is named once in `resources/defaults.yaml` and ships `null`.
+
+**`tests/contracts/test_capabilities.py`, PRF-XC-02 (production part), `--check` and compositions.** The production compositions run in a child (`python -I`), so the test process never loads the live adapter. The test reads the child's printed JSON. `PROD` is a production profile under `tmp_path` that binds, with synthetic values, every field the kernel, market, strategy, supervisor, cognition and operator need, including:
+
+* `accounts: {main: {broker: openalgo, account_id: SYN-ACCT-1, exchange: NFO}}`;
+* `openalgo.base_url` `http://127.0.0.1:<p>`, a listening socket the test owns that fails the test on any accept;
+* `market.views: VIEWS` and `recovery.lease_store: synthetic`;
+* `strategies.registry: {ceiling: trade, buyer_edge: {enabled: true, authority: trade, account: {broker: openalgo, account: SYN-ACCT-1}}}`;
+* a `channel` section and an `operator` section in the shapes `tests/integration/test_unix_channel.py` and `tests/integration/test_operator_commands.py` already use;
+* the `secrets` reference `openalgo/api_key` with source `env` and locator `SYN_KEY_ENV`. The child's environment sets `SYN_KEY_ENV=SYNTH`.
+
+`A0` is this synthetic artifact: `{"distribution": {"name": "autonomous-trading", "version": "0.1.0", "wheel_sha256": "a" * 64, "record_sha256": "b" * 64}, "dependencies": [{"name": "pyyaml", "version": "6.0.2", "sha256": "c" * 64}], "resources": {"defaults.yaml": "d" * 64}, "schema": {"migration_revision": 8, "events_schema": "e" * 64, "candidates_schema": None, "canvas_schema": None}, "readers": {"event": [["FILL", 1]], "candidate": []}, "runtime": {"python": "3.12.7", "sqlite_binding": "apsw", "sqlite_version": "3.51.3"}, "participants": {"kernel": "required"}, "deploy": {"install_sha256": "f" * 64, "templates": {}}, "endpoint_contracts": None, "measurements": None, "ui_assets": None}`. `bundle_digest({"artifact": A0})` is `"1079ed5610d46b82773548bacc7d791109588a9d0b3334512c33ba0bc8fbb4fb"`; with `resources` `{"defaults.yaml": "0" + "d" * 63}` it is `"0ad68e1755be9bea7c7829e74e3cc7765040de91b04b576ca8b7fd0ab02512bb"`. `MAN` is `{"format": "at-bundle/1", "artifact": A0 with readers.event set to every kind of the packaged events schema at version 1 and entrypoints set to the seven commands, "provenance": {...}, "license": None}`; its digest is computed in the test with `bundle_digest`.
+
+| Group | Cases |
+|---|---|
+| Kernel binds the order half | `compose_production(eff, MAN, participant="kernel", …, leases=FakeLeaseStore(), policies=<fixture>, stats=<fixture>)`: the coordinator's port is an `OpenAlgoAdapter` with `exchange == "NFO"` and account `("openalgo", "SYN-ACCT-1")`; `OpenAlgoMarketSource.__init__` and `SimulatedBroker.__init__`, patched to raise, were never called; the socket saw no connection; `SYNTH` is absent from the child's output and from every ledger event's payload |
+| Market binds the market half | `participant="market"`: `MarketComposition`; `OpenAlgoAdapter.__init__`, patched to raise, never called; `"autonomous_trading.adapters.openalgo"` loaded only for `OpenAlgoMarketSource`; the store's `writer_handshake()` equals the handshake built from `MAN` and the effective projections |
+| Bundle digest | The two `A0` digests above; `provenance` and `license` changed leave the digest unchanged |
+| Receipt | The kernel's `RELEASE_BOUND` receipt has `bundle_digest == bundle_digest(MAN)`, `release_id` `r-synth-1` (`AT_RELEASE`), `settings_revision == eff.revision`, the four `deployment` keys, and `settings_snapshot_ref == content_digest(eff.snapshot())`, which resolves in the evidence store. A second composition over the same ledger, manifest and profile records no second `RELEASE_BOUND` |
+| Refusals | A `test` profile → `ValueError`; `recovery.lease_store` unbound → `RefusingParameterUnbound("recovery.lease_store")`; bound with no `leases` argument → the same, text `no lease-store adapter in this release`; `policies=None` → `ValueError`; after one composition, a second with `MAN`'s `readers.event` lacking `["EPOCH_ACTIVATED", 1]` → `HistoryIncompatible` whose text contains `CFG-R09 incompatible_history: event EPOCH_ACTIVATED/1`, and no second `EPOCH_ACTIVATED` was written (the writer was not opened). `compatible` over that ledger with `artifact.schema.migration_revision` 7 → contains `CFG-R09 incompatible_history: migration_revision 8 > 7` |
+| Alerts | The profile with `account.limits.max_trades_per_session: "abc"` → `recovery.alerts` contains `account_limits_unreadable` and `settings_problem CFG-R03 account.limits.max_trades_per_session`, once each |
+| `--check` opens nothing | In process, with `socket.socket`, `LedgerWriter.open`, `LedgerReader.open`, `MarketStore.open`, `MarketReader.open`, `EvidenceStore.__init__` and `settings.secrets.resolve` patched to raise, `check(p, …)` for each of kernel, market, supervisor, strategy (`["buyer_edge"]`), cognition and operator over `PROD` with its `profile` key set to `test` (so no manifest is read) returns 0, prints `check: ok`, leaves `os.environ` equal to a copy taken before, and leaves the `tmp_path` listing unchanged. `"autonomous_trading.adapters.openalgo" not in sys.modules` afterwards |
+| `--check` lines | Kernel over `PROD` without `accounts` → exit 1, lines `refused: unbound accounts` and `check: refused`; strategy with no id → 64; strategy `["no_such"]` → `refused: STR-R14 not_runnable`; supervisor with `observation` 5/60 and `supervisor.max_requests_per_minute` 13 → `refused:` naming `supervisor.max_requests_per_minute`; `at` over a missing profile path → exit 0 with one `problem:` line; kernel with `{"OPENALGO_API_KEY": SYNTH}` → no `CFG-R07`, and strategy with it → one `problem: CFG-R07 …`, `SYNTH` printed nowhere |
+| Masking and logging | `prepare("strategy", env)` with `{"OPENALGO_API_KEY": SYNTH}` → `env["OPENALGO_API_KEY"] == ""` and `os.environ` the same; `prepare("kernel", …)` leaves it. After `prepare("kernel", …)` with the env reference, an exception whose text contains `SYNTH`, raised in a thread, is logged with `SYNTH` absent from the formatted record |
+| Composition | `MAN` with all seven commands and `enabled_units` = every unit of the table: `validate_composition("first_release", …, cognition_required=False, native_observation=False)` → `["CFG-R10 participant_missing: observation unit at-observer.service"]` when that unit is left out, `[]` when present; without `at-supervisor.service` → `[… supervisor unit at-supervisor.service]`; without the command `at-market` → `[… market entrypoint at-market]`; no cognition unit with `cognition_required=False` → `[]`, with `True` → `[… cognition unit at-cognition.service]`; `native_observation=True` and no observer unit → `[]`; no `at-backup.service` → `[… backup unit at-backup.service]`; no research or telemetry anything → `[]`; `"other"` → `[… composition other]` |
+
+**`tests/integration/test_unix_channel.py`, the channel half of PRF-CFG-10.** A `ChannelCore` with `projections={"market": M60, "recovery": RNONE}` and a strategy peer:
+
+* the client sending the same → answered, no alert;
+* `market` one character off (`"0"` replacing the first) → answered with the same result; after two calls `comp.recovery.alerts` holds `handshake_mismatch at-strategy.service projection market` exactly once, and one WARNING was logged;
+* a frame without `projections` → `SEC-R11` `shape`; a release one character off → `SEC-R11` `release`, as built;
+* a `ChannelCore` built without `projections` and a client sending `{}` → answered, no alert;
+* an operator (relay) peer: a `KernelChannelClient` built as `api.serve` builds it, with `projections={"market": M60, "recovery": RSET}`, calls `now` → answered; `comp.recovery.alerts` holds `handshake_mismatch at-operator.service projection recovery` once, and no `market` line. The same client with `{"market": M60, "recovery": RNONE}` → no alert.
+
+**`tests/integration/test_market_port.py`, the store half of PRF-CFG-10.** `HS = Handshake("a" * 64, "market_store", "market-store/1", (("market", M60),))`:
+
+* `MarketStore.open(path, clock, handshake=HS)` → `writer_handshake() == HS` and `schema() == 2`; reopened with another handshake, the row is replaced;
+* `StoreMarket(path, policies, clock, handshake=HS)` → `handshake_problems == ()`; with the local bundle one character off → `("CFG-R14 handshake_mismatch: bundle_digest",)`, and `view(...)` returns the same view as with `HS`; with the local `market` `MNONE` → `("CFG-R14 handshake_mismatch: projection market",)`; over a store opened without a handshake → `("CFG-R14 handshake_mismatch: absent",)`.
+
+**`tests/contracts/test_installed_artifact.py`, PRF-CFG-01 and PRF-CFG-04,** beside step 1's lock group. A module fixture, under `tmp_path_factory`: `python -m pip wheel . --no-deps --no-build-isolation -w <t>/dist`; `python -m venv --without-pip <t>/releases/r-synth-1/venv`; `python -m pip --python <venv python> install --no-compile --require-hashes --no-deps -r requirements.lock -r <t>/wheel.txt`, where `wheel.txt` is `autonomous-trading @ <the wheel's file URL> --hash=sha256:<its hash>`; then, with the venv's interpreter and `-I`, `write_manifest(<t>/releases/r-synth-1/bundle.json, build_manifest(wheel=…, lock=requirements.lock, deploy_dir=None, ui_root=None, composition="first_release", provenance={"git_sha": "1" * 40, "built_at": "synthetic", "builder": "test"}, license=None))`. Pip downloads through the lock's hashes; a run with no network fails, it never skips. Each command runs from `<t>/elsewhere` with only `PATH` (the venv's scripts directory and the system's), `SYSTEMROOT` on Windows, `AT_PROFILE` (`PROD` as above, written under `<t>`, with the `env` reference whose variable is **not** set), `AT_RELEASE=r-synth-1`, `AT_DEPLOYMENT_ROOT=<t>/root`, and for the MCP command `MCP_CONFIG_FILE` naming a synthetic read-only MCP profile:
+
+| Group | Cases |
+|---|---|
+| Every command | `at-kernel`, `at-market`, `at-supervisor`, `at-strategy buyer_edge`, `at-cognition`, `at-operator`, `at` and `python -m autonomous_trading mcp serve`, each with `--check` → exit 0, `artifact: verified <D>` where `D` is `digest(artifact)` the test computes from `bundle.json`, `check: ok`, no `refused:` line. The interpreter's `autonomous_trading.__file__` lies under `<t>/releases/r-synth-1/venv`, and no parent of it holds `.git` |
+| Resources and schema | In the venv, `verify_loaded(manifest) == []`; every manifest resource loads through `importlib.resources`; `artifact.schema.migration_revision == 8`; `events_schema` is the SHA-256 of the installed `events.schema.json`; `["RELEASE_BOUND", 1]` is in `readers.event`; `pyproject.toml`'s `requires-python` is `">=3.12"` and its scripts are exactly the seven |
+| Substitution | Each alone, restored byte for byte after: one byte appended to the installed `resources/defaults.yaml` → `at-kernel --check` exits 1 with `refused: CFG-R06 artifact_mismatch: resource defaults.yaml` and `refused: CFG-R06 artifact_mismatch: file autonomous_trading/resources/defaults.yaml`; one byte changed in the installed `kernel/admission.py` → `… file autonomous_trading/kernel/admission.py`; a line appended to PyYAML's installed `RECORD` → `… dependency pyyaml`. With the first substitution, `at-market --check` and `at-operator --check` exit 0 with the same texts as `problem:` lines (Fork call E). Settings revision: with no `settings.json`, `at-kernel --check` exits 0 with `problem: CFG-R06 artifact_mismatch: settings_revision unbound`; with `settings.json` binding the kernel to the revision its `--check` printed, no such line; with that entry one character off, exit 1 with `refused: CFG-R06 artifact_mismatch: settings_revision`; with the file correct and the profile's `market.poll_interval_secs` changed afterwards, the kernel's revision moves and the same refusal appears. In-process, `run("kernel", …)` over the last two states exits 1 before anything opens, and `at-market --check` never prints a `settings_revision` line |
+| One identity per artifact set | `build_manifest` run again with `git_sha` `"2" * 40` → the same `bundle_digest`, a different `provenance` |
+| From the checkout | In the test process, `verify_loaded` over the fixture's manifest → contains `CFG-R06 artifact_mismatch: location` |
+
+**Changed existing tests:** `tests/unit/test_settings_resolver.py`'s Projections row (two digests, above). The four helpers that build a channel frame by hand gain `"projections": {}`, because check 5 now requires the key: `LoopbackClient.call` (`tests/integration/test_operator_commands.py:83`), `call` (`tests/integration/test_operator_routes.py:88`, `tests/integration/test_owner_api.py:71`) and `frame` (`tests/integration/test_unix_channel.py:108`). Every other existing test passes unchanged: `compose_simulation`, `KernelChannelClient`, `ChannelCore`, `MarketStore.open`, `StoreMarket`, `market.ingest.compose`, `api.serve` and `mcp.serve` keep their signatures with new keyword arguments defaulting to today's behaviour.
+
+### Break checks
+
+Each is applied with its anchor checked first (exactly one occurrence), one at a time, and restored byte for byte with an md5 check. At least:
+
+| Change | Test that must fail |
+|---|---|
+| `kernel/admission.py`: `effective_limits` keeps the larger loss amount | M1; R-5 end to end |
+| `kernel/admission.py`: the cooldown takes the smaller | M3 |
+| `kernel/admission.py`: the drawdown window from the strategy when the account turns the gate on | M5a |
+| `kernel/admission.py`: cutoffs sorted as text | M6a |
+| `kernel/admission.py`: `account_limits is None` read as `NO_ACCOUNT_LIMITS` | Unreadable limits stop entries only |
+| `bootstrap.py`: `verify_loaded` skips resources | Substitution (resource) |
+| `bootstrap.py`: `RECORD` rows not hashed | Substitution (code file) |
+| `bootstrap.py`: the market process refuses on `CFG-R06` | Substitution (market reports) |
+| `bootstrap.py`: the kernel skips the `settings_revision` check | Substitution (settings revision) |
+| `kernel/safety.py`: the latch reads the policy budget alone | Latch with the account layer |
+| `interfaces/api.py`: `serve` passes no `projections` | The channel cases (operator peer) |
+| `bootstrap.py`: `check` calls `settings.secrets.resolve` | `--check` opens nothing |
+| `bootstrap.py`: `provenance` inside `bundle_digest` | One identity per artifact set |
+| `bootstrap.py`: `compose_production("market")` builds `OpenAlgoAdapter` | Market binds the market half |
+| `bootstrap.py`: `validate_composition` reports an `optional` row | Composition |
+| `settings/schema.py`: `check_handshake` ignores `needs` | Handshake |
+| `adapters/unix_channel.py`: a projection mismatch refuses | The channel cases |
+| `market/view.py`: a handshake mismatch makes the view `Unavailable` | The store cases |
+| `pyproject.toml`: `requires-python = ">=3.11"` | Resources and schema |
+
+### Files
+
+| File | Change |
+|---|---|
+| `pyproject.toml` | `requires-python`, `[project.scripts]` |
+| `src/autonomous_trading/__main__.py` | `--check`, and `operator serve` and `mcp serve` through `run` |
+| `src/autonomous_trading/bootstrap.py` | `main_*`, `run`, `prepare`, `check`, `check_environment`, `required_fields`, `build_manifest`, `write_manifest`, `bundle_digest`, `load_manifest`, `verify_loaded`, `compatible`, `HistoryIncompatible`, `COMPOSITIONS`, `validate_composition`, `compose_production`, `_compose_kernel`, `release_receipt`, `lease_store_for`, `MarketComposition` |
+| `src/autonomous_trading/settings/schema.py` | The new fields; `CONTRACTS`, `Handshake`, `check_handshake`; `Settings`' new attributes |
+| `src/autonomous_trading/settings/loader.py` | The `bool`, `text_list`, `instruments` and `views` kinds; `Effective.refs` |
+| `src/autonomous_trading/resources/defaults.yaml` | The new fields, `null` |
+| `src/autonomous_trading/kernel/admission.py` | `effective_limits`, `with_account_limits`, the unreadable-limits refusal (an intent-spec module; reported to it) |
+| `src/autonomous_trading/adapters/unix_channel.py` | `projections` in the frame, client and core (SLICE-10's module; reported to the security spec) |
+| `src/autonomous_trading/market/store.py`, `market/view.py`, `market/ingest.py` | The writer's handshake, `StoreMarket.handshake_problems`, `compose(handshake=)` (market spec modules; reported to it) |
+| `src/autonomous_trading/kernel/safety.py` | `Safety(account_limits=)`, `latch_budget` (a protection-spec module; reported to it) |
+| `src/autonomous_trading/interfaces/api.py`, `interfaces/mcp.py` | `serve(…, settings=None, release=None, projections=None)`; `serve(…, settings=None)` |
+| `.pre-commit-config.yaml`, `.github/workflows/verify.yml` | New |
+| `tests/unit/test_admission_checks.py`, `tests/unit/test_settings_resolver.py`, `tests/contracts/test_capabilities.py`, `tests/contracts/test_installed_artifact.py`, `tests/integration/test_unix_channel.py`, `tests/integration/test_market_port.py`, `tests/unit/test_safety_matrix.py` | The groups above |
+| `tests/integration/test_operator_commands.py`, `tests/integration/test_operator_routes.py`, `tests/integration/test_owner_api.py` | `"projections": {}` in the frame helper |
+
+**No new tree delta:** every file is in README §6 or the module index.
+
+### Completion conditions (step 2)
+
+* **Targeted tests only,** twice in a row: the seven test files above, and the files that exercise the changed modules: `tests/integration/test_owner_api.py`, `tests/unit/test_protection_basket.py`, `tests/unit/test_planner_rules.py`, `tests/unit/test_market_ingest.py`, `tests/unit/test_market_view.py`, `tests/unit/test_market_windows.py`, `tests/integration/test_operator_commands.py`, `tests/integration/test_operator_routes.py`, `tests/integration/test_mcp_surface.py`, `tests/integration/test_kill_inputs.py`.
+* Every break check fails a listed test, and every file is restored (md5). `ast.parse` passes on every edited Python file; `yaml.safe_load` on `resources/defaults.yaml` and `.pre-commit-config.yaml`; `tomllib` on `pyproject.toml`.
+* `git diff --stat` against the step's start names only the files above.
+* PRF-CFG-01 (Every command; Resources and schema), PRF-CFG-04 (Substitution; One identity per artifact set), PRF-CFG-10's resolver, channel and store parts (Handshake; Paths and credentials; the channel and store cases), PRF-CFG-11 (M1–M7; R-5 end to end) and PRF-XC-02's production part (Kernel binds the order half; Market binds the market half) each pass a named group.
 
 ## Step 3 — the kernel host (outline)
 
 Deepened after step 2 is built: the runtime spec's [kernel host](../../design/runtime-isolation-observability-deployment.md#the-kernel-host-kernelhostpy) and Fork calls 2–4.
 
-* **Builds:** `serve`, `submit`, the phase-locked schedule ported from legacy's `seconds_to_next_pass`, the heartbeat, the stop sequence with `Coordinator.drain_returns` (a dispatch-spec module change, listed in the step's files), the exception policy, the lease-expiry wait in `bootstrap`.
+* **Builds:** `serve`, `submit`, the phase-locked schedule ported from legacy's `seconds_to_next_pass`, the heartbeat, the stop sequence with `Coordinator.drain_returns` (a dispatch-spec module change, listed in the step's files), the exception policy, the lease-expiry wait in `bootstrap`; the ledger's `SessionStatsPort` and the bundle's bound policies that step 2's `compose_production` takes as `stats` and `policies` (`kernel/ports.py:109-127`), so `at-kernel` composes without test fixtures.
 * **Closes:** SLICE-05's host-loop exclusion, SLICE-06's PRF-PRT-06 "kernel frozen" half and its carried L2/L4/L7 gap, SLICE-07's "host drives the observation loop".
 * **Test files:** `tests/integration/test_kernel_host.py` (T-75), with the kernel in a subprocess on a recorded clock, including the :07, :27, :47 schedule and golden cases from legacy's function; `tests/integration/test_protection_kernel.py` gains the frozen-kernel case (the simulated broker's book lives outside the kernel process, so the stop can be observed while the kernel is stopped).
+
+## Step 3a — the market host loop and the channel `KernelPorts` client for strategy and cognition (outline)
+
+Deepened after step 3 is built: the market spec's [ingestion and merge](../../design/market-data-and-canvas.md#ingestion-and-merge-marketingestpy), SLICE-08's hand-offs to SLICE-11 and SLICE-10's channel hand-offs. TASK-S11-13.
+
+* **Builds:** the market process's service loop over step 2's `MarketComposition`: `run_once` at each window's confirmation instant and after the close until the last window is sealed, the every-minute reference-day recording from 09:05 until the day is stored, the ticks socket with its re-subscribe, and the MCP `market` owner port with `ticks.watch` (SLICE-10's row 17); the channel `KernelPorts` client (one client call per method, `KernelUnavailable` on a refused or ambiguous reply) and the strategy host's and cognition's service loops over it, replacing step 2's exit 78 for `at-market`, `at-strategy` and `at-cognition`.
+* **Fork calls:** the market schedule and re-subscribe keep legacy's live timing (SLICE-08's hand-offs); a channel failure withholds new intents only.
+* **Test files:** named when deepened; the market loop on a recorded clock and the strategy host against a kernel channel in a subprocess.
 
 ## Step 4 — the supervisor (outline)
 
@@ -463,7 +839,7 @@ Deepened after step 4 is built: the runtime spec's [storage classes](../../desig
 
 ## Step 7 — the installer, units and release transitions (outline)
 
-Deepened after step 6 is built: the configuration spec's [release transitions](../../design/configuration-artifacts-release.md#release-transitions) and [activation boundary](../../design/configuration-artifacts-release.md#the-activation-boundary) (Fork call 1); the runtime spec's [installer](../../design/runtime-isolation-observability-deployment.md#installer-deployinstallpy) and [units](../../design/runtime-isolation-observability-deployment.md#units-deploysystemd).
+Deepened after steps 3a and 6 are built (it renders and starts the market, strategy and cognition loops step 3a builds): the configuration spec's [release transitions](../../design/configuration-artifacts-release.md#release-transitions) and [activation boundary](../../design/configuration-artifacts-release.md#the-activation-boundary) (Fork call 1); the runtime spec's [installer](../../design/runtime-isolation-observability-deployment.md#installer-deployinstallpy) and [units](../../design/runtime-isolation-observability-deployment.md#units-deploysystemd).
 
 * **Builds:** every command of `deploy/install.py`; the host-level transition log; every state, including `QUIET_AFTER_STOP` with its automatic restart of the stopped set, `OLD_WRITER_GONE`, `UNITS_WRITTEN` with the old unit set kept, `QUIET_BEFORE_SWITCH`, the observers-first start and `MIGRATION_PENDING`; restore that stops and verifies the new set before starting the old; convergence judged per operation, with timers judged enabled and waiting; the rehearsal mode; the unit templates, system users and polkit rule for every first-release participant (the kernel, market, supervisor, strategy host and its timer, operator, backup and timer, `at.slice`; the observer when step 5 built it; cognition when SLICE-09 composed it); `config/live.example.yaml`; `docs/operations.md` and the Fork calls in `docs/decisions.md`.
 * **Crash points CP-R1…CP-R7** are proved by killing the installer process at each, in the rehearsal directory.
