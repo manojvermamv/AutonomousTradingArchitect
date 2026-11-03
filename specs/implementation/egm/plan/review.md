@@ -881,3 +881,11 @@ One fresh combined review each, before any code (the owner's trimmed routine: ta
 | SLICE-10 step 9 (restore continuity) | see above | — | `58b55b2`; 26 of 26 break checks; full suite 1,845 passed |
 | SLICE-09 step 7 (capability boundary, replay) | 1 Blocker, 4 Major, 2 Nit | A `reflection` rule closes `sys.modules`/`__import__`/`getattr` bypasses; BuyerEdge watched from import; no-key proved by value and file; replay refusals listed and asserted empty | `9067a24`; 16 of 16 break checks; SLICE-09 complete |
 | SLICE-10 step 10 (operator console) | 4 Major, 2 Minor, 1 Nit | Path segments `..`/`%` refused; tracked-file provenance; the six reachable MCP writes named (refused live under the read-only profile); owner reads masked as legacy plus a scrub backstop | not yet built |
+
+## SLICE-10 step 10, SLICE-11 step 1 and SLICE-12 step 1 reviews (2026-11-03)
+
+| Step | Findings | Key resolutions | Built |
+|---|---|---|---|
+| SLICE-10 step 10 (console) | see above | — | `75420a6`; 22 of 22 break checks; full suite 1,927 passed; SLICE-10 complete |
+| SLICE-11 step 1 (settings contract) | 2 Blocker, 5 Major, 1 Nit | Fork call: an unreadable limit blocks entries only; start refusals only where legacy refused (others become problems and alerts); the drop-in's nine limits carried by the installer (step 7) | `a4e6fbc`; 18 of 18 break checks |
+| SLICE-12 step 1 (bundles, custody) | 4 Major, 1 Minor | Genesis root as a Deviation; no licence check and `additive` ok as legacy (Fork calls 22, 23; stricter rules listed for the owner); tail re-witnessed at open; non-blocking witness | not yet built |
