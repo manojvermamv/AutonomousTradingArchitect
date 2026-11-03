@@ -821,6 +821,45 @@ No kernel module, schema, event kind or migration changes.
 * `git diff --name-only` names exactly the files above; one commit in OA_NEW; nothing pushed.
 * This file records step 4 "as built", with any Fork call or Deviation the build adds.
 
+### Step 4 as built
+
+**In plain words.** The exam now exists in the new system. A candidate is replayed through the same kernel that trades, against a simulated broker that fills from recorded quotes or bars by the old system's rule and prices every trade by the old system's dated charges. A position the exam cannot sell counts as no trade. The pass-or-fail rule is the old one, number for number, and every evaluation over exam days leaves its note, even a failed one. The replay cannot reach the network or the broker. Nothing here can place, block or change a real trade.
+
+Commit `ce5f08d` on `slice-12` (worktree `OA_NEW-s12`), on top of `3529f24` (SLICE-11 step 3a). It adds `research/replay.py`, `research/evaluation.py` and `tests/unit/test_promotion_gate.py`, and changes `adapters/simulated_broker.py`, `bootstrap.py`, `research/datasets.py`, `research/jobs.py`, `settings/schema.py`, `settings/loader.py`, `resources/defaults.yaml`, `tests/integration/test_shared_engine.py`, `tests/contracts/test_capabilities.py` and `tests/unit/test_settings_resolver.py`: the 13 files listed above, 6,861 lines added, 7 removed. Not pushed.
+
+**Re-checked at build:**
+
+| Item | Found |
+|---|---|
+| The store's chain payload names | The market store keeps OpenAlgo's shape, `response.data[].ce.{symbol, bid, ask, bid_qty, ask_qty}`, not legacy's `ce_bid` rows; the quote evidence maps it to legacy's `_quote_evidence` rows. Bar evidence comes from the `history_bar` stream |
+| The owner's binding and grant | An owner action needs a bound request, so `comp.owner_auth` alone is refused. The engine goes through `operator_call` at its own CLI door, then `recovery.advance`, `authority.authorize_binding` and `authority.issue` |
+| A `None` cognition | It answers a required review `required_role_failed`; with the policy's AI mode `off` no review is asked, so the model-strategy case needs neither a review nor staged records |
+| The planner's leg | ATM 24000 CE, quantity 75, entry premium 100.00, as written. Admission's freshness bounds needed two test settings: `poll_interval_secs` 60 and `max_view_age_secs` 120 (labelled synthetic) |
+| Step 3's `build` and `validate_locked_evaluation` | `build` as built is what `run_dataset_build` calls. Legacy's `validate_locked_evaluation` was not in step 3; it is ported into `research/evaluation.py` with `current_acceptance_rule` |
+| The record store's file layout | Not as assumed: SLICE-09's `cognition/records.py` keeps one hash-chained `events.jsonl` per root, with no per-strategy-day file. See the lineage-repair row below |
+
+**Choices and corrections made while building:**
+
+| Topic | As built |
+|---|---|
+| Legacy values | Every cost, leg, rate-set digest, fill, fill-assumption digest, Wilson bound, effective n, DSR and gate value in T-88 equalled legacy's on the first run, except the two PRF-RES-10 values below |
+| Projection evidence class (spec text corrected) | The text wrote `execution_evidence_class "simulated_bar"`. Legacy writes the fill model's own class, so an exam projection carries `simulated_quote`. Legacy's kept |
+| Worst-case-loss cap in the replay (**Fork call**) | The engine uses the bound `account.max_worst_case_loss` exactly as production composes it, and none when unbound, so admission refuses `capacity_rule_unbound`. A first build fell back to the run's capital; removed before commit as an invented limit. PRF-RES-10 binds `"100000.00"` (labelled synthetic) |
+| Closing in the replay (**Deviation**) | The kernel refuses a market close while the basket's stop and target rest, so `close` has the owner cancel them first. `broker.calls` is 5 in the bar case and 4 in the exam case, not 3. `close` steps the clock before it submits (the entry must have filled), and exits run before the host's pass (the host's seal wait moves the recorded clock 500 ms) |
+| The bar case's exit time | The kernel refuses a second close while the first is unresolved, and the first close's refusal is known only at 09:19. The second close is decided at 09:19:30 against a bar starting 09:20, so the exit FILL is at `03:51:00Z`, not `03:50:00Z`. Gross 10.0, charges 66.42 and net 683.58 are unchanged |
+| `ReplayResult.fills` (**Deviation**) | Added: each fill's `our_order_id`, `at`, owner and `decision_id`. Lineage repair reads a trade's entry time from it, hashing the file before it reads |
+| `ReplaySource` arguments (**Deviation**) | `ReplaySource(engine, spec_for, *, horizons, closes, rule_strategies=(), partition_of=None)`: the gate's horizons are bound (slice Deviation 18), the underlying's closes come from the caller. `specs(strategy, days)` refuses a non-quote model; `run_dataset_build` calls it before `build`, because `build` reads rows only after the locked claim and a later refusal would spend exam days |
+| Lineage repair's advisor store (**Deviation**, open) | Built over legacy's `<advisor_root>/<strategy>/<day>.ndjson` consultation layout with `_store_consultations` unchanged, because SLICE-09's records have no per-strategy-day file. Nothing in the target writes that file yet; whoever builds the operator's repair command (SLICE-10) or SLICE-09's records must write it. `advisor_root` is required (legacy defaulted to the run directory); `order_root` leaves the repair record |
+| The evaluator digest | Over `research/evaluation.py` with CRLF normalised. A bundle frozen under legacy's evaluator digest refuses (fails closed) |
+| The candidate registry root | The proof's `registry_root` or `settings.research_candidate_root`; evaluation refuses without either. No such setting exists yet; only a frozen-bundle exam needs it |
+| Disclosure | Once the locked evidence is verified, any exception (a `DatasetError` too, not only `EvaluationError`) writes the one `failed` disclosure. The claim-bound refusal runs before the locked evidence is read, so it writes none. Legacy's "candidate bundle digest does not match dataset load receipt" is kept beside change 4 |
+| Cost settings | The history kinds refuse extra keys, a non-ISO `as_of` and negative or non-finite numbers with legacy's "contains an invalid rate set" text; legacy dropped extra keys and checked only a non-empty `as_of` (**Deviation**, stricter). `promotion.directional.z` uses the `decimal` kind, so the profile writes `"1.96"` as text. Booking reprices by `costs.repricing` on the IST dates of the entry and exit stamps, as legacy's `attach_economics`; with `use_estimates` false, `cost_source` is `"broker"` and the net `None` |
+| The replay composition | `compose_replay_engine` also takes `policies` and an optional `policy_id` (bound policies are a profile section, not a `Settings` field). The replay ledger uses an in-process lease store and a replay-only receipt. A model strategy's receipt carries the empty prompt digest (`QueuedProposals` carries no prompt). A decision's `seq` is its IST minute of the day. The broker holds a responder fill until its order is in the book (a fill due at once crashed the send) |
+| Not tested | `run_dataset_build` has no test of its own; it needs `capacity.synthetic_amount` bound in the research profile |
+| Break checks | Under the owner's fast routine only the promotion-gate rows ran: bar `<` to `<=`, the raw count into `_interval`, the raw-count fallback, the gate's `<= 0.5`, a DSR refusal, the outside-the-store check and the failure disclosure. Seven, each failing its listed test, every file restored (md5). Script: `s12d_eval_breaks.py` in the session scratchpad. The other nine rows were not run |
+
+**Tests run (Windows, targeted only):** `tests/unit/test_promotion_gate.py`, `tests/integration/test_shared_engine.py`, `tests/contracts/`, `tests/unit/test_settings_resolver.py`, `tests/unit/test_dataset_fitting.py`, `tests/integration/test_research_worker.py`, `tests/unit/test_market_windows.py` and `tests/unit/test_canvas_causality.py`: 342 passed, 6 skipped, twice in a row (the skips are platform skips: SIGTERM is Linux-only, the operator-UI routes need Node). PRF-RES-10 runs in a child process whose sockets are refused; the refusal log stayed empty. `ast.parse` passes on every edited file. **Seen once, not traced:** in a worker's run two `research.noop_model` jobs in `test_research_worker.py` failed and passed alone and in every run after; drive C: had about 2.6 GB free against the worker's 2 GiB free-space check, the likely cause.
+
 ## Step 5 — RL
 
 <a id="step-5--rl-outline"></a>
@@ -949,6 +988,42 @@ No kernel module, setting, schema, event kind or migration changes.
 * Every break check fails a listed test and every file is restored (md5). `ast.parse` passes on every edited Python file. The reward digests are recomputed from legacy's `RewardSpec` as above.
 * `git diff --name-only` names exactly the files above; one commit in OA_NEW; nothing pushed.
 * This file records step 5 "as built", with any Fork call or Deviation the build adds.
+
+### Step 5 as built
+
+**In plain words.** The training lab for learning agents now exists in the new system. An agent still only says "call", "put" or "wait"; the system picks the contract, size and price as before. Each practice step records what the agent asked, whether it was allowed, what the simulated broker did and where the position stood, and the reward keeps the money part apart from any practice bonus. The quick simulator is kept for exploring; the evidence tier steps through the real kernel, where rejected, delayed and part-filled orders were shown to add up. Training runs are logged and counted, resume only under identical settings, and a frozen agent refuses any changed byte. Nothing here can place, block or change a real trade.
+
+Commit `fa533d8` on `slice-12`, on top of `ce5f08d` (step 4). It adds the `rl` package's `__init__.py`, `research/rl/reward.py`, `research/rl/environment.py`, `research/rl/training.py`, `research/rl/policy.py` and `tests/unit/test_rl_research.py`, and changes `research/candidates.py`, `research/jobs.py`, `adapters/simulated_broker.py`, `pyproject.toml` and `tests/unit/test_candidate_freeze.py`: 11 files, 3,997 lines added, 11 removed. Not pushed. `requirements.lock` is unchanged and `adapters/simulated_broker.py` is added (both below).
+
+**Re-checked at build:**
+
+| Item | Found |
+|---|---|
+| Step 4's cost and fill model | `round_trip` and `leg` take `costs=`; `rates_for` reads the code constants, as legacy; `FillAssumptions` is keyword-only with legacy's fields; `HistoricalExecutionAdapter`, `SIMULATED_BAR` and `fill_assumptions_digest` are in `research/replay.py` |
+| `EnginePort`, `ReplaySpec`, `QueuedProposals` | As step 4 built them: `step(run, until, proposal=None)`, `close(run, at)`, `finish(run)`. One engine runs one spec once (`run_exists`), so a shared episode needs a new engine and a second `reset()` refuses |
+| The planner's leg | ATM 24000 CE, quantity 75, as step 4 |
+| `ProposalResult` | It lives in `cognition/review.py`; `contracts` has none. `research/rl` may not import cognition, so the shared tier queues a local dataclass with its fields, and `PolicyProposals` imports it inside one function (`result_type=` overrides it). Step 8's scan must allow that import, or `ProposalResult` moves to `contracts` |
+| Step 4's acceptance rule | `current_acceptance_rule` takes `settings`, so `exam_definitions` and `freeze_candidate` gained `settings=` |
+| Legacy's lock | Legacy's `deploy/constraints.txt` at 445eb116 pins none of `gymnasium`, `stable-baselines3`, `optuna` or `torch`; there is no locked version to carry |
+
+**Choices and corrections made while building:**
+
+| Topic | As built |
+|---|---|
+| Legacy values | Both shipped reward digests (`sha256:37b8…d94f`, `sha256:d1a7…46de`) and every Episode A and B price, charge and reward equalled the spec on the first run |
+| The `rl` extra (**Deviation**) | `pyproject.toml` gains `rl` with legacy's ranges (`gymnasium>=1.1`, `stable-baselines3>=2.4`, `optuna>=4.0`; torch through SB3, numpy already a base dependency) and registers the `slow` marker. Nothing is added to `requirements.lock`, whose command locks only `operator` and `mcp` and whose contract test checks that command |
+| The shared tier's book price (**Deviation**, money form in simulation only, for the owner) | The kernel's ledger accepts a FILL price only in money form (LED-R06), so the delayed part-fill at `104.052` reaches the kernel as `104.05` (half-even); the responder's record keeps `104.052` and the research booking reads it. `adapters/simulated_broker.py` also records a scripted immediate reject as an effect. Kernel and schema are unchanged |
+| Shared-tier timing | A recorded bar is available one minute after it starts and decisions sit 10 s after a seal: the partial FILL 25 at 100.05 is seen at the second step, the delayed FILL 75 at the last decision, not "after one bar". Worst case −101.039 a unit and `leg("buy", 100.05, 25).total` 24.73 hold |
+| Shared-tier digests (**Deviation**) | `reference_store_digest` is the legacy digest of the spec digest; `assumptions_digest` the legacy digest of `{tier, fill identity and digest, costs, bar_secs}`; the text named none |
+| Tiers | Every record carries `tier`; v1 `info` carries it only in the shared tier, so the abstract v1 stream stays legacy's. `freeze` records the tier and refuses mixed tiers ("every session of one run must run in one environment tier"). The lab's `LabData` still builds only abstract environments |
+| Abstract tier (**Deviations**) | The environment definition adds `tier` and `costs_digest`, so a changed cost schedule cannot resume as compatible; a tick contradiction marks the run's reference ineligible, as legacy's `ReferenceUse` (the text fixed `eligible: true`; the fill is refused either way); the reference `used_digest` is over the per-session used digests; `ResearchEnvironment` requires its `ledger`; rows are filtered to a session's `sequence_from`/`sequence_to` when named; v2 adds `transition_index` |
+| Source hashes | `vector_source_digest`, the observation `source_digest` and the observation contract hash with CRLF normalised, as step 4 |
+| Inference | `ResearchPolicyAdvisor(candidate, *, adapter_receipt, act=None)`; `act` stands in for the network in tests, else the weights load on CPU through SB3. `View`, `AdvisorContext` and `CandidateLoadReceipt` are local ports. `from_candidate` takes step 3's `VerifiedCandidate`; legacy's candidate replay methods (`rp.py:577-694`) are outside the ported range and not ported. `PolicyProposals` builds its context from the request's `bars` |
+| Labels | `research_lab_runner` is `"research.rl.training"`; the custody source label stays legacy's `"analysis.rl.environment"`, so the chain reads as legacy's |
+| The job type | `research.rl_train` targets `research.rl.training:rl_train_job` with JSON parameters (`RL_TRAIN_PARAMS`); not run, it needs the `rl` extra |
+| Break checks | None, under the owner's fast routine (research-only, no money path) |
+
+**Tests run (Windows, targeted only):** `tests/unit/test_rl_research.py`, `tests/unit/test_candidate_freeze.py`, `tests/integration/test_research_worker.py`, `tests/integration/test_shared_engine.py`, `tests/unit/test_promotion_gate.py`, `tests/unit/test_dataset_fitting.py`, `tests/contracts/`, `tests/unit/test_market_windows.py` and `tests/unit/test_canvas_causality.py`: 338 passed, 8 skipped, twice in a row. The `slow` case is **not checked**: the `rl` extra is not installed (disk C: had about 2 GB free). `ast.parse` passes on every edited file.
 
 ## Step 6 — promotion and the kernel's checks (outline)
 
