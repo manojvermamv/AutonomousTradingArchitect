@@ -76,7 +76,7 @@ The master's answer is one canonical admission and outcome commit: D02, D01/D03,
 | REQ-LED-003 | One writer per ledger file; independent bounded readers | `README.md:780`; A03-F4 (`:920`); A04-F2 (`:794`) | PRF-LED-14 |
 | REQ-LED-004 | Caller-supplied logical command key; same key and content returns the existing state; same key and changed content is refused; a missing key is refused | D14 (`README.md:760`); Command row (`:737`); LD-01, LD-17 | PRF-LED-03 |
 | REQ-LED-005 | Admission, monetary reservation, command identity and index-table changes commit in one transaction | D02 (`README.md:746`) | PRF-LED-04 |
-| REQ-LED-006 | The outcome separates effect class, canonical persistence and compatibility-projection freshness; a projection failure after a canonical ACK never authorizes resend | D01/D03 (`README.md:750`); Outcome row (`:739`) | PRF-LED-07; PRF-LED-06 from SLICE-13 |
+| REQ-LED-006 | The outcome separates effect class, canonical persistence and compatibility-projection health at the commit (the outcome reports the compatibility projection's **health at the commit** (`fresh`: the last refresh succeeded; `repair_scheduled`: it failed and the next pass rebuilds), not whether this outcome's own lines are written yet); a projection failure after a canonical ACK never authorizes resend. **Deviation (SLICE-13 step 4):** the outcome no longer reports its own projection's freshness, because the refresh runs off the send path, after the pass | D01/D03 (`README.md:750`); Outcome row (`:739`) | PRF-LED-07; PRF-LED-06 from SLICE-13 |
 | REQ-LED-007 | One command lifecycle with verb-specific completion for entry, cancel, modify and close | D01/D03 (`README.md:750`); AUD-01 (`:754`) | PRF-LED-16 |
 | REQ-LED-008 | Versioned schema, forward-only numbered migrations, unknown versions refused | A02-F4 (`README.md:907`); LD-07; [X-002](../consistency/master-contradictions.md#x-002) | PRF-LED-10 |
 | REQ-LED-009 | Index tables are compared with event-derived state at writer open, after recovery and after detected external change; a mismatch refuses financial authority | D04 (`README.md:780`) | PRF-LED-08 |
@@ -94,7 +94,7 @@ The master's answer is one canonical admission and outcome commit: D02, D01/D03,
 
 * **Given** an entry whose `OUTCOME_ACKNOWLEDGED` is committed.
 * **When** writing the JSONL compatibility projection fails.
-* **Then** the outcome returned is `effect=acknowledged`, `canonical=committed`, `compat_projection=repair_scheduled`, `sent=True`, with the broker order ID; nothing is resent (PRF-LED-06).
+* **Then** the outcome is `effect=acknowledged`, `canonical=committed`, `sent=True`, with the broker order ID, and its `compat_projection` is the projection's health at the commit: `repair_scheduled` once a refresh has failed, until one succeeds. The refresh runs after the pass on its own thread, never on the send path, and the next one rebuilds; nothing is resent (PRF-LED-06; SLICE-13 step 4, Deviation).
 
 ### CUJ-LED-2: Response lost after a possible send
 
@@ -443,7 +443,7 @@ How the coordinator reacts to a refused outcome commit is in the [dispatch spec]
 | CP-L1 | Before the admission commit | Nothing | A caller retry with the same key admits once | PRF-LED-04 |
 | CP-L2 | After admission, before the dispatch claim | `ADMITTED`, reservation `RESERVED` | Revalidate on restart; dispatch or refuse (D13) | PRF-LED-05 |
 | CP-L3 | After the claim commit, before the outcome commit (before, during or after the adapter call) | Attempt `CLAIMED` | Recovery commits the outcome from published evidence if any, otherwise `AMBIGUOUS` (reason `interrupted`); never resent (D13). `_AMBIGUOUS` on a retired-epoch attempt passes the guard | PRF-LED-05 |
-| CP-L4 | After the outcome commit, before the compatibility projection refresh (from SLICE-13) | Events and index tables committed | Refresh from events; `repair_scheduled`; no resend | PRF-LED-06 |
+| CP-L4 | After the outcome commit, before the compatibility projection refresh (from SLICE-13) | Events and index tables committed | The next refresh (after the pass, or at the next start) rebuilds from sequence 1, cutting the day files to the sidecar's sizes; health at the commit is `repair_scheduled` after a failed refresh; no resend | PRF-LED-06 |
 | CP-L5 | After a commit, before the caller receives the reply | Committed | A same-key retry returns `Existing` | PRF-LED-03 |
 | CP-L6 | During a migration | Previous revision (each migration is one transaction) | Re-applied on the next start | PRF-LED-10 |
 | CP-L7 | During `activate_epoch` or `INDEX_REPAIRED` | Previous state (one transaction each) | Repeated on the next start | PRF-SES-05, PRF-LED-08 |
@@ -511,7 +511,7 @@ Proof class **T** is an automated test; **M** is a measurement. The file named i
 | PRF-LED-03 | T | `tests/unit/test_command_identity.py` | Same key and digest returns the first state (also after CP-L5 and for a concurrent twin refused at stage B); changed digest gives `LED-R02`; missing key gives `LED-R01` | Removing the digest comparison passes a changed request |
 | PRF-LED-04 | T | `tests/integration/test_entry_outcomes.py` | Admission writes the event, identity and reservation together; a forced failure before commit leaves none of them | Splitting the transaction leaves an orphan reservation |
 | PRF-LED-05 | T | `tests/recovery/test_crash_boundaries.py` | CP-L2 and CP-L3 restart states as tabled; with published evidence the outcome is rebuilt; zero adapter calls during recovery | A retry path that calls the adapter again fails |
-| PRF-LED-06 | T | `tests/recovery/test_crash_boundaries.py` | From SLICE-13: CP-L4 projection rebuilt and equal to the event-derived content; `repair_scheduled` | Skipping the refresh leaves it stale |
+| PRF-LED-06 | T | `tests/recovery/test_crash_boundaries.py` | From SLICE-13: CP-L4 projection rebuilt and equal to the event-derived content; after a failed refresh, outcomes carry `repair_scheduled` (projection health at the commit) and nothing is resent | Skipping the refresh leaves it stale |
 | PRF-LED-07 | T | `tests/recovery/test_crash_boundaries.py` | An injected error at commit gives `commit_failed`; the next call returns `LED-R10`; after restart a same-key retry returns `Existing` when the commit had persisted and admits once when it had not; no resend | Treating it as `not_sent` fails |
 | PRF-LED-08 | T | `tests/recovery/test_projection_integrity.py` | An altered `command_identity` or `ledger_meta` row gives `LED-R05` before any other write; repair clears it | Comparing only the chain misses it |
 | PRF-LED-09 | T | `tests/unit/test_ledger_invariants.py` | Hypothesis state machine: I-1…I-6 hold after any sequence of admit, claim, outcome, fill, reduction and resolve; incremental rows equal the full fold | Double-counting a fill breaks I-4 or I-6 |

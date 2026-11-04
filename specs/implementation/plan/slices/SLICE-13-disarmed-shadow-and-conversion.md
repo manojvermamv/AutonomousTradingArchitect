@@ -21,7 +21,7 @@
 * **SLICE-11:** the recovery set, backup, restore, anchors, the production lease store and the D10 rehearsal (steps 8 and 11); staging the candidate on the production host (step 10, owner's word). The shadow does not need step 10: it installs the candidate wheel under its own root.
 * **SLICE-14:** the production ledger's import, the key replacement, the cutover and the retirement of the old route; legacy's units are never stopped here.
 * **SLICE-12 and the owner:** importing the deployed research custody chain and trial records (research is deferred in the first release; reading research custody waits for the owner's word, [SLICE-12](SLICE-12-research-rl-custody-promotion.md)). The readers for those formats are SLICE-12's.
-* **Integration edits outside this file and the spec,** made when each step is reviewed: the [ledger spec](../../design/ledger-and-atomic-transaction.md) event catalogue and `resources/events.schema.json` (`IMPORT_BOUNDARY_PINNED`, `LEGACY_RECORD_IMPORTED`, `LEGACY_RECORD_REJECTED`, `LEGACY_RECORD_QUARANTINED`, `IMPORT_COMPLETED`; the `import_manifest` row now specified); the [configuration spec](../../design/configuration-artifacts-release.md) composition table (`shadow`, the migration composition); the [runtime spec](../../design/runtime-isolation-observability-deployment.md) storage-class table (a derived class for `paths.compat` and the shadow root); the module index (tree deltas T-90…T-95 and T-99…T-102); the traceability rows for REQ-MIG-011…013 and every REQ-MIG proof; the delivery plan's SLICE-13 row and task rows.
+* **Integration edits outside this file and the spec,** made when each step is reviewed: the [ledger spec](../../design/ledger-and-atomic-transaction.md) event catalogue and `resources/events.schema.json` (`IMPORT_BOUNDARY_PINNED`, `LEGACY_RECORD_IMPORTED`, `LEGACY_RECORD_REJECTED`, `LEGACY_RECORD_QUARANTINED`, `IMPORT_COMPLETED`; the `import_manifest` row now specified); the [configuration spec](../../design/configuration-artifacts-release.md) composition table (`shadow`, the migration composition); the [runtime spec](../../design/runtime-isolation-observability-deployment.md) storage-class table (a derived class for `paths.compat` and the shadow root); the module index (tree deltas T-90…T-95, T-99…T-104, T-106 and T-107); the traceability rows for REQ-MIG-011…013 and every REQ-MIG proof; the delivery plan's SLICE-13 row and task rows.
 
 ## Steps
 
@@ -30,7 +30,7 @@
 | 1 | The legacy readers in `adapters/compatibility.py`; synthetic legacy fixtures generated once from legacy's own writers at 445eb116 (T-93) by a generator run against a legacy checkout, never in the suite (T-94); the characterization of what legacy's registry lines record about fills | S | PRF-MIG-06 |
 | 2 | The copier with its lockdown (a command run through `scripts/isolated_work.py`, refusing to start when any property is unenforced); the upgrade-versus-import comparison: the mapping table over the fixtures and over a backup-API copy of the production legacy ledger that the copier takes, the criteria results, the decision in `docs/decisions.md`, `001_initial.sql` confirmed or replaced | S → D (pre-approved copy) | PRF-MIG-08, PRF-MIG-11 (copier rows) |
 | 3 | `scripts/migrate_legacy.py` for the chosen route: the migration composition in `bootstrap.py`, the boundary pin, the per-record events, `010_import.sql` (T-91; 009 is taken by SLICE-12) and its fold into D04, batches, resume, anomalies, same-boundary validation | S | PRF-MIG-07 |
-| 4 | The `orders/1` projection: its serializer in `adapters/compatibility.py`, the projector hook and `compat_projection` freshness in `kernel/ledger/export.py`, the sidecar and its rebuild, the consumer list in `docs/migration.md`, the import guard | S | PRF-MIG-09, PRF-LED-06 |
+| 4 | The `orders/1` projection: its serializer in `adapters/compatibility.py`; the projector and its read-only refresher thread in `kernel/ledger/export.py`, requested by the host after every pass, never on the send path; the sidecar and its scoped rebuild; the forbidden roots; the consumer list in `docs/migration.md`; the import guard; parity proved with legacy's own readers | S | PRF-MIG-09, PRF-LED-06 |
 | 5 | `compose_shadow` and `COMPOSITIONS["shadow"]` (`bootstrap.py`); `LegacyMarketSource` and `LegacyOutcomeResponder` (`adapters/compatibility.py`); `scripts/compare_parity.py shadow` with the head pair, the comparison set and the owner-only approved-difference table | S | PRF-MIG-10, PRF-MIG-11 (composition rows) |
 | 6 | The shadow on the production host: the candidate wheel under `paths.shadow.root`, the copier and the shadow processes as transient units through `scripts/isolated_work.py`, the nightly import rehearsal, the daily comparison reports, the first night's measurement of the copy's effect on legacy's commits | D (pre-approved) | PRF-MIG-12 |
 | 7 | The supervisor against the shadow ledger, reading the broker only through the observation route, within the read budget left after legacy's own load | D; **owner's word** when the route starts a key holder | PRF-OPS-09 |
@@ -568,83 +568,335 @@ Commit `3c49916` on `slice-13`, on top of `51e5a81` (step 2): 26 files, 2 520 li
 
 <a id="step-4--the-orders1-projection-outline"></a>
 
-The authorities are the migration spec's [compatibility projections](../../design/migration-recovery-rollback-continuity.md#compatibility-projections-adapterscompatibilitypy), the ledger spec's REQ-LED-006 and CP-L4, PRF-MIG-09 and PRF-LED-06. Step 4 is TASK-S13-03. Legacy citations are at 445eb116; target citations are at the step 3 commit on `slice-13`.
+The authorities are the migration spec's [compatibility projections](../../design/migration-recovery-rollback-continuity.md#compatibility-projections-adapterscompatibilitypy), the ledger spec's REQ-LED-006 and CP-L4, PRF-MIG-09 and PRF-LED-06. Step 4 is TASK-S13-03. Legacy citations are at 445eb116; target citations are at `3c49916` (step 3) on `slice-13`.
 
-**It stops for review before building, because it touches money facts and the send path.** Two of its parts decide what a money record says: the projected lines carry fill quantities and prices (`filled_qty`, `price`, `closed_qty`, `close_price`) that legacy's P&L monitor and cost reconciliation read (`monitoring/account_pnl_service.py:33`, `:88`; `scripts/reconcile_costs.py:56`), so their meaning must stay legacy's exactly; and `compat_projection` is a field of the dispatch `Outcome` (`contracts/execution.py:313-330`), set on the send path after the outcome commit, where a mistake could be read as a reason to resend. Neither changes a score, threshold or entry gate, but both are money-adjacent, so the plan is reviewed first.
+**It stops for review before building, because it touches money facts.** The projected lines carry the fill and close facts (`filled_qty`, `price`, `closed_qty`, `close_price`, `closed_at`, `close_reason`) that legacy's P&L monitor, cost reconciliation and trade reader turn into money (`monitoring/account_pnl_service.py:71-109`; `src/analysis/core/cost_reconciliation.py:78-107`; `src/analysis/core/from_registry.py:132-194`), so by the fork rule each line gives legacy's readers exactly what legacy wrote. It no longer touches the send path (S4-8). It changes no score, threshold or entry gate.
 
-**In plain words.** After each order outcome is saved, the new system writes the same order lines the old system wrote, in the old file format, into a separate folder, so the old reports and research tools keep working. The lines are generated from the new ledger, so they can always be rebuilt. If writing them fails, the order outcome says "projection needs repair" and the next pass rebuilds them; it never sends anything again.
+**In plain words.** The new system writes the old system's order file, line for line in the old format, into its own folder, so the old reports keep working. A helper thread does the writing after each pass, reading the ledger on its own read-only connection; the part that sends orders never waits for it, and a failure there can never stop the kernel or cause a resend. Each order's lines go to the file of the day it was admitted, as the old system did. Fills, closes and their prices are computed exactly as the old system computed them, including its rounding. The proof runs the old system's own readers over the new file and over the file the old system itself wrote for the same story, and requires the same answers.
+
+**Rework (2026-11-04).** The first version of this plan was reviewed "Ready to build: no" with twelve findings, marked *(S4-n)*; the re-review said "yes after fixes" with seven more, marked *(R2-n)*, and a note on the midnight case. Each is answered below where it applies. The coordinator's decisions are applied as given; the fork rule decides every mapping.
 
 ### Decisions
 
-#### The serializer (`adapters/compatibility.py`, `orders_lines(events) -> list[bytes]`)
+#### The serializer (`adapters/compatibility.py`, `OrdersSerializer`)
 
-* **One line per target command transition**, in legacy's registry line shape (`src/core/framework/execution/registry.py:186-275`): the fields of the spec (`at`, `our_order_id` = `<strategy>:<command_key>#<attempt_no>`, `owner`, `decision_id`, `broker_order_id`, `state`, `symbol`, `exchange`, `action`, `quantity`, `attempt`, `day`) plus `projection: {format: "orders/1", source_sequence, source_hash}`, canonical JSON, one `\n` per line. `day` is `CALENDARS["nse-fo/v1"].exchange_date` of the event's `event_time` (IST); `at` is that instant rendered in IST with offset, legacy's form (`registry.py:111`, `:202`).
-* **The state mapping, for review** (target attempt and command states, `kernel/lifecycle.py`, to legacy's machine, `src/core/framework/execution/states.py:27-59`):
+* **Shape.** `OrdersSerializer(exchange)` is a fold: `feed(event) -> list[tuple[day, bytes]]`, holding per command its admitted facts, attempts, cumulative fills and close accumulator in memory. Each line is legacy's registry line (`src/core/framework/execution/registry.py:186-275`, `:317-415`, `:601-757`, `:1254-1306`) plus `projection: {format: "orders/1", source_sequence, source_hash}`, canonical JSON, one `\n` per line. It builds bytes only and writes nothing (the module's reach test keeps every write and lock call refused; its import set gains `datetime` only).
+* **Identity fields** *(S4-7)*. `our_order_id` = `<strategy>:<command_key>#<attempt_no>` (legacy's `owner:…#attempt` form, `registry.py:114-125`; `owner` = the strategy, which must match legacy's `OWNER_RE`, `:1922-1930`); `owner`; `symbol` (the plan's instrument); `action` (the side, upper case); `quantity` and `attempt` as legacy writes them (`float`, `int`; `registry.py:206-208`). **`exchange`** is `accounts.<name>.exchange` from settings (`settings/schema.py:16-21`), legacy's configured adapter value (`adapters/openalgo.py:654`); no event carries it. **`decision_id`**: for an entry, the admitted plan's `application.intent_digest` from its `COMMAND_ADMITTED` payload (`kernel/admission.py:70-90`; equal to `request.intent_ref`); for a close, cancel or modify, its own `command_key`, legacy's `action_id` role for a lifecycle row (`src/runtime/session_close.py:223-236`).
+* **`day` and `at`** *(S4-4)*. `day` is `CALENDARS["nse-fo/v1"].exchange_date` (IST) of the `event_time` of the command's **`COMMAND_ADMITTED`**, fixed for every line of every attempt of that command, including the close fields written onto an entry: legacy fixes `day` at open and writes every later line to that file (`registry.py:211-214`, `:361`, `:411-414`, `:662`, `:756`), and its strict reader refuses a `day` that changes for one `our_order_id` (`:2147-2170`). `at` is the line's own event instant rendered in IST with offset (`isoformat`, legacy's form, `:110-111`, `:202`). IST is a fixed `+05:30` offset (no DST), checked in the tests against `exchange_date`.
+* **The state mapping** *(S4-1, S4-2, S4-3)*. Target transitions from `kernel/lifecycle.py:17-36`; legacy's machine `src/core/framework/execution/states.py:27-82`. "Entry-like" means an entry or a close (each has a broker order of its own); a cancel or modify has none (it acts on its target's order, `lifecycle.py:470-472`).
 
-  | Target event | Legacy `state` | Note |
+  | Target event | Legacy line | Legacy source |
   |---|---|---|
-  | `COMMAND_ADMITTED` | `formed` | `open_order` |
-  | `DISPATCH_CLAIMED` | `sent` | `mark_sent`, written before the request leaves in legacy; after the commit here (slice Deviation) |
-  | `OUTCOME_ACKNOWLEDGED` | `ack` | with `broker_order_id` |
-  | `OUTCOME_REJECTED` | `rejected` | |
-  | `OUTCOME_NOT_SENT`, `DISPATCH_REFUSED`, `ADMISSION_REFUSED` | none | legacy never wrote a line for a request that did not leave; **no line** |
-  | `OUTCOME_AMBIGUOUS` | `unknown` | `mark_unknown` |
-  | `FILL` (cumulative below quantity) | `partial` | `filled_qty` cumulative, `price` the quantity-weighted average rounded to 4 places, as the settle pass writes (`scripts/run_framework_live.py:6072-6119`) |
-  | `FILL` (cumulative equal to quantity) | `filled` | same fields |
-  | `RESOLVED_NEVER_REACHED` | `cancelled` | **for review**: legacy's nearest is `cancelled`; `rejected` is the alternative |
-  | `RESOLVED_REACHED` | none | the fills that follow carry the state |
-  | `COMPLETED` | `completed` | |
+  | `ADMISSION_REFUSED` | **none**: legacy never opened an order for a refused admission | |
+  | `COMMAND_ADMITTED` | `formed` for attempt 1 (a close, cancel or modify also carries `parent_our_order_id` and `parent_broker_order_id`, below) | `open_order`, `registry.py:186-275` |
+  | `DISPATCH_REFUSED` | `rejected` with `reason` = the refusal's code and message, on the would-be attempt's row (after its `formed`, below) | the fenced send, `src/runtime/execution_gateway/__init__.py:1041-1047` |
+  | `DISPATCH_CLAIMED` | `sent`; for attempt 2 or later first that attempt's `formed`, then `sent` (legacy opens each attempt as its own row) | `mark_sent`, `:1049-1054` |
+  | `OUTCOME_NOT_SENT` | `rejected`, `reason` `"not sent: <cause>"`; the command returns to `ADMITTED` and its next claim is attempt n+1, legacy's "retryable as a new attempt" | `:1082-1091`; `session_close.py:261-268` |
+  | `OUTCOME_REJECTED` | `rejected`, `reason` from the broker's message | `:1123-1130` |
+  | `OUTCOME_ACKNOWLEDGED`, entry-like | `ack`, `broker_order_id` = the entry (or close) leg's, and for an entry `protective_order_ids` (stop first, then by ID) and `protective_roles` `{id: role}` from the acknowledged legs | `:1119-1122` |
+  | `OUTCOME_ACKNOWLEDGED`, cancel or modify *(R2-2)* | `ack` with `broker_order_id` = the ID the broker returned (a cancel: the cancelled order's; a modify: the replacement's), as the supervisor's `settle` writes when an ID comes back; plus a line on the **parent** with no `state`: for a cancel legacy's `record_cancel` (`cancelled_order_ids`, the accumulated sorted set, and `cancelled_at`); for a modify that moves a stop, legacy's `record_stop_moved` (`protective_order_ids` and `protective_roles` with the replacement in the old ID's place, `trail_stop` = `round(float(trigger), 2)`, `trail_stop_order_id`, `trail_stop_at`, `protection_reconciled_at`) | `structure_supervisor.py:1212-1218`; `execution_gateway/__init__.py:1268-1290`, `:1483-1485`; `registry.py:1177-1252`, `:1603-1846` |
+  | `OUTCOME_AMBIGUOUS` | `unknown` | `mark_unknown`, `:1096-1102` |
+  | `RESOLVED_REACHED`, entry-like | `ack` with `broker_order_id`, `protective_order_ids` and `protective_roles` from the event's legs | `src/core/framework/execution/reconcile.py:566-572`, `:605-611` |
+  | `RESOLVED_REACHED`, cancel or modify | `ack` with the leg's ID and the parent line, as `OUTCOME_ACKNOWLEDGED` | as above |
+  | `RESOLVED_NEVER_REACHED` | `rejected`, `reason` "never reached the broker" (`unknown → rejected` is legal, `states.py:78`); the next claim is a new attempt | `reconcile.py:269-270`, `:308-310`; `session_close.py:261-268` |
+  | `LEG_ASSIGNED` (stop or target) | a line with **no `state`**: the merged `protective_order_ids`, `protective_roles` and `protection_reconciled_at` | `record_protection`, `registry.py:1254-1306` |
+  | `FILL`, entry or close leg | `partial` or `filled` (below) | `scripts/run_framework_live.py:6072-6161` |
+  | `FILL`, protective leg, or a close command's leg | also the close fields on the **entry's** line (below) | `:6175-6262`, `:6579-6602` |
+  | `COMPLETED`, entry-like | **none**: legacy's entry ends `filled` (terminal, `states.py:82`); its cost tool and trade reader need `filled` (`cost_reconciliation.py:93`; `from_registry.py:132`) | |
+  | `COMPLETED`, cancel or modify | **none**: legacy writes `completed` only for an action that returns no broker ID (`structure_supervisor.py:1219-1227`), and the target's cancel and modify always name one | |
 
-  A close or modify is its own row with its own `our_order_id`, as legacy writes a lifecycle order (`run_framework_live.py:6128-6161`). A protective leg's fill is projected on the entry's line as `closed_qty`, `close_price`, `close_broker_order_id`, `close_fill_id` (`registry.py:601-757`). A structure leg's fill carries `filled_qty` only, no price (`src/runtime/execution_gateway/structures.py:298-316`). Each of these follows step 1's characterization exactly; any field legacy derives that the target cannot derive is omitted, never invented, and listed.
-* **Money values.** The target's money strings (`money` fields, two decimals) are written as legacy's floats for `price` and `close_price`, rounded to 4 places as legacy rounds; quantities as integers. This is a representation change only, listed as a **Deviation** for review (legacy wrote floats computed from floats; the target computes the same average from exact decimals, which can differ in the 4th place).
+  A `reason` is free text in legacy and no listed reader parses it. Legacy's structure supervisor sends a not-sent lifecycle action back to `formed` instead (`structure_supervisor.py:1229-1235`); the coordinator's decision follows the gateway (`rejected`), and the reader parity below proves the in-flight sets agree.
+* **Fills on the order's own line** *(S4-6)*. For each committed decision that holds `FILL` events for an entry's (or a close's) own leg, one line: `filled_qty` = the cumulative quantity as a `float`, `price` = `round(notional / filled_qty, 4)` where `notional` is the sum of `float(quantity) * float(price)` over the order's own-leg `FILL` events **in ledger sequence order** (legacy's float computation, `run_framework_live.py:6087-6108`, `:6146-6151`); `state` `filled` when `filled_qty >= quantity`, else `partial`. No line once the row is `filled` (legacy's `states.can`, `:6101-6102`). The ledger keeps its exact decimals; only the projection repeats legacy's floats. A structure leg's fill carries `filled_qty` only, no price (`src/runtime/execution_gateway/structures.py:298-316`).
+* **Close fields on the entry's line** *(S4-5)*. Every closing fill, from a protective leg or from a close command, accumulates onto the entry it closes (the close command's `target`; a protective leg's own entry), and each committed decision holding one writes a `record_close`-shaped line with **no `state`** (`registry.py:601-757`), to the entry's `day` file:
+  * `closed_qty`: the cumulative closed quantity as a `float`, capped at the entry's `filled_qty` (legacy's `min`, `run_framework_live.py:6580-6583`); `closed_at`: the line's IST instant;
+  * `close_price`: `notional / closed_qty`, **unrounded** (`:6593-6595`), the notional summed as floats in ledger sequence order;
+  * `close_reason`: the last protective fill's role as `STOP_HIT` or `TARGET_HIT` in ledger order (`:6193-6195`); `TIER1_CLOSE` for a close command's fill only when no protective reason is set (legacy's `setdefault`, `:6260`);
+  * `close_fill_id`: the sorted fill IDs joined with `|` (`:6597`);
+  * for a close command's fills, `close_broker_order_id` (the close's broker ID), `close_broker_allocations` `{id: qty}` and `close_broker_allocation_notionals` `{id: notional}` (`:6250-6259`; `registry.py:705-735`).
+  * The close command's own row also gets its `partial`/`filled` line with its own `price` and `filled_qty` (legacy's lifecycle rows, `:6128-6161`).
+  * `SQUARE_OFF` (a broker flattening, `:6553`) is never written: the target records a broker close it did not send as foreign activity (Q-016), so no target event names it.
+* **Parent fields** *(S4-7, R2-6)*. A close, cancel or modify row carries `parent_our_order_id` and `parent_broker_order_id` on every line, both or neither as legacy's strict reader requires (`registry.py:1954-1960`). A cancel or modify targets a broker ID (`contracts/execution.py:99-125`): the parent is the entry attempt that owns that ID (its own or a protective leg's). A close targets a position, not an order (`coordinator.py:562-567`): the parent is the one entry command whose own-leg `FILL` events carry that `position_id` (`lifecycle.py:424-427`), with that entry's broker ID. No match, or more than one, raises in the serializer, so the refresh ends `repair_scheduled` and writes nothing for it.
+* **Fields omitted, listed** *(S4-7)*. Of legacy's `_CARRIED` (`registry.py:422-437`), the projection supplies `price`, `filled_qty`, `reason`, `exchange` and `action`, and omits: `provenance`, `producer_provenance`, `producer_provenance_status`, `ai_lineage`, `ai_lineage_status`, `session_checkpoint_sha256`, `strategy_family`, `plan_id`, `intent_id`, `broker_status`, `broker_code`, `broker_message`, `broker_response_sha256`, `tier1_command_digest`, `proposal_receipt`, `proposal_binding_digest`, `proposal_leg_binding_digest`, `root_decision_id`, `source_proposal_id`, `sent_by_kernel_identity`, `tier1_command_intents`, `structure_instance_id`, `structure_id`, `position_leg_id`, `feed_sequence`, `proposal_day`, `lifecycle_action_id`, `order_role`, `policy_digest`, `evidence_digest`; also `transition`'s other attribution defaults (`leg_id`, `lifecycle_action`, `lifecycle_role`, `action_id`, `order_attempt_id`, `reservation_id`, `:384-410`). No listed reader needs them (review finding 7). **Not served** as a consequence: `from_registry`'s `plans/` join (`final_sl`, `target`, `r_multiple`, `:123`, `:149-161`), because strategy decision records are not projected (slice Deviation), so no `plans/` file matches any `decision_id`; and *(R2-7)* `src/analysis/core/advisor_economics.py`'s join by `decision_id` in legacy's `strategy:day:seq` form (`:198-203`, `:246-260`), under which every projected trade is unattributed (research is deferred).
 
-#### The projector (`kernel/ledger/export.py`)
+#### The projector and its refresher (`kernel/ledger/export.py`)
 
-* `CompatProjector(paths_compat, serializer)` with `refresh(reader) -> "fresh" | "repair_scheduled"`: reads the events after its sidecar `paths.compat/.orders-1.json` (`{"sequence", "event_hash"}`), checks the sidecar's event hash still matches the ledger (else rebuilds every file from sequence 1), appends the new lines to `paths.compat/orders/<day>.jsonl`, flushes, and moves the sidecar after the append (temporary file and rename). No fsync: rebuildable at any time (spec). Any `OSError` returns `repair_scheduled`.
-* **The send path.** `contracts.execution.Outcome.compat_projection` widens from `"none"` to `"none" | "fresh" | "repair_scheduled"` (a dispatch-contract change, ledger spec). The coordinator calls `refresh` only after the outcome commit and only when a projector is composed; the result is copied into the outcome and **read by nothing that decides a send** (a test and an import guard: no branch on `compat_projection` anywhere under `kernel/` except where the coordinator copies it into the outcome). The kernel host's next pass calls `refresh` when the last outcome said `repair_scheduled` (CP-L4).
-* **Composition.** `bootstrap` composes the projector only when `paths.compat` is set (a new installer- and kernel-scoped path, derived storage class), never inside legacy's run directory (refused) and never inside a legacy root; the shadow (step 5) points it at `paths.shadow.root/compat/`. Unset: `compat_projection` stays `none`, as today.
+* **The sidecar** *(R2-1)*: `root/.orders-1.json`, `{"format": "orders-1-sidecar/1", "sequence", "event_hash", "files": {day: byte size}}`, the last projected event and every day file's size after it, written after the appends (temporary file and rename).
+* **`CompatProjector(root, make_serializer, check_root)`.** `refresh(reader) -> "fresh"`:
+  * **Start or after any failure** *(R2-1)*: it holds no serializer, so it makes a new one and feeds it every event from sequence 1 up to the sidecar's sequence, writing nothing, then **truncates each day file to the size the sidecar records** (a day file the sidecar does not name is removed); if the sidecar is missing or its hash is not the ledger's hash at its sequence, it **rebuilds**: removes every day file and starts from sequence 0. So a failure or a crash between an append and the sidecar move never counts a fill twice or leaves a duplicate line: the retry re-derives the totals and cuts the files back to the last recorded state.
+  * **Then** it feeds the events after the sidecar's sequence, appends each day's lines to `root/orders/<day>.jsonl`, flushes, and moves the sidecar. No fsync (spec: rebuildable).
+  * **Any exception** throws the serializer away before it propagates, so the next refresh starts as above.
+  * **Paged reads** *(R2-3)*: events come through `LedgerReader.events_page(after, limit)` (`store.py:1000-1013`), 500 per page, each page its own read; between pages the projector yields (`time.sleep(0)`), so a full rebuild never holds the interpreter for longer than one page's decoding.
+  * **`check_root`** *(R2-6)* re-checks `MIG-R09` (below) at the start of **every** refresh, on the real paths of `root` and `root/orders`, so a symlink created after composition is refused before anything is written.
+* **Rebuild scope** *(S4-10)*. A rebuild or truncation touches only files named `root/orders/<YYYY-MM-DD>.jsonl` and the sidecar; it never creates, reads or removes anything else (not `orders/orders/`, `monitor/`, a reconciliation ledger or any other name).
+* **`CompatRefresher(projector, open_reader)`** *(S4-8, S4-9)*: one daemon thread holding its own read-only connection (`kernel/ledger/runtime.py:71-94`, `connect(path, writer=False)`, wrapped as `LedgerReader`). `request()` sets an event and returns at once: no I/O, never raises. The thread waits for the event, runs `refresh`, and stores the result; **any `Exception`** becomes `repair_scheduled` (logged, one alert per failure episode), and the next request retries from sequence 1 as above. `status()` returns the last result from memory. `stop(timeout)` ends the thread.
+* **When it runs** *(S4-8, S4-9, R2-3)*. The kernel host calls `refresher.request()` **after every `run_pass`**, whatever the pass committed (`kernel/host.py:242`, a new step after the pass), so fills, `COMPLETED` and `RESOLVED_*` from the observation loop and protection reach the file within one pass; and once at start. `_stop_sequence` stops the refresher **after the drain**, so the drained outcomes are requested and projected first. Nothing in `kernel/coordinator.py` calls `refresh` or `request`: not `_finish`, `_commit_outcome` or `_commit_returns` (`coordinator.py:386-456`). No projection I/O ever runs on the writer thread.
+* **`compat_projection` is projection health at the commit** *(R2-4)*. `Outcome.compat_projection` widens from `"none"` to `"none" | "fresh" | "repair_scheduled"` (`contracts/execution.py:313-330`). The coordinator fills it with `refresher.status()`, a memory read, or `"none"` when no refresher is composed: `fresh` means the last completed refresh succeeded, `repair_scheduled` that it failed and the next pass rebuilds. It does **not** say whether this outcome's own lines are in the file yet; they follow after the pass. It is read by nothing that decides a send (the guard below), so a refresh failure never authorizes a resend (CP-L4). **Deviation from the ledger spec**, recorded there: REQ-LED-006, CUJ-LED-1, CP-L4 and PRF-LED-06 said the outcome reports its own projection's freshness; keeping that would put the refresh back on the send path (R2-4, S4-8).
+
+#### Composition and the forbidden roots *(S4-10, R2-6)*
+
+* **`paths.compat`** (new, installer- and kernel-scoped, derived storage class). `bootstrap` composes the projector and refresher only when it is set; unset, `compat_projection` stays `"none"`, as today. The shadow (step 5) sets it to `<paths.shadow.root>/compat/`.
+* **The kernel is given the forbidden roots.** `shadow.legacy_run_dir` and `shadow.legacy_market_dir` widen from installer-only (step 3's "Who resolves its settings") to installer and kernel scope. **`MIG-R09`**: with `paths.compat` set, `bootstrap` refuses to compose when either forbidden root is unset, or when the real path (`os.path.realpath`, symlinks resolved) of `paths.compat` equals or lies inside either forbidden root's real path, or inside the ledger's directory; and the projector re-checks the same rule, for `root` and `root/orders`, at every refresh (a refusal there is `repair_scheduled`, nothing written). `MIG-R09` joins the migration spec's refusal catalogue. SLICE-14 decides the rule after legacy is retired.
+* **Legacy's tools stay on legacy's run directory.** No legacy tool is pointed at `paths.compat` in this step: legacy's P&L monitor writes `monitor/` under its root and the cost tool writes its ledger under its root (`monitoring/account_pnl_service.py:36`, `:171-176`; `scripts/reconcile_costs.py:72`, `:76`), so pointing them there is a separate decision for step 6 or SLICE-14. The tests run legacy's readers only in the generator, over copies.
 
 #### The consumer list and the guard
 
-* `docs/migration.md` gains the spec's consumer table (purpose, consumer, after cutover), naming legacy's money path as **not served**.
-* **Import guard** (PRF-MIG-09): no module under `kernel/`, `strategies/` or `market/` imports `adapters.compatibility` or reads `paths.compat`, enforced by an AST test like `test_module_reach`.
+* `docs/migration.md` gains the spec's consumer table (purpose, consumer, after cutover), naming legacy's money path as **not served**, the omitted fields, and *(R2-7)* the not-served `plans/` join and `advisor_economics`'s `decision_id` join; the spec's table says `from_registry` is served except the `plans/` join.
+* **Import guard** (PRF-MIG-09) *(S4-12)*, an AST test like `test_module_reach`:
+  * no module under `kernel/`, `strategies/` or `market/` imports `adapters.compatibility` (`bootstrap` passes the serializer factory in);
+  * no module under `strategies/` or `market/` names `paths.compat` or opens anything under it;
+  * under `kernel/`, only `kernel/ledger/export.py` (named in the test) opens files under the projection root, and it reads nothing there but its own sidecar;
+  * `compat_projection` appears under `kernel/` only where `kernel/coordinator.py` builds an `Outcome`, never in a condition.
 
 ### Tests
 
+Labelled synthetic values only; no production data. A new file, `tests/contracts/test_orders_projection.py` (T-106).
+
 | File | Test | Proves |
 |---|---|---|
-| `tests/contracts/test_legacy_schemas.py` | Fold parity (PRF-MIG-09) | A synthetic target history (the simulation composition: an entry acked, two partial fills, a close; an ambiguous then reached order; a rejected order; a structure leg) projected and folded by legacy's fold rule ported in the test equals, per order, the golden state legacy's writer produced for the same history; the generator adds those golden lines (`gen_legacy_fixtures.py`, a legacy run of the same history) |
-| same | Line shape | Every line names `orders/1`, its source sequence and hash; `our_order_id` has legacy's form; `day` is IST |
-| same | Import guard | No decision module imports the serializer or reads `paths.compat` |
-| `tests/recovery/test_crash_boundaries.py` | CP-L4 (PRF-LED-06) | Killed after the outcome commit and before the refresh: the outcome is not resent; the next refresh rebuilds lines equal to a projection from scratch; a refresh failure gives `repair_scheduled` and still no resend |
+| `test_orders_projection.py` | Reader parity *(S4-11, R2-5)* | For every case below, `golden.json["orders_projection"]` holds the outputs of legacy's readers over the projected bytes and over the bytes legacy's own writers produced. **Exact equality** for the money and ownership readers: `cost_reconciliation.desk_fills`, every `from_registry.trades_for` field except `final_sl`, `target` and `r_multiple`, `account_pnl_service.owned_broker_ids` and `_expected_fill_ids`, `checks._owned_broker_ids`, `checks.orders(day)`'s findings, `registry.in_flight`. A listed difference is allowed only in an omitted field (above) within `fold(read_day)`, `all_orders` and `strict_rows` output, or in `final_sl`, `target` and `r_multiple`; any other difference fails |
+| same | Projected bytes | The suite projects each case's target events and gets bytes whose SHA-256 equals the one the generator recorded |
+| same | Line shape | Every line names `orders/1` with its source sequence and hash; `our_order_id`, `owner`, `exchange` (from settings) and `decision_id` (entry: the admitted plan's intent digest; close: its command key) as decided; `day` is IST and equals `exchange_date` at both sides of IST midnight |
+| same | Close parent *(R2-6)* | A close whose position matches no entry, or two entries, raises in the serializer; through the refresher, `repair_scheduled` and no line for it |
+| same | Import guard *(S4-12)* | The four guard clauses above |
+| same | Not on the send path *(S4-8)* | With a refresher whose `refresh` blocks, `dispatch_inline` and `run_pass` return and commit their outcomes; no `refresh` runs on the writer thread (the thread's identity is recorded); `_commit_outcome` performs no file I/O under the projection root |
+| same | Pass latency under a rebuild *(R2-3)* | While a CPU-bound rebuild of a ledger of 20 000 synthetic events runs on the refresher, each `run_pass` of a simulated kernel stays within a bound measured in the same test without the rebuild (median times three, plus 50 ms); the bound and both medians are printed |
+| same | Any fault contained *(S4-8)* | `refresh` raising `OSError`, `ValueError` and a `SnapshotGap`: each gives `status()` `repair_scheduled`, the kernel keeps running, the next outcome carries `repair_scheduled`, nothing is resent, and the next request rebuilds |
+| same | Retry after a partial append *(R2-1)* | A refresh that fails after appending the first of two day files: the retry's files equal a projection from scratch byte for byte (no doubled `filled_qty` or duplicate line) |
+| same | Every pass *(S4-9)* | A fill committed by the observation loop in a pass with no dispatch outcome is in the file after that pass |
+| same | Stop order *(R2-3)* | `_stop_sequence` drains, then stops the refresher; the drained outcome's lines are in the file |
+| same | Forbidden roots *(S4-10, R2-6)* | `MIG-R09` at composition for `paths.compat` inside a legacy root, reached through a symlink, and inside the ledger directory, and with a forbidden root unset; an `orders` symlink into a legacy root created after composition is refused at the next refresh (`repair_scheduled`, nothing written there); a rebuild over a root holding `orders/orders/x.jsonl`, `monitor/x` and `reconciliations.jsonl` leaves those three byte-identical |
+| `tests/recovery/test_crash_boundaries.py` | CP-L4 (PRF-LED-06) | Killed after the outcome commit and before the refresh: the outcome is not resent; the next start's refresh writes lines equal to a projection from scratch |
 | same | Sidecar mismatch | A sidecar naming a hash the ledger does not hold rebuilds every file |
 
-### Break checks
+**The cases** *(S4-11)*, each a labelled synthetic history projected by the target and written by legacy's writers, in `golden.json`:
 
-1. Project `OUTCOME_NOT_SENT` as `sent`: fold parity fails. 2. Average price unrounded: fold parity fails. 3. Skip the refresh after the outcome: CP-L4 fails. 4. Resend when `compat_projection` is `repair_scheduled`: CP-L4 fails. 5. Import the serializer from `kernel/`: the guard fails. 6. Trust a stale sidecar: the sidecar test fails.
+| Case | History |
+|---|---|
+| `entry_partial_filled_stop` | Entry acked with stop and target; two partial fills, then filled; the stop fills (`STOP_HIT`) |
+| `target_then_stop` | Target fills part, stop fills the rest (last role wins: `STOP_HIT`) |
+| `close_command` | Entry filled; a close command acked and filled in two fills (`TIER1_CLOSE`, allocations, the close row's own `partial`/`filled`) |
+| `dispatch_refused` | Admitted, then `DISPATCH_REFUSED` (`formed → rejected`) |
+| `not_sent_retry` | `OUTCOME_NOT_SENT` on attempt 1 (`rejected`), attempt 2 acked |
+| `never_reached` | Ambiguous (`unknown`), `RESOLVED_NEVER_REACHED` (`rejected`), attempt 2 acked |
+| `reached_resting` | Ambiguous, `RESOLVED_REACHED` with stop and target IDs (`ack`), resting unfilled |
+| `rejected` | `OUTCOME_REJECTED` |
+| `entry_completed` | Entry filled, then `COMPLETED` (no line; the row stays `filled`) |
+| `cancel` *(R2-2)* | A cancel of the target leg acknowledged with its ID (`ack`, the parent's `record_cancel` line), then `COMPLETED` (no line) |
+| `modify` *(R2-2)* | A stop modify acknowledged with a replacement ID (`ack`, the parent's `record_stop_moved` line) |
+| `leg_assigned` | Entry acked with the stop only; `LEG_ASSIGNED` adds the target |
+| `across_midnight` *(item 4 note)* | Admitted and filled in session on 2026-11-02; the stop's fill and the entry's `COMPLETED` arrive after IST midnight (2026-11-02T18:30:10Z, 00:00:10 IST): the close fields land in `orders/2026-11-02.jsonl`, not the next day's file |
+| `tie_average` | 600 filled as 599 at 100.00 and 1 at 100.15 (notional 60 000.15, average 100.00025, a 5 in the 5th decimal), in a set order; the close at a price whose `close_price` is not 4-place |
+| `structure_leg` | A structure leg's fill: `filled_qty`, no price |
+
+**The generator** *(S4-11, R2-2, R2-5)*: `scripts/gen_legacy_fixtures.py --orders-projection`, run once against legacy's checkout at 445eb116, never in the suite. Per case it (1) projects the case's target events with `OrdersSerializer`; (2) writes the same story through legacy's own code at the same instants: `open_order`, `mark_sent`, `transition`, `mark_ack`, `mark_unknown`, `record_protection`; fills through `settle_fills` (`run_framework_live.py:5787`) with a stub trade book and order book and its registry root pointed at the case directory; a cancel and a modify through a live `Gateway.cancel` and `Gateway.modify` (`execution_gateway/__init__.py:1160`, `:1292`) with a stub client, their outcomes written by the structure supervisor's `settle` (`structure_supervisor.py:1195-1240`). Where one of those cannot run offline, the generator stops and says which; only then may that case use the registry writers with legacy's own expressions copied verbatim, recorded as `legacy_writer: direct` and named in "as built". (3) Runs every listed reader over both directories, roots pointed at them as step 3's `--views-only` points `compare`, **with the trade book stubbed and the clock fixed** for `checks.orders` (`checks.py:290`, `:305-315`); (4) records in `golden.json["orders_projection"]` the projected bytes' SHA-256, both reader outputs, and each allowed difference. Legacy-written bytes are kept as fixtures (`tests/fixtures/legacy_stores/orders_projection/<case>/`, T-107).
+
+### Break checks *(S4-12, R2-1…R2-6)*
+
+1. Project `OUTCOME_NOT_SENT` as no line (the row left `sent`): reader parity fails (`in_flight`, `checks.orders`).
+2. Write `completed` for an entry's `COMPLETED`: reader parity fails (`trades_for`, `desk_fills`).
+3. Project `DISPATCH_REFUSED` as no line (left `formed`): reader parity fails (`in_flight`).
+4. Project `RESOLVED_NEVER_REACHED` as `cancelled`: reader parity fails (`never_reached`).
+5. Write no line for `RESOLVED_REACHED`: reader parity fails (`owned_broker_ids`, `reached_resting`).
+6. Take `day` from each event's own time: reader parity fails (`across_midnight`: `all_orders`, `strict_rows`).
+7. Leave a close command's fills off the entry's line: reader parity fails (`close_command`: `trades_for`).
+8. Round `close_price` to 4 places: reader parity fails (`tie_average`).
+9. Average from exact decimals, or in broker-time order: reader parity fails (`tie_average`).
+10. Omit `protective_order_ids`: reader parity fails (`_expected_fill_ids`, `checks._owned_broker_ids`).
+11. Omit `parent_broker_order_id` on a close row: reader parity fails (`strict_rows`).
+12. Call `refresh` from `_commit_outcome`: the not-on-the-send-path test fails.
+13. Catch only `OSError` in the refresher: the any-fault test fails (`ValueError`).
+14. Run `refresh` on the writer thread: the not-on-the-send-path test fails.
+15. Request a refresh only after an outcome: the every-pass test fails.
+16. Compare forbidden roots as strings, not real paths: the forbidden-roots test fails (symlink).
+17. Rebuild by clearing the whole root: the forbidden-roots test fails (`monitor/x`).
+18. Resend when `compat_projection` is `repair_scheduled`: CP-L4 fails.
+19. Import the serializer from `kernel/`: the import guard fails.
+20. Trust a stale sidecar: the sidecar test fails.
+21. Keep the serializer after a failure (R2-1): the retry test fails (doubled `filled_qty`).
+22. Skip the truncation to the sidecar's sizes (R2-1): the retry test fails (a duplicate line).
+23. Write `completed` for a cancel's acknowledgement, or drop the parent's `record_cancel` line (R2-2): reader parity fails (`cancel`).
+24. Read the whole ledger in one `events()` call, no yield (R2-3): the pass-latency test fails.
+25. Stop the refresher before the drain (R2-3): the stop-order test fails.
+26. Accept a listed difference in `desk_fills` (R2-5): reader parity fails (the allowed-fields check).
+27. Pick the first entry when a close's position matches two (R2-6): the close-parent test fails.
+28. Check `MIG-R09` only at composition (R2-6): the forbidden-roots test fails (late symlink).
 
 ### Files
 
-* **New:** `docs/migration.md` (consumer list).
-* **Changed:** `adapters/compatibility.py` (serializer; its reach test allows it to build lines but still no write: the writer is the projector); `kernel/ledger/export.py` (`CompatProjector`); `contracts/execution.py` (`compat_projection` values); `kernel/coordinator.py` and `kernel/host.py` (call and repair pass); `bootstrap.py`; `settings/schema.py`, `resources/defaults.yaml` (`paths.compat`); `scripts/gen_legacy_fixtures.py`, `golden.json`; the tests above.
+* **New:** `tests/contracts/test_orders_projection.py` (T-106); `tests/fixtures/legacy_stores/orders_projection/` (T-107); `docs/migration.md` (consumer list).
+* **Changed:** `adapters/compatibility.py` (`OrdersSerializer`; the reach test's import set gains `datetime`); `kernel/ledger/export.py` (`CompatProjector`, `CompatRefresher`); `contracts/execution.py` (`compat_projection` values); `kernel/coordinator.py` (the status copy only); `kernel/host.py` (the request after every pass, start and stop of the refresher); `bootstrap.py` (composition, `MIG-R09`); `settings/schema.py`, `resources/defaults.yaml`, `tests/unit/test_settings_resolver.py` (`paths.compat`; the two forbidden roots' kernel scope); `scripts/gen_legacy_fixtures.py`, `golden.json`; `tests/recovery/test_crash_boundaries.py`.
+* **Specs** *(R2-4)*: the migration spec's compatibility section, PRF-MIG-09 and its refusal catalogue (`MIG-R01`…`MIG-R09`); the ledger spec's REQ-LED-006, CUJ-LED-1, CP-L4 and PRF-LED-06 rewritten as projection health at the commit, with the Deviation recorded there; **reported to its owner**: the configuration spec (the two settings' scope, `paths.compat`).
 
 ### Fork calls and Deviations
 
-* **For review:** the state mapping's `RESOLVED_NEVER_REACHED -> cancelled`; the 4-place average from exact decimals; the omitted fields.
-* **Deviation (slice):** lines written after the commit, not before the send (already listed).
-* No Fork call proposed: legacy's money path is not served, and no target decision reads the projection.
+* **No Fork call:** every mapping keeps legacy's line for legacy's readers (the fork rule), and no target decision reads the projection.
+* **Deviation (slice):** lines written after the pass, not before the send (already listed).
+* **Deviation:** the projected `our_order_id` uses the command key where legacy's used the decision ID; `decision_id` is still carried (above).
+* **Deviation:** the `_CARRIED` and attribution fields above are omitted; `SQUARE_OFF` is never written; `from_registry`'s `plans/` join and `advisor_economics`'s `decision_id` join are not served.
+* **Deviation (ledger spec)** *(R2-4)*: `compat_projection` reports projection health at the commit, not this outcome's own lines.
 
 ### Completion conditions (step 4)
 
 The tests pass twice with the layering guards and the crash-boundary file; every break check fails a listed test and every file is restored (md5); the step is recorded "as built".
 
-## Step 5 — the shadow composition and the comparison (outline)
+### Step 4 as built
 
-Deepened after steps 3 and 4 are built: the migration spec's [disarmed shadow](../../design/migration-recovery-rollback-continuity.md#the-disarmed-shadow) and [same-head comparison](../../design/migration-recovery-rollback-continuity.md#same-head-comparison-scriptscompare_paritypy).
+Commit `775f569` on `slice-13`, on top of `e8bb19a`: 32 files, 14 124 lines added, 16 removed. Not pushed. Reviewed twice before building ("Ready to build: no", then "yes after fixes"); the fixes are in the plan above.
 
-* **Builds:** `compose_shadow` (a configuration-spec module change, listed); `LegacyMarketSource` over `market_ndjson/1`; `LegacyOutcomeResponder` with its matching rules, pending outcomes and `not_sent` for unmatched commands; `compare_parity.py shadow --day D` with the head pair, every row of the comparison set and the legacy-gate-to-refusal-code table; the approved-difference table, written from the owner answers alone, each row with its reference, condition and expected values. A slice Deviation that changes a compared value is not a row: its differences stay defects and it is raised as an owner question.
-* **Proved on synthetic legacy and shadow heads only** (fixtures from step 1, the simulation composition for the shadow side).
-* **Test files:** `tests/integration/test_shared_engine.py` (PRF-MIG-10); `tests/contracts/test_capabilities.py` (PRF-MIG-11).
+**As planned, with these choices and findings:**
+
+* **Files.** New: `tests/contracts/test_orders_projection.py` (T-106), `tests/fixtures/legacy_stores/orders_projection/` (T-107: `cases.json` and 15 legacy-written `orders/` directories), `docs/migration.md`. Changed: `adapters/compatibility.py` (`OrdersSerializer`, `project_orders`, `ProjectionError`), `kernel/ledger/export.py` (`CompatProjector`, `CompatRefresher`, `check_compat_root`, `ProjectionRefused`), `contracts/execution.py`, `kernel/coordinator.py` (`compat_status`, copied into the three committed dispatch outcomes), `kernel/host.py`, `bootstrap.py` (`_compose_compat`, `Composition.compat_refresher`), `settings/schema.py`, `resources/defaults.yaml`, `scripts/gen_legacy_fixtures.py` (`--orders-projection`), `golden.json` (`orders_projection` only; every other key unchanged), `tests/recovery/test_crash_boundaries.py` (CP-L4), and three tests pinning the changed scopes and the reach set (`test_settings_resolver.py`, `test_legacy_copier.py`, `test_legacy_schemas.py`).
+* **Legacy's own code wrote the legacy side, through every path the plan names.** The generator ran legacy at 445eb116 offline (a fuller export with `scripts/` and `monitoring/`): the registry writers, `settle_fills` for every fill (one pass per FILL event, its clock fixed through `registry.now`), the structure supervisor's `execute_action` with a live `Gateway` and a stub client for the cancel and the close, and `Gateway.modify` for the stop modify. Two stubs, both recorded: `_cancel_resting_siblings` is a no-op (on Windows legacy's gateway factory needs `os.getuid`; the target's sibling cancel is its own command, covered by the `cancel` case), and the P&L monitor's MCP imports are stubbed (`owned_broker_ids` and `_expected_fill_ids` use neither). The structure leg's fill uses the structure executor's own rule through `transition` (`structures.py:298-316`), labelled `structure_fill:transition` in `golden.json`.
+* **Parity: every money and ownership reader agrees exactly on all 15 cases** (`desk_fills`, `owned_broker_ids`, `_expected_fill_ids`, `checks._owned_broker_ids`, `checks.orders`, `in_flight`), and every fold, `all_orders`, `strict_rows` and `trades_for` output agrees except in omitted fields. Prices included: 118.3167 (three partials), 100.0003 (the tie: legacy's float rounding, where exact decimals give 100.0002), and the unrounded close prices (103.41666666666667, 95.075).
+* **Corrections found by running legacy's code** (each makes the projection match legacy's bytes; no money rule or gate changes):
+  * **A close command writes no `close_reason`.** Legacy treats a close row with parent IDs as a lifecycle close (`run_framework_live.py:6371-6433`): its fills close the parent with allocations and `close_broker_order_id`, and the reason stays empty. `TIER1_CLOSE` is written only on legacy's Tier-1 intent path, which the target does not have. The plan said `TIER1_CLOSE`.
+  * **The parent pair is on the `formed` line only**, as `open_order` writes it; `transition` does not carry it (`registry.py:349-410`). The plan said every line.
+  * **A cancel or modify row takes the parent's side** (`action`), as the supervisor's lifecycle row does (`structure_supervisor.py:1113-1131`), and the parent's `record_cancel` or `record_stop_moved` line comes before the action's `ack`, the order legacy writes them in.
+  * **A structure leg's `decision_id`** is `<decision>.<leg>`, so each leg's `our_order_id` keeps legacy's `owner:decision_id#attempt` form.
+  * **Fill lines** are one per FILL event (legacy writes one per settle pass); the folded state and every reader's output are the same.
+* **Allowed differences, as built.** The plan's omitted fields, plus legacy writer extras the target has no source for (`product`, `sent_by`, `lifecycle_result`, `action_attempt_id`, `gateway_sent`), the generator's `label` and the projection's own `projection` key. `structure_instance_id`, an omitted field, also appears in `trades_for`'s output (`""` against absent), so omitted fields are allowed there too; every money field of `trades_for` matches exactly. In the cases, each intent digest equals its command key, so `decision_id` and `our_order_id` match by construction (the identity rule itself was reviewed).
+* **Serializer breaks are caught by the projected-bytes test.** The suite cannot run legacy's readers; it re-projects each case and requires the exact bytes legacy's readers were run over. A serializer change therefore fails `test_projected_bytes` (or `test_money_values`), not the parity test, which checks the recorded outputs.
+* **Paged reads have their own test.** A whole-ledger read with no yield does not fail the latency test, because Python's thread switch interval still lets the writer run. `test_paged_reads_yield` checks the page size and the yields directly. The latency test measured a median pass of 0.35 ms quiet and 0.58 ms during a 20 000-event rebuild, against a bound of 51 ms.
+* **`compat_projection` before the first refresh is `repair_scheduled`** (nothing projected yet), then the last refresh's result.
+* **`paths.compat` uses the `scratch` storage class**, the existing class closest to "derived" (rebuildable).
+* **Trap (carried):** the system interpreter lacks `hypothesis`, and under `python -I` cannot see `apsw` (it is in the user site). The tests ran with `OA_NEW/.venv-slice01` (used read-only) and `PYTHONPATH=src`, where both resolve. The generator ran in a scratch virtual environment against a fuller export of legacy at 445eb116 (`src/`, `scripts/`, `monitoring/`, `config/`).
+* **Line endings.** The fixtures legacy wrote are stored with LF, as legacy writes them on the EC2; on Windows its text-mode writes produced CRLF. The readers' recorded outputs are unaffected.
+
+**Fork calls:** none. **Deviations:** as listed in the plan; the corrections above follow legacy's own bytes.
+
+**Tests run (Windows, affected only):** `tests/contracts`, `tests/unit`, `tests/recovery`, `tests/integration/test_kernel_host.py`, `tests/integration/test_custody_promotion.py` (the ledger and composition modules are shared). Run 1: 2 140 passed, 15 skipped, 0 failed. Run 2, after the last test edit (three tests the break checks showed too weak: a close price longer than 4 places, a sidecar from another ledger, a crash with lines past the sidecar): 2 140 passed, 15 skipped, 0 failed. Line endings were then normalised to LF (the edits and legacy's Windows writers had produced CRLF) and the touched files rerun: 369 passed, 1 skipped. `test_orders_projection.py` holds 52 tests; the crash file gains `test_cp_l4` and `test_cp_l4_sidecar_mismatch`. `ast.parse` passes on every edited Python file.
+
+**Break checks** (script `break_step4.py` in the session scratchpad), each failing its listed test, each file restored and its md5 confirmed:
+
+| Break | Failed |
+|---|---|
+| 1. OUTCOME_NOT_SENT writes no line | `test_projected_bytes[not_sent_retry]` |
+| 2. An entry's COMPLETED writes completed | `test_projected_bytes[entry_completed]` |
+| 3. DISPATCH_REFUSED writes no line | `test_projected_bytes[dispatch_refused]` |
+| 4. RESOLVED_NEVER_REACHED as cancelled | `test_projected_bytes[never_reached]` |
+| 5. RESOLVED_REACHED writes no line | `test_projected_bytes[reached_resting]` |
+| 6. Day from each event's own time | `test_projected_bytes[across_midnight]` |
+| 7. A close command's fills off the entry's line | `test_money_values` |
+| 8. Close_price rounded to 4 places | `test_money_values` |
+| 9. Average from exact decimals | `test_money_values` |
+| 10. Protective_order_ids omitted | `test_projected_bytes[entry_partial_filled_stop]` |
+| 11. Parent_broker_order_id omitted | `test_decision_id_and_identity` |
+| 12. Refresh from the send path (status does the I/O) | `test_not_on_the_send_path` |
+| 13. The refresher catches only OSError | `test_any_fault_contained` |
+| 14. Refresh on the writer thread | `test_every_pass_and_stop_after_drain` |
+| 15. No refresh request after a pass | `test_every_pass_and_stop_after_drain` |
+| 16. Forbidden roots compared without resolving links | `test_forbidden_roots` |
+| 17. Rebuild clears the whole root | `test_rebuild_touches_only_its_files` |
+| 18. A kernel branch on compat_projection | `test_import_guard` |
+| 19. The serializer imported under kernel/ | `test_import_guard` |
+| 20. A stale sidecar trusted | `test_sidecar_mismatch_rebuilds` |
+| 21. The serializer kept after a failure | `test_retry_after_a_partial_append` |
+| 22. No cut back to the sidecar's sizes | `test_retry_after_a_crash_between_append_and_sidecar` |
+| 23. A cancel's acknowledgement written completed | `test_projected_bytes[cancel]` |
+| 24. Whole-ledger read, no yield | `test_paged_reads_yield` |
+| 25. Refresher stopped before the drain | `test_every_pass_and_stop_after_drain` |
+| 26. A money field allowed to differ (golden's list) | `test_cases_and_allowed_lists` |
+| 27. The first entry taken when two match | `test_close_parent_refused` |
+| 28. MIG-R09 only at composition | `test_forbidden_root_checked_at_every_refresh` |
+
+## Step 5 — the shadow composition and the comparison
+
+<a id="step-5--the-shadow-composition-and-the-comparison-outline"></a>
+
+The authorities are the migration spec's [disarmed shadow](../../design/migration-recovery-rollback-continuity.md#the-disarmed-shadow) and [same-head comparison](../../design/migration-recovery-rollback-continuity.md#same-head-comparison-scriptscompare_paritypy), PRF-MIG-10 and PRF-MIG-11 (composition rows). Step 5 is TASK-S13-02. Legacy citations are at 445eb116; target citations are at the step 4 commit on `slice-13`. Class S: synthetic legacy fixtures and the simulation only; nothing here reads production data or runs on the EC2 (that is step 6).
+
+**It stops for review before building**, because it decides what the shadow answers in place of a broker, and which differences from legacy the comparison may excuse. It sets no score, threshold or money value.
+
+**In plain words.** The shadow is the new system running beside the old one with no way to trade. It reads copies of the old system's price files and order files. When it decides to place an order, a stand-in broker answers with whatever the old system really got for the same order, or says "not sent" when the old system placed no such order. Each evening a comparison lines up the two systems' decisions, money held back, quantities, stops and unknown outcomes at one pinned moment. Every difference is a defect unless the owner already approved that exact kind of difference. This step builds and proves all of that on synthetic data.
+
+### Decisions
+
+#### Where the code lives
+
+* **`adapters/legacy_responder.py`** (new, T-108): `LegacyOutcomeResponder` (the kernel's `BrokerPort`) and `LegacyBooks` (the observation port), over the copier's copy of legacy's registry (`<paths.shadow.root>/input/run/orders/`), read through step 1's readers. Its reach test allows the standard library and the target package only: **no** `socket`, `ssl`, `http`, `urllib`, `requests`, `httpx`, `websockets` or any `adapters.openalgo*` import, and no write call (PRF-MIG-11). **Deviation** from the spec's "this module" (`adapters/compatibility.py`): that module imports `urllib.parse`, so a separate module keeps the no-network guard exact.
+* **`adapters/compatibility.py`** gains `LegacyMarketSource`, a `MarketSource` (`market/sources.py:37-55`) over `market_ndjson/1` in `<paths.shadow.root>/input/market/`, read with step 1's `read_market` from a per-file byte cursor, so only complete lines the copier appended are read. The mapping from legacy's streams (spot, chain, Greeks, ticks; `src/data/marketdata/store.py:1-39`) to the target's market payloads is written at build as data, from step 1's fixture records, one row per stream with its source fields.
+* **`bootstrap.py`**: `compose_shadow(effective, *, clock, leases)` returns the shadow's kernel composition, its market loop over `LegacyMarketSource`, and the BuyerEdge host on the shadow's views, all with paths under `paths.shadow.root` (`ledger/shadow.db`, `evidence/`, `market/`, `compat/`). It reuses `_compose_kernel` with the responder as the port and `LegacyBooks` as the observation port, and composes the step 4 projector into `<root>/compat/`.
+* **`operations/deployment.py`**: `COMPOSITIONS["shadow"]` beside `first_release` (`:40-53`): copier required, market required (legacy source), strategy required, kernel required, cognition by policy (the recorded-response provider), supervisor optional. **Correction to the spec**, which names `bootstrap`'s `COMPOSITIONS`: the table lives in `operations/deployment.py`.
+* **`operations/shadow_compare.py`** (new, T-109) holds the comparison; **`scripts/compare_parity.py`** (spec) is its command line, as step 3 did for the importer. **`resources/approved_differences.json`** (new, T-110) holds the owner-only table, read-only.
+
+#### What makes the shadow disarmed (PRF-MIG-11, composition rows)
+
+* `compose_shadow` composes **no** `OpenAlgoAdapter`, no `OpenAlgoMarketSource` and no secrets resolver, and refuses (**`MIG-R10`**) when the effective settings or the process environment hold any `openalgo/*` secret reference or any `AT__OPENALGO__*` name (the copier's own check, step 2, `adapters/legacy_copier.py`).
+* The kernel's port is the responder, which can only read files. The composition test walks the composed object graph and refuses any object whose module is under `adapters.openalgo` or imports `socket`.
+* **The lease store is a dependency not built yet.** At `e8bb19a` `lease_store_for` refuses (`bootstrap.py:1013-1015`): SLICE-11 step 8 builds `DirectoryLeaseStore`. `compose_shadow` takes `leases` as an argument; the tests pass the conftest `FakeLeaseStore`. Step 6 needs SLICE-11 step 8 first. This is recorded, not worked around.
+
+#### The responder (`LegacyOutcomeResponder.send`)
+
+* **Entry matching**: a shadow entry matches the legacy registry row with the same strategy (`owner`), decision bar, instrument (`symbol`), side (`action`) and quantity. The shadow's decision bar is the admitted intent's (from the kernel's evidence store, by `intent_ref`); legacy's is the bar of the decision record its `decision_id` names (`decisions/1`, step 1). Whether every legacy registry row's decision record names its bar is **not checked**; the build checks it on step 1's fixtures and stops if not.
+* **Cancel, modify, close**: matched by the matched entry's legacy order and the verb, within the same bar; a close also by quantity.
+* **Matched**: answered with legacy's recorded outcome for that row as it stands in the copied lines: `ack` with legacy's broker ID (and the protective IDs and roles from its `protective_order_ids`/`protective_roles`), `rejected`, or `unknown` as `ambiguous`. Legacy's `sent` or `formed` with no outcome yet: the responder waits, re-reading the copy, until the command's dispatch deadline, then answers `ambiguous` (`legacy_pending`); the worker thread waits, the pass does not (`kernel/coordinator.py`'s workers).
+* **Unmatched**: `not_sent` with leg reason `disarmed_unmatched`, as the spec says. **For review:** the kernel returns a `not_sent` entry to `ADMITTED` and dispatches it again (`kernel/lifecycle.py:20`). The build checks that an unmatched entry stops by its own expiry (`coordinator._expired`); if it would retry every pass for the rest of the day, the responder answers `rejected` (`disarmed_unmatched`) instead, a Deviation from the spec raised for review, not taken silently.
+* **Fills** come only through `LegacyBooks`, never in a send result.
+
+#### The books (`LegacyBooks`, the observation port)
+
+* `orderbook`, `tradebook` and `positions` are built from the copied registry lines at the shadow clock's instant, in OpenAlgo's row shape the kernel's observation contracts read (SLICE-07 step 4): every legacy order, so legacy orders the shadow never made are foreign activity in the shadow's book (Q-016). Fill quantities and prices come from the lines' `filled_qty`, `price`, `closed_qty`, `close_price`; where the lines lack a fill's own ID or time (step 1's characterization), the observation is labelled `provisional` and the end-of-day pass rebuilds it from the Tier-1 ledger copy, as the spec says.
+* **`funds`**: legacy records the funds it read in its session checkpoint evidence (`src/runtime/session_state.py:41-46`, `:196`). `LegacyBooks.funds` answers from the latest checkpoint at or before the instant. If no checkpoint carries funds, the observation is incomplete and admission refuses the entry (`ADM-R05`, stale input), a reported difference. **Not checked**: how often legacy writes a checkpoint with funds; the build measures it on the fixtures.
+* Endpoint contracts are the release-bound TASK-S07-05 records, as in production; none are invented.
+
+#### The market source
+
+* `LegacyMarketSource.poll(stream, instrument, when)` returns the records the copier appended since the last poll whose legacy stamp is at or before `when`; `drain_ticks` returns the tick stream's. Coverage gaps in legacy's files become `FetchFailed` entries, so the market loop writes `interrupted` coverage (`market/sources.py:30-34`).
+
+#### The comparison (`compare_parity.py shadow --day D`)
+
+* **The head pair.** Legacy's `B`: the step 3 importer's `IMPORT_BOUNDARY_PINNED` for day `D` (its ledger head and file prefixes). The shadow's `H`: the shadow ledger's head after every input with arrival at or before `B.captured_at` is processed; the shadow host records, per pass, the input cursor it consumed, so `H` is found by cursor, not by time. A report over an unpaired head is refused (**`MIG-R11`**).
+* **The comparison set**: the spec's seven rows (`migration spec :333-341`), each a function over legacy's views (step 3's ported views and step 1's readers) and the shadow's index tables, returning matched pairs and differences.
+* **The legacy-gate-to-refusal-code table**: one row per legacy sizing or admission gate name (`src/core/framework/sizing/gates.py`, the gate list at build) to the target refusal code that covers it; written at build from the two codebases with citations, and reviewed. A gate with no target code is listed as a defect class, never mapped by guess.
+* **Approved differences** (`resources/approved_differences.json`), one row per owner answer that records a difference from legacy, each with reference, condition and expected values:
+
+  | Row | Owner answer | Condition | Expected |
+  |---|---|---|---|
+  | Q-003 | View age from the bar's close (`market.view_age_stamp: bar_close`) | The view's age from the bar's open exceeds `max_view_age_secs` and from its close does not | Legacy refused stale; the shadow admitted |
+  | Q-026 | Deep-OTM delta exit kept (option A) | The tick's delta is below `delta_exit_threshold` while legacy held | The shadow's exit `deep_otm_delta`; legacy no exit at that tick |
+  | Q-027 | The spec's five basket rules (option A) | One of the five rules (SLICE-06 step 3) applies | Per rule, as that step's table |
+  | Q-029 | No recovery hold on an unreadable broker (option B) | A restart while the broker cannot be read | Legacy held the strategy; the shadow's entries wait, then resume |
+  | Q-030 | A bar is final at its confirmation instant (option A) | A price after the bar's confirmation | Legacy's bar includes it; the shadow's final bar does not |
+
+  The rows are copied from the owner's text (`decisions/owner-questions.md`, `decisions/owner-answers-2026-10-27.md`) and reviewed against it; no agent adds a row. A difference matches a row only when its condition holds and both sides equal the expected values. A slice Deviation that changes a compared value is not a row: its differences stay defects (spec).
+* **Output**: `<paths.shadow.root>/reports/<D>.json`, and the summary line for `docs/migration.md`'s shadow table.
+
+### Tests
+
+| File | Test | Proves |
+|---|---|---|
+| `tests/contracts/test_capabilities.py` | Shadow composition (PRF-MIG-11) | `compose_shadow` composes no OpenAlgo object and nothing that imports `socket`; `MIG-R10` with an `openalgo/api_key` ref or an `AT__OPENALGO__AUTH__API_KEY` name in the environment; the responder's module reach (no network module, no write call) |
+| `tests/integration/test_shared_engine.py` | Shadow day (PRF-MIG-10) | Over step 1's fixture run directory and market files: the shadow admits and dispatches; a matched entry is acknowledged with legacy's broker ID and filled from the books; an unmatched one is `not_sent` (or `rejected`, per the review); a legacy order the shadow never made is `FOREIGN_RECORDED`; a pending legacy line answered `ambiguous` at the deadline |
+| same | Comparison | `compare_parity.py shadow` on the synthetic day: the head pair recorded, the seven rows computed, one planted difference matched by its Q-003 row (condition true, expected values equal), the same difference with the condition false reported a defect, a planted gate refusal mapped by the table, `MIG-R11` on an unpaired head |
+| `tests/unit/test_legacy_market_source.py` (T-111) | Market source | Only appended complete lines are read; a gap becomes `FetchFailed`; the stream mapping reproduces step 1's fixture records |
+
+### Break checks
+
+1. Import `socket` (or `adapters.openalgo`) in the responder: the capabilities test fails.
+2. Drop the `AT__OPENALGO__*` environment check: `MIG-R10` test fails.
+3. Match an entry without the bar: the shadow-day test fails (a planted same-instrument entry at another bar).
+4. Answer an unmatched entry `ack`: the shadow-day test fails.
+5. Leave legacy-only orders out of the books: the foreign-activity assertion fails.
+6. Approve a difference whose condition is false: the comparison test fails.
+7. Compare latest against latest: `MIG-R11` test fails.
+8. Read a market line without its newline: the market-source test fails.
+
+### Files
+
+* **New:** `adapters/legacy_responder.py` (T-108), `operations/shadow_compare.py` (T-109), `resources/approved_differences.json` (T-110), `scripts/compare_parity.py`, `tests/unit/test_legacy_market_source.py` (T-111).
+* **Changed:** `adapters/compatibility.py` (`LegacyMarketSource`), `bootstrap.py` (`compose_shadow`, `MIG-R10`), `operations/deployment.py` (`COMPOSITIONS["shadow"]`), `tests/contracts/test_capabilities.py`, `tests/integration/test_shared_engine.py`, `docs/migration.md` (the shadow table).
+* **Specs:** this slice's shadow and comparison sections of the migration spec (the module, the composition table's home, `MIG-R10`, `MIG-R11`); reported to their owners: the configuration spec's composition table (`shadow`).
+
+### Fork calls and Deviations
+
+* **No Fork call:** the shadow cannot send, and nothing it decides reaches a broker.
+* **Deviation:** the responder in its own module (above).
+* **For review:** `not_sent` or `rejected` for an unmatched entry (above).
+* **Recorded dependency:** SLICE-11 step 8's lease store, before step 6.
+
+### Completion conditions (step 5)
+
+The tests pass twice with the layering guards; every break check fails a listed test and every file is restored (md5); the step is recorded "as built".
 
 ## Step 6 — the shadow on production (outline; pre-approved)
 
