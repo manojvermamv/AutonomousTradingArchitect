@@ -866,10 +866,20 @@ The authorities are the migration spec's [disarmed shadow](../../design/migratio
   * **Kill input** *(R5-2)*: legacy's copied kill file only, never production's kill paths (`KillInputs.resolve(s.kill_switch, s.kill_switch_files, AT_DEPLOYMENT_ROOT)`, `bootstrap.py:1250-1255`, is not called). The kill input is a port with `KillInputs`' interface over `root/input/run/<legacy's kill file>` (step 1's `kill_file/1` fixed path). It reports `kill_file` at stamp `t` only when the copier's pass log shows the file present in the settled pass covering `t` (the latest consumed pass with `started_at − shadow.legacy_write_lag_secs ≥ t`), and absent otherwise. It never `stat`s a path at wall time, so it is never "unreadable" (`kernel/safety.py:43-52`). The kill flag is `false`. An empty or unparsable copied `KILL` counts as present, as legacy's existence test does (step 2).
   * **Contracts:** the same source as production, which passes `contracts={}` at `775f569` (`:1264`). The shadow calls one shared helper with production, so it changes only when production's does.
   * **Relays and the owner's acts** *(R5-6)*. Owner acts need an `owner_credential` authentication (`kernel/authority.py:228-231`), and the production-shaped composition has no Authorizer (`bootstrap.py:225`). The composition sets `relays` to the one principal `relay:shadow-driver` and `Composition.relay_peer` to it, so the existing in-process relay, `Composition.relay` over `accept_relay` (`bootstrap.py:87-93`), is the only path. At the first step the driver performs exactly two kinds of owner act. Each is an `OperatorRequest` with the owner as principal, a fresh nonce and the recorded clock's time, relayed through `Composition.relay(request, "owner_credential")` and executed in process:
-    * **the standing binding:** `authority.authorize_binding(auth, StandingBinding(…))` (`kernel/authority.py:539`) for BuyerEdge on the account, with the bound policy, candidate and `policy_binding_id` from the profile's `policies` section (`contracts.decisions.bound_policies_from`) and the account from `account.*`;
-    * **the grants:** `authority.issue(auth, Grant(…))` (`:383`) for each grant BuyerEdge's registration needs, with scope (account, strategy, verbs) and lifetime from the profile.
+    * **the standing binding:** `authority.authorize_binding(auth, StandingBinding(…))` (`kernel/authority.py:539`);
+    * **the grants:** `authority.issue(auth, Grant(…))` (`:383`).
 
-    **The session is not an owner act:** `Sessions.open_session(account, calendar_id)` (`kernel/lifecycle.py:136`) opens it on `recovery.tick` once the binding validates, as in production. Whether the profile holds every field the binding and grants need is **not checked**; the build checks it on the fixture profile and stops if not. These are the values comparison row 1 checks against legacy's session binding and profile (rows 12, 14). No channel, socket or listener is composed, so nothing outside the process reaches the relay.
+    **The session is not an owner act:** `Sessions.open_session(account, calendar_id)` (`kernel/lifecycle.py:136`) opens it on `recovery.tick` once the binding validates, as in production.
+
+    **The values come from legacy's own binding for `D`, converted** (coordinator, 2026-11-04: the profile holds only `policies`, `settings/schema.py:438`, so it cannot supply them). `adapters/legacy_binding.py` (T-118), `convert_binding(input_run, day, *, account, calendar_id, registry, policies)`, reads `session_bindings/1` (step 1's reader; legacy's `configs/session-bindings/<strategy>/<day>.json`, `src/runtime/session_config.py:38-39`, `:864-975` at 445eb116) from the copier's input for day `D`, and returns one `StandingBinding` and its grants. Each rule is a **Deviation** from legacy, which bound per strategy and day inside its own process and had no grant:
+    * **Which strategies:** every strategy with a binding file for `D` whose record parses, whose `strategy` and `day` equal its path, and whose `integrity_sha256` equals legacy's `_integrity` (`session_config.py:57-59`, the ported `compatibility._integrity`). Those are legacy's bound strategies.
+    * **The binding:** `candidate_ids` are those strategies' target `CandidateId`s from the strategy registry (`Registration.candidate_id`), sorted; `first_date` and `last_date` are `D`; `requires_promotion` is `strategies.registry.requires_promotion(registration)` and `families` the descriptor's `family`, per candidate, SLICE-12 step 6's rule; the scope is `SessionScope(account from account.*, the calendar)`; `policy_binding_id` is the profile's one bound policy (`bound_policies_from`).
+    * **The grants:** for each bound strategy whose registry authority is `trade`, one `Grant` to `strategy:<id>` (service) with actions `{"entry"}` only, the account, valid from `D`'s open to its close (09:15 to 15:30 IST, as UTC), `parent_grant_id` none and `delegation_limit` 0. A strategy whose authority is not `trade` gets no grant.
+    * **Identities:** `binding_id = "shadow-binding-" + sha256(canonical([D, sorted (strategy, integrity_sha256)]))[:32]`, and `grant_id = "shadow-grant-" + sha256(canonical([binding_id, strategy]))[:32]`: the same legacy binding and day always give the same IDs.
+    * **`MIG-R14`** (new) refuses, and nothing is bound or granted, when `D` has no binding file, a binding file fails a check above, a bound strategy is not in the target registry, or the profile binds no policy or more than one. It never invents a binding.
+    * **Pinning:** the binding files of `D` are files the driver reads, so they are in the cursor's `files` and pinned by `B`'s `files` (step 3 pins `session_bindings`, store row 14).
+
+    No channel, socket or listener is composed, so nothing outside the process reaches the relay.
 * **The object-graph test** walks the composed objects and refuses any whose module is under `adapters.openalgo` or that imports `socket`, `ssl` or `http`.
 
 #### `COMPOSITIONS["shadow"]` and its validation *(S5-12)*
@@ -995,6 +1005,7 @@ Labelled synthetic values only; no production data.
 | same | Close command *(R5-3)* | Step 4's `close_command` case: the close's fills come from its own row only, one fill per increase, no `fill_mismatch`, and the shadow's closed quantity equals legacy's |
 | same | Pairing *(R5-4)* | A store the driver does not read (holds), pinned by `B` at another size than any cursor names, does not block pairing; a file the driver reads but `B` does not pin refuses `MIG-R11` |
 | same | Owner acts *(R5-6)* | The binding and grants are relayed through `relay:shadow-driver` with `owner_credential` and recorded in the shadow ledger; the session opens on `recovery.tick`; the composed graph holds no channel, listener or socket object, and no socket is opened during the day (a `socket.socket` stand-in that raises) |
+| `tests/contracts/test_legacy_binding.py` (T-119) | Binding converter | Over the fixture's `buyer_edge` binding for 2026-11-02: the converted strategy set equals legacy's bound strategies; the dates are `D`; one `entry` grant valid only within `D`'s session, no delegation; IDs are equal across two runs and change with `D`. `MIG-R14` when the day has no binding, a binding's integrity or path day is wrong, its strategy is unknown, or the profile binds zero or two policies |
 | same | Gate source *(R5-5)* | Legacy refusals are read from `plans/1`; a fixture `decisions/1` record with a different reason does not change the comparison |
 | same | Market timing *(S5-5)* | Two legacy polls copied in one pass keep two keys and their own `at` and `fetched_at`; a record copied late but fetched before confirmation is in the final bar and matches no Q-030 row; a tick fetched after confirmation matches Q-030; a spot or chain record (`fetched_at` equal to `at`) never does |
 | same | Comparison | The head pair recorded; each of the seven rows detects a planted difference; one planted Q-003 difference matched, the same with the condition false a defect; a planted gate refusal mapped by the table, and a byte-different reason a defect; `MIG-R11` with a cursor short of `B`, with no `B`, and with a stopped file |
@@ -1040,12 +1051,15 @@ Labelled synthetic values only; no production data.
 29. Pair on every file `B` pins *(R5-4)*: the pairing test fails.
 30. Read legacy refusals from `decisions/1` *(R5-5)*: the gate-source test fails.
 31. Compose a channel listener for the relay *(R5-6)*: the owner-acts test fails.
+32. Bind every registered strategy instead of legacy's bound set: the binding-converter test fails (the strategy set).
+33. Invent a binding when `D` has none: the binding-converter test fails (`MIG-R14`).
+34. Skip the integrity check: the binding-converter test fails.
 
 ### Files
 
-* **New:** `src/autonomous_trading/adapters/legacy_responder.py` (T-112), `src/autonomous_trading/operations/shadow_compare.py` (T-113), `src/autonomous_trading/resources/approved_differences.json` (T-114), `tests/unit/test_legacy_market.py` (T-115), `src/autonomous_trading/adapters/legacy_market.py` (T-116), `src/autonomous_trading/operations/shadow_run.py` (T-117), `scripts/compare_parity.py`.
+* **New:** `src/autonomous_trading/adapters/legacy_responder.py` (T-112), `src/autonomous_trading/operations/shadow_compare.py` (T-113), `src/autonomous_trading/resources/approved_differences.json` (T-114), `tests/unit/test_legacy_market.py` (T-115), `src/autonomous_trading/adapters/legacy_market.py` (T-116), `src/autonomous_trading/operations/shadow_run.py` (T-117), `src/autonomous_trading/adapters/legacy_binding.py` (T-118), `tests/contracts/test_legacy_binding.py` (T-119), `scripts/compare_parity.py`.
 * **Changed:** `adapters/compatibility.py` (`read_market_file`); `adapters/legacy_copier.py` (the pass log, `pass`, `stopped`); `operations/legacy_import.py` (`prefixes`); `kernel/host.py` (`PassSchedule`, factored out of `KernelHost`, behaviour unchanged); `bootstrap.py` (`compose_shadow`, `MIG-R10`, `MIG-R12`, the shared contracts helper); `operations/deployment.py` (`COMPOSITIONS["shadow"]`, the `transient` status); `settings/schema.py`, `resources/defaults.yaml`, `tests/unit/test_settings_resolver.py` (two settings, `paths.shadow.root`'s scope); `scripts/gen_legacy_fixtures.py` and `golden.json` only if the fixture day needs records the fixtures lack (governance attestation, decision records naming bars), each named in "as built"; `tests/contracts/test_capabilities.py`, `tests/contracts/test_legacy_copier.py`, `tests/contracts/test_legacy_import.py`, `tests/integration/test_shared_engine.py`; `tests/integration/test_kernel_host.py` runs unchanged as the factoring's guard; `docs/migration.md` (the shadow table).
-* **Specs (this slice's sections of the migration spec):** the composition table (one shadow process, the `transient` rows), the responder's text (no end-of-day rebuild; the answers table), the refusal catalogue (`MIG-R10` as built, `MIG-R11`, `MIG-R12`, `MIG-R13`), the approved table with Q-027's sub-rows; **reported to their owners:** the configuration spec (the two settings, `paths.shadow.root`'s scope, the `shadow` composition). The `env_locators` fix is the main line's, not this step's.
+* **Specs (this slice's sections of the migration spec):** the composition table (one shadow process, the `transient` rows), the responder's text (no end-of-day rebuild; the answers table), the refusal catalogue (`MIG-R10` as built, `MIG-R11`, `MIG-R12`, `MIG-R13`, `MIG-R14`), the approved table with Q-027's sub-rows; **reported to their owners:** the configuration spec (the two settings, `paths.shadow.root`'s scope, the `shadow` composition). The `env_locators` fix is the main line's, not this step's.
 
 ### Fork calls and Deviations
 
@@ -1054,12 +1068,65 @@ Labelled synthetic values only; no production data.
 * **Deviation:** one shadow process in legacy's recorded time, where the spec lists separate market, BuyerEdge and kernel units.
 * **Deviation:** no end-of-day rebuild from the ledger copy and no "provisional" label; synthetic fill IDs by the rule above.
 * **Deviation:** no review converter in step 5; review-required entries are defects.
+* **Deviation:** the shadow's binding and grants are converted from legacy's session binding for `D` by the rules above (`src/runtime/session_config.py:38-39`, `:57-59`, `:864-975` at 445eb116).
 * **Recorded dependency:** SLICE-11 step 8's lease store, before step 6.
 * **Settled:** an unmatched command is `not_sent` (`disarmed_unmatched`), always a defect.
 
 ### Completion conditions (step 5)
 
 The tests pass twice with the layering guards; every break check fails a listed test and every file is restored (md5); the step is recorded "as built".
+
+### Step 5 as built (part 1 of 2)
+
+Commit `a79450d` on `slice-13`, on top of `06a7235` (the fast-forward that holds SLICE-11 step 7 and the main line's `env_locators` fix, `3ec5623`). Not pushed. Reviewed twice before building ("Ready to build: no", then "yes after fixes"); the binding converter (coordinator, option 3) was added after the second review without another, as the coordinator directed.
+
+**The gate first.** The plan said to check that the profile holds every field the owner acts need, and stop if not. It does not: the profile's sections are `channel`, `operator`, `policies` and `observer` (`settings/schema.py:438`), so it holds `policy_binding_id` but no binding ID, candidates, dates or grant fields. The build stopped. The coordinator chose to convert legacy's own session binding for `D` (option 3); the plan above now says so, with `MIG-R14`.
+
+**Built, tested and break-checked in this commit (the self-contained parts):**
+
+* **`adapters/legacy_binding.py`** (T-118): `convert_binding` and `BindingRefused` (`MIG-R14`), as planned, with one finding: `StandingBinding.families` holds **promotion** families (`contracts/identity.py:97`, `:169-175`), not a strategy's family, and comes from the candidate bundle, which the shadow does not hold. A rule strategy needs none (`""`). **Correction to the plan:** `families` is `""` per candidate, and a bound strategy that needs promotion refuses `MIG-R14` (`promotion_family_unknown`) instead of being given an invented family. Legacy's integrity is accepted in either of `compatibility._integrity`'s two encodings (they differ only for non-ASCII text; the fixture matches both).
+* **`kernel/host.py`**: `PassSchedule`, factored out of `KernelHost._serve` (start, `scheduled`, `passed`, `timeout`); `_serve` now uses it and its behaviour is unchanged (the 36 existing kernel-host tests pass).
+* **`adapters/legacy_copier.py`**: the pass log `input/.copier-log.jsonl` (`copier-pass/1`: `pass`, `started_at`, `completed_at`, `sizes`, `anomalies`, `gaps`, `moved`), fsynced before `.copier-pass.json`, which gains `pass` and `stopped` (`{rel: {kind, detail, offset?, first_pass}}`); `read_pass_log`. The pass number is read back from the log, so it survives a restart.
+* **`bootstrap.py`**: `shadow_preflight(effectives, environ)`: `MIG-R10` (every name of `key_names(env_locators(eff))` in the environment; an `openalgo` secret reference) and `MIG-R12` (the shadow root's real path against the directories of `ledger.path`, `market.store_path` and `supervisor.assessment_path`, and `release.root`, `paths.evidence`, `paths.run`, the research roots, `AT_DEPLOYMENT_ROOT` and both legacy roots, both ways; refused when `ledger.path`, `AT_DEPLOYMENT_ROOT` or a legacy root is unset). Returns the root's real path.
+* **`adapters/legacy_responder.py`** (T-112): `fills_from_cumulative`, the tradebook's fill rule as planned (one fill per increase, exact; two when the quotient does not terminate; IDs `legacy:<order>:<Q>[:b]`).
+* **`operations/shadow_compare.py`** (T-113) and **`resources/approved_differences.json`** (T-114): `legacy_numbers` and `money_equal` (exact; a float raises), `GATE_TABLE` and `gate_matches` (the plan's table), `load_approved` (`MIG-R13`: no owner reference, an id not its answer's, an unknown condition), `CONDITIONS` (one per row; Q-030 reads legacy's `fetched_at` and matches ticks only) and `approve`.
+
+**Tests** (new or extended): `tests/contracts/test_legacy_binding.py` (T-119, 12 cases); `tests/contracts/test_capabilities.py` (`MIG-R10` per name, the `openalgo` reference, `MIG-R12` in eight cases, the module reach of the responder and the converter); `tests/contracts/test_legacy_copier.py` (the pass log); `tests/integration/test_kernel_host.py` (`test_pass_schedule_grid_only`: stepped each second, scheduled only at 0, :07, :27, :47); `tests/integration/test_shared_engine.py` (money, gate table, approved table with Q-003 and Q-030, `MIG-R13`, fills). `tests/contracts/test_legacy_import.py`'s stamp test now expects the stamp's two new fields. `MIG-R12`'s symlink case skips on Windows (no symlink privilege) and runs on Linux.
+
+**Tests run (Windows, affected only):** `tests/contracts`, `tests/recovery`, `tests/integration/test_kernel_host.py`, `tests/integration/test_shared_engine.py`. Run 1: 828 passed, 10 skipped, 1 failed (`test_copier_pass_stamp_and_final_copy`, which pinned the stamp's old two fields; updated). Run 2: 829 passed, 10 skipped, 0 failed. After break check 9 tightened `test_mig_r14`, that file was rerun: 12 passed. `ast.parse` passes on every edited Python file.
+
+**Break checks** (script `break_step5.py` in the session scratchpad):
+
+| Break | Failed |
+|---|---|
+| 1. Import `socket` in the responder | `test_shadow_modules_reach` |
+| 2. `MIG-R10` by `AT__OPENALGO__*` names only | `test_shadow_mig_r10_names[MCP_OPENALGO__AUTH__API_KEY]` |
+| 3. `MIG-R12` one way only (root inside, not containing) | `test_shadow_mig_r12[contains_legacy]` |
+| 4. Each fill priced at `P(k)` | `test_shadow_fills_from_cumulative` |
+| 5. Money compared with a tolerance | `test_shadow_money_exact` |
+| 6. Approve with the condition false | `test_shadow_approved_table` |
+| 7. Accept a row with no owner reference | `test_shadow_mig_r13[row0-no_owner_reference]` |
+| 8. Bind every registered strategy | `test_strategy_set_equals_legacy` |
+| 9. Invent a binding when `D` has none | `test_mig_r14[no_binding]` (the first run did not bite: a later check still refused; the test now also checks each refusal's reason) |
+| 10. Skip the integrity check | `test_mig_r14[integrity]` |
+| 11. A scheduled pass at every stamp | `test_pass_schedule_grid_only` |
+| 12. Gaps only on stdout | `test_pass_log_records_sizes_and_stopped_files` |
+| 13. Q-030 judged on the shadow's arrival | `test_shadow_approved_table` |
+| 14. A planner stage matched without its reason | `test_shadow_gate_table` |
+| 15. A split increase priced at its average | `test_shadow_fills_from_cumulative` |
+
+The checks ran on a scratch copy of the tree (so the second test run was not disturbed), each file restored and its md5 confirmed.
+
+**Not built yet: the continuation (part 2), in this order.** Each item is specified in the plan above; nothing in it is decided here.
+
+1. `LegacyBooks` (orderbook, tradebook through `fills_from_cumulative` with the one-source rule for close commands, positions from checkpoints, funds from the attestation evidence, `dropped` for structure legs, `source="legacy_registry"`) and `LegacyOutcomeResponder` (matching and the answers table) in `adapters/legacy_responder.py`.
+2. `adapters/legacy_market.py` (`LegacyMarketFeed`) and `compatibility.read_market_file`; `tests/unit/test_legacy_market.py` (T-115).
+3. The kill-input port over the copied kill file and the pass log.
+4. `compose_shadow` in `bootstrap.py` (calls `shadow_preflight` first; production-shaped `_compose_kernel` with the responder as `port_factory`, `LegacyBooks` as `observation_port`, `contracts={}` through a helper shared with production, `relays` and `relay_peer` set to `relay:shadow-driver`, `credentials=None`); the two settings `shadow.legacy_write_lag_secs` and `shadow.outcome_wait_secs` and `paths.shadow.root`'s kernel scope (`settings/schema.py`, `defaults.yaml`, `test_settings_resolver.py`).
+5. `operations/shadow_run.py` (T-117): `ShadowDriver` on `RecordedClock` with `PassSchedule`, the settled instant from `read_pass_log`, the owner acts from `convert_binding`, the cursor file; first check that the production-shaped composition accepts a `recorded` clock domain, and stop if not.
+6. `operations/legacy_import.py`: `IMPORT_BOUNDARY_PINNED.prefixes`.
+7. The rest of `operations/shadow_compare.py`: the head pair (`MIG-R11`), the seven rows, one cause reported once, the report; `scripts/compare_parity.py`; `COMPOSITIONS["shadow"]` with the `transient` status; `docs/migration.md`.
+8. The plan's remaining tests and break checks (shadow day, late line, stopped file, unmatched protective, funds, IST day, market timing, kill input, close command, pairing, owner acts, gate source, one cause, no day counting); then "Step 5 as built (part 2)".
 
 ## Step 6 — the shadow on production (outline; pre-approved)
 
