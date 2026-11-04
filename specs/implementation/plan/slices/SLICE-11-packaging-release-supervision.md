@@ -1534,17 +1534,326 @@ Each is applied with its anchor checked first (exactly one occurrence), one at a
 
 **Left in OA_NEW, untracked:** the `build/` directory recorded in step 2.
 
-## Step 5 — the observation mediator, only if needed (outline)
+## Step 5 — the observation mediator
 
-Built only when TASK-S07-06 has not proved native read-only credentials when this step starts; otherwise it is recorded as not needed and the supervisor composes the read-only adapter. Deepened then: the execution spec's [observation enforcement](../../design/execution-domain-and-observations.md#observation-enforcement-a06-f2) for its behaviour, the runtime spec's [observation route](../../design/runtime-isolation-observability-deployment.md#the-observation-route) for its process and unit (`operations/observer.py`, T-71; `deploy/systemd/at-observer.service`, T-72). Its socket checks the supervisor's handshake (PRF-CFG-10).
+<a id="step-5--the-observation-mediator-only-if-needed-outline"></a>The authorities are the execution spec's [observation enforcement](../../design/execution-domain-and-observations.md#observation-enforcement-a06-f2) and its refusal codes, F-O5 and F-O10, PRF-DOM-06; the runtime spec's [observation route](../../design/runtime-isolation-observability-deployment.md#the-observation-route) and its `at-observer.service` row; the configuration spec's handshakes and PRF-CFG-10; [step 4 as built](#step-4-as-built) (the supervisor's `ObservationPort` use and its four reads); the owner's [standing rules](../../decisions/owner-answers-2026-10-27.md#standing-rules-2026-10-30); and legacy at 445eb116. Step 5 is TASK-S11-06 (PRF-DOM-06, and PRF-CFG-10's mediator-socket row). It builds on OA_NEW `8cc2373`; every OA_NEW citation below is at `8cc2373`. **This step adds a production process that holds the account's OpenAlgo key, so it is reviewed before it is built** (the coordinator's rule for credentials and production services). The review (4 November 2026) returned "yes after fixes" with eleven items; each is fixed below and named by its number where it changed the text.
 
-## Step 6 — isolation, storage and telemetry (outline)
+**Needed: yes.** The step is built only when TASK-S07-06 has not proved a native read-only credential. On 4 November 2026 it has not run: it needs the owner's authorization to capture a refused place attempt, and none was given ([SLICE-07](SLICE-07-observations-reconciliation-domain.md), status and "On the owner's authorization only"). OpenAlgo also issues one key per user (the runtime spec's risks), so no read-only key is known to exist. Without the mediator, every production supervisor cycle stays `observation_gap route_unbound` (step 4), and the supervisor cannot say whether a stop is held at the broker. If TASK-S07-06 later proves a read-only credential, the supervisor composes a read-only `OpenAlgoBooks` with it directly and `at-observer` is not deployed; nothing here blocks that.
 
-Deepened after step 4 is built: the runtime spec's [storage classes](../../design/runtime-isolation-observability-deployment.md#storage-classes-operationsisolationpy), [aggregate envelopes](../../design/runtime-isolation-observability-deployment.md#aggregate-envelopes-operationsisolationpy), [isolated work](../../design/runtime-isolation-observability-deployment.md#isolated-work-scriptsisolated_workpy-scriptssafe_testspy) and [telemetry](../../design/runtime-isolation-observability-deployment.md#telemetry-operationstelemetrypy).
+**In plain words.** The supervisor must see the broker's books, but must never hold a key that can place orders. So a small separate process, the observer, holds the key and answers exactly four questions about one account: its orders, trades, positions and funds. It answers only the supervisor's process, checked by the operating system, and refuses anything else, including any order. It keeps answering while the kernel is down, which is when the supervisor needs it most. The kernel does not use it: the kernel reads the broker itself, as now. Nothing about trading changes.
 
-* **Builds:** `admit` with the backup's reserve, `check_reserve`, the disk-full rows not already proved by their owners, `scripts/isolated_work.py`, `scripts/safe_tests.py` over it with its SLICE-01 rules kept, `at.slice` (T-79), `Telemetry`.
-* **Tests that need systemd** (a user manager, namespaces) run on Linux and record their coverage limit elsewhere, never a silent pass (A08-F4, `README.md:1213`).
-* **Test files:** `tests/isolation/test_resource_storage_scope.py`; `tests/unit/test_telemetry.py` (T-78).
+### Decisions
+
+#### What legacy does here
+
+* **The monitor reads the books with the trading key.** `monitoring/sources.py:294-313` builds `execution_client()` and reads `orderbook`, `positionbook` and `tradebook`; its unit loads the shared settings file with the key (`deploy/systemd/at-monitor-v2-sweep.service:10`). Nothing but convention keeps it from placing an order.
+* **The read allowlist.** Generic dispatch serves only `READ_ENDPOINTS` (`src/interfaces/mcp/core/openalgo.py:310-319`, the set at `:314-319`), which holds `orderbook`, `tradebook`, `positionbook` and `funds` among others, and refuses anything else before the client is touched (`:321-325`). Orders go only through named wrappers.
+* **The read-only MCP endpoint** excludes the order-capable domain altogether (`src/interfaces/mcp/gateway.py:96-111`), so it serves no book.
+* **The key-holding gateway unit** restarts `always` after 5 s (`deploy/systemd/mcp-gateway.service:42-43`).
+
+#### The read module (`adapters/openalgo_books.py`, T-98)
+
+**Review item 1 (the blocker): the observer must be structurally unable to send.** The observer loads one OpenAlgo module, and that module names no order endpoint and holds no order code.
+
+* **Moved from `adapters/openalgo.py`, unchanged, and imported back by name** (one object each, so the kernel's code still uses the same classes and functions): `ReadFailed`, `_NotSent`, `_Ambiguous`; the read parsers `_reject_constant`, `_parse_exact`, `_parse_plain`, `_pnl`, `_money`, `_positive_money`, `_id`, `_int`, `_local_time`, `_status`, `_Raw`, `_Objects`, `_encode_object`, `_encode`; and `_ENDPOINT`. The send-only helpers (`_top_id`, `_id_anywhere`, `_plain_fields`, `_basket_ids`, `_command_class`, `_number`) stay in `openalgo.py`.
+* **Copied, not moved: the deadline transport** (`_getaddrinfo`, `_open_connection`, `_remaining_ms`, `_Resolution`, `_RESOLVING`, `_RESOLVING_LOCK`, `_resolve`, `_read_response`, `_LOOPBACK`, `_loopback`, `_Reader`, `_Http`, `MAX_RESPONSE_BYTES`, `_IST`). `openalgo.py` keeps its own definitions byte for byte. Three existing adapter tests patch `openalgo._open_connection`, `openalgo._getaddrinfo` and `openalgo.MAX_RESPONSE_BYTES` (`tests/integration/test_openalgo_contract.py:578`, `:592`, `:636`), and the coordinator requires those tests to stay unchanged. They only keep working if the kernel's `_Http` resolves those names in `openalgo.py`. **A guard test** asserts that `inspect.getsource` of every copied name is identical in both modules, so the copies cannot drift.
+* **`READ_ENDPOINTS = frozenset(_ENDPOINT.values())`**: `orderbook`, `tradebook`, `positionbook`, `funds`.
+* **`OpenAlgoBooks`** (review item 2: the whole list): `__init__(base_url, api_key: Secret, account, clock, *, http_timeout_ms, secrets=None)` runs today's `OpenAlgoAdapter.__init__` lines 394–400 and 402 in the same order (the `_Http`, the timeout check, `base_url`, `_key`, `account`, `clock`, `http_timeout_ms`). It also has `__repr__` (`OpenAlgoBooks(<url>, <account>)`), `_scrub`, and **`_post(endpoint, body, deadline_ns)`, which raises `_NotSent("endpoint not allowlisted")` before any byte for an endpoint outside `READ_ENDPOINTS`**, then calls `self._http.post`. `orderbook`, `tradebook`, `positions`, `funds`, `_read`, `_items`, `_order`, `_trade`, `_position` and `_funds` move here from `OpenAlgoAdapter` (`adapters/openalgo.py:695-821`) with their bodies unchanged.
+* **`OpenAlgoAdapter(OpenAlgoBooks)`** keeps its own `__init__` exactly as today: it does not call the base class, so its construction, its errors and its `_Http` (the one in `openalgo.py`) are unchanged. It also keeps `__repr__`, `_scrub`, and **`_post` with today's body**, which overrides the guard. The basket's in-send `_read("orderbook", account, deadline)` reaches the inherited `_read`, then the adapter's own `_post`. The existing adapter tests, unchanged, prove the kernel's sending and reading are unchanged.
+
+#### The process (`operations/observer.py`, T-71)
+
+* **`ObservationCore(books, *, accounts, readers, main_pid, identity_of, release, projections, max_requests_per_minute, now_mono=time.monotonic)`**, contract `observation/1` (`CONTRACTS["observation"]`), shaped as `ReviewCore` (`adapters/unix_channel.py:961-1025`). It has its own label map (review item 9): `SEC-R11 contract_version`, `DOM-R01 not_allowlisted`, `DOM-R02 unauthenticated`, `DOM-R07 read_budget`, `CFG-R14 handshake_mismatch`. `handle(peer, frame)`:
+  1. **Admission** through `unix_channel._admit` (checks 1–8, unchanged) against `readers`. A peer failure (`SEC-R12`: uid, unit, identity) is answered `DOM-R02` with the check's reason. A frame, shape, contract or release failure stays `SEC-R11`.
+  2. **Handshake** (PRF-CFG-10): the frame's `projections` against the observer's own, compared with `check_handshake(…, needs=("observation",))`. Any line is refused `CFG-R14` with the field. The kernel channel only reports a mismatch (Fork call E); the mediator refuses one, as PRF-CFG-10 says. This gates no trading.
+  3. **Allowlist:** `op` must be one of `orderbook`, `tradebook`, `positions`, `funds`, and the body exactly `{"account": <wire>}` naming a bound account. Any other op is `DOM-R01 op`; another account is `DOM-R01 account`; any other body shape is `SEC-R11 call`.
+  4. **Budget** (review item 10): under a lock, at most `supervisor.max_requests_per_minute` **plus one cycle** (4 calls) per account in any 60 s. Over that, `DOM-R07`. The margin absorbs the window shift between the supervisor counting at send time and the observer counting at arrival. The budget limits only the observer's own reads.
+  5. **Read:** `books.<op>(account)`. **The response is checked** (review item 11): its `account_id` must be the asked account, its endpoint and `coverage.endpoint` the asked book, its `domain.value` one of `live`, `analyzer`, `unknown`, and `coverage.complete` one of `yes`, `no`, `unknown`. A difference is answered `ambiguous` with `{"error": "response_mismatch", "field": …}`. Otherwise the reply is `answered` with `observation_wire(o)`. A `ReadFailed` is answered `ambiguous` with `{"error": "read_failed", "reason": <the adapter's scrubbed text>}`; any other exception is `ambiguous` with its type name only.
+* **`compose_observer(eff, secrets, *, release, clock=None)`** (review items 5 and 7): one `OpenAlgoBooks` over `openalgo.base_url`, `adapter.http_timeout_ms` and `secrets["openalgo/api_key"]`; `readers` from the `observer` section; `main_pid=unix_channel.systemd_main_pid`, which runs `systemctl` with `SYSTEMCTL_ENV` only; `identity_of=unix_channel.process_identity`; `release` set to the verified bundle digest; `projections=dict(eff.projections)`. It constructs no `OpenAlgoAdapter`, ledger, coordinator or channel client.
+* **`serve_observer(core, path, *, socket_gid, stop=None) -> int`**: `KernelChannelServer` serves `core`, as it already serves `ReviewCore`. Its thread name becomes a constructor argument, with the default unchanged. `SIGTERM` and `SIGINT` stop it; it returns 0.
+* **`main()`** (review item 1), the `at-observer` entry point, is shaped as the supervisor's `main`, and loads no `bootstrap` except for `--check`, which composes nothing. It resolves the settings and blanks nothing (the observer may hold the key). It verifies the manifest, refusing on a mismatch (the observer joins `REFUSES_ON_ARTIFACT`). It checks the required fields, resolves only its own secrets (`SCOPES["observer"]`), installs the scrubbing log filter, writes its identity, composes and serves. A test or simulation profile exits 78. A production start without a verified bundle digest refuses. `bootstrap.run("observer", …)` calls this `main`.
+
+#### The client (`operations/observer.py`, imported by the supervisor)
+
+* **`ObserverBooks(path, *, server_uid, server_gid, release, projections, transport=None, caller=None)`** (review item 6) is the supervisor's `ObservationPort`. Each call encodes one frame and sends it through `transport(frame) -> reply bytes`. By default that is the socket path: `socket_problem`, connect, the server-uid check through `peer_cred`, send, `read_frame`, as `KernelChannelClient.call` does (`adapters/unix_channel.py:875-913`). `caller` defaults to this process's pid and `process_identity`. Tests pass a transport that hands the real encoded frame to `core.handle(PeerCred(…), frame)`. A refused or ambiguous reply raises `ObservationRefused(code or outcome, reason)`. The reply is decoded by `observation_from_wire`, and the client checks `content_digest(content) == digest`.
+* **The socket helpers move** (review item 8), unchanged, into `adapters/local_socket.py` (T-97, standard library and `contracts` only): `_int`, `PeerCred`, `peer_cred`, `process_identity`, `FrameError`, `encode`, `read_frame`, `_constant`, `_pairs`, `decode_frame`, `socket_problem`, `MAX_MESSAGE`, `CONNECT_TIMEOUT_S`. `unix_channel` imports each one back. `systemd_main_pid` stays in `unix_channel`, where tests patch `uc.subprocess`. At load time `operations/observer.py` imports only `local_socket`, `contracts` and `settings`. It imports `unix_channel`, `openalgo_books` and `bootstrap` only inside `compose_observer`, `serve_observer` and `main`.
+* **`compose_supervisor(eff, *, release=None, …)`** (review item 5): when the `observer` section is bound and `release` is a digest, it builds `ObserverBooks` with `projections=dict(eff.projections)`. If building fails, it records the gap `observer_unbuilt <TypeName>` and passes `None`. With no `observer` section it passes `None` with no gap, as in step 4. The supervisor's `main` passes `release=digest_`. Nothing new refuses the supervisor's start.
+
+#### The wire (`contracts/evidence.py`)
+
+`observation_wire(o) -> dict` and `observation_from_wire(obj) -> Observation` carry every field of `Observation`: endpoint, `as_of`, coverage (`complete`, endpoint, pages, interval), items by kind and fields, digest, account, source, `arrived_at`, domain, `dropped` and content. `raw` is `None` on the wire. The round trip is equal for every book kind.
+
+#### Settings (`settings/schema.py`, `settings/secrets.py`, `operations/deployment.py`)
+
+* **New section `observer`** (kind `section`; scope `("observer", "supervisor", "installer")`; register `deployment`; shipping `null`; added to `SECTIONS`): `{"socket", "uid", "gid", "readers": {<unit>: {"uid", "principal"}}}`. `parse_observer(section)` uses `parse_peers`'s rules (services only) and **refuses unless `readers` is exactly `{"at-supervisor.service"}`** (review item 3).
+* **Scopes widen:** `openalgo.base_url` and `adapter.http_timeout_ms` add `observer`. No value, default or register changes.
+* **`SCOPES["observer"] = {("openalgo", "api_key")}`.** `PARTICIPANTS["observer"]` gains `credential_scopes=("observer",)`. **The supervisor's row** (not the observer's) gains the group `at-observer-readers`.
+* **`_PRODUCTION_ADDS["observer"]`** = `observer`, `accounts`, `openalgo.base_url`, `adapter.http_timeout_ms`, `supervisor.max_requests_per_minute`. `check` requires the observer's `openalgo/api_key` reference, as it does the kernel's and market's.
+* **`pyproject.toml`:** `at-observer = "autonomous_trading.operations.observer:main"`. `COMPOSITIONS["first_release"]`'s `observation` row names `at-observer`.
+
+#### Fork calls in this step
+
+* **None on money.** The kernel keeps observing directly. No entry, exit, stop, limit or gate changes, and the mediator sends nothing.
+* **The key holder.** The observer holds the account's broad OpenAlgo key, as legacy's monitor and gateway did (`deploy/systemd/at-monitor-v2-sweep.service:10`, `deploy/systemd/mcp-gateway.service:40`). The owner installs it as the observer's credential (the migration spec's `OBSERVER_READY`). Its unit restarts `always` after 5 s, as legacy's gateway does (`deploy/systemd/mcp-gateway.service:42-43`).
+
+#### Deviations in this step
+
+* **Four books, not three:** the mediator also serves `funds`, because the supervisor's leg read uses the whole-observation freshness rule (step 4). Legacy's allowlist also holds `funds` (`src/interfaces/mcp/core/openalgo.py:315`). Reported to the execution spec.
+* **`DOM-R07` (`read_budget`)** is new. The mediator refuses a handshake mismatch with `CFG-R14` where the kernel channel only reports one. Neither gates trading. Both are reported to the execution and configuration specs.
+* **The transport is in two modules,** held identical by a guard test (above).
+
+#### Carried to later steps
+
+* **Step 7** (review item 4): `at-observer.service` runs as user `at-observer`, with `LoadCredential=` of the key alone, `Restart=always`, `RestartSec=5` and soft caps from `envelope.observer.*`. It gets `InaccessiblePaths=` over the other units' credentials, but **`ProtectProc=default`, not `invisible`**: the observer reads the supervisor's `/proc/<pid>/stat` for check 6, and `invisible` would refuse every call. **`RuntimeDirectory=at-observer` with `RuntimeDirectoryMode=0750`, group `at-observer-readers`**, and the socket `0660` to that group (`socket_gid`), so the supervisor's user can reach it while `KernelChannelServer`'s directory check (no group or other write) still holds. Never a `Slice=` under `at.slice`. The supervisor's user is in `at-observer-readers`. The rehearsal runs a **two-uid case**: supervisor and observer as different users, with four reads answered and the supervisor unable to read the observer's credential (PRF-DOM-06's Linux unit half).
+* **Step 9:** `supervisor.max_requests_per_minute` measured against legacy's own read load.
+
+### Tests
+
+Every value is synthetic. `FakeBooks` returns fixed `Observation`s and records calls. `PeerCred(pid, uid)` and fixed `main_pid` and `identity_of` stand in for the operating system. `relay(core)` is an `ObserverBooks` transport that hands the encoded frame to `core.handle`.
+
+**`tests/contracts/test_capabilities.py`, PRF-DOM-06 and item 1:**
+
+| Case | Expected |
+|---|---|
+| Entry point imports | `python -I -c` imports `autonomous_trading.operations.observer` and runs `main` with a production profile and `serve_observer` stubbed to print `sorted(sys.modules)` → none of `autonomous_trading.adapters.openalgo`, `.bootstrap`, `.kernel.coordinator`, `.adapters.simulated_broker`, `.kernel.ledger.store`, `.kernel.recovery`; `adapters.openalgo_books` is loaded. The `pyproject.toml` entry point is `autonomous_trading.operations.observer:main` |
+| Posted endpoints | `_Http.post` of `openalgo_books` recorded. Through `ObservationCore` with a real `OpenAlgoBooks`, every allowed op and every refused op (`placeorder`, `basketorder`, `cancelorder`, `modifyorder`, `closeposition`, `cancelallorder`, an unknown name) → the only endpoints posted are in `READ_ENDPOINTS`. `books._post("placeorder", …)` raises `_NotSent` and posts nothing |
+| The read module holds no order code | The text of `openalgo_books.py` contains none of `placeorder`, `basketorder`, `cancelorder`, `modifyorder`, `def send`; `OpenAlgoBooks` has no `send` |
+| No write call | Each refused op → `DOM-R01 op`, `FakeBooks` saw no call |
+| Unauthenticated | Another uid, the right uid with a pid that is not the supervisor unit's main pid, and a wrong process identity → each `DOM-R02` with its reason, and no call |
+| Allowlist | The four ops for the bound account → `answered`, one call each; another account → `DOM-R01 account`; an extra body key → `SEC-R11 call` |
+| Response check | `FakeBooks` returning another account, another endpoint, a coverage for another endpoint, or an unknown domain → `ambiguous` `response_mismatch` with the field |
+| Serves with the kernel down | No kernel, ledger or channel exists; the four reads are answered |
+| The credential is unreachable | A `ReadFailed` built from text containing the key → the reply holds `***`, never the key. No reply, log record, `repr(core)` or `repr(books)` holds the key. With `subprocess.run` recorded and the real `systemd_main_pid` as `main_pid`, every child `env` equals `SYSTEMCTL_ENV` and holds no key and no `CREDENTIALS_DIRECTORY` |
+| Readers | `parse_observer` with a second reader unit, or a reader other than `at-supervisor.service` → refused |
+| Supervisor with the route bound | The supervisor's existing import and "constructs nothing that sends" cases run again with `observer` bound: no forbidden module (including `adapters.openalgo` and `adapters.unix_channel`), and `settings.secrets.resolve` patched to raise is never called |
+| Linux socket (EC2, else skipped `needs AF_UNIX`) | A real `serve_observer` socket in `tmp_path`, with `ObserverBooks` from the same uid and a stubbed `main_pid` → the four books round-trip; socket mode `0600` |
+
+**`tests/integration/test_supervisor.py`:** **PRF-CFG-10, the mediator row:** through `relay`, a projection digest one character off → `CFG-R14 projection observation`; a release one character off → `SEC-R11 release`; another contract → `SEC-R11 contract`; equal → answered. **A cycle over `ObserverBooks`** gives the same verdict and classification as step 4's `Books` case (stop `broker_held`); a refused reply → `observation_gap route_down:ObservationRefused`. **`compose_supervisor`** with `observer` bound and `release=None` → gap `observer_unbuilt`, no exit. **Observation wire:** the round trip for each book kind, with dropped tradebook IDs, a coverage interval and a domain marker; a reply with a changed digest raises in the client. **Budget:** cap 4, so 8 allowed; the 8th call in a window is answered and the 9th refused `DOM-R07`; 61 s later (patched `now_mono`) answered; a supervisor cycling at exactly its own cap with each call arriving 0.5 s late → never refused.
+
+**`tests/integration/test_openalgo_contract.py`:** every existing case, unchanged. One new case: `OpenAlgoBooks` over the same recorded responses gives observations equal to `OpenAlgoAdapter`'s. One new case, the copy guard: for every copied transport name, `inspect.getsource` is equal in `openalgo` and `openalgo_books`.
+
+**`tests/unit/test_settings_resolver.py`:** the `observer` section's scope and parse; the widened scopes; `required_fields("observer", "production")`; the observer's `check` requires `openalgo/api_key`.
+
+### Break checks
+
+| Change | Test that must fail |
+|---|---|
+| `openalgo_books.py`: the `_post` guard removed | Posted endpoints |
+| `openalgo.py`: the adapter's `_post` override removed (the guard then refuses the kernel's sends) | `test_openalgo_contract.py` |
+| `openalgo_books.py`: `_order` drops `trigger_price` | `test_openalgo_contract.py` |
+| `openalgo_books.py`: `_Reader` differs from the original by one character | The copy guard |
+| `observer.py`: `import autonomous_trading.bootstrap` at load | Entry point imports |
+| `observer.py`: `orderbook` replaced by `placeorder` in the allowlist | No write call; Posted endpoints |
+| `observer.py`: a `SEC-R12` answered as admitted | Unauthenticated |
+| `observer.py`: the account not checked | Allowlist |
+| `observer.py`: the response check skipped | Response check |
+| `observer.py`: the handshake reported, not refused | PRF-CFG-10 mediator row |
+| `observer.py`: the budget margin removed | Budget (late arrivals) |
+| `observer.py`: `ReadFailed`'s text not scrubbed | The credential is unreachable |
+| `observer.py`: the client skips the digest check | Observation wire |
+| `schema.py`: `parse_observer` accepts any reader | Readers |
+| `evidence.py`: `observation_from_wire` drops `dropped` | Observation wire |
+| `supervisor.py`: `compose_supervisor` raises when the route fails | `observer_unbuilt` |
+
+### Files
+
+| File | Change |
+|---|---|
+| `src/autonomous_trading/adapters/openalgo_books.py` | New (T-98): `OpenAlgoBooks`, `READ_ENDPOINTS`, the moved parsers and exceptions, the copied transport |
+| `src/autonomous_trading/adapters/openalgo.py` | Imports the moved names back; `OpenAlgoAdapter(OpenAlgoBooks)` without its book methods |
+| `src/autonomous_trading/adapters/local_socket.py` | New (T-97): the socket helpers moved from `unix_channel.py` |
+| `src/autonomous_trading/adapters/unix_channel.py` | Imports them back; `KernelChannelServer(…, thread_name=)` |
+| `src/autonomous_trading/operations/observer.py` | New (T-71): `ObservationCore`, `compose_observer`, `serve_observer`, `main`, `ObserverBooks`, `ObservationRefused` |
+| `src/autonomous_trading/contracts/evidence.py` | `observation_wire`, `observation_from_wire` |
+| `src/autonomous_trading/operations/supervisor.py` | `compose_supervisor(…, release=)`; `main` passes it |
+| `src/autonomous_trading/operations/deployment.py` | `_PRODUCTION_ADDS["observer"]`, `REFUSES_ON_ARTIFACT`, the composition row |
+| `src/autonomous_trading/bootstrap.py` | `run("observer", …)` calls `operations.observer.main`; `check`'s credential reference for the observer |
+| `src/autonomous_trading/settings/schema.py`, `settings/secrets.py` | The `observer` section and `parse_observer`, scopes, participant rows; `SCOPES["observer"]` |
+| `resources/defaults.yaml`, `pyproject.toml` | `observer: null`; `at-observer` |
+| Tests | `tests/contracts/test_capabilities.py`, `tests/integration/test_supervisor.py`, `tests/integration/test_openalgo_contract.py` (new cases only), `tests/unit/test_settings_resolver.py` |
+
+### Completion conditions (step 5)
+
+* The tests above pass twice in a row, with every test file importing a changed module and the layering and import guards. No full suite.
+* The Linux socket case runs once on the EC2, in a throwaway folder under `~/claude-desktop/outputs` with its own venv, removed afterwards.
+* Every break check fails a listed test, and every file is restored (md5). `ast.parse` passes on every edited Python file, and `yaml.safe_load` on `resources/defaults.yaml`.
+* PRF-DOM-06: no write call is possible (the posted-endpoint and import tests), `DOM-R01` and `DOM-R02`, served with the kernel down, the credential unreachable. PRF-CFG-10's mediator row.
+
+### Step 5 as built
+
+**Built** in OA_NEW `06de958` on `slice-08` (from `8cc2373`), one commit, 20 files. New: `adapters/openalgo_books.py` (T-98), `adapters/local_socket.py` (T-97) and `operations/observer.py` (T-71). Changed: `adapters/openalgo.py`, `adapters/unix_channel.py`, `contracts/evidence.py`, `operations/supervisor.py`, `operations/deployment.py`, `bootstrap.py`, `settings/schema.py`, `settings/secrets.py` and `pyproject.toml`. Tests: `tests/conftest.py` (helpers only), `tests/contracts/test_capabilities.py`, `tests/integration/test_supervisor.py` and `tests/integration/test_openalgo_contract.py` (new cases only), plus four guards (`tests/integration/test_unix_channel.py`, `tests/unit/test_secret_references.py`, `tests/unit/test_settings_resolver.py`, `tests/contracts/test_installed_artifact.py`). All eleven review items were fixed in the text above before the build.
+
+**The kernel's sending and reading are unchanged.** In `adapters/openalgo.py` the only edits are definitions removed (the moved names, imported back) and the class line `OpenAlgoAdapter(OpenAlgoBooks)`. The adapter keeps its own `__init__` and `_post` byte for byte. Every existing case of `tests/integration/test_openalgo_contract.py` passes with no line of it changed (the diff of that file adds lines only), and so do `tests/unit/test_market_ingest.py` and the rest of the affected set.
+
+**Run.** Windows, Python 3.14 (`.venv-slice01`), plain `pytest -q -p no:cacheprovider`, under the owner's test rule (no full suite): the 43 affected files (every test file importing a changed module, plus the guards `tests/unit/test_promotion_gate.py` and `tests/unit/test_market_windows.py`), four times after the last source change: 1,871 passed and 18 skipped in runs 1, 3 and 4; run 2 had one failure, `tests/contracts/test_capabilities.py::test_prf_str_09_the_run_time_watch`, a `subprocess.Popen` event attributed to a strategies frame. That test passed in run 1, alone three times, and in runs 3 and 4 (the two clean runs in a row). No strategies module uses `subprocess`, and no file this step changed is on that path; the cause is **not traced**. The test walks frames to attribute stdlib events, so a child process the standard library starts under a strategies frame counts; this is recorded for its owner (SLICE-09) and not changed here. Linux, on the EC2, once, in a throwaway folder `~/claude-desktop/outputs/s11e5` with its own Python 3.13 venv built by `uv` from `requirements.lock` (plus pytest and hypothesis), removed afterwards: `tests/integration/test_unix_channel.py` and the channel and observer cases of `tests/contracts/test_capabilities.py`, 52 passed, none skipped, including `test_observer_socket_round_trip` (a real socket, mode `0600`, the four books round-trip). `ast.parse` passes on every edited Python file. The 20 break checks (`s5/s11_step5_breaks.py` in the session scratchpad) each fail a listed test, and every file was restored (md5). Not run: the full suite; the two-uid case (carried to step 7).
+
+**Differences from the text above**, each smaller than a decision:
+
+| Text | As built | Why |
+|---|---|---|
+| `parse_observer` in `settings/schema.py` | In `operations/observer.py`, returning `ObserverConfig` | The supervisor and `check` import it without loading `unix_channel`; the schema module stays declarative |
+| `observer: null` in `resources/defaults.yaml`; `observer` in `_PRODUCTION_ADDS` | Neither. The `observer` section is not shipped, like `channel`, and `observer.main` and `bootstrap.check` require it (`refused: observer: <why>`) | `_bound` reads only plain values, never sections, so a section in `_PRODUCTION_ADDS` would always refuse |
+| The response check: `coverage.endpoint` must be the asked book; domain one of `live`, `analyzer`, `unknown` | `coverage.endpoint` must be the asked book **or unstated**; the allowed domains are an argument, `OPENALGO_DOMAINS` (`live`, `analyzer`, `unknown`) in production | OpenAlgo's books always state their endpoint; the simulated broker states none and says `simulated`, which the cycle-through-the-mediator test passes explicitly |
+| — | `ObservationCore(…, domains=, scrub=)`; `compose_observer` returns `(core, config)` | Test seams and the server's socket settings |
+| — | `OpenAlgoBooks.__repr__` writes `<broker>/<account>` without `contracts.execution.wire` | The read module imports nothing of the order contracts (its own guard) |
+| Test files | The wire, digest, budget and PRF-CFG-10 cases are in `tests/integration/test_supervisor.py`; the `check` and start refusals in `tests/contracts/test_capabilities.py` (`test_observer_check_and_start_refusals`) | No new test file |
+| — | Guards updated for the new key holder: PRF-SEC-09's scope set and `test_participants` now name `observer`; `test_secret_references.py`'s reveal list adds `adapters/openalgo_books.py` (the observer's one reveal); `test_unix_channel.py::test_boundary` allows `adapters.local_socket` and asserts it imports nothing of the project; the bundle's commands are eight (`at-observer`), and the installed-artifact test runs its `--check` with an `observer` profile | What step 5 changes is exactly what those guards pin |
+| — 
+**Carried:** step 7 renders `at-observer.service` with `ProtectProc=default`, `RuntimeDirectory=at-observer` mode `0750` and group `at-observer-readers`, and runs the two-uid rehearsal case (review item 4).
+
+**Left in OA_NEW, untracked:** the `build/` directory recorded in step 2.
+
+## Step 6 — isolation, storage and telemetry
+
+<a id="step-6--isolation-storage-and-telemetry-outline"></a>The authorities are the runtime spec's [storage classes](../../design/runtime-isolation-observability-deployment.md#storage-classes-operationsisolationpy), [aggregate envelopes](../../design/runtime-isolation-observability-deployment.md#aggregate-envelopes-operationsisolationpy), [isolated work](../../design/runtime-isolation-observability-deployment.md#isolated-work-scriptsisolated_workpy-scriptssafe_testspy) and [telemetry](../../design/runtime-isolation-observability-deployment.md#telemetry-operationstelemetrypy) sections, its disk-full table, and PRF-OPS-04, -05 and -06. It also uses [SLICE-13 step 2](SLICE-13-disarmed-shadow-and-conversion.md)'s fixed `isolated_work.report/1` format (R-11), [step 4 as built](#step-4-as-built) (`check_reserve`, `ReserveCheck`, the polkit rule) and legacy at 445eb116. Step 6 is TASK-S11-04 and TASK-S11-11. It builds on OA_NEW at step 5's commit. **It is reviewed before it is built:** it decides how credentials are stripped from optional work, adds a telemetry call to the kernel host's loop, and defines `at.slice`, which production will run.
+
+**In plain words.** Tests, research and other optional work run inside one fenced area of the server, `at.slice`, with one overall limit on memory, CPU and processes. Optional work is let in only if it fits that limit after leaving room for the nightly backup, and only if the disks holding the ledger and evidence have their reserve of free space. Each run is told what it may write (its own folder only), cannot see the ledger, the evidence or any key, gets no network unless it asks, and has every key name removed from its environment. Each run writes a report saying which of these fences were really applied. On a laptop that cannot apply them, the report says "not enforced" and never pretends otherwise. A small diagnostics channel, telemetry, is added. It never slows or stops anything, drops records when full, and nothing reads it to make a decision. It is off until its limits are measured. Nothing about trading changes.
+
+### Decisions
+
+#### What legacy does here
+
+* **The research slice** caps research at `CPUQuota=25%`, `MemoryHigh=768M`, `MemoryMax=1200M`, `TasksMax=64`, `IOWeight=1` (`deploy/systemd/at-research.slice:4-12`; the same values in `src/analysis/jobs/policy.py:16-22` and `deploy/unit_envelope.py:88-94`). Its worker unit runs with `PrivateNetwork=yes`, `ProtectSystem=strict`, `NoNewPrivileges=yes`, `RestrictAddressFamilies=AF_UNIX`, `InaccessiblePaths=` and `ReadWritePaths=` (`deploy/systemd/at-research-worker.service:17-35`). Research needs 2 GiB free (`src/analysis/jobs/policy.py:14`).
+* **The kill order:** research `900`, the backup `300`, monitors `500`; the trading units negative (`deploy/unit_envelope.py:67-84`). **Uncapped:** the session, the authority and the tick recorder (`deploy/unit_envelope.py:100-107`, OD-15).
+* **Tests** (`scripts/safe_pytest.py`): one run per host and user (`:207-224`); a refusal under `cap + 512 MB` available or a load above twice the CPUs (`:53`, `:155-159`); with a user manager, `systemd-run --user` with `MemoryMax=<cap>` (default 1500 MB), `MemorySwapMax=0` and `CPUQuota` of half the CPUs (`:178-180`, `:237`); `nice -n 19`, `ionice -c3`, `oom_score_adj` 1000 (`:227-231`); on-disk temporaries (`:268-272`); a market-hours refusal for the live checkout (`:147-153`). Elsewhere it only warns about the limits it could not apply (`:280-285`).
+* **Telemetry:** none. Legacy logs to the journal.
+
+#### Storage classes (`operations/isolation.py`)
+
+* **`storage_roots(eff) -> dict[str, tuple[str, Path]]`**: every bound path field with its class from the settings contract's kind (`("path", <class>)`), keyed by field: `ledger.path` authoritative (its parent directory), `paths.evidence`, `market.store_path` and `supervisor.assessment_path` required evidence, `paths.scratch` and `paths.run` scratch. **`protected_roots(eff)`** is the authoritative and required-evidence ones; step 4's `ReserveCheck` roots become `protected_roots` (the same four fields; no behaviour change, proved by step 4's tests unchanged).
+* **The disk-full rows** not already proved by their owners get one row each in `tests/isolation/test_resource_storage_scope.py`. A full scratch filesystem (a `tmp_path` filled through a patched `usage`, and a real `ENOSPC` from a size-limited file on Linux) fails only its job; a crossed reserve stops `at.slice` and deletes nothing (step 4's case, re-run here as PRF-OPS-05's row); a failed assessment write is step 4's counted gap. The ledger commit (PRF-LED-07), evidence publication and the market store rows are cited, not re-proved.
+
+#### The envelope and admission (`operations/isolation.py`)
+
+* **`Envelope`** from the settings: `envelope.optional.{cpu_quota, memory_high, memory_max, tasks_max, io_weight}` and `envelope.backup_reserve.{memory, tasks, disk}`. Every field is refusing and measured in step 9; none is given a value here.
+* **`Work(memory_bytes, tasks, disk_bytes, network=False)`**: the work's declared need.
+* **`slice_use(root=Path("/sys/fs/cgroup"))`**: `at.slice`'s `memory.current` and `pids.current` (cgroup v2), or `None` when unreadable.
+* **`admit(work, *, envelope, reserve: ReserveState, use) -> Admission(admitted: bool, reason: str | None, checks: dict)`**:
+  * refused `reserve <root>` when the storage reserve is `crossed`, or when the root's free space less `envelope.backup_reserve.disk` is below `work.disk_bytes` plus the reserve;
+  * refused `envelope memory` when `use.memory + work.memory_bytes > memory_max − backup_reserve.memory`, and `envelope tasks` likewise for tasks;
+  * **unbound or unreadable** (an unmeasured envelope, no `at.slice` cgroup, a laptop): **admitted**, with that check recorded `unenforced <why>`. Pending measurement never blocks development (the owner's rule on routine evidence, and A09-F4: no invented values). Once the owner binds the envelope (step 9), it refuses.
+* **The backup is never asked** (runtime spec): it is required work, kept room for by the reserve terms above.
+* **`render_slice(envelope) -> str`**: the text of `deploy/systemd/at.slice` (T-79), with `CPUAccounting`, `MemoryAccounting`, `IOAccounting`, and `CPUQuota=`, `MemoryHigh=`, `MemoryMax=`, `TasksMax=`, `IOWeight=` from the envelope, as legacy's research slice. It refuses (`ValueError`) while any envelope field is unbound, so step 7 cannot install an unmeasured slice. The template file `deploy/systemd/at.slice` is committed with placeholders; step 7 installs it.
+
+#### Isolated work (`scripts/isolated_work.py`)
+
+`python scripts/isolated_work.py [--profile P] --work-dir D [--memory B] [--tasks N] [--disk B] [--network] [--system] [--unit NAME] [--report PATH] -- <command…>`:
+
+1. **Admission** through `admit`. A refusal exits 20 with its reason, and nothing starts.
+2. **Environment:** the parent's, minus every `BROKER_KEY_NAMES` name, every name that sets the broker key (`settings.secrets._ENV_ALIASES` for the key path), every `secrets:` reference's `env` locator in the profile, `CREDENTIALS_DIRECTORY`, and the `OPENALGO_`, `BROKER_`, `AT_LIVE_` prefixes (safe_tests' rule). The removed names are listed in the report (names only).
+3. **The unit:** `systemd-run --user` (or the system manager with `--system`) `--unit=<NAME or at-work-<uuid>> --wait --collect --pipe` with `Slice=at.slice`, `ProtectSystem=strict`, `ReadWritePaths=<work dir>`, `InaccessiblePaths=` every `protected_roots` path plus the credential roots (`/run/credentials`, and the profile's `file` secret locators), `PrivateNetwork=yes` unless `--network`, `NoNewPrivileges=yes`, `Nice=19`, `IOSchedulingClass=idle`, `OOMScoreAdjust=900` (legacy's research order, `deploy/unit_envelope.py:82`), and `MemoryMax`, `MemorySwapMax=0`, `CPUQuota` when the caller gives them (safe_tests does).
+4. **The report, `isolated_work.report/1`, exactly as SLICE-13 step 2 fixed it** (R-11; any change is asked of the coordinator first):
+
+   ```json
+   {"format": "isolated_work.report/1",
+    "unit": "<the unit name>",
+    "invocation_id": "<the unit's systemd InvocationID, 32 hex>",
+    "user": "<the user the unit runs as>",
+    "systemd_version": 252,
+    "created_at": "<ISO-8601 UTC>",
+    "properties": {"<Property>": {"requested": "<value as passed to systemd-run>",
+                                  "enforced": true,
+                                  "evidence": "<how isolated_work.py read it back: systemctl show, or a probe>"}}}
+   ```
+
+   It is written once the unit is running (polling `systemctl show <unit> -p InvocationID,User,<each property>` for at most 10 s) and **before** the command can depend on it: the path is passed to the command through `--report`. `enforced` is true only when `systemctl show` reads back the requested value. Otherwise it is false with the value read as evidence. The copier's own rule (refuse on any `enforced: false`) is SLICE-13's; for other work `enforced: false` proceeds (runtime spec).
+   **Where it is written** (the coordinator's second carry-in from SLICE-13): for shadow work (`--shadow`, which needs `paths.shadow.root` bound), at `<paths.shadow.root>/control/isolated-work/<unit>.json`, mode `0444`, written by `isolated_work.py`'s own user. `control/` sits beside `input/`, never inside it, and is bound read-only into the copier's unit (`BindReadOnlyPaths=`, one of the copier's properties). `isolated_work.py` refuses `--shadow` when the control directory is inside the input root. The copier's refusals (any other path, a path inside its input root, a file its own user can write) are SLICE-13's. For other work the report goes to `--report PATH`, default `<work dir>/isolated-work.json`.
+5. **Without a user manager or `systemd-run`** (Windows, a container): the command runs directly with the stripped environment, `Nice` or `BELOW_NORMAL_PRIORITY_CLASS`, in its work directory. The report holds every property with `enforced: false` and evidence `no systemd`, `invocation_id` `null` and `systemd_version` `null`. It never claims isolation it did not get (`README.md:1270`).
+6. Exit code: the command's own; 20 refused admission; 21 the unit could not be started.
+
+#### Tests through isolation (`scripts/safe_tests.py`)
+
+* SLICE-01's rules stay as they are: no broker variables (exit 10), the lock (11), the memory check (12), the timeout (13), the on-disk temporary root, `-p no:cacheprovider`, the launcher's `--basetemp` last.
+* **Fork call K (kept from legacy): the per-run caps.** Legacy's `MemoryMax=1500M` default, `MemorySwapMax=0` and `CPUQuota` of half the CPUs (`scripts/safe_pytest.py:178-180`, `:237`) are passed to `isolated_work.py`. Its `cap + 512 MB` and twice-the-CPUs load refusals (`:53`, `:155-159`) replace SLICE-01's fixed 2012 MB check, which was legacy's default cap plus reserve anyway. These touch no money; they are recorded because they keep legacy's values.
+* On Linux with a user manager, pytest runs through `isolated_work.py` with `--work-dir` the temporary root. Elsewhere it runs as today, and the report says what was not enforced. **No calendar check** (the slice's Deviation).
+
+#### Telemetry (`operations/telemetry.py`, and one call in `kernel/host.py`)
+
+* **`Telemetry(sink, *, max_items, max_bytes)`**: `emit(record)` validates the record's kind, then `put_nowait` on a bounded queue. Full, over `max_bytes` (the encoded size), unbound (`None` budgets), invalid, or after a sink error: dropped and counted by reason. `emit` never blocks and never raises into its caller; it catches every exception. One daemon thread writes to the sink. `counts()` returns the drop counters. `close(timeout)` stops the thread.
+* **Typed records only:** frozen dataclasses `KernelPass(pass_seq, wake, duration_ms, stage)`, `SupervisorCycle(gaps, verdicts, duration_ms)` (counts only) and `Dropped(reason, count)`. No mapping is accepted, and a string field whose value contains a settings `secrets:` reference identifier or a `BROKER_KEY_NAMES` name is refused.
+* **The sink:** `JsonlSink(paths.run / "telemetry")`, one file per IST day (scratch class: disposable, never read by the system).
+* **The kernel host** gains `telemetry: Telemetry | None = None` (default `None`). After the heartbeat is written for a pass it calls `emit(KernelPass(...))`. The call is placed after the heartbeat, so nothing in the pass depends on it. With `None` or unbound budgets the pass does exactly what it does today; PRF-OPS-01's tests run unchanged. **The supervisor** gains the same optional argument and emits `SupervisorCycle` after its cycle. The market process is not instrumented in this step (its scope allows it later).
+* **Nothing decides on telemetry:** an import guard asserts that among `kernel/` modules only `kernel/host.py` imports `operations.telemetry`, and that no module reads the sink directory (PRF-OPS-06).
+* **Composition:** `serve_kernel` and `compose_supervisor` build `Telemetry` only when both budgets are bound and `paths.run` is set; otherwise `None`. Unbound means off.
+
+#### Fork calls in this step
+
+* **None on money.** No entry, exit, stop, limit, restart or gate changes. Trading units are never in `at.slice` (step 7's render check).
+* **K. The test caps keep legacy's values** (above).
+* **The kill order and the uncapped trading units are kept** (`deploy/unit_envelope.py:67-84`, `:100-107`): optional work gets `OOMScoreAdjust=900`.
+
+#### Deviations in this step
+
+* **Admission is not refused while the envelope is unmeasured;** the check is recorded `unenforced` instead. A refusing envelope would stop all tests and research until step 9 measures it. This follows the owner's rule that pending evidence never gates development. For review.
+* **No calendar check for tests** (already listed).
+* **Legacy's research-only allowlist (LD-18) is not inherited:** the environment is built by removal of credential names, not an allowlist.
+
+#### Carried to later steps
+
+* **Step 7:** `at.slice` installed from `render_slice` once the envelope is bound; the render check that no trading unit is under `at.slice` (carry-in b).
+* **Step 7 (the coordinator's carry-in from SLICE-13):** the copier's participant (`shadow-copier`: its own user, no credential scope, no broker key names, a launcher environment of `AT_PROFILE` and `INVOCATION_ID` only, storage `scratch` for its input root), added to `PARTICIPANTS` with the other units' rows. Its unit is the transient one `isolated_work.py` starts, so step 7 renders no unit file for it.
+
+### Tests
+
+**`tests/isolation/test_resource_storage_scope.py`** (new; PRF-OPS-04, PRF-OPS-05):
+
+| Group | Cases |
+|---|---|
+| Storage classes | A production profile → `storage_roots` gives each field its class; `protected_roots` is exactly the authoritative and required-evidence ones; step 4's reserve roots equal it |
+| Admission | Within the envelope → admitted; memory or tasks over the envelope less the backup's reserve → refused with the reason; the reserve crossed → refused; the backup's disk reserve counted; an unbound envelope or `use` `None` → admitted with `unenforced` recorded |
+| Environment | Each broker key name, each alias, a profile's `env` locator, `CREDENTIALS_DIRECTORY` and each prefix set in the parent → none in the child's environment; the report lists their names, never their values |
+| The unit's argv | `systemd-run` patched to record: `Slice=at.slice`, `ProtectSystem=strict`, `ReadWritePaths=` the work directory only, `InaccessiblePaths=` every protected root and the credential roots, `PrivateNetwork=yes` (absent with `--network`), `NoNewPrivileges=yes`, `Nice=19`, `IOSchedulingClass=idle`, `OOMScoreAdjust=900` |
+| The report's location | With `--shadow`: written at `<paths.shadow.root>/control/isolated-work/<unit>.json`, mode `0444` (Linux; the mode is not checked on Windows), outside `input/`; a control directory inside the input root → refused before anything starts |
+| The report | Field names and types exactly `isolated_work.report/1`; `enforced` true only where the patched `systemctl show` reads back the requested value; a property read back differently → `enforced: false` with the value as evidence; written before the command runs (the command reads it) |
+| No systemd | `systemd-run` absent → the command runs, every property `enforced: false`, evidence `no systemd`, `invocation_id` null |
+| No calendar | `safe_tests.py` and `isolated_work.py` import no calendar module, and run with a clock patched to session time |
+| Disk-full | A scratch work directory out of space fails only its job, the protected roots unchanged; the reserve-crossed case re-run (nothing deleted) |
+| Linux with a user manager (EC2 throwaway folder, else skipped with the reason) | A real `isolated_work.py` run: a descendant `sh -c` cannot write a protected root (`EROFS` or `EACCES`), cannot open an `AF_INET` socket, cannot read a file under an inaccessible credential root, and sees none of the stripped names; the report reads `enforced: true` for each; a descendant counts in the unit's cgroup (`pids.current` ≥ 2) |
+
+**`tests/unit/test_telemetry.py`** (T-78, PRF-OPS-06): a blocked sink (a lock held), a failing sink and a slow sink → `emit` returns within a bound measured in the test (the 99th percentile of 1,000 calls under 5 ms), the queue never above `max_items`, drops counted by reason; an untyped record (a dict), a record over `max_bytes`, and a field holding a credential reference or a broker key name → refused and counted; unbound budgets → every emit a counted drop and no thread started; the import guard; `KernelHost` with `telemetry=None` and with a failing telemetry gives the same heartbeat and ledger as without.
+
+**`tests/unit/test_settings_resolver.py`** gains the `render_slice` refusal while unbound.
+
+**Changed existing:** `tests/integration/test_kernel_host.py` and `tests/integration/test_supervisor.py` run unchanged (telemetry defaults to `None`); `scripts/safe_tests.py`'s own tests, if any, are extended for the new caps.
+
+### Break checks
+
+| Change | Test that must fail |
+|---|---|
+| `admit` ignores the backup's reserve | Admission |
+| `admit` refuses an unbound envelope | Admission (unenforced) |
+| `isolated_work.py` keeps one alias of the key | Environment |
+| `isolated_work.py` drops `InaccessiblePaths=` for the evidence root | The unit's argv |
+| `isolated_work.py` reports `enforced: true` without reading back | The report |
+| `isolated_work.py` claims enforcement with no systemd | No systemd |
+| `isolated_work.py` writes the shadow report inside the input root, or with mode `0644` | The report (location and mode) |
+| The report's `invocation_id` renamed | The report (format) |
+| `Telemetry.emit` uses a blocking `put` | Telemetry (blocked sink) |
+| `Telemetry.emit` accepts a dict | Telemetry (untyped) |
+| `kernel/admission.py` imports `operations.telemetry` | Telemetry (import guard) |
+| `KernelHost` emits before the heartbeat and lets an exception out | Telemetry (host) |
+| `render_slice` renders `None` | Settings (render refusal) |
+
+### Files
+
+| File | Change |
+|---|---|
+| `src/autonomous_trading/operations/isolation.py` | `storage_roots`, `protected_roots`, `Envelope`, `Work`, `slice_use`, `admit`, `Admission`, `render_slice` |
+| `src/autonomous_trading/operations/telemetry.py` | New: `Telemetry`, the record kinds, `JsonlSink` |
+| `src/autonomous_trading/kernel/host.py` | `telemetry=None`; one `emit` after the heartbeat |
+| `src/autonomous_trading/operations/supervisor.py` | `telemetry=None`; one `emit` after the cycle; reserve roots from `protected_roots` |
+| `src/autonomous_trading/bootstrap.py` | `serve_kernel` composes `Telemetry` when bound |
+| `scripts/isolated_work.py` | New |
+| `scripts/safe_tests.py` | Through `isolated_work.py`; legacy's caps and refusals |
+| `deploy/systemd/at.slice` | New (T-79): the template |
+| `tests/isolation/test_resource_storage_scope.py`, `tests/unit/test_telemetry.py` | New |
+
+### Completion conditions (step 6)
+
+* The new tests and every test file importing a changed module (`operations/isolation.py`, `operations/supervisor.py`, `kernel/host.py`, `bootstrap.py`), plus the layering and import guards, pass twice. No full suite.
+* The Linux rows run once on the EC2, in a throwaway folder under `~/claude-desktop/outputs` with its own venv and a user manager, removed afterwards; on Windows they report their skip.
+* Every break check fails a listed test, and every file is restored (md5).
+* PRF-OPS-04, PRF-OPS-05 (the rows this step owns) and PRF-OPS-06 pass.
 
 ## Step 7 — the installer, units and release transitions (outline)
 
