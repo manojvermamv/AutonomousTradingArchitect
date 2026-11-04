@@ -40,7 +40,7 @@
 | 3 | The kernel host loop (`kernel/host.py`, T-70): phase-locked passes, hand-offs, heartbeat, stop and drain (`Coordinator.drain_returns`), the exception policy, the lease-expiry wait in `bootstrap` | S | PRF-OPS-01, PRF-PRT-06 (kernel frozen half) |
 | 4 | The supervisor (`operations/supervisor.py`): the bounded read model (`LedgerReader.snapshot`), reader impact, observations through a read-only port, assessment, classification, verdicts, publication, alerts, the reserve check and its polkit rule | S | PRF-OPS-02, PRF-OPS-03, PRF-PRT-14 |
 | 5 | Only if TASK-S07-06 has not proved native read-only credentials: the mediator's process (`operations/observer.py`, T-71) and unit (T-72) | S | PRF-DOM-06 |
-| 6 | Storage classes, the reserve, the disk-full matrix, `at.slice` (T-79) with the backup's reserve, and admission (`operations/isolation.py`); `scripts/isolated_work.py`; `scripts/safe_tests.py` over it; telemetry (`operations/telemetry.py`) | S | PRF-OPS-04, PRF-OPS-05, PRF-OPS-06 |
+| 6 | Storage classes, the reserve, the disk-full matrix, `at.slice` (T-79) with the backup's reserve, and admission (`operations/isolation.py`); the `work` and `copier` participants; `scripts/isolated_work.py` (with `--shadow` for SLICE-13's copier); `scripts/safe_tests.py` over it; telemetry (`operations/telemetry.py`) | S | PRF-OPS-04, PRF-OPS-05, PRF-OPS-06 |
 | 7 | The installer (`deploy/install.py`): render (units, users, polkit), stage, check, activate through every transition state with the three boundary checks and the ordered start, resume, restore, the host-level log, the rehearsal mode; the unit templates (`deploy/systemd/*`); `config/live.example.yaml`; `docs/operations.md` | S (rehearsal directory, fake `systemctl`) | PRF-CFG-03, PRF-CFG-05, PRF-CFG-06, PRF-CFG-07, PRF-CFG-08, PRF-OPS-07 |
 | 8 | The recovery set, backup, clean-host restore and the send-lease store adapter, as the migration spec specifies them, against synthetic stores | S | The migration spec's proofs for REQ-MIG-006 and REQ-MIG-007 (synthetic) |
 | 9 | Recorded sessions copied read-only into an isolated directory on the EC2; `Measurement` records for every measured refusing field, including legacy's own read load on the account (`operations/verification.py`) | R (pre-approved) | PRF-OPS-08 |
@@ -73,7 +73,7 @@ The owner's fork rule keeps legacy's live behaviour wherever a choice touches en
 * **Release identity** is the bundle digest and a verification of loaded files; legacy binds the checkout revision and source-tree digest (`src/tier1/release.py:54-79`). The Git SHA is provenance.
 * **Convergence is checked at every boundary by handshake** (A02-F1), not only at deploy time.
 * **No `--accept-unsettled`** (`deploy/deploy_tier1.py:1117-1156`): unresolved attempts are resolved by reconciliation or the owner's `attempt_resolve` (Q-007) before activation.
-* **Tests consult no calendar** (`scripts/safe_pytest.py:147-153`); isolation is verified instead (`README.md:1269`).
+* **Tests consult no calendar** (`scripts/safe_pytest.py:147-153`); isolation is verified instead (`README.md:1292`, the test-launcher row: "replace scheduling dependence with verified isolation"; `README.md:82`).
 * **The supervisor gets its one right through polkit,** not sudo: its unit runs with `NoNewPrivileges`.
 * **Host loss raises no alert:** no off-host participant exists; tied to POL-047.
 
@@ -1705,93 +1705,156 @@ Every value is synthetic. `FakeBooks` returns fixed `Observation`s and records c
 
 ## Step 6 — isolation, storage and telemetry
 
-<a id="step-6--isolation-storage-and-telemetry-outline"></a>The authorities are the runtime spec's [storage classes](../../design/runtime-isolation-observability-deployment.md#storage-classes-operationsisolationpy), [aggregate envelopes](../../design/runtime-isolation-observability-deployment.md#aggregate-envelopes-operationsisolationpy), [isolated work](../../design/runtime-isolation-observability-deployment.md#isolated-work-scriptsisolated_workpy-scriptssafe_testspy) and [telemetry](../../design/runtime-isolation-observability-deployment.md#telemetry-operationstelemetrypy) sections, its disk-full table, and PRF-OPS-04, -05 and -06. It also uses [SLICE-13 step 2](SLICE-13-disarmed-shadow-and-conversion.md)'s fixed `isolated_work.report/1` format (R-11), [step 4 as built](#step-4-as-built) (`check_reserve`, `ReserveCheck`, the polkit rule) and legacy at 445eb116. Step 6 is TASK-S11-04 and TASK-S11-11. It builds on OA_NEW at step 5's commit. **It is reviewed before it is built:** it decides how credentials are stripped from optional work, adds a telemetry call to the kernel host's loop, and defines `at.slice`, which production will run.
+<a id="step-6--isolation-storage-and-telemetry-outline"></a>The authorities are the runtime spec's [storage classes](../../design/runtime-isolation-observability-deployment.md#storage-classes-operationsisolationpy), [aggregate envelopes](../../design/runtime-isolation-observability-deployment.md#aggregate-envelopes-operationsisolationpy), [isolated work](../../design/runtime-isolation-observability-deployment.md#isolated-work-scriptsisolated_workpy-scriptssafe_testspy) and [telemetry](../../design/runtime-isolation-observability-deployment.md#telemetry-operationstelemetrypy) sections, its disk-full table, PRF-OPS-04, -05 and -06, [SLICE-13 step 2](SLICE-13-disarmed-shadow-and-conversion.md) (the `isolated_work.report/1` format, R-11; the copier and its `copier_unit_properties`, `require_lockdown` and `--lockdown-report`), [step 4 as built](#step-4-as-built) (`check_reserve`, `ReserveCheck`, the polkit rule) and legacy at 445eb116 (every legacy citation below, `deploy/` and `scripts/` included, is read at 445eb116, not the working tree, because 1f0118fa changed the deploy). Step 6 is TASK-S11-04 and TASK-S11-11. It builds on OA_NEW `5746567` on `slice-08` (step 5's `06de958` plus the merge of SLICE-13 steps 1–2, which brings `adapters/legacy_copier.py`, `adapters/legacy_mapping.py`, `adapters/compatibility.py` and the four shadow settings). **It is reviewed before it is built:** it decides how credentials are kept from optional work, adds a telemetry call to the kernel host's loop, defines `at.slice`, and is the only route by which SLICE-13's copier can start.
 
-**In plain words.** Tests, research and other optional work run inside one fenced area of the server, `at.slice`, with one overall limit on memory, CPU and processes. Optional work is let in only if it fits that limit after leaving room for the nightly backup, and only if the disks holding the ledger and evidence have their reserve of free space. Each run is told what it may write (its own folder only), cannot see the ledger, the evidence or any key, gets no network unless it asks, and has every key name removed from its environment. Each run writes a report saying which of these fences were really applied. On a laptop that cannot apply them, the report says "not enforced" and never pretends otherwise. A small diagnostics channel, telemetry, is added. It never slows or stops anything, drops records when full, and nothing reads it to make a decision. It is off until its limits are measured. Nothing about trading changes.
+**Revised after review (12 items, "Ready to build: no").** The owner's rulings, applied below: (1) the environment is passed explicitly and the manager's environment unset; (2) `safe_tests.py` refuses every key name on every path; (3) legacy's behaviour: Linux refuses when it cannot enforce, the direct fallback is Windows only, legacy's per-run caps apply while the envelope is unbound; (4) the system manager where `at.slice` is installed; (5) a non-root `User=`, no capabilities, legacy's home hidden; (6) a per-property read-back table, with probes from inside the unit; (7) the copier's properties verbatim and `--lockdown-report`; (8) telemetry guarded so it can neither stop nor slow the kernel; (9) legacy's 2 GiB floor until step 9; (10) a `work` participant; (11) an allowlist render check and legacy's test caps; (12) citations and break checks.
+
+**Re-review ("yes after fixes", 9 items), the owner's rulings applied:** (r1) process and cgroup facts are read from the parent side (`MainPID`, `ControlGroup`, `/proc/<MainPID>/status`, `/sys/fs/cgroup` files); inside the unit only filesystem probes run, and `PrivateNetwork` is proved through `/sys/class/net` and `EAFNOSUPPORT`, so the copier's systemd-252 fences (`InaccessiblePaths=/proc`, `RestrictAddressFamilies=none`) do not defeat the read-back; (r2) a root caller or `--system` selects the system manager, and `safe_tests.py` passes `--network` for runs that include the installed-artifact test; CI uses `sudo`, no linger; (r3) `isolated_work.py` checks the copier's arguments against the settings and refuses overlap with `protected_roots` itself; (r4) legacy's key files are inaccessible under every profile (`isolation.key_files`; unbound refuses on Linux; `[]` means none), and `AT_CONFIG_FILE` is not passed; (r5) as root it runs only from a root-owned copy with `python -I`; (r6) a floor watcher stops the unit while it runs; (r7) `CapabilityBoundingSet` is recorded only in the user manager, and the EC2 user-manager row is a condition of sign-off; (r8) no edit to `adapters/legacy_copier.py`: an own parser, the public `copier_unit_properties`, and a drift test through the copier's real `main`; (r9) the unit-identity variables are never passed, the system manager gets the environment through a `0600` root-owned `EnvironmentFile=`, `*SECRET*` is matched, and the copier's user comes from `shadow.legacy_user`.
+
+**In plain words.** Tests, research and other optional work run inside one fenced area of the server, `at.slice`. Each run gets legacy's own per-run limits (1500 MB, no swap, half the CPUs) until the owner approves a measured overall limit. A run starts only if there is room, including room kept for the nightly backup, and only if the disks holding the ledger and evidence keep their free-space floor (legacy's 2 GiB until step 9 measures the real one). Each run runs as an ordinary user with no special powers, may write only its own folder, cannot see the ledger, the evidence, legacy's home folder or any key, gets no network unless it asks, and is handed an environment with every key name removed. Before the run's command starts, a small check inside the fence tests each fence for real, and a report records which fences held. On Linux, if a fence cannot be applied, the run is refused, as legacy refused; only Windows runs without fences, and its report says so. A small diagnostics channel, telemetry, is added: it is off until its limits are measured, it never slows or stops the kernel, and nothing reads it to decide. Nothing about trading changes.
 
 ### Decisions
 
 #### What legacy does here
 
-* **The research slice** caps research at `CPUQuota=25%`, `MemoryHigh=768M`, `MemoryMax=1200M`, `TasksMax=64`, `IOWeight=1` (`deploy/systemd/at-research.slice:4-12`; the same values in `src/analysis/jobs/policy.py:16-22` and `deploy/unit_envelope.py:88-94`). Its worker unit runs with `PrivateNetwork=yes`, `ProtectSystem=strict`, `NoNewPrivileges=yes`, `RestrictAddressFamilies=AF_UNIX`, `InaccessiblePaths=` and `ReadWritePaths=` (`deploy/systemd/at-research-worker.service:17-35`). Research needs 2 GiB free (`src/analysis/jobs/policy.py:14`).
-* **The kill order:** research `900`, the backup `300`, monitors `500`; the trading units negative (`deploy/unit_envelope.py:67-84`). **Uncapped:** the session, the authority and the tick recorder (`deploy/unit_envelope.py:100-107`, OD-15).
-* **Tests** (`scripts/safe_pytest.py`): one run per host and user (`:207-224`); a refusal under `cap + 512 MB` available or a load above twice the CPUs (`:53`, `:155-159`); with a user manager, `systemd-run --user` with `MemoryMax=<cap>` (default 1500 MB), `MemorySwapMax=0` and `CPUQuota` of half the CPUs (`:178-180`, `:237`); `nice -n 19`, `ionice -c3`, `oom_score_adj` 1000 (`:227-231`); on-disk temporaries (`:268-272`); a market-hours refusal for the live checkout (`:147-153`). Elsewhere it only warns about the limits it could not apply (`:280-285`).
+All at 445eb116.
+
+* **The research slice** caps research at `CPUQuota=25%`, `MemoryHigh=768M`, `MemoryMax=1200M`, `TasksMax=64`, `IOWeight=1` (`deploy/systemd/at-research.slice:5-12`); legacy compares the values `systemctl show` returns in their normalised form, `CPUQuotaPerSecUSec` `250ms` and memory in bytes (`src/analysis/jobs/policy.py:16-22`, `deploy/unit_envelope.py:88-94`). Its worker runs as the application user with `PrivateNetwork=yes`, `ProtectSystem=strict`, `NoNewPrivileges=yes`, `RestrictAddressFamilies=AF_UNIX`, `InaccessiblePaths=` and `ReadWritePaths=` (`deploy/systemd/at-research-worker.service:7-8`, `:17-35`). Research refuses below 2 GiB free (`src/analysis/jobs/policy.py:14`).
+* **The key file.** Every trading unit runs as one application user and reads one shared settings file holding the broker key (`deploy/systemd/at-tier1-authority.service:29-32`, `EnvironmentFile=__ENV_FILE__`; `deploy/systemd/mcp-gateway-desk.service:23-27`, `EnvironmentFile=__REPO_DIR__/.env`). On the shared EC2 any process of that user can read it unless it is hidden.
+* **The kill order:** research `900`, the backup `300`, monitors `500`; the trading units negative (`deploy/unit_envelope.py:67-84`). **Uncapped:** the session, the authority and the tick recorder (`deploy/unit_envelope.py:103-107`, OD-15).
+* **Tests** (`scripts/safe_pytest.py`): one run per host and user (`:207-224`, `:263-267`); a refusal under `cap + 512 MB` available or a load above twice the CPUs (`:53`, `:155-159`); with a user manager, `systemd-run --user --scope` with `MemoryMax=<cap>` (default `1500M`), `MemorySwapMax=0` and `CPUQuota` of half the CPUs (`:177-180`, `:237`, `:275`); a scope inherits the caller's environment; `nice -n 19` and `ionice -c3` (`:173-176`); `oom_score_adj` 1000 (`:227-231`); `timeout --kill-after=30`, default 1500 s (`:171-172`, `:238`); on-disk temporaries (`:268-272`); a market-hours refusal for the live checkout (`:147-153`). **On Linux it refuses when it cannot protect application storage** (`:296-303`, `:313-316`; `scripts/pytest_storage.py:134-145`); only the memory cap is merely warned about (`:280-282`), and only a non-Linux platform runs without native protection (`:283-285`).
 * **Telemetry:** none. Legacy logs to the journal.
 
 #### Storage classes (`operations/isolation.py`)
 
-* **`storage_roots(eff) -> dict[str, tuple[str, Path]]`**: every bound path field with its class from the settings contract's kind (`("path", <class>)`), keyed by field: `ledger.path` authoritative (its parent directory), `paths.evidence`, `market.store_path` and `supervisor.assessment_path` required evidence, `paths.scratch` and `paths.run` scratch. **`protected_roots(eff)`** is the authoritative and required-evidence ones; step 4's `ReserveCheck` roots become `protected_roots` (the same four fields; no behaviour change, proved by step 4's tests unchanged).
-* **The disk-full rows** not already proved by their owners get one row each in `tests/isolation/test_resource_storage_scope.py`. A full scratch filesystem (a `tmp_path` filled through a patched `usage`, and a real `ENOSPC` from a size-limited file on Linux) fails only its job; a crossed reserve stops `at.slice` and deletes nothing (step 4's case, re-run here as PRF-OPS-05's row); a failed assessment write is step 4's counted gap. The ledger commit (PRF-LED-07), evidence publication and the market store rows are cited, not re-proved.
+* **`storage_roots(eff) -> dict[str, tuple[str, Path]]`**: every bound path field with its class from the settings contract's kind (`("path", <class>)`), keyed by field. **A field that names a file contributes its parent directory**, so a store's `-wal`, `-shm` and temporaries are covered: `ledger.path` and `market.store_path`. `paths.evidence` and `supervisor.assessment_path` are directories (the supervisor's `EvidenceStore` root, OA_NEW `operations/supervisor.py:612`). Classes: `ledger.path` authoritative; `paths.evidence`, `market.store_path`, `supervisor.assessment_path` required evidence; `paths.scratch`, `paths.run` scratch. **`protected_roots(eff)`** is the authoritative and required-evidence ones. Step 4's `ReserveCheck` roots become `protected_roots`: the same four fields; the reserve now reads the parent directory of `market.store_path` (step 4 already used `ledger.path`'s parent), which is on the same filesystem, so step 4's tests run unchanged.
+* **The disk-full rows** not already proved by their owners get one row each in `tests/isolation/test_resource_storage_scope.py`. A full scratch filesystem (a patched `usage`, and a real `ENOSPC` from a size-limited file on Linux) fails only its job; a crossed reserve stops `at.slice` and deletes nothing (step 4's case, re-run as PRF-OPS-05's row); a failed assessment write is step 4's counted gap. The ledger commit (PRF-LED-07), evidence publication and the market store rows are cited, not re-proved.
+
+#### The `work` and `copier` participants (`settings/schema.py`)
+
+* **`work`** (review 10): entrypoint `scripts/isolated_work.py`, no unit, no fixed user, no credential scope (so `credentials_forbidden` is every `BROKER_KEY_NAMES` entry), launcher environment `_BASE + ("AT_TEST_ROOT",)` (not `AT_CONFIG_FILE`, r4), storage `("scratch",)`. `isolated_work.py` resolves its settings as `work`. **Only a field with an environment name needs `work` in its scope** (the loader filters the environment by scope, `settings/loader.py:521-527`; defaults and profile values apply under any participant): `ledger.path`, `paths.evidence`, `market.store_path`, `supervisor.assessment_path`, `paths.run`, `paths.scratch` gain `work`. The envelope, reserve, shadow and isolation fields have no environment name, so they resolve from the profile unchanged (SLICE-13's `test_settings_fields` keeps the shadow fields at `installer`). **Under a production profile it refuses (exit 20) when `protected_roots` comes out empty** or `isolation.hidden_roots` is unbound.
+* **`isolation.key_files`** (new, `text_list` of absolute file paths, scope `work` and `installer`, register `deployment`, default `null`) (r4): legacy's key files (`.env`, `.env.advisor`, `admin_console/.env.local` and the authority's `EnvironmentFile`, `deploy/systemd/at-tier1-authority.service:32`), made `InaccessiblePaths=` (each `-`-prefixed) **under every profile**. On Linux, `null` refuses (exit 20) whatever the profile; `[]` says "none". A list cannot come from the environment (`text_list` takes a list, `settings/loader.py:279-282`), so a Linux run names a profile (`--profile`, or `AT_ISOLATION_PROFILE` for `safe_tests.py`).
+* **`isolation.hidden_roots`** (new, `text_list` of absolute directories, same scope and register, default `null`): directories hidden by `TemporaryFileSystem=`, such as legacy's home on a production host. `null` under a production profile refuses; `[]` says "none". A hidden root that contains the work directory, the running interpreter's prefix or the `autonomous_trading` package refuses (exit 20): hiding them would hide the run itself, which is why tests on the EC2 rely on `isolation.key_files` instead of hiding legacy's home.
+* **`shadow.legacy_user`** (new, `text`, scope `installer`, register `deployment`, default `null`) (r9): the user the copier runs as.
+* **`copier`** (review 11, moved here from step 7 because SLICE-13 step 2 as built assigns it to this step): no entrypoint of its own (it is started only by `isolated_work.py --shadow`), no unit file, **user `None` in the contract: `shadow.legacy_user` at run time** (SLICE-13's Deviation: it is the one shadow process that runs as legacy's user), no credential scope, no broker key names, launcher environment `("INVOCATION_ID",)` (systemd's own; it reads no settings, its paths are arguments), storage `("scratch",)` for its input root. The name is SLICE-13's (`copier`); the unit is `at-shadow-copier-<run>.service`.
 
 #### The envelope and admission (`operations/isolation.py`)
 
 * **`Envelope`** from the settings: `envelope.optional.{cpu_quota, memory_high, memory_max, tasks_max, io_weight}` and `envelope.backup_reserve.{memory, tasks, disk}`. Every field is refusing and measured in step 9; none is given a value here.
 * **`Work(memory_bytes, tasks, disk_bytes, network=False)`**: the work's declared need.
-* **`slice_use(root=Path("/sys/fs/cgroup"))`**: `at.slice`'s `memory.current` and `pids.current` (cgroup v2), or `None` when unreadable.
-* **`admit(work, *, envelope, reserve: ReserveState, use) -> Admission(admitted: bool, reason: str | None, checks: dict)`**:
-  * refused `reserve <root>` when the storage reserve is `crossed`, or when the root's free space less `envelope.backup_reserve.disk` is below `work.disk_bytes` plus the reserve;
-  * refused `envelope memory` when `use.memory + work.memory_bytes > memory_max − backup_reserve.memory`, and `envelope tasks` likewise for tasks;
-  * **unbound or unreadable** (an unmeasured envelope, no `at.slice` cgroup, a laptop): **admitted**, with that check recorded `unenforced <why>`. Pending measurement never blocks development (the owner's rule on routine evidence, and A09-F4: no invented values). Once the owner binds the envelope (step 9), it refuses.
+* **`slice_use(root=Path("/sys/fs/cgroup"))`**: the **system** `at.slice`'s `memory.current` and `pids.current` (`/sys/fs/cgroup/at.slice/`), or `None` when unreadable.
+* **`PER_RUN_CAPS`**: legacy's test caps, applied to every unit while the envelope is unbound and kept after (review 3): `MemoryMax=1500M`, `MemorySwapMax=0`, `CPUQuota=<50 × CPUs>%` (`scripts/safe_pytest.py:237`, `:179-180`, `:275`). A caller may pass a lower `--memory-max`, never a higher one while the envelope is unbound. **Fork call K.**
+* **`RESERVE_FLOOR_BYTES = 2 * 1024**3`**, legacy's research floor (`src/analysis/jobs/policy.py:14`), used only while `storage.critical_reserve_bytes` is unbound (review 9).
+* **`admit(work, *, work_dir, envelope, reserve, use, roots) -> Admission(admitted, reason, checks)`**. Each check is recorded in `checks`; the first refusal is the reason.
+  * **The storage reserve.** Bound: refused `reserve <root>` when `check_reserve` is `crossed` **or `unreadable`**, or when the root's free space less `envelope.backup_reserve.disk` is below `work.disk_bytes` plus the reserve. Unbound: refused `reserve floor <root>` when the work directory shares a filesystem (`st_dev`) with a protected root whose free space is below `RESERVE_FLOOR_BYTES + work.disk_bytes`; a work directory on another filesystem is not refused by the floor. The check is recorded `floor (reserve unbound)`.
+  * **The work directory** inside, or containing, a protected root or a hidden root: refused `work dir <root>`.
+  * **The envelope.** Refused `envelope memory` when `use.memory + work.memory_bytes > memory_max − backup_reserve.memory`; `envelope tasks` likewise. A check runs only with both of its inputs bound. **Partly bound** (one of the pair bound, the other not, for example `memory_max` bound and `backup_reserve.memory` unbound): refused `envelope partly bound: <field>`, so a backup reserve can never be silently ignored. Wholly unbound: admitted, recorded `unenforced: envelope unbound (per-run caps applied)`. Bound and `use` is `None` (no `at.slice` cgroup): refused `envelope unreadable`.
 * **The backup is never asked** (runtime spec): it is required work, kept room for by the reserve terms above.
-* **`render_slice(envelope) -> str`**: the text of `deploy/systemd/at.slice` (T-79), with `CPUAccounting`, `MemoryAccounting`, `IOAccounting`, and `CPUQuota=`, `MemoryHigh=`, `MemoryMax=`, `TasksMax=`, `IOWeight=` from the envelope, as legacy's research slice. It refuses (`ValueError`) while any envelope field is unbound, so step 7 cannot install an unmeasured slice. The template file `deploy/systemd/at.slice` is committed with placeholders; step 7 installs it.
+* **`render_slice(envelope) -> str`**: the text of `deploy/systemd/at.slice` (T-79), with `CPUAccounting`, `MemoryAccounting`, `IOAccounting`, and `CPUQuota=`, `MemoryHigh=`, `MemoryMax=`, `TasksMax=`, `IOWeight=` from the envelope, as legacy's research slice. It refuses (`ValueError`) while any envelope field is unbound, so step 7 cannot install an unmeasured slice. The template `deploy/systemd/at.slice` is committed with placeholders; step 7 installs it.
 
 #### Isolated work (`scripts/isolated_work.py`)
 
-`python scripts/isolated_work.py [--profile P] --work-dir D [--memory B] [--tasks N] [--disk B] [--network] [--system] [--unit NAME] [--report PATH] -- <command…>`:
+`python scripts/isolated_work.py [--profile P] --work-dir D [--memory B] [--tasks N] [--disk B] [--memory-max B] [--oom N] [--network] [--system] [--run-as USER] [--unit NAME] [--report PATH] [--shadow] -- <command…>`:
 
-1. **Admission** through `admit`. A refusal exits 20 with its reason, and nothing starts.
-2. **Environment:** the parent's, minus every `BROKER_KEY_NAMES` name, every name that sets the broker key (`settings.secrets._ENV_ALIASES` for the key path), every `secrets:` reference's `env` locator in the profile, `CREDENTIALS_DIRECTORY`, and the `OPENALGO_`, `BROKER_`, `AT_LIVE_` prefixes (safe_tests' rule). The removed names are listed in the report (names only).
-3. **The unit:** `systemd-run --user` (or the system manager with `--system`) `--unit=<NAME or at-work-<uuid>> --wait --collect --pipe` with `Slice=at.slice`, `ProtectSystem=strict`, `ReadWritePaths=<work dir>`, `InaccessiblePaths=` every `protected_roots` path plus the credential roots (`/run/credentials`, and the profile's `file` secret locators), `PrivateNetwork=yes` unless `--network`, `NoNewPrivileges=yes`, `Nice=19`, `IOSchedulingClass=idle`, `OOMScoreAdjust=900` (legacy's research order, `deploy/unit_envelope.py:82`), and `MemoryMax`, `MemorySwapMax=0`, `CPUQuota` when the caller gives them (safe_tests does).
-4. **The report, `isolated_work.report/1`, exactly as SLICE-13 step 2 fixed it** (R-11; any change is asked of the coordinator first):
+1. **Settings** resolved as the `work` participant (`--profile`, else `AT_PROFILE`, else the built-in `test`). **Admission** through `admit`. A refusal exits 20 with its reason, and nothing starts.
+2. **Who may run it as root** (r5). When the effective uid is 0, `isolated_work.py` refuses (exit 21) unless it was started with `python -I` (`sys.flags.isolated`) and the script, the `autonomous_trading` package directory and every ancestor of both are owned by root and not group- or other-writable (`root_owned(path)`, checked file by file in the package). On the production host that is the root-owned copy step 7 installs; a sudoers rule pinned to it is step 7's. A developer's checkout, writable by its user, is never run as root.
+3. **The manager** (reviews 4, r2). The **system manager** when the caller is root, when `--system` is given, or when `at.slice` is installed (`systemctl show at.slice -p LoadState,FragmentPath` reports `loaded` with a fragment file); `--shadow` always. Otherwise the caller's **user manager**. Starting a system unit without privilege fails, and the run exits 21 with the reason (no polkit grant for transient units, because the caller would choose `User=`).
+4. **The user** (review 5). System manager: `User=` is `--run-as`, else `SUDO_USER`, else the caller; for `--shadow`, `shadow.legacy_user` (r9). **uid 0 refuses** (exit 21). User manager: the caller, and a root caller never gets here (rule 3).
+5. **The environment** (reviews 1, 2, r4, r9). `strip_environment(parent, eff) -> (env, removed)`: the parent's environment minus every `BROKER_KEY_NAMES` entry, every alias that sets the key (`settings.secrets._ENV_ALIASES`), every `env` locator of the profile's `secrets:`, `CREDENTIALS_DIRECTORY`, `AT_CONFIG_FILE`, `AT_ISOLATION_PROFILE`, the `OPENALGO_`, `BROKER_`, `AT_LIVE_` prefixes, any name containing `SECRET`, and any name ending `_API_KEY`, `_TOKEN`, `_PASSWORD` or `_PASSWD`; and **never** the unit-identity names `INVOCATION_ID`, `JOURNAL_STREAM`, `SYSTEMD_EXEC_PID`, `NOTIFY_SOCKET`, `MANAGER_PID`, `LISTEN_*` (a passed `INVOCATION_ID` would override the unit's own, and the copier would refuse). **The child receives exactly `env`:** in the user manager each name is passed with `--setenv=NAME=VALUE` (visible only to the caller's own user); in the system manager the names go into a root-owned file, mode `0600`, under `/run/at-isolated-work/<unit>.env`, given as `-p EnvironmentFile=` and removed when the unit ends, so no value reaches `systemctl show` or a command line. The manager's own environment is cleared with `-p UnsetEnvironment=<every BROKER_KEY_NAMES entry, alias, env locator, CREDENTIALS_DIRECTORY>`. The report lists the removed names, never values.
+6. **The unit:** `systemd-run [--user] --unit=<NAME or at-work-<uuid>.service> --wait --collect --pipe --working-directory=<cwd>` with `Slice=at.slice`; `ProtectSystem=strict`; `ReadWritePaths=<work dir>`; `InaccessiblePaths=` every `protected_roots` directory, every `isolation.key_files` entry and the credential roots (`/run/credentials`, each `file` secret locator); `TemporaryFileSystem=` every `isolation.hidden_roots` entry; every optional path (one that may not exist on this host: the key files, the credential roots, a store not yet created) prefixed `-` and listed in the report as optional; `PrivateNetwork=yes` unless `--network` (recorded in the report as `PrivateNetwork` requested `no`); `NoNewPrivileges=yes`; `CapabilityBoundingSet=`; `Nice=19`; `IOSchedulingClass=idle`; `OOMScoreAdjust=<--oom, default 900>` (legacy's research order, `deploy/unit_envelope.py:82`); `PER_RUN_CAPS`; `UnsetEnvironment=` as above. Its command is the in-unit stage (rule 7) followed by the caller's command.
+7. **The in-unit stage, filesystem probes only** (r1): `python -I -m autonomous_trading.operations.isolation inside --report R --probe <spec> -- <command…>`. Before the command it prints one JSON line (`isolated_work.probe/1`) on stdout with: a write under `/usr` and under each protected root and bound read-only path (`EROFS` or `EACCES` expected); an open or `stat` of each inaccessible path and key file (denied); a listing of each hidden directory (empty); a file created and removed in the work directory; the entries of `/sys/class/net` (`lo` only under `PrivateNetwork`); whether `socket(AF_INET)` raises `EAFNOSUPPORT` (expected under `RestrictAddressFamilies=none`); `os.getpid()` (1 under `PrivatePIDs`); whether `/proc` lists other users' processes, or is itself inaccessible; and which removed names are present (names only). It reads nothing else under `/proc`, so it runs inside the copier's systemd-252 fences (`InaccessiblePaths=/proc`, `RestrictAddressFamilies=none`). It then waits up to 10 s for the report at `R`; with none it exits 21 and the command never starts. With the report it `exec`s the command (same pid), so the command's exit code is the unit's.
+8. **The read-back, process facts from the parent** (reviews 6, r1). `isolated_work.py` reads the probe line from the pipe and polls `systemctl [--user] show <unit> -p InvocationID,MainPID,ControlGroup,<each property's show name>` for at most 10 s. From the parent side it then reads `/proc/<MainPID>/status` (`Uid`, `NoNewPrivs`, `CapBnd`, `CapEff`, `Seccomp`), `/proc/<MainPID>/oom_score_adj`, `/proc/<MainPID>/stat` (nice), and `/sys/fs/cgroup<ControlGroup>/{memory.max, memory.swap.max, cpu.max}`. Each property's `enforced` comes from `READBACK`: the `show` name, how both sides are normalised, and the check that must also pass.
 
-   ```json
-   {"format": "isolated_work.report/1",
-    "unit": "<the unit name>",
-    "invocation_id": "<the unit's systemd InvocationID, 32 hex>",
-    "user": "<the user the unit runs as>",
-    "systemd_version": 252,
-    "created_at": "<ISO-8601 UTC>",
-    "properties": {"<Property>": {"requested": "<value as passed to systemd-run>",
-                                  "enforced": true,
-                                  "evidence": "<how isolated_work.py read it back: systemctl show, or a probe>"}}}
-   ```
+   | Property | `show` name | Normalised | Check (must also pass) |
+   |---|---|---|---|
+   | `Slice` | `Slice` | text | `ControlGroup` starts `/at.slice/` (system manager); in the user manager it is under `user@<uid>.service`, so `enforced: false`, evidence `user manager's slice` |
+   | `User` | `User` | name to uid | parent: `Uid` of `MainPID` equal, not 0 |
+   | `ProtectSystem` | `ProtectSystem` | text | **in-unit probe is the evidence:** a write under `/usr` fails |
+   | `ReadWritePaths` | `ReadWritePaths` | set of resolved paths, `-` stripped | in-unit: a file created and removed in the work directory |
+   | `InaccessiblePaths` | `InaccessiblePaths` | set of resolved paths, `-` stripped | **in-unit probe is the evidence:** every listed path that exists is denied (`/proc` included) |
+   | `TemporaryFileSystem` | `TemporaryFileSystem` | set of paths, `:options` stripped | in-unit: each hidden directory lists empty |
+   | `BindReadOnlyPaths` | `BindReadOnlyPaths` | set of source paths | in-unit: a write in each fails (`EROFS`) |
+   | `PrivateNetwork` | `PrivateNetwork` | yes/no | **in-unit probe is the evidence:** `/sys/class/net` is `lo` only |
+   | `RestrictAddressFamilies` | `RestrictAddressFamilies` | set of families; `none` as empty | in-unit: `socket(AF_INET)` raises `EAFNOSUPPORT` |
+   | `NoNewPrivileges` | `NoNewPrivileges` | yes/no | parent: `NoNewPrivs: 1` |
+   | `CapabilityBoundingSet` | `CapabilityBoundingSet` | set of capability names; empty | parent: `CapBnd` and `CapEff` zero (system manager); **recorded only in the user manager** (r7: applying it needs `CAP_SETPCAP`; `CapEff` zero is recorded as evidence) |
+   | `UnsetEnvironment` | `UnsetEnvironment` | set of names | in-unit: none of them present |
+   | `EnvironmentFile` | `EnvironmentFile` | path, `-` stripped | parent: the file is root-owned, mode `0600` |
+   | `PrivatePIDs` | `PrivatePIDs` | yes/no | in-unit: pid 1 |
+   | `ProtectProc` | `ProtectProc` | text | in-unit: `/proc` lists no other user's pid, or `/proc` is inaccessible |
+   | `SystemCallFilter` | `SystemCallFilter` | deny set; `@debug` expanded by `systemd-analyze syscall-filter @debug` | parent: `Seccomp: 2` |
+   | `MemoryMax` | `MemoryMax` | bytes (`1500M` = 1 572 864 000) | parent: `memory.max` equal |
+   | `MemorySwapMax` | `MemorySwapMax` | bytes | parent: `memory.swap.max` equal |
+   | `CPUQuota` | `CPUQuotaPerSecUSec` | microseconds per second (`50%` = 500 000; `250ms`, `1s` parsed) | parent: `cpu.max` quota and period agree |
+   | `Nice` | `Nice` | integer | parent: nice of `MainPID` equal |
+   | `IOSchedulingClass` | `IOSchedulingClass` | `idle` = 3 | none |
+   | `OOMScoreAdjust` | `OOMScoreAdjust` | integer | parent: `oom_score_adj` equal |
 
-   It is written once the unit is running (polling `systemctl show <unit> -p InvocationID,User,<each property>` for at most 10 s) and **before** the command can depend on it: the path is passed to the command through `--report`. `enforced` is true only when `systemctl show` reads back the requested value. Otherwise it is false with the value read as evidence. The copier's own rule (refuse on any `enforced: false`) is SLICE-13's; for other work `enforced: false` proceeds (runtime spec).
-   **Where it is written** (the coordinator's second carry-in from SLICE-13): for shadow work (`--shadow`, which needs `paths.shadow.root` bound), at `<paths.shadow.root>/control/isolated-work/<unit>.json`, mode `0444`, written by `isolated_work.py`'s own user. `control/` sits beside `input/`, never inside it, and is bound read-only into the copier's unit (`BindReadOnlyPaths=`, one of the copier's properties). `isolated_work.py` refuses `--shadow` when the control directory is inside the input root. The copier's refusals (any other path, a path inside its input root, a file its own user can write) are SLICE-13's. For other work the report goes to `--report PATH`, default `<work dir>/isolated-work.json`.
-5. **Without a user manager or `systemd-run`** (Windows, a container): the command runs directly with the stripped environment, `Nice` or `BELOW_NORMAL_PRIORITY_CLASS`, in its work directory. The report holds every property with `enforced: false` and evidence `no systemd`, `invocation_id` `null` and `systemd_version` `null`. It never claims isolation it did not get (`README.md:1270`).
-6. Exit code: the command's own; 20 refused admission; 21 the unit could not be started.
+   `enforced` is true only when the normalised `show` value equals the normalised request **and** the row's check passed; otherwise false, with what was read as evidence (`show: <value>; check: <result>`). A property absent from the table cannot be requested (a test pins the table to every property `isolated_work.py` or `copier_unit_properties` can emit). A test feeds the table the systemd-252 copier property set (`/proc` fallback, `RestrictAddressFamilies=none`) with the parent-side files and the in-unit probe as they read there, and every row comes out `enforced: true`.
+9. **Refusal on Linux** (review 3). The **enforcing** properties are `User`, `ProtectSystem`, `ReadWritePaths`, `InaccessiblePaths`, `TemporaryFileSystem`, `PrivateNetwork` (unless `--network`), `NoNewPrivileges`, `CapabilityBoundingSet` (system manager only, r7), `UnsetEnvironment`, `EnvironmentFile` (system manager), `MemoryMax`, `MemorySwapMax`, `CPUQuota`, `Slice` when `at.slice` is installed, and every property under `--shadow`. When any is `enforced: false`, `isolated_work.py` stops the unit (`systemctl stop`) **before** writing the report, so the in-unit stage never sees it and the command never runs, then writes the report for the record and exits 22. `Nice`, `IOSchedulingClass` and `OOMScoreAdjust` are recorded, not enforcing (legacy set them best-effort, `scripts/safe_pytest.py:227-231`). **No `systemd-run` or no reachable manager on Linux** (a container, no user session): exit 21, nothing runs.
+10. **The floor watcher** (r6). While `isolated_work.py` waits for the unit, it checks every 5 s the free space of each protected root that shares a filesystem (`st_dev`) with the work directory. When the reserve is unbound and one falls below `RESERVE_FLOOR_BYTES` (or, once bound, `check_reserve` reads `crossed`), it stops its own unit (`systemctl [--user] stop <unit>`), deletes nothing, records `floor crossed <root> <free>` in the report's evidence and exits 23. A protected root on another filesystem is not watched by this run.
+11. **The report, `isolated_work.report/1`, exactly as SLICE-13 step 2 fixed it** (R-11; any change is asked of the coordinator first):
+
+    ```json
+    {"format": "isolated_work.report/1",
+     "unit": "<the unit name>",
+     "invocation_id": "<the unit's systemd InvocationID, 32 hex>",
+     "user": "<the user the unit runs as>",
+     "systemd_version": 252,
+     "created_at": "<ISO-8601 UTC>",
+     "properties": {"<Property>": {"requested": "<value as passed to systemd-run>",
+                                   "enforced": true,
+                                   "evidence": "<how isolated_work.py read it back: systemctl show, or a probe>"}}}
+    ```
+
+    `requested` is the exact string passed after `-p <Property>=`. `systemd_version` is the first number of `systemctl --version`. For other work the report goes to `--report PATH`, default `<work dir>/isolated-work.json`, and is visible to the in-unit stage there.
+12. **`--shadow`: the copier** (reviews 7, r3, r8). The command after `--` must be `python -m autonomous_trading.adapters.legacy_copier copy …`. **`adapters/legacy_copier.py` is not edited.** `isolated_work.py` parses the copier arguments it needs with its own small parser (`--shadow-root`, `--legacy-run-dir`, `--legacy-market-dir`, `--legacy-home`, `--legacy-ledger`, `--openalgo-dir`, and refuses `--unit`, `--lockdown-report` and `--systemd-version` if present), and computes the properties with the public `copier_unit_properties` (`adapters/legacy_copier.py:47-71`) and the copier's three-line store-directory rule (`:391-393`: the run directory, plus the ledger's directory when `--legacy-ledger` is given). Drift between the two is caught by running the copier's real `main` (below). Then it refuses (exit 20), before anything starts:
+    * `--shadow-root` ≠ `paths.shadow.root`, `--legacy-run-dir` ≠ `shadow.legacy_run_dir`, `--legacy-market-dir` ≠ `shadow.legacy_market_dir` (all resolved); `--legacy-home` or any `--openalgo-dir` not an entry of `isolation.hidden_roots`; `shadow.legacy_user` unset or root;
+    * the shadow root or its input root inside, or containing, any `protected_roots` directory (`isolated_work.py` checks this itself: the copier's `check_roots` is called with no production roots, `adapters/legacy_copier.py:387-388`);
+    * the control directory resolving inside the input root.
+
+    It names the unit `at-shadow-copier-<run>.service` and appends `--unit <unit> --systemd-version <N> --lockdown-report <paths.shadow.root>/control/isolated-work/<unit>.json` (`report_path`, `:74-76`). **The unit's sandbox properties are `copier_unit_properties(...)` verbatim** (`PrivatePIDs` or the `/proc` fallback with `SystemCallFilter=~@debug`, `ProtectProc`, `TemporaryFileSystem`, `BindReadOnlyPaths` with `<shadow root>/control`, `ProtectSystem`, `ReadWritePaths` the input root, `PrivateNetwork`, `RestrictAddressFamilies=none`, `NoNewPrivileges`, `CapabilityBoundingSet=`, `UnsetEnvironment` the `BROKER_KEY_NAMES`). `isolated_work.py` adds only properties the copier does not name (`User`, `Slice`, `EnvironmentFile`, `Nice`, `IOSchedulingClass`, `OOMScoreAdjust`, `PER_RUN_CAPS`), so no requested value of the copier's is changed; the protected-roots `InaccessiblePaths` and the key files are not added (they would change the copier's `InaccessiblePaths`). This is acceptable before SLICE-14: the copier writes only its input root, legacy's home and so its key file are hidden by `TemporaryFileSystem=`, and the target's roots hold no live obligation yet. The report is written at that path, mode `0444`, as root, which the copier's user cannot write (`check_report_path`), and is bound read-only into the unit by the copier's `BindReadOnlyPaths=`; every reported property must be `enforced: true` or the copier refuses (`require_lockdown`, `:79-98`).
+13. **Without systemd on Windows** (the only direct fallback): the command runs with the stripped environment, `BELOW_NORMAL_PRIORITY_CLASS`, in its work directory. The report holds every property with `enforced: false` and evidence `no systemd (Windows)`, `invocation_id` `null` and `systemd_version` `null`. It never claims isolation it did not get (A09-F3, `README.md:409`: "no false success"). `--shadow` refuses there.
+14. Exit code: the command's own; 20 refused admission or arguments; 21 no enforcement available, an unsafe root run, or the unit could not be started; 22 an enforcing property not enforced; 23 the floor crossed while running.
 
 #### Tests through isolation (`scripts/safe_tests.py`)
 
-* SLICE-01's rules stay as they are: no broker variables (exit 10), the lock (11), the memory check (12), the timeout (13), the on-disk temporary root, `-p no:cacheprovider`, the launcher's `--basetemp` last.
-* **Fork call K (kept from legacy): the per-run caps.** Legacy's `MemoryMax=1500M` default, `MemorySwapMax=0` and `CPUQuota` of half the CPUs (`scripts/safe_pytest.py:178-180`, `:237`) are passed to `isolated_work.py`. Its `cap + 512 MB` and twice-the-CPUs load refusals (`:53`, `:155-159`) replace SLICE-01's fixed 2012 MB check, which was legacy's default cap plus reserve anyway. These touch no money; they are recorded because they keep legacy's values.
-* On Linux with a user manager, pytest runs through `isolated_work.py` with `--work-dir` the temporary root. Elsewhere it runs as today, and the report says what was not enforced. **No calendar check** (the slice's Deviation).
+* **Every path** (review 2): exit 10 when any `BROKER_KEY_NAMES` entry, any alias of the key, `CREDENTIALS_DIRECTORY` or a name with the `OPENALGO_`, `BROKER_`, `AT_LIVE_` prefixes is set (OA_NEW `scripts/safe_tests.py:18`, `:52-55` checked only the prefixes, so `AT__OPENALGO__AUTH__API_KEY` and `MCP_OPENALGO__AUTH__API_KEY`, `settings/schema.py:450`, reached pytest). The child's environment is built by `strip_environment` on every path, Windows included, never `dict(os.environ)` (`:70`).
+* The lock (11), the on-disk temporary root, `-p no:cacheprovider` and the launcher's `--basetemp` last stay. **Under root** (`--run-as USER`), the lock and the temporary root are under that user's home and owned by that user, since the tests run as it.
+* **Fork call K (kept from legacy): the caps and limits.** `--memory-max` default `1500M`, `MemorySwapMax=0`, `CPUQuota` of half the CPUs, passed to `isolated_work.py`; `--oom 1000` (`scripts/safe_pytest.py:227-231`); pytest wrapped in `timeout --kill-after=30 <timeout>`, default 1500 s (`:171-172`, `:238`; SLICE-01's 1800 s becomes 1500; exit 124 is reported as 13). The `cap + 512 MB` and twice-the-CPUs load refusals (exit 12; `:53`, `:155-159`) replace SLICE-01's fixed 2012 MB check. None of these touch money.
+* **The network** (r2): `--network` is passed, and so recorded in the report, when the run includes the installed-artifact test, which installs from PyPI and never skips (`tests/contracts/test_installed_artifact.py`): no path argument, or a path that is, or contains, that file.
+* **The profile** (r4): `AT_ISOLATION_PROFILE`, when set, is passed as `--profile` and is not in the child's environment.
+* **On Linux** pytest always runs through `isolated_work.py` with `--work-dir` the temporary root; its exits 20–23 are passed through. **On Windows** it runs directly with the stripped environment and below-normal priority, and says which limits it could not apply. **No calendar check** (the slice's Deviation).
+* **CI** (r2, r5). `.github/workflows/verify.yml` installs the package into a root-owned copy (`/opt/at-ci`, its own venv, `chown -R root:root`, `chmod -R go-w`) and runs `sudo /opt/at-ci/.venv/bin/python -I /opt/at-ci/scripts/safe_tests.py --run-as runner --timeout 3600 tests/unit tests/contracts` there, with `AT_ISOLATION_PROFILE` naming a small test profile (`isolation.key_files: []`) written in the job. The runner has systemd and passwordless `sudo`; no linger.
 
-#### Telemetry (`operations/telemetry.py`, and one call in `kernel/host.py`)
+#### Telemetry (`operations/telemetry.py`, one call in `kernel/host.py`, one in the supervisor)
 
-* **`Telemetry(sink, *, max_items, max_bytes)`**: `emit(record)` validates the record's kind, then `put_nowait` on a bounded queue. Full, over `max_bytes` (the encoded size), unbound (`None` budgets), invalid, or after a sink error: dropped and counted by reason. `emit` never blocks and never raises into its caller; it catches every exception. One daemon thread writes to the sink. `counts()` returns the drop counters. `close(timeout)` stops the thread.
+* **`Telemetry(sink, *, max_items, max_bytes)`**: `emit(record)` validates the record's kind, then `put_nowait` on a bounded queue. Full, over `max_bytes` (the encoded size), unbound (`None` budgets), invalid, or after a sink error: dropped and counted by reason. `emit` never blocks and never raises into its caller; its body is one `try … except Exception` that counts. One daemon thread, started on the first `emit`, writes to the sink. `counts()` returns the drop counters. `close(timeout)` sets a stop flag and joins for at most `timeout`; it never raises.
 * **Typed records only:** frozen dataclasses `KernelPass(pass_seq, wake, duration_ms, stage)`, `SupervisorCycle(gaps, verdicts, duration_ms)` (counts only) and `Dropped(reason, count)`. No mapping is accepted, and a string field whose value contains a settings `secrets:` reference identifier or a `BROKER_KEY_NAMES` name is refused.
-* **The sink:** `JsonlSink(paths.run / "telemetry")`, one file per IST day (scratch class: disposable, never read by the system).
-* **The kernel host** gains `telemetry: Telemetry | None = None` (default `None`). After the heartbeat is written for a pass it calls `emit(KernelPass(...))`. The call is placed after the heartbeat, so nothing in the pass depends on it. With `None` or unbound budgets the pass does exactly what it does today; PRF-OPS-01's tests run unchanged. **The supervisor** gains the same optional argument and emits `SupervisorCycle` after its cycle. The market process is not instrumented in this step (its scope allows it later).
+* **The sink:** `JsonlSink(paths.run / "telemetry", max_total_bytes)`, one file per IST day (scratch class). **Lazy:** it creates its directory and opens a file only in the writer thread, so an unwritable `paths.run` costs counted drops, never a start failure. **Capped** (review 9): once the directory's files total `telemetry.max_sink_bytes`, every further record is dropped and counted `sink_full`; nothing is deleted. `telemetry.max_sink_bytes` is new (`int_pos`, scope as the two budgets, register `measured`, default `null`): unbound means off, like the other two.
+* **The kernel host** gains `telemetry: Telemetry | None = None`. **The one call** sits directly after `self._beat("running")` (OA_NEW 5746567 `kernel/host.py:248`), **outside `_stage`**, as `try: telemetry.emit(KernelPass(...)) except Exception: pass` (review 8). Outside `_stage`, a failure can never become a fault, an alert or a stopping code (`kernel/host.py:114-123`); the bare `try` keeps it from escaping `_serve`, which catches only `_Exited` (`:221-225`). With `None` the pass does exactly what it does today; PRF-OPS-01's tests run unchanged.
+* **The supervisor** gains the same optional argument and the same guarded `emit(SupervisorCycle(...))` after its cycle. The market process is not instrumented in this step.
+* **Composition** (review 8). `serve_kernel` (`bootstrap.py:1061-1103`) and `compose_supervisor` build `Telemetry` inside `try … except Exception` that falls back to `None`, and only when all three budgets are bound and `paths.run` is set; building it opens nothing. So telemetry can never refuse a start (no new gate). **`close(timeout=1)` is called only after `host.serve()` returns**, wrapped in `try`; by then the clean stop has already released the lease (`c.recovery.shutdown(clean=True)`, `kernel/host.py:293`) or the crash path has deliberately left it to expire (`:133-145`), so `close` never runs before the lease is released.
 * **Nothing decides on telemetry:** an import guard asserts that among `kernel/` modules only `kernel/host.py` imports `operations.telemetry`, and that no module reads the sink directory (PRF-OPS-06).
-* **Composition:** `serve_kernel` and `compose_supervisor` build `Telemetry` only when both budgets are bound and `paths.run` is set; otherwise `None`. Unbound means off.
 
 #### Fork calls in this step
 
-* **None on money.** No entry, exit, stop, limit, restart or gate changes. Trading units are never in `at.slice` (step 7's render check).
-* **K. The test caps keep legacy's values** (above).
-* **The kill order and the uncapped trading units are kept** (`deploy/unit_envelope.py:67-84`, `:100-107`): optional work gets `OOMScoreAdjust=900`.
+* **None on money.** No entry, exit, stop, limit, restart or gate changes; telemetry cannot refuse or stop the kernel. Trading units are never in `at.slice` (step 7's allowlist).
+* **K. Legacy's per-run caps and test limits kept:** `MemoryMax=1500M`, `MemorySwapMax=0`, half the CPUs, `oom_score_adj` 1000, 1500 s with `--kill-after=30`, the 512 MB and load refusals; legacy's 2 GiB floor until the reserve is bound.
+* **The kill order and the uncapped trading units are kept** (`deploy/unit_envelope.py:67-84`, `:103-107`): optional work gets `OOMScoreAdjust=900`, tests 1000.
 
 #### Deviations in this step
 
-* **Admission is not refused while the envelope is unmeasured;** the check is recorded `unenforced` instead. A refusing envelope would stop all tests and research until step 9 measures it. This follows the owner's rule that pending evidence never gates development. For review.
+* **Admission is not refused while the envelope is wholly unmeasured;** legacy's per-run caps and 2 GiB floor apply instead, and the check is recorded `unenforced`. A partly bound envelope, or a bound one that cannot be read, refuses.
+* **Stricter than legacy on Linux:** legacy only warned when it could not cap memory (`scripts/safe_pytest.py:280-282`); here every enforcing property, memory included, refuses on Linux. Legacy refused when it could not protect storage (`:296-303`), which this follows.
 * **No calendar check for tests** (already listed).
-* **Legacy's research-only allowlist (LD-18) is not inherited:** the environment is built by removal of credential names, not an allowlist.
+* **Legacy's research-only allowlist (LD-18) is not inherited:** the environment is built by removing credential names and secret-shaped names, then passed explicitly.
 
 #### Carried to later steps
 
-* **Step 7:** `at.slice` installed from `render_slice` once the envelope is bound; the render check that no trading unit is under `at.slice` (carry-in b).
-* **Step 7 (the coordinator's carry-in from SLICE-13):** the copier's participant (`shadow-copier`: its own user, no credential scope, no broker key names, a launcher environment of `AT_PROFILE` and `INVOCATION_ID` only, storage `scratch` for its input root), added to `PARTICIPANTS` with the other units' rows. Its unit is the transient one `isolated_work.py` starts, so step 7 renders no unit file for it.
+* **Step 7:** `at.slice` installed from `render_slice` once the envelope is bound. **The render check is an allowlist** (review 11): only `at-backup.service`, the research units (`at-research-worker.service`, `at-research-model.service`, `at-research.slice`) and transient `at-work-*` and `at-shadow-copier-*` units may name `at.slice` or an `at-*.slice`; every other rendered unit (the kernel, market, strategy, cognition, operator, supervisor, observer, MCP and console) naming one fails.
+* **Step 9** binds the envelope and `storage.critical_reserve_bytes`; the 2 GiB floor then stops applying.
+* **SLICE-13 step 6** runs the copier through `--shadow`; `test_copier_lockdown_rows` (written in SLICE-13 step 2, not run) runs with this step's Linux system-manager rows.
 
 ### Tests
 
@@ -1799,69 +1862,337 @@ Every value is synthetic. `FakeBooks` returns fixed `Observation`s and records c
 
 | Group | Cases |
 |---|---|
-| Storage classes | A production profile → `storage_roots` gives each field its class; `protected_roots` is exactly the authoritative and required-evidence ones; step 4's reserve roots equal it |
-| Admission | Within the envelope → admitted; memory or tasks over the envelope less the backup's reserve → refused with the reason; the reserve crossed → refused; the backup's disk reserve counted; an unbound envelope or `use` `None` → admitted with `unenforced` recorded |
-| Environment | Each broker key name, each alias, a profile's `env` locator, `CREDENTIALS_DIRECTORY` and each prefix set in the parent → none in the child's environment; the report lists their names, never their values |
-| The unit's argv | `systemd-run` patched to record: `Slice=at.slice`, `ProtectSystem=strict`, `ReadWritePaths=` the work directory only, `InaccessiblePaths=` every protected root and the credential roots, `PrivateNetwork=yes` (absent with `--network`), `NoNewPrivileges=yes`, `Nice=19`, `IOSchedulingClass=idle`, `OOMScoreAdjust=900` |
-| The report's location | With `--shadow`: written at `<paths.shadow.root>/control/isolated-work/<unit>.json`, mode `0444` (Linux; the mode is not checked on Windows), outside `input/`; a control directory inside the input root → refused before anything starts |
-| The report | Field names and types exactly `isolated_work.report/1`; `enforced` true only where the patched `systemctl show` reads back the requested value; a property read back differently → `enforced: false` with the value as evidence; written before the command runs (the command reads it) |
-| No systemd | `systemd-run` absent → the command runs, every property `enforced: false`, evidence `no systemd`, `invocation_id` null |
+| Storage classes | A production profile → `storage_roots` gives each field its class; `ledger.path` and `market.store_path` give their parent directories, `supervisor.assessment_path` itself; `protected_roots` is exactly the authoritative and required-evidence ones; step 4's reserve roots equal it |
+| Participants | `work` reads `AT_LEDGER_PATH`, `AT_EVIDENCE_PATH`, `AT_MARKET_STORE_PATH`, `AT_RUN_DIR` and `AT_SCRATCH_DIR`; the envelope and isolation fields from the profile; a production profile with no protected root, or `isolation.hidden_roots` unbound → exit 20; on Linux, `isolation.key_files` unbound → exit 20 under a test profile too, `[]` admitted; `copier` has no credential scope and forbids every `BROKER_KEY_NAMES` entry |
+| Admission | Within the envelope → admitted; memory or tasks over the envelope less the backup's reserve → refused with the reason; the reserve crossed or unreadable (bound) → refused; the backup's disk reserve counted; **partly bound** (`memory_max` bound, `backup_reserve.memory` unbound) → refused naming the field; wholly unbound → admitted, `unenforced` recorded; bound with `use` `None` → refused; reserve unbound and a work directory on a protected root's filesystem with free space under 2 GiB plus the need → refused; the same on another filesystem (patched `st_dev`) → admitted; a work directory inside a protected or hidden root, or a hidden root holding the interpreter or the package → refused |
+| Environment | Each broker key name, each alias, a profile's `env` locator, `CREDENTIALS_DIRECTORY`, `AT_CONFIG_FILE`, each prefix, `FOO_TOKEN`, `AWS_SECRET_ACCESS_KEY` and `X_PASSWD` set in the parent → none passed; `INVOCATION_ID`, `JOURNAL_STREAM`, `SYSTEMD_EXEC_PID`, `NOTIFY_SOCKET`, `MANAGER_PID`, `LISTEN_FDS` never passed; `PATH`, `VIRTUAL_ENV`, `AT_TEST_ROOT`, `TMPDIR` passed; user manager → `--setenv`; system manager → no `--setenv`, an `EnvironmentFile=` written mode `0600` (Linux) holding the same names; `UnsetEnvironment=` names every key name, alias, `env` locator and `CREDENTIALS_DIRECTORY`; the report lists names, never values |
+| Root | Effective uid 0 (patched) without `python -I`, or with the script or a package file group- or other-writable or not root-owned → exit 21, nothing started |
+| The unit's argv | `systemd-run` patched to record. User manager: `--user`, no `User=`. System manager (a root caller, `--system`, or a patched `systemctl show at.slice` loaded): no `--user`, `User=` the `--run-as` or `SUDO_USER`; `User=root` → exit 21. Both: `Slice=at.slice`, `ProtectSystem=strict`, `ReadWritePaths=` the work directory only, `InaccessiblePaths=` every protected root, the key files and the credential roots with `-` on the optional ones, `TemporaryFileSystem=` the hidden roots, `PrivateNetwork=yes` (`no` with `--network`), `NoNewPrivileges=yes`, `CapabilityBoundingSet=`, `Nice=19`, `IOSchedulingClass=idle`, `OOMScoreAdjust=900` (1000 from `safe_tests.py`), `MemoryMax=1500M`, `MemorySwapMax=0`, `CPUQuota=<50 × CPUs>%` |
+| Read-back | The `READBACK` table covers every property `isolated_work.py` and `copier_unit_properties` can emit; `MemoryMax=1500M` against `show` `1572864000` → true; `CPUQuota=200%` against `CPUQuotaPerSecUSec=2s` → true; `IOSchedulingClass=idle` against `3` → true; `InaccessiblePaths` with `show` matching but the probe reading the path → false; `ProtectSystem` or `PrivateNetwork` with `show` matching and a failing probe → false; `NoNewPrivileges` with `/proc/<MainPID>/status` `NoNewPrivs: 0` → false; `CapabilityBoundingSet` in the user manager → recorded, not enforcing; **the systemd-252 copier set** (the `/proc` fallback, `RestrictAddressFamilies=none`) with parent-side files and an in-unit probe that cannot read `/proc` → every property true |
+| Refusal on Linux | An enforcing property read back false → the unit stopped before the report is written, exit 22, the command never ran (a marker file it would write is absent); a recorded-only property false → proceeds; `systemd-run` absent on Linux (patched `sys.platform`) → exit 21, nothing ran |
+| The floor watcher | A patched `usage` that falls below 2 GiB on the work directory's filesystem after the unit starts → `systemctl stop <unit>` called once, exit 23, nothing deleted; on another filesystem → not stopped |
+| The report | Field names and types exactly `isolated_work.report/1`; `requested` is the exact `-p` value; written before the command runs (the command reads it); the in-unit stage with no report in 10 s → exit 21 and the command not run |
+| The copier (`--shadow`) | The unit's properties include `copier_unit_properties(...)` for the same arguments, key for key and value for value; `--unit`, `--systemd-version` and `--lockdown-report` appended, at `<paths.shadow.root>/control/isolated-work/<unit>.json`, mode `0444` (Linux); **drift test: the copier's real `main([... "--once"], env={"INVOCATION_ID": <id>})`, over copies of `tests/fixtures/legacy_stores` with the argv `isolated_work.py` built and the report it generated from a patched read-back, copies and returns 0**; the same with one copier property changed or one added property `enforced: false` → `CopierRefused`; refused before anything starts: a command that already sets `--unit`, `--shadow-root`, `--legacy-run-dir` or `--legacy-market-dir` differing from the settings, a `--legacy-home` or `--openalgo-dir` not in `isolation.hidden_roots`, a shadow root overlapping a protected root, a control directory inside the input root, `shadow.legacy_user` unset or root, or Windows |
+| Windows | Every property `enforced: false`, evidence `no systemd (Windows)`, `invocation_id` null; the environment still stripped |
 | No calendar | `safe_tests.py` and `isolated_work.py` import no calendar module, and run with a clock patched to session time |
 | Disk-full | A scratch work directory out of space fails only its job, the protected roots unchanged; the reserve-crossed case re-run (nothing deleted) |
-| Linux with a user manager (EC2 throwaway folder, else skipped with the reason) | A real `isolated_work.py` run: a descendant `sh -c` cannot write a protected root (`EROFS` or `EACCES`), cannot open an `AF_INET` socket, cannot read a file under an inaccessible credential root, and sees none of the stripped names; the report reads `enforced: true` for each; a descendant counts in the unit's cgroup (`pids.current` ≥ 2) |
+| Linux, user manager (the EC2 throwaway folder; a condition of sign-off; else skipped with the reason) | Before the run, `systemctl --user set-environment AT__OPENALGO__AUTH__API_KEY=not-a-key` (unset in `finally`): the child does not see it. A real run: a descendant `sh -c` cannot write a protected root, cannot read a key file, sees only `lo`, and sees none of the stripped names; `PATH` and `AT_TEST_ROOT` are present; a descendant counts in the unit's cgroup (`pids.current` ≥ 2); **the report is recorded property by property** in "as built" (which held, which did not) |
+| Linux, system manager (needs root: a disposable Linux host with systemd, such as the GitHub runner; on the EC2 only on the owner's word) | `User=` a non-root user; the unit's cgroup path is under `/sys/fs/cgroup/at.slice/`; `CapBnd` zero; the `EnvironmentFile=` mode `0600`; SLICE-13's `test_copier_lockdown_rows` run through `--shadow` |
 
-**`tests/unit/test_telemetry.py`** (T-78, PRF-OPS-06): a blocked sink (a lock held), a failing sink and a slow sink → `emit` returns within a bound measured in the test (the 99th percentile of 1,000 calls under 5 ms), the queue never above `max_items`, drops counted by reason; an untyped record (a dict), a record over `max_bytes`, and a field holding a credential reference or a broker key name → refused and counted; unbound budgets → every emit a counted drop and no thread started; the import guard; `KernelHost` with `telemetry=None` and with a failing telemetry gives the same heartbeat and ledger as without.
+**`tests/unit/test_telemetry.py`** (T-78, PRF-OPS-06): a blocked sink (a lock held), a failing sink and a slow sink → `emit` returns within a bound measured in the test (the 99th percentile of 1,000 calls under 5 ms), the queue never above `max_items`, drops counted by reason; an untyped record (a dict), a record over `max_bytes`, and a field holding a credential reference or a broker key name → refused and counted; unbound budgets → every emit a counted drop and no thread started; `max_sink_bytes` reached → `sink_full` drops and no file deleted; the import guard. **The host** (`KernelHost` with a real `Telemetry`): over a **hanging** sink, the pass timings and heartbeats match a run with `telemetry=None`; with an `emit` patched to raise, the host's `faults`, alerts and exit code are unchanged and the loop continues; with `paths.run` unwritable, `serve_kernel`'s builder still returns a `Telemetry` and every record is a counted drop; `close` is called after `serve` returns and after `recovery.shutdown(clean=True)` (a recorded call order).
 
-**`tests/unit/test_settings_resolver.py`** gains the `render_slice` refusal while unbound.
+**`tests/unit/test_settings_resolver.py`** gains: the `render_slice` refusal while unbound; `work`'s scope; `isolation.key_files`, `isolation.hidden_roots`, `shadow.legacy_user` and `telemetry.max_sink_bytes` unbound by default.
 
-**Changed existing:** `tests/integration/test_kernel_host.py` and `tests/integration/test_supervisor.py` run unchanged (telemetry defaults to `None`); `scripts/safe_tests.py`'s own tests, if any, are extended for the new caps.
+**`scripts/safe_tests.py`'s cases** (in `tests/isolation/test_resource_storage_scope.py`): `AT__OPENALGO__AUTH__API_KEY`, `MCP_OPENALGO__AUTH__API_KEY` or `CREDENTIALS_DIRECTORY` set → exit 10 on Linux and Windows; the timeout wrapper `timeout --kill-after=30 1500`; `--oom 1000` passed; `--network` passed for `tests/contracts` and for no path, not for `tests/unit`; `AT_ISOLATION_PROFILE` passed as `--profile` and not to the child.
+
+**Changed existing:** `tests/integration/test_kernel_host.py` and `tests/integration/test_supervisor.py` run unchanged (telemetry defaults to `None`); `tests/contracts/test_legacy_copier.py` runs unchanged (the copier is not edited); `test_settings_resolver.py::test_participants` adds `work` and `copier`.
 
 ### Break checks
 
 | Change | Test that must fail |
 |---|---|
 | `admit` ignores the backup's reserve | Admission |
-| `admit` refuses an unbound envelope | Admission (unenforced) |
+| `admit` refuses a wholly unbound envelope | Admission (unenforced) |
+| `admit` admits a partly bound envelope | Admission (partly bound) |
+| `admit` admits on an `unreadable` bound reserve | Admission |
+| `admit` skips the 2 GiB floor while the reserve is unbound | Admission (floor) |
+| The floor watcher never stops the unit | The floor watcher |
 | `isolated_work.py` keeps one alias of the key | Environment |
+| `isolated_work.py` passes `INVOCATION_ID` | Environment |
+| `isolated_work.py` drops `--setenv` (the manager's environment reaches the child) | Environment; Linux user manager (seeded key) |
+| `isolated_work.py` passes `--setenv` under the system manager | Environment |
+| `isolated_work.py` drops `CREDENTIALS_DIRECTORY` from `UnsetEnvironment=` | Environment |
+| `isolated_work.py` omits the key files from `InaccessiblePaths=` | The unit's argv |
+| `isolated_work.py` admits an unbound `isolation.key_files` on Linux | Participants |
+| `safe_tests.py` checks only the prefixes again | `safe_tests.py`'s cases (exit 10) |
+| `safe_tests.py` never passes `--network` | `safe_tests.py`'s cases |
+| `isolated_work.py` runs as root from a writable checkout | Root |
 | `isolated_work.py` drops `InaccessiblePaths=` for the evidence root | The unit's argv |
+| `storage_roots` uses `market.store_path` itself, not its parent | Storage classes |
+| A root caller gets the user manager | The unit's argv |
+| `isolated_work.py` uses the user manager where `at.slice` is installed | The unit's argv; Linux system manager (cgroup path) |
+| `isolated_work.py` accepts `User=root` | The unit's argv |
+| `isolated_work.py` compares `MemoryMax` as plain strings | Read-back |
+| `isolated_work.py` marks `ProtectSystem` enforced from `show` alone | Read-back |
+| `isolated_work.py` reads `NoNewPrivs` inside the unit (the systemd-252 copier set reads false) | Read-back (systemd 252) |
+| `isolated_work.py` runs the command directly on Linux without systemd | Refusal on Linux |
+| `isolated_work.py` writes the report before stopping a refused unit | Refusal on Linux (marker present) |
 | `isolated_work.py` reports `enforced: true` without reading back | The report |
-| `isolated_work.py` claims enforcement with no systemd | No systemd |
-| `isolated_work.py` writes the shadow report inside the input root, or with mode `0644` | The report (location and mode) |
-| The report's `invocation_id` renamed | The report (format) |
+| `isolated_work.py` claims enforcement on Windows | Windows |
+| `--shadow` adds `InaccessiblePaths` to the copier's set | The copier (drift test) |
+| `--shadow` accepts a `--legacy-home` outside `isolation.hidden_roots` | The copier |
+| `--shadow` skips the protected-roots overlap check | The copier |
+| `--shadow` writes the report inside the input root, or with mode `0644` | The copier (location and mode) |
+| The report's `invocation_id` renamed | The report (format); the copier (drift test) |
 | `Telemetry.emit` uses a blocking `put` | Telemetry (blocked sink) |
+| `Telemetry.emit` loses its catch-all | Telemetry (raising sink); host (raising emit) |
 | `Telemetry.emit` accepts a dict | Telemetry (untyped) |
+| The host's call moved inside `_stage`, or its `try` removed | Telemetry (host, raising emit) |
+| `serve_kernel` builds `Telemetry` without the fallback | Telemetry (host, unwritable `paths.run`) |
+| `close` called before `serve` returns | Telemetry (host, call order) |
+| `JsonlSink` ignores `max_sink_bytes` | Telemetry (`sink_full`) |
 | `kernel/admission.py` imports `operations.telemetry` | Telemetry (import guard) |
-| `KernelHost` emits before the heartbeat and lets an exception out | Telemetry (host) |
 | `render_slice` renders `None` | Settings (render refusal) |
 
 ### Files
 
 | File | Change |
 |---|---|
-| `src/autonomous_trading/operations/isolation.py` | `storage_roots`, `protected_roots`, `Envelope`, `Work`, `slice_use`, `admit`, `Admission`, `render_slice` |
+| `src/autonomous_trading/operations/isolation.py` | `storage_roots`, `protected_roots`, `Envelope`, `Work`, `slice_use`, `PER_RUN_CAPS`, `RESERVE_FLOOR_BYTES`, `admit`, `Admission`, `strip_environment`, `READBACK` and its normalisers, `root_owned`, the in-unit stage (`inside`), `render_slice` |
 | `src/autonomous_trading/operations/telemetry.py` | New: `Telemetry`, the record kinds, `JsonlSink` |
-| `src/autonomous_trading/kernel/host.py` | `telemetry=None`; one `emit` after the heartbeat |
-| `src/autonomous_trading/operations/supervisor.py` | `telemetry=None`; one `emit` after the cycle; reserve roots from `protected_roots` |
-| `src/autonomous_trading/bootstrap.py` | `serve_kernel` composes `Telemetry` when bound |
+| `src/autonomous_trading/kernel/host.py` | `telemetry=None`; one guarded `emit` after `_beat("running")` |
+| `src/autonomous_trading/operations/supervisor.py` | `telemetry=None`; one guarded `emit` after the cycle; reserve roots from `protected_roots`; `compose_supervisor` builds telemetry with the fallback |
+| `src/autonomous_trading/bootstrap.py` | `serve_kernel` builds `Telemetry` with the fallback, and closes it after `serve` returns |
+| `src/autonomous_trading/settings/schema.py` | Participants `work` and `copier`; `work` in the six path fields' scopes; `isolation.key_files`, `isolation.hidden_roots`, `shadow.legacy_user`, `telemetry.max_sink_bytes` |
+| `src/autonomous_trading/resources/defaults.yaml` | The four new fields, `null` |
 | `scripts/isolated_work.py` | New |
-| `scripts/safe_tests.py` | Through `isolated_work.py`; legacy's caps and refusals |
+| `scripts/safe_tests.py` | Every key name on every path; through `isolated_work.py` on Linux; legacy's caps, timeout and refusals; `--network`; `--run-as` |
+| `.github/workflows/verify.yml` | The root-owned copy and `sudo … safe_tests.py --run-as runner` |
 | `deploy/systemd/at.slice` | New (T-79): the template |
 | `tests/isolation/test_resource_storage_scope.py`, `tests/unit/test_telemetry.py` | New |
+| `tests/unit/test_settings_resolver.py` | `test_participants` names `work` and `copier`; the new fields |
 
 ### Completion conditions (step 6)
 
-* The new tests and every test file importing a changed module (`operations/isolation.py`, `operations/supervisor.py`, `kernel/host.py`, `bootstrap.py`), plus the layering and import guards, pass twice. No full suite.
-* The Linux rows run once on the EC2, in a throwaway folder under `~/claude-desktop/outputs` with its own venv and a user manager, removed afterwards; on Windows they report their skip.
+* The new tests and every test file importing a changed module (`operations/isolation.py`, `operations/supervisor.py`, `kernel/host.py`, `bootstrap.py`, `settings/schema.py`), plus the layering and import guards and `tests/contracts/test_legacy_copier.py`, pass twice. No full suite.
+* **The user-manager Linux rows run once on the EC2 (a condition of sign-off)**, in a throwaway folder under `~/claude-desktop/outputs` with its own venv, removed afterwards, without `sudo`; which properties held is recorded. The system-manager rows (and SLICE-13's copier rows) run once on a disposable Linux host with root, or on the EC2 only on the owner's word. On Windows both report their skip.
 * Every break check fails a listed test, and every file is restored (md5).
 * PRF-OPS-04, PRF-OPS-05 (the rows this step owns) and PRF-OPS-06 pass.
+* **Open:** (a) wherever `at.slice` is installed, isolated work needs root, through the root-owned copy and step 7's sudoers rule; (b) CI runs through `sudo` on the runner and is not exercised before the push.
 
-## Step 7 — the installer, units and release transitions (outline)
+### Step 6 as built
 
-Deepened after steps 3a and 6 are built (it renders and starts the market, strategy and cognition loops step 3a builds): the configuration spec's [release transitions](../../design/configuration-artifacts-release.md#release-transitions) and [activation boundary](../../design/configuration-artifacts-release.md#the-activation-boundary) (Fork call 1); the runtime spec's [installer](../../design/runtime-isolation-observability-deployment.md#installer-deployinstallpy) and [units](../../design/runtime-isolation-observability-deployment.md#units-deploysystemd).
+**Built** in OA_NEW `da0f9bd` on `slice-08` (from `5746567`), one commit, 14 files. New: `operations/telemetry.py` (T-78's module), `scripts/isolated_work.py`, `deploy/systemd/at.slice` (T-79), `tests/isolation/test_resource_storage_scope.py`, `tests/unit/test_telemetry.py`. Changed: `operations/isolation.py`, `operations/supervisor.py`, `kernel/host.py`, `bootstrap.py`, `settings/schema.py`, `resources/defaults.yaml`, `scripts/safe_tests.py`, `.github/workflows/verify.yml`, `tests/unit/test_settings_resolver.py`. **`adapters/legacy_copier.py` is not edited** (r8). Both reviews' items were fixed in the text above before the build ("Ready to build: no", then "yes after fixes").
 
-* **Builds:** every command of `deploy/install.py`; the host-level transition log; every state, including `QUIET_AFTER_STOP` with its automatic restart of the stopped set, `OLD_WRITER_GONE`, `UNITS_WRITTEN` with the old unit set kept, `QUIET_BEFORE_SWITCH`, the observers-first start and `MIGRATION_PENDING`; restore that stops and verifies the new set before starting the old; convergence judged per operation, with timers judged enabled and waiting; the rehearsal mode; the unit templates, system users and polkit rule for every first-release participant (the kernel, market, supervisor, strategy host and its timer, operator, backup and timer, `at.slice`; the observer when step 5 built it; cognition when SLICE-09 composed it); `config/live.example.yaml`; `docs/operations.md` and the Fork calls in `docs/decisions.md`.
-* **Crash points CP-R1…CP-R7** are proved by killing the installer process at each, in the rehearsal directory.
-* **Test files:** `tests/recovery/test_release_activation.py` (T-74); `tests/contracts/test_rendered_units.py` (T-77), with PRF-OPS-07 run for each unit.
+**Run.** Windows, Python 3.14 (`.venv-slice01`), plain `pytest -q -p no:cacheprovider`, affected only: the 33 files importing a changed module (with `tests/contracts/test_legacy_copier.py`, the capability and import guards) plus `tests/unit/test_market_windows.py`, twice after the last source change: 1,430 passed and 21 skipped in each run; the last source edit (the environment file created `0600` from the first byte) landed during run 1, so the files that load `scripts/isolated_work.py` (`tests/isolation/`, `tests/unit/test_telemetry.py`) ran twice more after it: 30 passed, 3 skipped, each time. Linux, on the EC2, once, in a throwaway folder `~/claude-desktop/outputs/s11e6` with its own Python 3.13 venv from `requirements.lock`, under legacy's shared test lock (`flock ~/.cache/oa-test.lock`), `nice 19`, idle I/O, **user manager only, no `sudo`**, removed afterwards (no `at-work-*` unit and no seeded name left): `tests/isolation/test_resource_storage_scope.py`, `tests/unit/test_telemetry.py`, `tests/contracts/test_legacy_copier.py`: 43 passed, 2 skipped (both need root). `ast.parse` passes on every edited Python file.
+
+**The EC2 user-manager row (the condition of sign-off), property by property.** A real unit, `systemd-run --user`, with a dummy `AT__OPENALGO__AUTH__API_KEY` seeded into the user manager (unset afterwards): the child did not see it; it could not write the protected root, could not read the key file, saw only `lo`, and had `PATH` and `AT_TEST_ROOT`. Read back:
+
+| Held (`enforced: true`) | Evidence |
+|---|---|
+| `ProtectSystem` | a write under `/usr`: `EROFS` |
+| `ReadWritePaths` | the work directory writable |
+| `InaccessiblePaths` | the protected root, the key file and `/run/credentials` all denied |
+| `PrivateNetwork` | `/sys/class/net` = `lo` |
+| `NoNewPrivileges` | `NoNewPrivs 1` (parent side) |
+| `UnsetEnvironment` | none of the four names present |
+| `MemoryMax`, `MemorySwapMax` | `memory.max` 1 572 864 000, `memory.swap.max` 0 |
+| `CPUQuota` | `cpu.max 100000 100000` (2 CPUs: half of each) |
+| `Nice`, `IOSchedulingClass`, `OOMScoreAdjust` | 19, idle, 900 |
+| `CapabilityBoundingSet` | recorded only (r7); `CapBnd` and `CapEff` read zero there anyway |
+
+**Not held, as designed:** `Slice` (`/user.slice/user-1000.slice/user@1000.service/at.slice/…`: the user manager's slice, not the system's; not enforcing while `at.slice` is not installed). Exit 0.
+
+**Not run:** the system-manager rows (root: the `EnvironmentFile=` mode, the cgroup under `/sys/fs/cgroup/at.slice/`, SLICE-13's `test_copier_lockdown_rows`): **not run, needs the owner's word** on the EC2, or a disposable host; the CI workflow (it runs on the next push); the full suite.
+
+**Break checks** (`s11e6/s11_step6_breaks.py` in the session scratchpad): 43, each failing its listed test; two fail by timing out (a blocking `put`, by design of the break); every file restored (md5).
+
+**Differences from the text above**, each smaller than a decision:
+
+| Text | As built | Why |
+|---|---|---|
+| systemd 252 on the EC2 | **systemd 257 (Debian 13)** | Read on the host. The copier would get `PrivatePIDs=yes` there, not the `/proc` fallback; the 252 set is still proved by its read-back test |
+| `supervisor.assessment_path` names a file | A directory (the supervisor's `EvidenceStore` root) | Corrected in the text above; only `ledger.path` and `market.store_path` take their parent |
+| The refused report "for the record" | Written as `<report>.refused` | So the in-unit stage, which waits for the exact report path, can never start the command |
+| The hidden-directory probe: "empty" | Empty except the first-level names of a read-only bind under it | The copier binds legacy's store inside legacy's hidden home |
+| The reserve-with-backup-disk check: each root | Each protected root on the work directory's filesystem | The work writes only there |
+| The environment file `0600` | Created `0600` from the first byte (`O_EXCL`), in a `0700` directory | No window in which another user could read it |
+| `serve_kernel` closes telemetry | Through `_serve_and_close(host)` | One testable place for the order |
+| — | `test_settings_resolver.py`'s step 4 pin of `supervisor.assessment_path`'s scope adds `work` | Step 6 widens it on purpose |
+
+**Carried:** step 7 renders the units with the allowlist and adds the sudoers rule for isolated work (open item a); the system-manager rows run with the owner's word or on a disposable host; CI's first run is on the next push.
+
+## Step 7 — the installer, units and release transitions
+
+<a id="step-7--the-installer-units-and-release-transitions-outline"></a>The authorities are the configuration spec's [release transitions](../../design/configuration-artifacts-release.md#release-transitions), [activation boundary](../../design/configuration-artifacts-release.md#the-activation-boundary), [repository files](../../design/configuration-artifacts-release.md#repository-files) and crash points CP-R1…CP-R7, the runtime spec's [installer](../../design/runtime-isolation-observability-deployment.md#installer-deployinstallpy) and [units](../../design/runtime-isolation-observability-deployment.md#units-deploysystemd), PRF-CFG-03, -05, -06, -07, -08 and PRF-OPS-07, every "Step 7" carry-in above (steps 1–6), and legacy at 445eb116. Step 7 is TASK-S11-08 and TASK-S11-09. It builds on OA_NEW `da0f9bd` (step 6). **It is reviewed before it is built:** it writes the units production will run, the root-written files (system users, the polkit rule, two sudoers rules) and the switch from one release to the next. **Nothing in this step touches a real host's units:** every command is built and tested in the rehearsal mode (a disposable directory, a fake `systemctl`, a fake root directory); staging on the production host is step 10 and waits for the owner's word.
+
+**In plain words.** This step builds the installer. It packs a release into its own folder, checks it without touching anything running, and switches to it only after the close, with no open position, no working order and nothing unsettled, checked three times as today. It stops the old processes in today's order, starts the new ones watchers first, writes down every step so a crash can be resumed or undone, and never runs old and new side by side. It also writes the service files: each program runs as its own user, sees only its own key, and keeps today's restart and kill-order settings. No trading rule, limit or threshold changes.
+
+### Decisions
+
+#### What legacy does here
+
+All at 445eb116.
+
+* **One deploy command** (`deploy/deploy_tier1.py:1978-2064`): preflight (`:1382-1397`); resources, 1024 MB memory and 2048 MB disk (`:517-543`); the boundary before anything stops (`:545-573`); the ordered stop, timers, then the session, then the rest, the authority last, recorded in `run/deploy-receipts/stopped-units.json` (`:575-604`, `:474-489`); the flat check after the stop, restarting the stopped set on refusal (`:1099-1112`, `:1471-1499`); `git` fast-forward and `pip install -e` (`:618-702`); the flat recheck (`:1424-1425`); cutover or rebind (`:1178-1232`); start, services then timers, each gateway's `MainPID` matched to a start record and its commit, retried every 3 s for 60 s (`:1265-1311`, `:1321-1348`). One receipt per step, `run/deploy-receipts/<run_id>/NN-<step>.json`, plus `summary.json` and `commands.json` (`:457-467`, `:1501-1508`). **No resume:** a rerun starts from preflight; `--restart-stopped` restarts the recorded set (`:1510-1524`). A real run refuses root and any user but the checkout's owner (`:2038-2047`).
+* **The rehearsal** (`--rehearse DIR --init`, `:1755-1828`): a shared clone, a copy of `run/` without `.env`, the units with a `.state.json`, and a `bin/systemctl` shim; `fake_systemctl` (`:1851-1963`) handles `daemon-reload`, `list-units`, `is-active`, `start`, `stop` (SIGTERM then SIGKILL to the process group), `enable`, `disable`, `show`, `reset-failed`.
+* **Units are templates** with `__REPO_DIR__`, `__APP_USER__`, `__ENV_FILE__` substituted by `sed` and written with `sudo tee`, then `daemon-reload` (`deploy/install-gateway.sh:892-904`; `deploy/deploy_tier1.py:286-301`, `:404-412`, `:914-930`); `session_unit_problems` refuses a wrong `User=`, escalating directives and `+`/`!` prefixes (`:844-875`). Envelope and kill-order drop-ins, `50-envelope.conf` and `51-oom.conf`, planned as the app user and written by root only after a key check (`deploy/unit_envelope.py:45-84`, `:201-236`; `deploy/deploy_tier1.py:1000-1083`). **Sudoers, not polkit:** narrow `stop`/`restart` rules checked with `visudo -cqf` and installed `0440` (`deploy/deploy_tier1.py:938-994`).
+* **Units** (each `User=__APP_USER__`): the authority `on-failure`, 5 s, 5 in 300 s, `TimeoutStopSec=60`, `UMask=0077`, at boot (`deploy/systemd/at-tier1-authority.service:24-25`, `:33`, `:37-39`, `:46`); the session `on-failure`, 60 s, 3 in 900 s, `OOMPolicy=stop`, by its timer (`deploy/systemd/at-strategy.service:25-26`, `:55-59`); the gateway `always`, 5 s (`deploy/systemd/mcp-gateway.service:42-43`); the monitor sweep `always`, 10 s, `Nice=19`, idle I/O, 768M/1200M (`deploy/systemd/at-monitor-v2-sweep.service:12-23`); the backup oneshot, `Nice=10`, idle I/O, its timer 11:45 UTC `Persistent=true`, enabled only when a destination is configured (`deploy/systemd/at-backup.service:21-22`, `deploy/systemd/at-backup.timer:9-11`, `deploy/install-gateway.sh:1087-1089`). Kill order in `51-oom.conf` drop-ins (`deploy/unit_envelope.py:67-84`).
+* **Release binding** gathers the code revision, config digest, unit identity, start records, SQLite runtime, schema and ledger head, and binds only when they converge (`src/tier1/release.py:54-129`).
+
+#### Layout and the installer's home
+
+* **The installer travels with the release.** `stage` copies `deploy/` (the installer and the templates) into `<release>/deploy/`, and `build_manifest(deploy_dir=…)` already records `artifact.deploy` (`install_sha256` and each template's digest; step 2, OA_NEW `operations/deployment.py:117`). Every later command runs as `<release>/venv/bin/python -I <release>/deploy/install.py`, so the installer never runs from a checkout, and `check` refuses a release whose `deploy/` files differ from `artifact.deploy` (`CFG-R06`).
+* **`release.root`** (step 2's field) holds `<release_id>/` (`venv/`, `bundle.json`, `settings.json`, `deploy/`, `units/`), the link `current` and the host log `transitions.jsonl`. `release_id` is `<UTC stamp>-<bundle_digest[:12]>`.
+* **The rehearsal** (`--rehearse DIR`): `release.root`, the unit directory, the root directory for `sysusers.d`, polkit and sudoers, and `systemctl` all point inside `DIR`; `fake_systemctl` is a port of legacy's (`deploy/deploy_tier1.py:1851-1963`), with per-unit `.state.json` holding `ActiveState`, `MainPID`, `UnitFileState` and the release that wrote the unit. A started unit runs its real command as a child process group, so identity records, `--check` and the handshakes are real. A crash hook, `AT_REHEARSAL_CRASH=<state>:<intent|done>`, kills the installer with `SIGKILL` at that record, and is refused (exit 2) outside `--rehearse`.
+
+#### Commands (`deploy/install.py`)
+
+| Command | Does | Writes to the host log |
+|---|---|---|
+| `render [--release R]` | Renders every composition participant's unit from `PARTICIPANTS` and the templates into `<release>/units/`, plus `sysusers.d/autonomous-trading.conf`, the polkit rule and the two sudoers rules; runs the render checks | No |
+| `stage --wheel W --lock L` | Resource check, then `STAGING` → `STAGED` | Yes |
+| `check --release R` | `VERIFIED_DISARMED` | Yes |
+| `activate --release R --authorized-by NAME --instruction TEXT` | `AUTHORIZED` through `CONVERGED` | Yes |
+| `resume` | Continues the last unfinished transition from its facts | Yes |
+| `restore` | Returns to the previous release | Yes |
+| `status` | The last record, `current`, each unit's release and state, each operation's availability | No |
+| `apply-root PLAN` | The one root step: writes exactly the files a rendered plan lists | Yes (as `UNITS_WRITTEN`'s facts) |
+
+Exit codes: 0 done; 2 usage; 3 refused, with the rule (`CFG-R06`, `R08`, `R09`, `R10`, `R11`, `R12`, `R13`) on standard error and in the record; 4 crashed mid-transition (resume or restore). Like legacy, a real run refuses root except `apply-root`, which refuses anything but root.
+
+#### Rendering (`deploy/install.py render`, `deploy/systemd/*`)
+
+* **Templates** for `at-kernel.service`, `at-market.service`, `at-supervisor.service`, `at-observer.service` (T-72), `at-strategy.service` and `at-strategy.timer` (T-59; SLICE-09 decides whether its `ExecCondition` and preflight stay), `at-operator.service` (SLICE-10's, re-templated to the shared placeholders), `at-backup.service` and `at-backup.timer`, and `at.slice` (step 6, T-79). Placeholders: `__RELEASE__` (`release.root/current`), `__USER__`, `__GROUPS__`, `__ENVIRONMENT__`, `__CREDENTIALS__`, `__INACCESSIBLE__`. A placeholder left after rendering refuses (legacy's `PLACEHOLDER` check, `deploy/deploy_tier1.py:286-289`).
+* **From the participant contract** (step 1): `User=` and `Group=` the participant's `user`; `SupplementaryGroups=` its `groups`; `Environment=` only `AT_PROFILE`, `AT_RELEASE`, the participant's `launcher_env` and the environment names of its in-scope path fields; `LoadCredential=` one line per secret reference of its `credential_scopes` (the profile's `credential` sources), never an `EnvironmentFile=`; every non-kernel unit gets `InaccessiblePaths=-/run/credentials/<other unit>` for every other unit and each `file` secret locator, and `ProtectProc=invisible`, except the observer (`ProtectProc=default`, step 5 carry-in).
+* **Per unit, keeping legacy's live values** (Fork calls 2, 3, 4, 6, 8; the runtime spec's table): the kernel `Restart=on-failure`, `RestartSec=60`, `StartLimitIntervalSec=900`, `StartLimitBurst=3`, `TimeoutStopSec=60`, `UMask=0077`, at boot, no memory cap, `OOMScoreAdjust=-800`, no `WatchdogSec`; the market `Restart=always`, 5 s, no cap, `-600`; the strategy host by its timer, `on-failure`, 60 s, 3 in 900 s, `OOMPolicy=stop`, `-800`, no cap; the supervisor `always`, 10 s, `Nice=19`, idle I/O, `MemoryHigh`/`MemoryMax` from `envelope.supervisor.*`, `500`, `NoNewPrivileges`; the observer `always`, 5 s, soft caps from `envelope.observer.*`, `RuntimeDirectory=at-observer`, `RuntimeDirectoryMode=0750`, group `at-observer-readers`; the operator as SLICE-10 set it, `-400`; the backup oneshot, `Nice=10`, idle I/O, `300`, `Slice=at.slice`, its timer 11:45 UTC, `RandomizedDelaySec=15min`, `Persistent=true`, **enabled only when the backup destination is bound** (legacy, `deploy/install-gateway.sh:1087-1089`). The kill order is written in the unit itself, not a drop-in.
+* **A memory cap that is unbound** (`envelope.supervisor.*`, `envelope.observer.*`) renders no cap line and is listed in `status` as `unmeasured`; it never refuses a render, so the watchers are not held back by step 9 (the owner's rule on pending evidence). The trading units carry no cap whatever the settings say.
+* **The render checks** (refuse the render, `CFG-R10`): a placeholder left; a directive outside the fixed list per unit (legacy's escalation check, `deploy/deploy_tier1.py:844-875`), including any `+` or `!` prefix, `User=root`, `AmbientCapabilities=`, `EnvironmentFile=`; **the `at.slice` allowlist** (step 6): only `at-backup.service`, the research units and transient `at-work-*`, `at-shadow-copier-*` may name `at.slice` or an `at-*.slice`; a `MemoryMax`/`MemoryHigh` on the kernel, market or strategy unit; a credential outside the participant's scopes, or a `BROKER_KEY_NAMES` name anywhere in a non-holder's unit; an `AT_` name the participant may not receive.
+* **PRF-CFG-06:** for each participant, its `--check` run with exactly the environment its rendered unit sets (parsed back from the unit text) passes, and adding a forbidden credential or an unlisted `AT_` name makes it refuse.
+* **System users** (`sysusers.d/autonomous-trading.conf`): one system user per unit-bearing participant, the groups `at-channel`, `at-operators`, `at-ledger-readers`, `at-market-readers`, `at-observer-readers`, and the memberships from `PARTICIPANTS` (step 1's `test_participants` groups).
+* **Root-written rules**, each rendered and checked line by line: the supervisor's polkit rule (`polkit_rule` in `operations/isolation.py`, step 4); a sudoers rule letting the application user run only `<release.root>/current/venv/bin/python -I <release.root>/current/deploy/install.py apply-root <release.root>/<release_id>/units/plan.json` (legacy's narrow sudoers, `deploy/deploy_tier1.py:938-994`); and step 6's open item (a): a sudoers rule letting the members of `at-operators` run only `<release.root>/current/venv/bin/python -I <release.root>/current/scripts/isolated_work.py *`, the root-owned copy step 6 requires. Both are checked with `visudo -cqf` before install, mode `0440`.
+
+#### The one root step (`apply-root PLAN`)
+
+`render` writes `units/plan.json`: every file with its target path, mode, owner and sha256. `apply-root` (as root, through the sudoers rule) refuses unless the plan sits inside a release directory under `release.root`, every file's digest matches, every target is under `/etc/systemd/system/`, `/etc/sysusers.d/`, `/etc/polkit-1/rules.d/` or `/etc/sudoers.d/` with a name starting `at-` or `autonomous-trading`, and every sudoers file passes `visudo -cqf`. It then writes each file to a temporary name and renames it, runs `systemd-sysusers` and `systemctl daemon-reload`, and starts nothing. The old units are kept: each unit file the plan replaces is first copied into the previous release's `units/installed/` (the restore set). Legacy plans as the app user and writes through checked `sudo tee` (`deploy/deploy_tier1.py:1000-1083`).
+
+#### `stage` (`STAGING` → `STAGED`)
+
+* **Resources first,** before writing anything: memory available below `install.min_memory_mb`, or free disk on `release.root` below the release's size plus `storage.critical_reserve_bytes`, refuses. **While either is unbound, legacy's 1024 MB and 2048 MB apply** (`deploy/deploy_tier1.py:517-543`; step 6's rule for legacy values until step 9). Not a money value.
+* Creates `<release_id>/`, a virtual environment, `pip install --require-hashes --no-deps -r requirements.lock` and the wheel, copies `deploy/`, writes `bundle.json` with `build_manifest` from inside the release's interpreter (step 2), and renders `units/`. Production staging refuses (`CFG-R08`) while `release.license` or any owner-only item is unbound.
+* **CP-R1:** a crash leaves a partial directory; `resume` deletes and rebuilds it; the host log keeps the attempt.
+
+#### `check` (`VERIFIED_DISARMED`)
+
+Every entrypoint's `--check` from the release, in a blank environment with no credential; `verify_loaded`; `artifact.deploy` against the staged `deploy/`; `compatible` and `validate_composition` against the live ledger, read-only (step 2); `CFG-R11` for an unrunnable live leg; **legacy's account-limits drop-in** (R-6, step 1 carry-in): the installer reads `MCP_LIMITS__*` from `at-strategy.service.d/entry-limits.conf` when present and refuses (`CFG-R08`) when the profile's `account.limits.*` differs or is unbound. `facts` records `from_revision`/`to_revision`. **The drop-in is removed only at the cutover activation (SLICE-14),** never by this step on a host where legacy runs: removing it would change legacy's live limits.
+
+#### `activate`
+
+The configuration spec's states, in order, each `intent` then `done`, `fsync`ed before and after its action.
+
+1. **`AUTHORIZED`**: `--authorized-by`, `--instruction`, the `release_id` and whether it migrates are recorded; a missing or mismatched record refuses `CFG-R12`.
+2. **`BOUNDARY_QUIET`**: `boundary(eff, now) -> list[str]` in `src/autonomous_trading/operations/activation.py` (new, T-105), every reason refusing `CFG-R13 boundary_not_quiet`, for each bound account:
+   * **the calendar** from the market store's calendar port (`market/view.py:985`): `Holiday`, or a `TradingDay` whose `close_time` is past, is closed; a `DayUnavailable` refuses (unknown refuses, legacy's `src/tier1/cutover.py:171-172`), and so does a `TradingDay` not yet closed;
+   * **the broker** through the observation route (`ObserverBooks`, step 5; or the native read-only route when proved), one read of positions and orders inside the account's read budget: a non-zero position or a working order refuses (`:173-181`);
+   * **the ledger** through `LedgerReader` (step 4), read-only: an unresolved attempt, a command `IN_FLIGHT`, `UNCERTAIN` or `WORKING`, or a held reservation refuses (`:186-202`).
+3. **`STOPPING` → `STOPPED`**: the actors only, in legacy's order (`deploy/deploy_tier1.py:585-594`): timers, the strategy host, the operator relay, the market process, the kernel last. The stopped set is written before each stop. The observers keep running.
+4. **`QUIET_AFTER_STOP`**: `boundary` again; a refusal restarts the recorded set on the unchanged release (legacy's `restore_after_flat`, `:1471-1499`) and ends `FAILED`.
+5. **`OLD_WRITER_GONE`**: the old kernel unit is `inactive` with `MainPID=0` and no process left in its cgroup, and each bound account's lease reads released `clean` by the old epoch (`LeaseStore.read`, `kernel/recovery.py:38-43`). **A legacy sender counts:** any running legacy unit that sends (`at-tier1-authority.service`, `mcp-gateway*.service`) refuses here, so this step can never activate beside legacy; the legacy-to-target cutover is SLICE-14's.
+6. **`UNITS_WRITTEN`**: `apply-root` with the release's plan; nothing started.
+7. **`QUIET_BEFORE_SWITCH`**: `boundary` once more (`:1424-1425`).
+8. **`SWITCHED`**: the old observers are stopped; `current` is replaced by one `rename(2)` of a new link over the old.
+9. **`OBSERVERS_STARTED`**, **`MARKET_STARTED`**: each started and verified before the next: its unit `active`, its identity record (`_write_identity` in `operations/deployment.py`) from its own `MainPID` naming this `bundle_digest` and its `settings.revision` (legacy's PID match, `:1321-1348`, retried every 3 s for 60 s, `:521`), its handshake passed; the supervisor has published one assessment.
+10. **`MIGRATION_PENDING`** (only when the release migrates), then **`KERNEL_STARTED`**: `facts` records the stored schema revision after recovery, and `MIGRATED` when it rose.
+11. **`STARTED`**: the strategy host's timer, the operator relay, the backup timer (when its destination is bound).
+12. **`CONVERGED`**, per operation (trading, protection, observation, owner commands, backup): each long-running required participant's identity record matches its `MainPID`, the bundle and the revision; the kernel recorded `RELEASE_BOUND` with this bundle; each timer `enabled` and waiting. `facts` lists each operation available or not, naming the missing participant.
+
+**First install** (no `current`): the stop states are recorded `skipped: no running release`; every boundary check still runs.
+
+#### `resume` and `restore`
+
+* **`resume`** reads the last record and re-reads the facts (which release `current` names, which units run and from which release's unit file, which identity records exist, the stored schema revision), never inferring success from the link or a process. It continues from the first state whose facts are not met. CP-R1…CP-R7 as the configuration spec's table.
+* **`restore`**: (1) stop every unit of the new set and verify each `inactive` with no process; (2) put back the previous release's `units/installed/` set through `apply-root`, reload, put back the old link; (3) start the old set: observers, market, kernel, the rest; judge convergence. Before `SWITCHED`, only (3) for the stopped actors. After `MIGRATED`, refused unless the old bundle is still `compatible` (`CFG-R09`). **No step starts a unit of one set while a unit of the other runs** (a check before every start).
+
+#### `config/live.example.yaml` and documents
+
+* **`config/live.example.yaml`** completed, with every refusing field `null` and a comment naming its register row: `profile: production`; the `interfaces.*` session values; every Q-answer binding; `policies` carrying legacy's bound values (step 3 carry-in); **the drop-in's nine account limits** (R-5, legacy's live values `deploy/systemd/at-strategy-entry-limits.conf:2-11`); the MCP profiles' `process` sections with `{"mcp:*": ["*"]}` and only the read-only profile enabled; the console's `OWNER_API_URL`, `MCP_GATEWAY_URL`, uid and headers; `operator.playbooks`; `isolation.key_files` naming legacy's key files and `isolation.hidden_roots` legacy's home. No credential.
+* **`docs/operations.md`**: releases, resume, restore, the activation boundary, the owner-only items, the sudoers rules, and keeping OpenAlgo's access log from recording query strings. **`docs/decisions.md`**: each Fork call of this slice.
+
+#### Fork calls in this step
+
+* **1. When a release may be activated:** legacy's list at three points, plus `OLD_WRITER_GONE` (the slice's table).
+* **2, 3, 4, 6, 8:** rendered with legacy's values (the slice's table): pass cadence settings, restart 60 s and 3 in 900 s, no watchdog, uncapped trading units with legacy's kill order, the market process holding the account's key.
+* **Staging resources:** legacy's 1024 MB and 2048 MB until step 9 binds them. Not money.
+
+#### Deviations in this step
+
+* **A release directory and one link,** not a checkout and `pip install -e` (the slice's Deviation).
+* **Resume from facts:** legacy has none; a rerun started over (`deploy/deploy_tier1.py:1401-1469`).
+* **Per-unit users, `LoadCredential=` and no shared settings file** (the slice's Deviation); **polkit for the supervisor's one right**, sudoers for the installer's root step and for isolated work.
+* **No `--accept-unsettled`** (the slice's Deviation).
+* **The kill order lives in the unit,** not in a `51-oom.conf` drop-in.
+
+#### Open for review
+
+* **(a) The legacy drop-in (R-6):** read and compared at `check` here; removed only at SLICE-14's cutover. Confirm that split.
+* **(b) The `at` commands** carried from step 1 (`install`, `update`, `restart`, `deploy`, `config`, `approver`): proposed as thin wrappers over `deploy/install.py` added by SLICE-10's owner, not built here.
+* **(c) The isolated-work sudoers rule** gives `at-operators` root-run isolated work through the root-owned copy only; any narrower rule is the owner's.
+* **(d) The EC2 runs systemd 257 (Debian 13)** (step 6 as built): `LoadCredential=`, `ProtectProc=` and `PrivatePIDs=` are available; step 10 records it formally.
+
+### Tests
+
+**`tests/contracts/test_rendered_units.py`** (T-77; PRF-CFG-06, PRF-OPS-07):
+
+| Group | Cases |
+|---|---|
+| From the contract | Every unit-bearing participant renders; `User=`, `Group=`, `SupplementaryGroups=` as `PARTICIPANTS`; `Environment=` only the allowed names; `LoadCredential=` only its scopes' references; no `EnvironmentFile=` anywhere |
+| Credentials | Every non-kernel unit has `InaccessiblePaths=` over every other unit's credential directory and file, and `ProtectProc=invisible` (the observer `default`); no `BROKER_KEY_NAMES` name in a non-holder's unit |
+| Legacy's values | Each unit's restart, start mode, stop timeout, `UMask`, kill order and caps as the table; the kernel, market and strategy units carry no `MemoryMax` or `MemoryHigh` whatever the settings; an unbound watcher cap renders no line |
+| Render checks | A leftover placeholder, an extra directive, a `+` prefix, `User=root`, an `EnvironmentFile=`, a trading unit naming `at.slice` or `at-x.slice`, a forbidden credential, an unlisted `AT_` name → each refused alone |
+| `--check` with the rendered environment | Each participant's `--check` passes with exactly its unit's environment; plus one forbidden credential, or one unlisted `AT_` name → refused |
+| Root files | `sysusers.d` names one user per unit and the five groups with `PARTICIPANTS`' memberships; the polkit rule is `polkit_rule("at-supervisor")`; both sudoers files name one exact command each and pass `visudo -cqf` (Linux with `visudo`, else skipped) |
+| Linux, rehearsal with real users (root on a disposable host; on the EC2 only on the owner's word) | Each non-kernel unit, started under its own user, cannot read the kernel's credential or another process's environment; the two-uid supervisor and observer case: four reads answered, the supervisor cannot read the observer's credential (PRF-DOM-06's Linux unit half, PRF-PRT-14's Linux half) |
+
+**`tests/recovery/test_release_activation.py`** (T-74; PRF-CFG-03, -05, -07, -08), all in `--rehearse` directories:
+
+| Group | Cases |
+|---|---|
+| A profile edit (PRF-CFG-03) | Edited under a running kernel subprocess: its heartbeat `settings_revision` and `RELEASE_BOUND` unchanged; a restart picks the new value |
+| Crash points | `AT_REHEARSAL_CRASH` at each of CP-R1…CP-R7 kills the installer; `resume` reaches `CONVERGED` from the facts; `restore` returns to the old release where the table allows it; a deleted release directory leaves `transitions.jsonl` intact; the hook outside `--rehearse` → exit 2 |
+| Restore | After `SWITCHED`: every new unit stopped and verified with no process before any old unit starts; the old unit set back; after `MIGRATED` → `CFG-R09` |
+| Order | The observers start and publish (identity, handshake, one assessment) before the market process and the kernel; the actors stop timers first, the kernel last; at no instant do units of two releases run together (the fake `systemctl` asserts it) |
+| Convergence | `CONVERGED` with the backup timer enabled and its service idle; each operation's availability; a participant whose identity record names another bundle or a stale pid → not converged |
+| Rollback (PRF-CFG-05) | Refused for an older migration revision and for an unread `(kind, version)`; allowed for a compatible older bundle; no database replaced; a staging failure at each step leaves `current` and the running units unchanged |
+| Composition (PRF-CFG-07) | The first-release composition with every deferred participant absent activates; removing a required one → `CFG-R10`; an optional one → activates; an unrunnable live leg → `CFG-R11` |
+| Boundary (PRF-CFG-08) | No authorization → `CFG-R12`; each alone → `CFG-R13`: the calendar unknown, a trading day not closed, an open position, a working order, an unresolved attempt, a command `IN_FLIGHT`/`UNCERTAIN`/`WORKING`, a held reservation; a position appearing during the stop → refused at `QUIET_AFTER_STOP` and the stopped set restarted on the old release; the old kernel still running, a lease not released `clean`, or a legacy sender unit active → refused at `OLD_WRITER_GONE`; a position before the switch → `QUIET_BEFORE_SWITCH`; an unbound owner-only item → `CFG-R08` |
+| Staging | Memory or disk below the bound values, or legacy's 1024 MB/2048 MB while unbound → refused before anything is written; a `deploy/` file changed after staging → `CFG-R06` at `check`; the legacy drop-in with a differing value → `CFG-R08` at `check`, and the drop-in file untouched |
+| `apply-root` | Refuses a plan outside `release.root`, a digest mismatch, a target outside the four directories or without the `at-`/`autonomous-trading` prefix, a sudoers file failing `visudo`; writes nothing on refusal; starts nothing on success |
+
+**Changed existing:** `tests/contracts/test_installed_artifact.py` (`artifact.deploy` now names `install.py` and the templates); `tests/unit/test_settings_resolver.py` only if a field is added.
+
+### Break checks
+
+| Change | Test that must fail |
+|---|---|
+| The renderer adds `EnvironmentFile=` | From the contract |
+| The observer gets `ProtectProc=invisible`, or the supervisor `default` | Credentials |
+| A non-kernel unit loses one other unit's `InaccessiblePaths=` entry | Credentials |
+| The kernel unit renders `MemoryMax` from a bound setting | Legacy's values |
+| The kernel's `RestartSec` becomes 5 | Legacy's values |
+| The allowlist lets `at-supervisor.service` name `at.slice` | Render checks |
+| `--check` ignores an unlisted `AT_` name | `--check` with the rendered environment |
+| `activate` skips `QUIET_AFTER_STOP` | Boundary (position during the stop) |
+| A post-stop refusal leaves the actors stopped | Boundary (stopped set restarted) |
+| `OLD_WRITER_GONE` ignores a running legacy sender | Boundary |
+| `boundary` treats `DayUnavailable` as closed | Boundary (calendar unknown) |
+| `resume` trusts the `current` link | Crash points |
+| `restore` starts an old unit before every new unit is verified stopped | Restore; Order |
+| The kernel starts before the observers publish | Order |
+| `CONVERGED` without the identity record's pid match | Convergence |
+| `stage` writes before the resource check | Staging |
+| `apply-root` accepts a target outside its four directories | `apply-root` |
+| The crash hook honoured outside `--rehearse` | Crash points |
+| `check` removes the legacy drop-in | Staging |
+
+### Files
+
+| File | Change |
+|---|---|
+| `deploy/install.py` | New: every command, the host log, the rehearsal, `fake_systemctl`, `apply-root` |
+| `deploy/systemd/at-kernel.service`, `at-market.service`, `at-supervisor.service`, `at-observer.service` (T-72), `at-strategy.service` and `.timer` (T-59), `at-backup.service` and `.timer` | New templates |
+| `deploy/systemd/at-operator.service` | Re-templated to the shared placeholders |
+| `src/autonomous_trading/operations/activation.py` | New: `boundary`, the state names, convergence per operation |
+| `config/live.example.yaml` | Completed as above |
+| `docs/operations.md`, `docs/decisions.md` | Releases and the Fork calls |
+| `tests/contracts/test_rendered_units.py` (T-77), `tests/recovery/test_release_activation.py` (T-74) | New |
+| `tests/contracts/test_installed_artifact.py` | `artifact.deploy` |
+
+### Completion conditions (step 7)
+
+* The new tests and every test file importing a changed module, plus the layering and import guards, pass twice on Windows (Linux-only rows skipped with their reason). No full suite.
+* The rehearsal rows that need Linux and no root run once on the EC2 in a throwaway folder under `~/claude-desktop/outputs`, user manager only, removed afterwards. The rows that need root (real system users, `apply-root`, the two-uid case) run on a disposable Linux host, or are recorded "not run: needs the owner's word" for the EC2.
+* Every break check fails a listed test; every file restored (md5).
+* PRF-CFG-03, -05, -06, -07, -08 and PRF-OPS-07 pass in the rehearsal. **Nothing is installed on any real host;** step 10 stages on the production host with the owner's word.
 
 ## Step 8 — recovery set, backup, restore and the lease store, off production (outline)
 

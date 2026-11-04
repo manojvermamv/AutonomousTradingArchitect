@@ -201,14 +201,15 @@ At 10:05 an unexpected exception escapes a pass. The host stops dispatch and exi
 
 ### Isolated work (`scripts/isolated_work.py`, `scripts/safe_tests.py`)
 
-* **`scripts/isolated_work.py -- <command>`** runs a command in a transient unit (`systemd-run --user`, or the system manager on a production host) with:
+* **`scripts/isolated_work.py -- <command>`** runs a command in a transient unit (the system manager with a non-root `User=` where `at.slice` is installed, otherwise the caller's user manager; never as root) with:
   * `Slice=at.slice`;
   * `ProtectSystem=strict`, `ReadWritePaths=` its own work directory only, `InaccessiblePaths=` every authoritative, required-evidence and credential root of the host's composition (read from the profile);
   * `PrivateNetwork=yes` unless the work declares a network need;
-  * an environment with every credential name in the participant contract removed;
+  * an environment with every credential name in the participant contract removed, passed to the unit explicitly (`--setenv`), and every credential name unset from the manager's environment (`UnsetEnvironment=`);
+  * `CapabilityBoundingSet=` (empty), legacy's home hidden (`TemporaryFileSystem=`), and legacy's per-run caps (`MemoryMax=1500M`, `MemorySwapMax=0`, half the CPUs; `scripts/safe_pytest.py:177-180`, `:237`);
   * `Nice=19`, `IOSchedulingClass=idle`, `OOMScoreAdjust=900`, as legacy's research units (`deploy/unit_envelope.py:82-83`).
-* **It reports what it enforced.** On a host without a user manager or namespaces (a developer's laptop, Windows), it runs the command with the checks it can make and records `enforced: false` for each property it could not apply; it never claims isolation it did not get (`README.md:1270`). Legacy only warned (`scripts/safe_pytest.py:280-285`).
-* **`scripts/safe_tests.py`** keeps its SLICE-01 rules (no broker variables, the lock, the memory check, the on-disk temporary root, low priority, `-p no:cacheprovider`, the launcher's `--basetemp` last; OA_NEW `scripts/safe_tests.py:52-80`) and runs pytest through `isolated_work.py` where it can. **No calendar check:** an isolated run proceeds at any time (`README.md:1269`; POL-051). **Deviation (from legacy):** legacy refused the live checkout in session (`scripts/safe_pytest.py:147-153`); the target's guarantee is the isolation itself.
+* **It reports what it enforced,** from `systemctl show` normalised per property and a probe from inside the unit, before the command starts. On Linux it refuses when an enforcing property cannot be applied, as legacy refused when it could not protect storage (`scripts/safe_pytest.py:296-303`); only Windows runs the command directly, recording `enforced: false` for every property. It never claims isolation it did not get (A09-F3, `README.md:409`). The detail is SLICE-11 step 6.
+* **`scripts/safe_tests.py`** keeps its SLICE-01 rules (no broker variables, the lock, the memory check, the on-disk temporary root, low priority, `-p no:cacheprovider`, the launcher's `--basetemp` last; OA_NEW `scripts/safe_tests.py:52-80`) and runs pytest through `isolated_work.py` where it can. **No calendar check:** an isolated run proceeds at any time (`README.md:1292`, `README.md:82`; POL-051). **Deviation (from legacy):** legacy refused the live checkout in session (`scripts/safe_pytest.py:147-153`); the target's guarantee is the isolation itself.
 
 ### Telemetry (`operations/telemetry.py`)
 
