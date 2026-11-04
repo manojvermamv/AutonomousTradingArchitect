@@ -129,7 +129,8 @@ All times are IST (`Asia/Kolkata`). The NSE F&O calendar in the examples opens a
 
 * trading: `entry`, `cancel`, `modify`, `close`;
 * safety controls: `kill_engage`, `kill_release`, `hold_engage`, `hold_release`, `latch_unlock`, `pause_clear`. `kill_release`, `latch_unlock`, `pause_clear`, and the cancel and close permitted under kill, may be held by the owner **and** by delegated human principals holding the named grant ([Q-014 answer](../decisions/owner-answers-2026-10-27.md); it supersedes the "authenticated owner" wording of POL-002 and POL-004). Kernel and service principals never hold them;
-* administration: `binding_authorize`, `grant_admin`, `recovery_advance`, `attempt_resolve`.
+* administration: `binding_authorize`, `grant_admin`, `recovery_advance`, `attempt_resolve`;
+* research (SLICE-12 step 6): `promotion_record` (the day's promotion receipt), `promotion_approve` (the research service's automatic approval, accepted only where the owner switched the candidate's family to `automatic_when_bar_passes` and the record is on the real broker track) and `custody_witness` (the research custody chain's witness). A service principal may hold these three besides the trading actions. The operator operations gain `promotion_record`, `promotion_verify` and `promotion_mode_set`.
 
 `attempt_resolve` lets a human principal resolve a timed-out entry place that has no broker ID and no verified client tag, by a recorded action naming the broker order or attesting that none exists ([Q-007 answer](../decisions/owner-answers-2026-10-27.md); [execution-domain spec](execution-domain-and-observations.md#reconciliation-kernelreconciliationpy)). It is used only if TASK-S07-05 finds that no place field round-trips as a tag.
 
@@ -175,7 +176,7 @@ Revocation affects only queued, unattempted work. It never retracts an effect al
 
 #### Standing bindings
 
-An actor holding `binding_authorize` records `BINDING_AUTHORIZED`: scope, policy binding ID, candidate IDs, and an inclusive range of trading dates. It is recorded once per binding change, not daily, and ended by `BINDING_REVOKED`. For a scope and date, the binding that applies is the **latest** unrevoked `BINDING_AUTHORIZED` whose range covers the date (index table `standing_binding`, keyed by `binding_id`, with scope, range and `revoked_sequence`).
+An actor holding `binding_authorize` records `BINDING_AUTHORIZED`: scope, policy binding ID, candidate IDs, an inclusive range of trading dates, and (SLICE-12 step 6) two mappings keyed by exactly the candidate IDs: `requires_promotion` (`{candidate_id: bool}`) and `families` (`{candidate_id: family}`, a promotion family or `""`). The authorizer writes them from the registry row (a `model` decision method with `plan` or `trade` authority needs promotion, legacy `host_lifecycle.py:220-226`) and the candidate bundle's family; the kernel trusts them, never a value inside a promotion record. A binding built without them carries `{}` for both, and a `BINDING_AUTHORIZED` recorded before SLICE-12 has neither key: both read as every candidate `false` and `""` (**Deviation**: no model-driven candidate can have been bound before SLICE-12). The `standing_binding` and `session` rows store them in `TEXT NOT NULL DEFAULT '{}'` columns (migration 9); a `NULL`, empty or unparsable value reads as `false` / `""`. `validate_binding` returns them in `BindingRef`, and `SESSION_OPENED` copies them. It is recorded once per binding change, not daily, and ended by `BINDING_REVOKED`. For a scope and date, the binding that applies is the **latest** unrevoked `BINDING_AUTHORIZED` whose range covers the date (index table `standing_binding`, keyed by `binding_id`, with scope, range and `revoked_sequence`).
 
 * A session's binding is fixed when `SESSION_OPENED` is recorded, so a standing binding recorded while a session is open applies from the next `SESSION_OPENED` (REQ-SES-011).
 * **The session's binding is the only source** that consumers use. Admission checks that the intent's candidate is in the session's `candidate_ids` and that the application's policy version is the session's `policy_binding_id` ([intent spec](intent-to-admission.md#admission-kerneladmissionpy)); dispatch compares against the same.
@@ -207,10 +208,14 @@ Times are exchange-domain timestamps in the calendar's timezone (IST for NSE), c
 
 | Event | Decided by | Payload | Index effect |
 |---|---|---|---|
-| `BINDING_AUTHORIZED` | `kernel.authority` | `binding_id`, `scope`, `policy_binding_id`, `candidate_ids`, `first_date`, `last_date`, `principal` | `standing_binding` |
+| `BINDING_AUTHORIZED` | `kernel.authority` | `binding_id`, `scope`, `policy_binding_id`, `candidate_ids`, `first_date`, `last_date`, `requires_promotion`, `families`, `principal` (the two mappings since SLICE-12 step 6; an earlier event folds as `{}`) | `standing_binding` |
 | `BINDING_REVOKED` | `kernel.authority` | `binding_id`, `principal`, `reason` | `standing_binding` |
 | `GRANT_ISSUED` / `GRANT_REVOKED` | `kernel.authority` (a revocation with reason `restore_unverified` has principal `kernel:recovery`) | the `Grant` fields / `grant_id`, `principal`, `reason` | `grant` |
-| `SESSION_OPENED` | `kernel.lifecycle` | `session_id`, `scope`, `trading_date`, `calendar_version`, `open_time`, `close_time`, `opened_at`, `binding_id`, `policy_binding_id`, `candidate_ids` | `session` |
+| `SESSION_OPENED` | `kernel.lifecycle` | `session_id`, `scope`, `trading_date`, `calendar_version`, `open_time`, `close_time`, `opened_at`, `binding_id`, `policy_binding_id`, `candidate_ids`, `requires_promotion`, `families` (the binding's, as written; an earlier event folds as `{}`) | `session` |
+| `PROMOTION_RECORDED` | `kernel.authority.promotion_record` (the owner, or a service holding `promotion_record`, in `OPERATING`) | `binding_id`, `candidate_id`, `family`, `trading_date`, `record_digest`, `evidence_track`, `reviewer`, `recorder` (the caller) | `promotion_record` |
+| `PROMOTION_VERIFIED` | `kernel.authority.promotion_verify` (the owner over the owner credential; or the research service holding `promotion_approve`, only on the real broker track in a family in `automatic_when_bar_passes`) | `approval_id`, `binding_id`, `candidate_id`, `family` (the binding's), `record_digest`, `approver` (the caller), `approval_path` (`owner`, `automatic`), `reason` | `promotion_approval` (one per binding and candidate) |
+| `PROMOTION_MODE_SET` | `kernel.authority.set_promotion_mode` (the owner only) | `family`, `from`, `to`, `principal`, `reason` | `promotion_mode` |
+| `CUSTODY_WITNESSED` | `kernel.authority.custody_witness` (a service holding `custody_witness`) | `authority_id`, `sequence`, `event_hash`, `kind` | `custody_witness` |
 | `SESSION_CLOSED` | `kernel.lifecycle` | `session_id`, `reason`, `closed_at` | `session` |
 | `SESSION_OPEN_FAILED` | `kernel.lifecycle` | `scope`, `trading_date`, `reason` (`calendar_unavailable`, `holiday`, `SES-R08`, `continuity`) | none |
 | `RECOVERY_STAGE` | `kernel.recovery` | `from`, `to` (`OPERATING`, or `null` for a declined routine advance; `INSPECTING → RECOVERY_WRITING` is recorded by `EPOCH_ACTIVATED`), `principal`, `basis` (`human` or `routine_standing`), `release_binding_digest` (the `RELEASE_BOUND` receipt digest for a routine advance; `null` otherwise), `declined` (the failed routine check numbers, for `to` `null`), `unverified` (items for the human who advances), `leases` (accounts whose send lease was taken) | none |
@@ -220,7 +225,7 @@ Times are exchange-domain timestamps in the calendar's timezone (IST for NSE), c
 
 `RECOVERY_ADVANCED` is the `RECOVERY_STAGE` record whose `to` is `OPERATING`.
 
-**`session` index table:** `session_id` (PK), `account`, `calendar_id`, `trading_date`, `state`, `binding_id`, `policy_binding_id`, `candidate_ids`, `close_time`, `opened_sequence`, `closed_sequence`. A partial unique index on (`account`, `calendar_id`) where `state = 'OPEN'` enforces I-S1. Exact DDL is written in the SLICE-03 slice file when that slice starts.
+**`session` index table:** `session_id` (PK), `account`, `calendar_id`, `trading_date`, `state`, `binding_id`, `policy_binding_id`, `candidate_ids`, `close_time`, `opened_sequence`, `closed_sequence`, and since migration 9 `requires_promotion` and `families`. A partial unique index on (`account`, `calendar_id`) where `state = 'OPEN'` enforces I-S1. Exact DDL is written in the SLICE-03 slice file when that slice starts.
 
 #### What a session close does and does not change
 
@@ -371,8 +376,15 @@ Restrictions can be added while recovering; permissions are widened only in `OPE
 | `SES-R08` (`binding_not_authorized`) | No standing binding covers the scope and date | `validate_binding`, at session open |
 | `SES-R09` (`recovery_stage`) | The current stage forbids the action | `authority.check` |
 | `SES-R10` (`lease_held`) | Another holder has an unexpired send lease for the account, and no fence names it | the send lease |
+| `SES-R11` (`promotion_record_invalid`) | The record's bytes are not canonical `PromotionRecord/v1` (`resources/candidates.schema.json`, an exact key set), or its gate is not eligible or its bar not passed | `promotion_record` |
+| `SES-R12` (`promotion_scope`) | The binding is missing or revoked; the candidate is not in it or not flagged; the record's family is not the binding's for it; the scope's account or calendar differs; the date is outside the binding's range or is not the kernel's exchange date (IST, from the calendar port; refused when none is composed); or, for an approval, no such record, or another record already approved for the binding and candidate | `promotion_record`, `promotion_verify` |
+| `SES-R13` (`approver_not_permitted`) | The caller may not approve this record (any non-owner human; the research service on the estimated track, or in a family not in `automatic_when_bar_passes`), or may not switch a mode (anyone but the owner) | `promotion_verify`, `set_promotion_mode` |
+| `SES-R14` (`mode_switch_invalid`) | Unknown family or mode, an empty reason, or a switch to the current mode | `set_promotion_mode` |
+| `SES-R15` (`witness_regressed`) | A custody witness at a lower sequence, or the same sequence with another hash, than the one stored (**Deviation**) | `custody_witness` |
 
 `SES-R06` is unused (its earlier meaning moved to the ledger's `LED-R07`).
+
+**Promotion (SLICE-12 step 6).** Two acts, as legacy: the day's receipt (`PROMOTION_RECORDED`, any named reviewer, same exchange date) and the owner's approval for the binding (`PROMOTION_VERIFIED`, valid for every date of the binding). Admission check A3 needs both for a flagged candidate; each counts for every entry admitted after it is recorded, after the open and after a restart (slice Fork call 11). The same bytes again, or the same approval, return `Replayed` and write nothing (`request_id` `None` for a service). `ACTIONS_PER_STAGE["OPERATING"]` gains `promotion_record`, `promotion_verify`, `promotion_approve`, `promotion_mode_set` and `custody_witness`.
 
 ## Failure modes and crash points
 

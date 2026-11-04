@@ -238,7 +238,7 @@ Each stage stops at its first failed check. Every refusal of every verb is recor
 | A1 | Well-formed; command key present; for an entry, the intent resolves, does not abstain, and its `session_id` equals the request's | all | `ADM-R01` (`malformed_request`), `LED-R01` |
 | A1a | Command identity: same key and digest returns the existing state; different digest refused; a key with no row continues | all | `LED-R02` |
 | A2 | Grant: `authority.check(verb, principal, account)` | all | `SES-R01` … `SES-R05`, `SES-R09` |
-| A3 | The request's session is the `OPEN` session for the account and the calendar of the intent's underlying, and the intent's candidate is in that session's `candidate_ids` (a revoked binding refuses new entries from its ledger sequence: `binding.revocation_effect: stop_entries`, [Q-010 answer](../decisions/owner-answers-2026-10-27.md)) | entry | `SES-R07`; `ADM-R14` (`candidate_not_bound`) |
+| A3 | The request's session is the `OPEN` session for the account and the calendar of the intent's underlying, and the intent's candidate is in that session's `candidate_ids` (a revoked binding refuses new entries from its ledger sequence: `binding.revocation_effect: stop_entries`, [Q-010 answer](../decisions/owner-answers-2026-10-27.md)). Then, unless `promotion.enforce` is false, a candidate the session flags `requires_promotion` needs a `promotion_approval` row for the session's binding and a `promotion_record` row for the session's binding and date (SLICE-12 step 6; legacy `host_lifecycle.py:167-184`, `:200-227`). Entries only: cancels, modifies, closes and protective actions never meet it | entry | `SES-R07`; `ADM-R14` (`candidate_not_bound`); `ADM-R16` (`candidate_not_promoted`) |
 | A4 | Safety matrix for this verb and actor | all | `PRT-R06`, `PRT-R01`, `PRT-R04`, `PRT-R03` |
 | A5 | Review application is `proceed` or `proceed_unavailable` | entry | `ADM-R11` (`not_eligible`), `ADM-R15` (`review_pending`) |
 
@@ -324,6 +324,7 @@ Stage B commits `COMMAND_ADMITTED` with the normalized request, the plan, the ap
 | `ADM-R13` (`plan_refused`) | The planner refused; stage and reason recorded |
 | `ADM-R14` (`candidate_not_bound`) | The intent's candidate is not in the session's binding |
 | `ADM-R15` (`review_pending`) | A required review is not yet recorded and its deadline has not passed; returned without a record |
+| `ADM-R16` (`candidate_not_promoted`) | The session flags the candidate `requires_promotion` and it lacks the binding's approval or the date's promotion record (SLICE-12 step 6); recorded as every A3 refusal |
 
 Codes not listed (`R02`–`R04`, `R06`, `R08`) are unused.
 
