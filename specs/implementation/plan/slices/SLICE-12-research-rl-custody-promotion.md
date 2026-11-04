@@ -1025,17 +1025,242 @@ Commit `fa533d8` on `slice-12`, on top of `ce5f08d` (step 4). It adds the `rl` p
 
 **Tests run (Windows, targeted only):** `tests/unit/test_rl_research.py`, `tests/unit/test_candidate_freeze.py`, `tests/integration/test_research_worker.py`, `tests/integration/test_shared_engine.py`, `tests/unit/test_promotion_gate.py`, `tests/unit/test_dataset_fitting.py`, `tests/contracts/`, `tests/unit/test_market_windows.py` and `tests/unit/test_canvas_causality.py`: 338 passed, 8 skipped, twice in a row. The `slow` case is **not checked**: the `rl` extra is not installed (disk C: had about 2 GB free). `ast.parse` passes on every edited file.
 
-## Step 6 — promotion and the kernel's checks (outline)
+## Step 6 — promotion and the kernel's checks
 
-Deepened after step 4 and SLICE-09 step 1 are built. The spec's [Promotion and the kernel's check](../../design/research-rl-custody-promotion.md#promotion-and-the-kernels-check-researchpromotionpy) and the witness in [Custody](../../design/research-rl-custody-promotion.md#custody-researchcustodypy). Builds the record, recording, the bar and automatic-mode submission; the schema; and, in the kernel, `requires_promotion` in the binding, `promotion_verify` (publication to the evidence store, then `PROMOTION_VERIFIED` with the caller as approver), `PROMOTION_MODE_SET`, `CUSTODY_WITNESSED` and the admission check against the session's opening sequence, with the integration edits named in Excluded. Test: `tests/integration/test_custody_promotion.py` in a simulation composition with the SLICE-03 and SLICE-04 kernel as built and in-test principals, covering `README.md:879`, `:1238` and `:1245`; CP-R11 and CP-R12; the witness rows of `tests/recovery/test_restore_fencing.py`. Break checks include: letting an approval recorded after `SESSION_OPENED` serve that session; taking the approver from the record bytes; letting a delegated human or the service approve an estimated-track record; refusing BuyerEdge; switching a mode as a non-owner.
+<a id="step-6--promotion-and-the-kernels-checks-outline"></a>
 
-## Step 7 — memory and reflection (outline)
+The authorities are the spec's [Promotion and the kernel's check](../../design/research-rl-custody-promotion.md#promotion-and-the-kernels-check-researchpromotionpy), the witness bullet of [Custody](../../design/research-rl-custody-promotion.md#custody-researchcustodypy), PRF-RES-12, PRF-RES-02 rows CP-R11 and CP-R12, and the witness rows of PRF-RES-03. Step 6 is TASK-S12-06. It builds on step 5 as built (`fa533d8`), step 4's `research/evaluation.py` (`bar`, `evaluate_gate`, `_frozen_rule_parameters`, `evaluation_identity`, `select_track`, `current_acceptance_rule`, `validate_locked_evaluation`), step 1's `CustodyWitness` port, `Witnessed` and `WitnessClient`, SLICE-03's bindings and grants (`kernel/authority.py`), SLICE-04's admission check A3 (`kernel/admission.py` `_a3`, `kernel/lifecycle.py` `entry_session_check`, `ADM-R14 candidate_not_bound`), and SLICE-09 step 1's `decision_method` and `authority` on registrations (`strategies/registry.py`). A decision that leans on a detail not re-read here is marked **(re-check at build)**. Every legacy citation is at 445eb116: `promotion.py` and `promotion_bar.py` are under `src/runtime/advisor/`; `evidence.py` is `src/core/governance/evidence.py`; `host_lifecycle.py` is `src/runtime/strategy_host/lifecycle.py` and `host_registry.py` is `src/runtime/strategy_host/registry.py`; `activation.py` is `src/authoring/capabilities/candidate_activation.py`; `approval.py` is `src/authoring/capabilities/promotion_approval.py`; `session_config.py` is `src/runtime/session_config.py`; `defaults.yaml` is `config/defaults.yaml`. Every value below is synthetic or legacy's own rule applied by hand; no production record was read.
 
-May be built in parallel after step 2. The spec's [Memory and reflection](../../design/research-rl-custody-promotion.md#memory-and-reflection-cognitionmemorypy-cognitionreflectionpy). Builds the partitions, episodes with legacy's settlement rule, scoped recall and its cache key, and reflection's proposals through the job port. Test file: `tests/unit/test_cognition_memory.py` (**T-82**). Break checks include: returning an episode before its settlement instant; a cache hit across scopes; a reflection that writes a setting.
+**In plain words.** This step lets a model-driven candidate trade only after an approved promotion for that exact trading day, approved before the market opens. Research writes the promotion record (the evidence claim), with the old system's checks and the old pass bar. The approval itself happens in the kernel: the kernel records who called it, never a name written inside the record. The owner alone approves estimated-evidence records and every family left in owner-approval mode; the research service may approve only in a family the owner has switched to automatic. The kernel then refuses entries from a flagged candidate with no approval recorded before that session opened. BuyerEdge is a rule strategy, flagged "no promotion needed", and meets none of this. The kernel also keeps a witness of the research custody chain, so an old backup of the research files cannot make spent exam days fresh again. No gate value, bar value or limit is set here.
 
-## Step 8 — the boundary (outline)
+### Decisions
 
-Extends `tests/contracts/test_capabilities.py` with PRF-RES-14: an `ast` scan of `research` (`research/replay.py` included) and the memory and reflection modules for imports of the ledger writer, the order adapters, the kernel and `bootstrap`; spawned research environments carry no broker key; no write path to settings, policy, bindings or the custody chain outside `research/custody.py`. The OS part is SLICE-11's.
+#### Which candidates need promotion (`strategies/registry.py`, `kernel/authority.py`, `bootstrap.py`)
+
+* **The rule, unchanged (Fork call, slice Fork call 10):** a candidate needs promotion when its registration's `decision_method` is `"model"` and its row's authority is not `"none"` (legacy `host_lifecycle.py:220-226`; legacy's authorities are exactly `none`, `plan`, `trade`, `host_registry.py:394-397`, so "not none" is "plan or trade"). New `requires_promotion(registration) -> bool` in `strategies/registry.py`.
+* **The flag the kernel trusts (slice Deviation 12).** `StandingBinding` gains `requires_promotion: Mapping[str, bool] | None = None`; when given its keys must equal `candidate_ids` exactly, else `ValueError`; `None` is read as every candidate `false`. `BINDING_AUTHORIZED` carries it as an object (every new write includes it; `resources/events.schema.json` lists it), the `standing_binding` row stores it, `BindingRef` returns it, and `SESSION_OPENED` copies it into the `session` row with the rest of the binding. An event recorded before this field folds with `p.get("requires_promotion", {})`, read as all `false` (**Deviation**, the sessions spec's integration choice: no model-driven candidate can have been bound before SLICE-12, and fail-closed would refuse BuyerEdge's existing binding).
+* **The host's refusal (strategies spec integration edit).** `compose_strategy_host` gains `binding_flag: Callable[[str], bool | None]` (the current binding's flag for a candidate ID, composed in `bootstrap.py` from `authority.validate_binding(scope, today)`). When `requires_promotion(registration)` and `promotion.enforce` is `true` and the flag for the host's computed `candidate_id` is not `True`: `Refusal("STR-R16", "promotion_flag_false", None, "open")` before anything opens **(re-check at build: the next free STR code; how the host learns its scope and today's date)**. This mirrors where legacy checked, at start (`host_lifecycle.py:200-227`).
+
+#### The record and recording (`research/promotion.py`)
+
+* **`PromotionRecord/v1`** (new `resources/candidates.schema.json`, in the `autonomous_trading.payload_fields/1` format `events.schema.json` uses: exact key set, no extra key): `schema` `"PromotionRecord/v1"`, `candidate_id` (64 hex), `family`, `strategy`, `evaluation_identity` (`sha256:`), `claim {evidence_track, partition_ids, reservation_id, consumption_event_id}`, `gate` (object), `bar {passed, values, reasons}`, `scope {account, calendar_id, trading_date}`, `reviewer` (wire principal), `recorded_at`. There is no approval or approver field. **Deviation:** the explicit `schema` key, and legacy's receipt body fields that `CandidateId` now covers (`code_ref`, `model_identity`, `prompt_digest`, `candidate_activation`, `candidate_receipt`, `promotion.py:216-270`) are not carried (slice Fork call 20 makes the identity cover them).
+* **Bytes and digest.** `record_bytes(record)` is the canonical JSON (sorted keys, `,`/`:` separators, `ensure_ascii=False`) of `json_form(record)`; a non-finite number raises `ValueError("promotion record is not finite JSON")`. `record_digest = "sha256:" + legacy_digest(json_form(record))`. For finite JSON this equals the kernel's `"sha256:" + digest(json.loads(bytes))` and the evidence store's content digest, so research and kernel name one value **(re-check at build: one test asserts the equality)**.
+* **`record(evaluation, *, strategy, reviewer: Principal, scope, values, settings, source_verifier, lineage_verifier=None, today) -> PromotionRecord`**, porting `record_from_evaluation` and `record_promotion` (`promotion.py:181-278`, `:333-467`) in legacy's order with legacy's messages (**Fork call**, slice Fork calls 6, 7, 13): the identity matches its content (`:345-347`); the candidate is the strategy's (`:348-350`); a v2 record needs the lineage verifier (`:351-363`); the required sections (`:364-370`); the source verifier rebuilds every verified section (`:373-396`); verified locked consumption, "evaluation has no verified locked-OOS consumption" (`:416-418`); the frozen rule equals the bound rule (`_frozen_rule_parameters`, `:419`), and the recomputed gate equals the recorded one, "evaluation gate does not match the current promotion rule" (`:420-434`); eligible (`:435-436`); the gate eligible (`:198-199`); the bar through step 4's `bar(..., values=values)` passing, else "cannot record promotion: the promotion bar refuses: " plus the reasons joined by "; " (`:205-211`); `scope.trading_date` is the exchange date of `today()` (Asia/Kolkata, the fixed +05:30 offset of step 1), and a scope for another date raises "cannot record promotion for another day; review and receipt must be same-day" (`:212-215`, `:56-58`); a `reviewer` that is not an authenticated `Principal` raises "reviewer is required; a self-created anonymous receipt is not a review" (`evidence.py:136-138`). Where `_frozen_rule_parameters` returns no frozen minimum, the bound `promotion.directional.min_scored_per_horizon` is passed, as legacy's config read (`promotion.py:315`) **(re-check at build: step 4's `evaluate_gate` takes no `None` minimum)**.
+* **Kept on disk once.** `save(record, root)` writes `<research.trial_root>/promotions/<digest hex>.json` through a temporary and a no-replace link (step 2's close idiom); an existing file with other bytes raises `PromotionError("promotion record already written with other content")`. **Deviation 11** (legacy wrote a governance receipt, `promotion.py:277-278`).
+
+#### Approval modes and automatic submission (`research/promotion.py`)
+
+* **Port.** `PromotionPort(Protocol)`: `verify(record_bytes: bytes, binding_id: str, reason: str) -> dict` and `mode(family: str) -> dict` (`{"mode", "by", "at"}`). `bootstrap.py` implements it over the kernel as the research service principal; research never imports the kernel.
+* **`after_record(record, *, port, binding_id, values_now) -> dict`**, legacy's `after_promotion` (`approval.py:270-372`, **Fork call**, slice Fork call 9): an estimated-track record returns `{"outcome": "awaiting_owner_approval", "reason": "locked-OOS estimated evidence always requires explicit owner approval for NEXT_SESSION"}` and never calls `verify` (`:303-304`, `:336-340`); `owner_approval` returns `awaiting_owner_approval`; `automatic_when_bar_passes` on the real track refuses "the promotion bar is unset; automatic approval never runs without it: …" when `bar(None, None, values=values_now)["unset"]`, and "the promotion bar changed since the receipt was minted" when the resolved values differ from `record.bar.values` (`:305-312`); otherwise it calls `verify` once with reason `"automatic_when_bar_passes for family <family>: promotion bar passed; mode set by <by> at <at>"` (`:320-326`) and returns `approved_for_next_session`. A kernel refusal is returned as `{"outcome": "refused", "reason": <code and label>}`, never raised (`:278-280`).
+* **Not ported:** the Telegram request and its de-duplication (`approval.py:215-228`, `:346-371`); SLICE-10's alert route carries approval requests (slice **Deviation 16**). The staged-profile lookup (`:248-257`) becomes the caller's `binding_id`.
+
+#### `promotion_verify` (`kernel/authority.py`)
+
+* **`Authority.promotion_verify(auth, binding_id, record_bytes, reason) -> Committed | Replayed | Refusal`.** A human call is bound first (`bind(auth, "promotion_verify", target_of(account, binding_id), {"record_digest", "reason"})`). Then, in order, each failure a refusal recorded as `Authority.refused` does:
+  1. Stage: `promotion_verify` is allowed in `OPERATING` only (`SES-R09`).
+  2. The bytes parse, equal their canonical form, pass `PromotionRecord/v1`, and `gate.eligible` and `bar.passed` are both `true`: else `SES-R11 promotion_record_invalid`.
+  3. The binding exists, is unrevoked, and is the one `validate_binding(scope, trading_date)` returns (a newer binding for the date supersedes it, as a newer staged gating profile invalidated legacy's approval, `activation.py:271-276`, `:310-317`); the record's `candidate_id` is in its `candidate_ids` and flagged `true`; `scope.account` and `scope.calendar_id` equal the binding's; `trading_date` lies in `first_date…last_date` and equals the kernel's exchange date now (`calendar.today(calendar_id, now)`; `Authority` gains a `today` callable, `None` refusing): else `SES-R12 promotion_scope`.
+  4. **Who approves (Fork call, slice Fork calls 8, 9; slice Deviation 11).** The approver is `auth.principal`; nothing in the bytes is read for it. The owner over `owner_credential` may approve any record (`approval_path "owner"`). Any other human, delegated grants included, is refused. The research service is accepted only when the record's `claim.evidence_track` is `real_broker_track_record`, the family's latest `PROMOTION_MODE_SET` is `automatic_when_bar_passes`, and `check("promotion_approve", auth, account)` passes (`approval_path "automatic"`). Anything else: `SES-R13 approver_not_permitted` (a missing, revoked or expired grant keeps `check`'s own `SES-R02…R05`).
+  5. **One approval per binding, candidate and date (Fork call, slice Fork call 9).** `approval_id = digest({"binding_id", "record_digest"})`. An existing row with that ID returns `Replayed` and writes nothing (legacy returned the existing approval, `activation.py:338-341`); a row for the same `(binding_id, candidate_id, trading_date)` with another `record_digest` refuses `SES-R12` (legacy: "this profile version already has a different approval", `:342-343`).
+  6. **Publication before reference.** `writer.evidence.publish(record)` (content-addressed, idempotent), then one transaction: `PROMOTION_VERIFIED {approval_id, binding_id, policy_binding_id, candidate_id, trading_date, record_digest, approver, approval_path, reason}` with the evidence ref on the event, plus the human's `OPERATOR_REQUEST` draft.
+* Refusal codes `SES-R11…SES-R15` and `ADM-R16` are the next free codes in the sessions and intent specs **(re-check at build: free numbers, and whether `Refusal.message` carries legacy's texts or only the label)**.
+
+#### `PROMOTION_MODE_SET` (`kernel/authority.py`)
+
+* **`Authority.set_promotion_mode(auth, family, mode, reason)`**, legacy's `switch` (`approval.py:172-202`, **Fork call**, slice Fork call 9): bound as `promotion_mode_set`; only `auth.principal == owner` over `owner_credential` (anyone else `SES-R13`); `family` in `PROMOTION_FAMILIES` (new in `contracts/identity.py`: legacy's families less the research-only ones, `approval.py:50-56`; today `advisor`, `ai_management`, `local_model`, `research_policy`, `strategy_config`); `mode` in `("owner_approval", "automatic_when_bar_passes")` (`:37-40`); `reason` non-empty; a switch to the current mode refuses (legacy "… is already …; nothing was changed", `:193-194`). All four refuse `SES-R14 mode_switch_invalid`. Payload `{family, from, to, principal, reason}` (legacy's `{family, from, to, by, reason, at}`, `:195-196`; `at` is the event time). No event for a family reads `owner_approval` (`:146-152`). **Deviation 11** (a ledger event, not `modes.json`).
+
+#### The admission check (`kernel/lifecycle.py`, `kernel/admission.py`)
+
+* **`promotion_session_check(writer, session_id, candidate_id, enforce) -> Refusal | None`**, run by `_a3` after `entry_session_check` (so at stage A and again at stage B). `enforce` false → `None`. The session row's `requires_promotion` for the candidate not `true` → `None` (BuyerEdge, slice Fork call 10). Else `None` only if a `promotion_approval` row has the session's `binding_id`, `policy_binding_id` and `trading_date`, the candidate, and `verified_sequence < session.opened_sequence`; otherwise `Refusal("ADM-R16", "candidate_not_promoted", None, "COMMAND_ADMITTED")`, recorded as every A3 refusal is.
+* **Before the open, on its own date (Fork call, slice Fork call 11).** Legacy recorded approvals for `NEXT_SESSION` and activated them only when a day's session binding was first written (`activation.py:319-335`, `:368-407`; `session_config.py:866-887`, an existing day binding is returned unchanged), and the receipt was same-day (`promotion.py:212-215`; `evidence.py:263-269`). Here an approval after `SESSION_OPENED` is recorded but serves no session; a later date needs a new record. Refusing such a late approval outright is listed as an improvement, not made.
+* Only entries are checked; cancel, modify, close and protective actions never reach `_a3`.
+
+#### `promotion.enforce` (Fork call, slice Fork call 12; X-009)
+
+`false` skips `promotion_session_check` and the host's `STR-R16`, as legacy's `may_promote` returned `(True, "")` before any receipt check (`promotion.py:477-478`). The binding checks are unaffected: `ADM-R14` still refuses a candidate outside the session, as legacy's binding verification ran before `may_promote` (`host_lifecycle.py:156-166`). The setting (`bool`, register `legacy`, scope kernel and strategy host) ships `true` in `resources/defaults.yaml`, as legacy shipped it and read a missing key as `true` (`defaults.yaml:765-766`; `promotion.py:477`) (**Fork call**, the owner's decision that promotion follows legacy's rules).
+
+#### The custody witness (`kernel/authority.py`, `bootstrap.py`; slice Deviation 9)
+
+* **`Authority.custody_witness(auth, authority_id, sequence, event_hash, kind)`**: a service principal with a live `custody_witness` grant (`check(..., account=None)`), stage `OPERATING`. `authority_id` 32 hex, `sequence` ≥ 1, `event_hash` 64 hex, `kind` a custody event kind. Against the `custody_witness` row for the `authority_id`: a higher sequence commits `CUSTODY_WITNESSED`; the same sequence and hash returns `Replayed` with no write; a lower sequence, or the same sequence with another hash, refuses `SES-R15 witness_regressed`. The row keeps the highest witness, which is what `reconcile` receives (step 1 R-3). Admission never reads or waits for it.
+* **`KernelCustodyWitness(comp, principal)`** in `bootstrap.py` implements step 1's port: `witness(...)` calls the method above and raises on a refusal (the client counts it); `latest(authority_id)` returns the row's sequence or `None`; `latest_witnessed(authority_id) -> Witnessed | None` feeds `reconcile`.
+
+#### Settings (`settings/schema.py`, `resources/defaults.yaml`)
+
+`promotion.enforce` (above, shipped `true`); `promotion.bar.min_net_rupees`, `.min_margin_over_baseline` (`decimal`) and `.min_trades` (`int_nonneg`), register `legacy`, scope research, unset in `resources/defaults.yaml` as legacy shipped them null (`defaults.yaml:747-751`). Unbound, they are passed to `bar` as `None` and every recording refuses with legacy's "promotion.bar.<key> is unset; the owner has not chosen it" (`promotion_bar.py:61-70`; slice Fork call 6). The repository binds none of the three bar values.
+
+#### Integration edits this step makes (from Excluded)
+
+The sessions spec (`requires_promotion` in `BINDING_AUTHORIZED`, the `standing_binding` and `session` rows, `BindingRef`, how earlier events read it; `PROMOTION_VERIFIED`, `PROMOTION_MODE_SET`, `CUSTODY_WITNESSED`; the grant actions `promotion_approve`, `custody_witness`; codes `SES-R11…R15`); the intent spec (A3 gains `ADM-R16 candidate_not_promoted`); the strategies spec (`STR-R16`); `resources/events.schema.json` and `resources/candidates.schema.json`. The module index and traceability rows stay with the slice's first review.
+
+### Tests
+
+Every value is synthetic. `A = AccountId("sim", "ACC1")`, calendar `NSE`; trading dates `D1 = 2026-11-04`, `D2 = 2026-11-05`; open `09:15` IST (`03:45:00Z`), close `15:30` IST (`10:00:00Z`) **(re-check at build: the scripted calendar fixture)**. Candidates: `BE = "be"*32` (BuyerEdge, rule), `M = "a1"*32` (model, authority `plan`), `M2 = "a2"*32` (`M` with one prompt byte changed). `B1`: binding `bind-1`, policy `"0f"*32`, candidates `[M, BE]` sorted, `requires_promotion {M: true, BE: false}`, dates `D1…2026-11-06`. Principals: the owner (through `operator_call`), `ops` (a delegated human holding `entry`, `promotion_approve`), `research` (service, `local_channel`, holding `promotion_approve`, `custody_witness`), `strategy:m` and `strategy:be` (services holding `entry`). `REC(track, date, cand)` is a `PromotionRecord/v1` with `gate.eligible` and `bar.passed` true, family `advisor`, scope `(A, NSE, date)`. Bar values `V = {"min_net_rupees": "0", "min_margin_over_baseline": "0", "min_trades": 30}`, step 4's Bar case (passes at net 0, margin 0, 30 matched).
+
+**`tests/integration/test_custody_promotion.py` (new), PRF-RES-12**, in `compose_simulation` with a recorded clock, admission composed, `promotion.enforce` bound `true` unless stated, and SLICE-04's entry fixtures **(re-check at build: the shared entry helper)**:
+
+| Group | Cases |
+|---|---|
+| Session boundary | Owner verifies `REC(estimated, D1, M)` at `08:30` IST: one `PROMOTION_VERIFIED`, `approver ["owner","human"]`, `approval_path "owner"`, its evidence object's SHA-256 equal to `record_digest`. The session opens at `09:15` (sequence above it); an entry of `M` at `09:20` is admitted. **Late:** no approval before the open; owner verifies at `09:20` (recorded); an entry of `M` at `09:25` → `ADM-R16`, one `ADMISSION_REFUSED`. On `D2` the `D1` record → `SES-R12`; a `D2` record approved at `08:30` on `D2` serves `D2`'s session. A `D2` record submitted on `D1` → `SES-R12` |
+| Binding | `B2` authorized after `B1` for the same scope and dates: verifying against `bind-1` → `SES-R12`. An approval for `bind-1` made before `B2` exists, then `B2` authorized, session opens on `B2` → `M`'s entry `ADM-R16`. A record for `BE` → `SES-R12` (not flagged). A scope naming another account → `SES-R12` |
+| Who approves | Estimated record: `ops` → `SES-R13`; `research` → `SES-R13`; owner → recorded. Real-track record, no mode event: `research` → `SES-R13`; owner → recorded. After the owner sets `advisor` to `automatic_when_bar_passes`: `research` → recorded, `approval_path "automatic"`, approver `["research","service"]`; `research` with its grant revoked → `SES-R03`; `ops` → `SES-R13`. Record bytes with an added `"approver": "owner"` key → `SES-R11`. The same record and binding a second time (any permitted caller) → `Replayed`, event count unchanged; another record for `(bind-1, M, D1)` → `SES-R12` |
+| Modes | `ops` and `research` setting a mode → `SES-R13`; owner `advisor` → `automatic_when_bar_passes` with reason `"synthetic"` → one `PROMOTION_MODE_SET {family "advisor", from "owner_approval", to "automatic_when_bar_passes"}`; the same switch again, family `"x"`, mode `"auto"`, empty reason → `SES-R14` each |
+| BuyerEdge | `B1` with no approval at all: `BE`'s entry admitted; the `standing_binding` row and `SESSION_OPENED` carry `BE: false`; no `ADM-R16` anywhere in the ledger. A binding built with `requires_promotion=None` reads `{M: false, BE: false}` |
+| Substitution | After `M` is approved and an entry fills: the host loads `M2` → its entry `ADM-R14`; the position's protective legs and an owner close are admitted. A host whose `binding_flag` gives `false` for `M` → `STR-R16`; `M` with authority `none` → starts; `BE` with flag `false` → starts |
+| Enforce off | `promotion.enforce` `false`, no approval: `M`'s entry admitted; `M2`'s still `ADM-R14`; the `false`-flag host starts. Not set in a profile → the shipped `true` applies and `M`'s entry without approval → `ADM-R16` |
+| Recording | Over step 4's passing `evaluate` record (Evaluate group fixture, real track, `min_trades` set to its matched count `N`) with `today` at `2026-11-04T00:10+05:30` (`2026-11-03T18:40Z`): `scope.trading_date` `2026-11-04`. Bar values all `None` → the three unset reasons; `min_trades` `N+1` → "N matched AI trades is below min_trades N+1"; scope date `2026-11-03` → the same-day text; one changed byte in the evaluation → "evaluation identity does not match its content"; `reviewer=None` → the reviewer text. `record_digest` equals the kernel's digest of `record_bytes` |
+| Automatic | A fake port: owner mode → `awaiting_owner_approval`, no call; estimated record in automatic → the estimated text, no call; automatic with `values_now` unset → the unset text; `min_trades` 31 now → "the promotion bar changed since the receipt was minted"; equal → one `verify` call with the legacy reason text |
+| Disclosure | Three `evaluate` runs over locked rows (passing, failing, the passing one repeated): three disclosures (`README.md:879`) |
+
+**`tests/recovery/test_restore_fencing.py`, PRF-RES-03 witness rows**, added: the scripted chain of step 1 with a `WitnessClient` over `KernelCustodyWitness`, then `drain(10)`. K1: four `CUSTODY_WITNESSED` for `"8"*32` at sequences 2, 3, 4, 5 with step 1's hashes (`3b63…5de9`, `9111…6854`, `92d8…0fe2`, `452f…284b`), `latest` 5. K2: the chain stopped after `claim_read` gives `latest_witnessed` equal to step 1's `W4`; with it, rows R2, R5, R6, R8 and R9 give step 1's statuses; R7's witness is `("8"*32, 4, "0"*64)` committed through the kernel on a fresh ledger (the kernel cannot know the chain, so a first witness is accepted as given), and `reconcile` then reports `conflict`. K3: a witness at sequence 3 after 5, and sequence 5 with hash `"0"*64` → `SES-R15`; sequence 5 with its own hash → no new event. K4: `research` without `custody_witness` → `SES-R02`, `client.errors == 1`, the custody operations unaffected.
+
+**`tests/recovery/test_crash_boundaries.py`, CP-R11 and CP-R12**, by killing a real process: **CP-R11:** a child on a file ledger patches `LedgerWriter.transact` to `os._exit(86)` on a `PROMOTION_VERIFIED` decision; the parent finds the record's evidence object present, no `PROMOTION_VERIFIED`, `M`'s entry `ADM-R16`; a fresh composition's resubmission commits exactly one, a third writes none. **CP-R12:** step 1's `CP-RW` child with `KernelCustodyWitness`, exiting on the `consumption` witness; the parent finds `latest` 4; `CustodyLedger.open` then commits exactly one `CUSTODY_WITNESSED` at 5.
+
+**Existing tests that change:** `tests/unit/test_settings_resolver.py` gains the four fields; any guard that lists event kinds, index tables, `GRANT_ACTIONS`, `SERVICE_ACTIONS` or `OPERATIONS` gains the new names **(re-check at build: `tests/recovery/test_projection_integrity.py`, `tests/contracts/`)**.
+
+### Break checks
+
+The minimum set. Each anchor is checked present exactly once, one mutation at a time, each file restored byte for byte (md5).
+
+| Change | Test that must fail |
+|---|---|
+| `promotion_session_check` compares with `closed_sequence` or drops the `opened_sequence` comparison (an approval after `SESSION_OPENED` serves that session) | Session boundary (late) |
+| `promotion_verify` takes the approver from the record's bytes when present | Who approves (added key) |
+| The owner-only rule skipped for the estimated track | Who approves (`ops`, `research` on estimated) |
+| A delegated human accepted with a `promotion_approve` grant | Who approves (`ops`) |
+| The service accepted whatever the family's mode | Who approves (real track, no mode) |
+| The check refuses whatever the flag | BuyerEdge |
+| `requires_promotion=None` read as all `true` | BuyerEdge |
+| `set_promotion_mode` accepts any principal with `grant_admin` | Modes |
+| `enforce=false` also skips `ADM-R14` | Enforce off (`M2`) |
+| `enforce=false` still runs the promotion check | Enforce off |
+| The superseded-binding comparison removed | Binding |
+| The exchange-date comparison removed | Session boundary (`D2` on `D1`) |
+| `promotion_verify` commits before publishing | CP-R11 |
+| `custody_witness` accepts a lower sequence | K3 |
+| `record` reads the UTC date | Recording (`00:10` IST) |
+
+### Files
+
+| File | Change |
+|---|---|
+| `research/promotion.py` | New: `PromotionRecord`, `record_bytes`, `record_digest`, `record`, `save`, `PromotionPort`, `after_record` |
+| `resources/candidates.schema.json` | New: `PromotionRecord/v1` |
+| `contracts/identity.py` | `StandingBinding.requires_promotion`; `GRANT_ACTIONS` and `SERVICE_ACTIONS` gain `promotion_approve`, `custody_witness`; `OPERATIONS` gains `promotion_verify`, `promotion_mode_set` (doors follow, `interfaces/authorization.py:220-221`); `PROMOTION_FAMILIES`, `PROMOTION_MODES` |
+| `kernel/authority.py` | `BindingRef.requires_promotion`; `today`; `promotion_verify`, `set_promotion_mode`, `custody_witness`, `promotion_mode`, `latest_witness`; the three uses in `ACTIONS_PER_STAGE["OPERATING"]`; `BINDING_AUTHORIZED` carries the flags |
+| `kernel/lifecycle.py` | `SESSION_OPENED` copies the flags; `promotion_session_check` |
+| `kernel/admission.py` | `_a3` runs the check with `promotion_enforce` |
+| `kernel/ledger/projections.py`, `kernel/ledger/store.py` | Tables `promotion_approval`, `promotion_mode`, `custody_witness`; the flag columns; `_FAMILY`, `_PK`, the per-kind load (`store.py:793`) |
+| `kernel/ledger/schema.py` and migration 9's SQL file (new, beside the existing migrations) | Migration 9 |
+| `resources/events.schema.json` | `requires_promotion` in two kinds; three new kinds |
+| `strategies/registry.py` | `requires_promotion(registration)` |
+| `bootstrap.py` | `binding_flag` and `STR-R16` in `compose_strategy_host`; `today` for `Authority`; `promotion.enforce` in `_ADMISSION`; `KernelPromotionPort`, `KernelCustodyWitness` |
+| `settings/schema.py`, `settings/loader.py`, `resources/defaults.yaml` | Four fields: `promotion.enforce` `true`, the three bar values unset |
+| Tests | `tests/integration/test_custody_promotion.py` (new); `tests/recovery/test_restore_fencing.py`; `tests/recovery/test_crash_boundaries.py`; `tests/unit/test_settings_resolver.py`; the guards above |
+| Specs | The sessions, intent and strategies specs; this file |
+
+### Fork calls and Deviations this step adds
+
+* **Fork call:** one approval per binding, candidate and date; a repeat is a no-op and a different record refuses (`activation.py:338-343`).
+* **Fork call:** a mode switch to the current mode refuses, and the event records `from` (`approval.py:193-196`).
+* **Fork call:** `enforce=false` also skips the host's flag refusal, as legacy's switch skipped the whole receipt check (`promotion.py:477-478`), while the binding checks stay.
+* **Deviation:** older binding events read as no promotion needed.
+* **Fork call:** `promotion.enforce` ships `true`, as legacy, so a profile that leaves it out enforces.
+* **Deviation:** the record carries a `schema` key and drops the receipt fields `CandidateId` covers.
+* **Deviation:** the kernel reads the family from the record; legacy loaded it from the candidate registry (`approval.py:260-267`). Binding the family in `BINDING_AUTHORIZED` beside the flag is listed for the owner, not made.
+* **Deviation:** a witness at a lower sequence, or the same sequence with another hash, refuses.
+
+### Completion conditions (step 6)
+
+* **Targeted tests only:** `tests/integration/test_custody_promotion.py`, `tests/recovery/test_restore_fencing.py`, `tests/recovery/test_crash_boundaries.py`, `tests/recovery/test_projection_integrity.py`, `tests/recovery/test_session_transitions.py`, `tests/integration/test_shared_engine.py`, `tests/integration/test_operator_commands.py`, `tests/unit/test_promotion_gate.py`, `tests/unit/test_settings_resolver.py` and `tests/contracts/`, twice in a row on Windows. The kernel, schema and migration change, so the whole suite runs once before the commit.
+* Every break check fails a listed test and every file is restored (md5). `ast.parse` passes on every edited Python file.
+* `git diff --name-only` names exactly the files above; one commit on `slice-12` in OA_NEW-s12; nothing pushed.
+* This file records step 6 "as built", with any Fork call or Deviation the build adds.
+
+## Step 7 — memory and reflection
+
+<a id="step-7--memory-and-reflection-outline"></a>
+
+The authority is the spec's [Memory and reflection](../../design/research-rl-custody-promotion.md#memory-and-reflection-cognitionmemorypy-cognitionreflectionpy) and PRF-RES-13. Step 7 is TASK-S12-07. It touches no money, entry or gate: memory is declared by no shipped strategy, and reflection writes only proposals and job requests. Under the coordinator's rule it was planned and built in one pass, with no separate review and no break checks. Legacy citations are at 445eb116.
+
+**In plain words.** The system can now remember past results, but only real, settled trades, and only from the moment each one settled, so a memory can never show the future. A replayed or simulated result never becomes a memory. Each caller sees only what matches its own strategy, account and licence, and exam results are never shown at all. Reflection can suggest an experiment or a candidate, keeping the old system's rule that a statistical claim needs at least 30 trades and states how reliable it is. It can never change a setting, a prompt, a limit or a promotion. Nothing here touches trading.
+
+### Decisions
+
+* **Partitions:**
+  * `working`: held in the process, dropped at `end_run`, never persisted.
+  * `episodes` and `research`.
+  * `protected`: stored, never returned by recall.
+
+  A `MemoryItem/v1` carries its partition, source references, `as_of`, licence class, strategy, account and version. An `(item_id, version)` is written once: the same content again writes nothing, and other content refuses. A version supersedes its predecessor only from its own `as_of`.
+* **Episodes keep legacy's rule (Fork call, slice Fork call 19):**
+  * Only a `reconciled_live_outcome` is an episode. A replay or simulated outcome refuses (POL-034).
+  * It is visible from its settlement instant (`terminal_stamp`; a naive stamp reads as IST).
+  * It falls inside a window of calendar days ending on the query's own day (`src/runtime/providers/adaptation.py:15-21`, `:176-212`).
+  * The window is `cognition.memory.outcome_days`, refusing when unset. Legacy's `OUTCOME_DAYS` of 5 (`adaptation.py:40`) is evidence only, never a default.
+* **Recall** takes the whole `MemoryQuery(purpose, session, as_of, strategy, account, license_scope, partitions)`. Every filter must match, the cache is keyed by the full scope (A06-F5), and asking for `protected` refuses.
+* **Reflection** records a `ReflectionProposal/v1` in `research`, of kind `experiment` or `candidate`, and submits an experiment through an injected job port (`cognition` may not import `research`).
+  * Legacy's evidence-quality rule and reliability bands are copied unchanged (`src/interfaces/mcp/core/proposals.py:8-30`, `:42-78`, `:211-280`).
+  * A statistical claim cites evidence and at least 30 trades, and is stamped with its band (cut-offs at 30, 100 and 300 trades).
+  * A mechanical claim cites evidence holding at least one trade.
+  * The sample is measured from the reconciled episodes the caller can see, never asserted.
+  * Any other kind of write refuses (POL-029).
+* **Settings** (register `legacy`; scope cognition and both research participants):
+  * `cognition.memory.outcome_days`: `int_pos`, unset.
+  * `cognition.improvement.mode`: an `enum` of `read_only` only, shipped `read_only` as legacy's default (`config/defaults.yaml:866`). `automatic` refuses to load (slice Deviation 19).
+
+### Files and tests
+
+* **New code:** `cognition/memory.py` and `cognition/reflection.py`.
+* **Changed:** `settings/schema.py` and `resources/defaults.yaml`; `tests/unit/test_settings_resolver.py` gains the two fields.
+* **`tests/unit/test_cognition_memory.py`** (new, T-82) covers:
+  * the settlement instant, naive stamps and the calendar-day window;
+  * simulated and replay outcomes refused, and the unset window refusing episodes;
+  * scope filters, and a cache hit never crossing scopes;
+  * the protected partition never returned;
+  * immutable versions, and persistence without `working`;
+  * only `read_only` built;
+  * writes limited to proposals and job requests, with an experiment going through the job port;
+  * the evidence-quality rule;
+  * memory declared by no strategy, and reflection reaching no writer.
+
+### Step 7 as built
+
+Commit `9f9fbfe` on `slice-12`, on top of `fa533d8` (step 5): the six files above, 898 lines added, 1 removed. Not pushed.
+
+**Choices:** no Fork call or Deviation beyond the slice's (Fork call 19, Deviation 19). The proposal bands and the 30-trade floor are legacy's constants, not a promotion or money gate.
+
+**Tests run (Windows, affected only):** `tests/unit/test_cognition_memory.py`, `tests/unit/test_settings_resolver.py`, `tests/contracts/`, `tests/unit/test_market_windows.py` and `tests/unit/test_canvas_causality.py`: 271 passed, 6 skipped, twice in a row. `ast.parse` passes on every edited file. No break checks, by the coordinator's rule for this step.
+
+## Step 8 — the boundary
+
+<a id="step-8--the-boundary-outline"></a>
+
+This step is the code half of PRF-RES-14; the OS half is SLICE-11's `tests/isolation/test_resource_storage_scope.py`. Step 8 is TASK-S12-08. It adds tests only and touches no money, entry or gate, so it was planned and built in one pass, with no separate review and no break checks.
+
+**In plain words.** A new automatic check proves the research workshop cannot reach the trading side. Research and memory code never loads the order book writer, the broker connection, the kernel's decision code or the start-up wiring. A research worker refuses to start while it holds the broker key. Only the custody module can touch the record of spent exam days. Nothing here changes behaviour.
+
+### Decisions and tests
+
+These tests are in `tests/contracts/test_capabilities.py`. They scan every module under `research/` (including `research/replay.py` and `research/rl/`), plus `cognition/memory.py` and `cognition/reflection.py`.
+
+| Test | Proves |
+|---|---|
+| Per-module imports (one case per file) | Every `autonomous_trading` import, at any depth (function-level included), stays within `contracts`, `research`, the read side of `settings` (`loader`, `schema`, `secrets`), `cognition.memory` and `cognition.review`. None names `kernel`, `adapters`, `bootstrap` or `interfaces` |
+| The transitive closure | Following every import, the scanned modules reach no forbidden module except `kernel.ledger.envelope` and `kernel.trail`, the two pure helpers that `contracts` itself imports. Both import only the standard library |
+| No broker key | For both worker profiles, each of `BROKER_KEY_NAMES` is in the participant's `credentials_forbidden`, and `research.jobs.check` reports `CFG-R07 <name>` for it (a labelled synthetic value). The supervisor runs that check before every claim, and the job child inherits only the checked environment (`test_supervisor_checks_before_every_claim` already proves that order) |
+| The custody chain | No scanned module except `research/custody.py` names `events.ndjson`, `.custody.lock` or `adoptions.ndjson`, so none writes the chain except through `CustodyLedger` |
+
+### Step 8 as built
+
+Commit `2e52d19` on `slice-12`, on top of `9f9fbfe` (step 7): `tests/contracts/test_capabilities.py` only, 94 lines added, 1 removed. Not pushed.
+
+**Findings:**
+* `cognition.review` is allowed by name, for `ProposalResult` (step 5 as built). Moving `ProposalResult` into `contracts` would let that allowance go. Listed, not made.
+* "No write path to settings, policy or bindings" holds through the closure. Policy and bindings live in the kernel, which research never reaches, and research imports only the read side of `settings`.
+
+No Fork call or Deviation.
+
+**Tests run (Windows, affected only):** `tests/contracts/`, `tests/unit/test_market_windows.py` and `tests/unit/test_canvas_causality.py`: 243 passed, 6 skipped, twice in a row, including the 20 new PRF-RES-14 cases. `ast.parse` passes.
 
 ## Completion conditions
 
