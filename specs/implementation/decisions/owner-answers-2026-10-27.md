@@ -76,3 +76,11 @@ The owner answered four more combined questions after every remaining slice was 
 | Stricter behaviours | Accept all four | Deleting the kill file no longer releases kill alone; `at kill-switch off` confirms, removes and releases (SLICE-10). Only listed login users are the owner on the command line (SLICE-10). A busy refusal is retried with the same key while the trigger's bar is within admission's view age, then abandoned (SLICE-09 Deviation 6). The post-crash no-trail gap (restart delay plus the remaining lease) is accepted (SLICE-11 Fork call 3) |
 | Promotion | The old system's rules | An approval is used only by a session opened after it, so in practice before that date's open; a revocation also applies from the next session; approval is owner-only; `promotion.enforce` stays, set to true; the gate keeps today's statistic (POL-O03 unanswered) (SLICE-12) |
 | Shadow before cutover | No hard gate on days | One or two clean end-to-end shadow days are enough; nothing in the code counts days or refuses on them (SLICE-13, SLICE-14). Reading a copy of the production research records and a cutover rehearsal on the shadow's copies were not approved by this answer: each is asked first |
+
+## Margin limit when OpenAlgo reports none (2026-11-05)
+
+OpenAlgo's `/api/v1/funds` carries no margin figure (captured `funds_20260802…04.json`: `availablecash`, `collateral`, `utiliseddebits` and P&L only), so the capacity check (B5) refused every entry, in production too (SLICE-07 funds row; SLICE-13 step 5 finding). Options put: available cash as the margin limit; OpenAlgo's margin endpoint per entry; no check, the broker decides; keep refusing.
+
+| Topic | Answer | What it means |
+|---|---|---|
+| Margin when funds report none | Use available cash (recommended) | When the funds observation has no margin figure, `margin_available` is the observed `availablecash`, the rule legacy's reservation path uses (`src/runtime/ai_management/advice_orchestration.py:85` @445eb116, `funds.get("margins", available)`). Position rows and open orders with no amount follow legacy's treatment on the same path rather than refusing `observation_field_missing`. The broker remains the real margin boundary. Supersedes SLICE-07's "no guessed money field" for this one field |

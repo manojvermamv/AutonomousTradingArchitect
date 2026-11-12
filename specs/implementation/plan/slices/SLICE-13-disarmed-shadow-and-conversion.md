@@ -1128,6 +1128,75 @@ The checks ran on a scratch copy of the tree (so the second test run was not dis
 7. The rest of `operations/shadow_compare.py`: the head pair (`MIG-R11`), the seven rows, one cause reported once, the report; `scripts/compare_parity.py`; `COMPOSITIONS["shadow"]` with the `transient` status; `docs/migration.md`.
 8. The plan's remaining tests and break checks (shadow day, late line, stopped file, unmatched protective, funds, IST day, market timing, kill input, close command, pairing, owner acts, gate source, one cause, no day counting); then "Step 5 as built (part 2)".
 
+### Step 5 as built (part 2 of 2)
+
+Commits `8979f8c` and `3775586` on `slice-13`, on top of `ab92b01`. Not pushed. The eight continuation items are built in order; two stop conditions the plan named were met and are recorded below as findings, not worked around.
+
+**The gates the plan set, checked first.**
+
+* **A `recorded` clock domain in the production-shaped composition:** accepted. `compose_shadow` composes `_compose_kernel` with a `port_factory` (no synthetic capacity, no Authorizer) on a `RecordedClock`, and a whole synthetic day runs (`test_shadow_day_matched_unmatched_foreign`).
+* **Decision records naming their bar** (step 1's fixtures): `d-1001`…`d-1003` carry `at` and `bar_index`; the registry's other rows (`d-1004` `teleported`, `d-1005`) have no decision record, so they are never matched, as planned. Legacy's bar is the decision record's `at`; the shadow's is the intent's `as_of` (the host's trigger). That the two name the same instant on production is **not checked**; a mismatch shows as every entry `disarmed_unmatched` on step 6's first day.
+* **Checkpoints' positionbooks** (measured on the fixtures): legacy's `session_checkpoints/1` lines carry no write instant and their positionbooks are empty, so no checkpoint can be placed "at or before the clock". `day_pnl` and `ltp` are `None`; the latch goes inert (`pnl_field_missing`), as planned for `None`.
+* **Funds with no caps configured:** not checked (the fixtures configure caps); the shadow refuses without funds evidence.
+
+**Built:**
+
+1. **`adapters/legacy_responder.py`**: `parse_registry` (whole lines, numbers as `Decimal`, `at` parsed to an aware instant, a stamp with no offset reported and not used, rows of `D` only); `LegacyInputs` and `read_inputs` (registry, governance evidence by `reviewed_at`, decision bars, each copy read only to the consumed size); `LegacyOutcomeResponder` (matching and the answers table as planned; never waits; publishes its `transport_result` through the kernel's evidence store); `LegacyBooks` (orderbook with protective legs, tradebook through `fills_from_cumulative` with the one-source rule for close commands, positions from the fills, funds from `session_state_attestation` then `session_cap_snapshot`, structure legs to `dropped`, `source="legacy_registry"`).
+2. **`adapters/legacy_market.py`** (`LegacyMarketFeed`, also the `MarketLoop`'s source) and **`compatibility.read_market_file`**; legacy's chain legs of one poll are grouped into one target chain payload (expiry from the symbol); ticks lifted by production's `tick_record`; `tests/unit/test_legacy_market.py` (T-115, 5 cases).
+3. **The kill input** (`LegacyKillInput` in `operations/shadow_run.py`, a `KillInputs` subclass, because `Safety` accepts only `KillInputs`): present at `t` when the first consumed pass covering `t` (`started_at − lag ≥ t`) recorded `run/KILL`. **Correction to the plan's wording** ("the latest consumed pass"): the latest pass would show a `KILL` written after `t`; the covering pass is the earliest.
+4. **`compose_shadow`** in `bootstrap.py` (preflight first, the two waits refusing, paths from the root only, `production_contracts()` now shared with `_compose_production_kernel`, `relays` and `relay_peer` the one `relay:shadow-driver`, `credentials=None`); **settings** `shadow.legacy_write_lag_secs` and `shadow.outcome_wait_secs` (installer and kernel, `measured`, `int_pos`, unset) and `paths.shadow.root` widened to the kernel scope.
+5. **`operations/shadow_run.py`** (T-117): `settle` (the latest pass before the first stop of a file the driver reads), `ShadowDriver` (the step order of the plan, `PassSchedule` for the kernel's grid, the host's own `next_delay`, observation cycles `poll_interval_secs` apart on the recorded clock, woken passes until nothing is in flight, the cursor line per step) and the owner acts. **Correction to the plan:** a fresh shadow ledger cannot routine-advance (routine check 2: no earlier epoch), so the owner's `recovery_advance` is relayed first, as the replay engine does; then the binding and the grant. Three owner acts, not two. The day's end refuses unsent entries and drains (the kernel host's stop sequence is not reused: it needs a `KernelHost`).
+6. **`operations/legacy_import.py`**: `IMPORT_BOUNDARY_PINNED.prefixes` (`[size, sha256]` of every `decisions/1` and market copy, input-relative), re-hashed on resume (`MIG-R03`); `events.schema.json` gains the field.
+7. **`operations/shadow_compare.py`**: `check_day`, `latest_boundary`, `pair_heads` (`MIG-R11`), `read_shadow`, the rows, `link_causes`, `compare_day` and the report `root/reports/<D>.json`; `scripts/compare_parity.py shadow --day D --shadow-root R`; `COMPOSITIONS["shadow"]` (`copier` and `shadow` `transient`, supervisor optional) with the `transient` rule in `validate_composition`; `docs/migration.md`'s shadow table. **Correction to the plan:** `H` is the **last** cursor line that pairs with `B`, not the first: when the copies are complete before the driver starts, the first line pairs before anything is processed.
+   * **Rows compared:** decisions and refusals per bar (legacy from `plans/1` and the registry, never `decisions/1`; the shadow's from `COMMAND_ADMITTED` and the admission refusal after each `INTENT_SEEN`), order quantities (every `disarmed_unmatched` outcome a defect; fills per matched order), unknown outcomes, books (positions per instrument). **Not compared** (each reported `not_compared` with its reason, so no report is clean): `reservation_totals`, `protection_obligations`, `evidence_class`. The last needs an owner answer: the shadow's effects are `simulated` by construction, legacy's are live.
+   * **One cause:** a later difference sharing a command, legacy order, instrument, or (for protection's `prot:<position>:…` keys) position with an earlier defect is linked `consequence_of` it.
+8. **Tests:** a new integration file, `test_shadow_day.py` (a **Deviation** from the plan's file list, which put these in `test_shared_engine.py`, so that file's subprocess phases stay apart), `tests/contracts/test_capabilities.py` (`test_validate_shadow_composition`), `tests/contracts/test_legacy_import.py` (two prefix tests), `tests/unit/test_settings_resolver.py` (the scopes). The shadow-day tests use PRF-RES-10's scripted rule strategy, not BuyerEdge (a fixture day cannot make BuyerEdge decide on a chosen bar); the composition is the same.
+
+**Findings (each stops its part; nothing was changed to get round it):**
+
+* **Capacity refuses every entry, in production too.** Production's OpenAlgo funds parse yields `ObservedFunds(available, None, None, None)` (`adapters/openalgo_books.py` `_funds`), so the kernel's capacity check (B5) refuses every entry `ADM-R09 observation_field_missing` (`kernel/admission.py:150-178`): `funds.margin_available` and the empty books' aggregates are `None`. The shadow reproduces it (`test_capacity_refuses_without_margins`). The other shadow-day tests set labelled synthetic margins through `LegacyBooks.MARGINS`. A money gate: for the owner (open item).
+* **The fill rule meets the ledger's money form.** The ledger accepts money with exactly two places (`envelope.is_money`, LED-R06), and a refused `FILL` stops the kernel (`WriterLost`). Legacy rounds averages to four places, so `fills_from_cumulative` gives prices such as 118.4501 the ledger refuses. As built, `LegacyBooks` reads each derived price by production's tradebook money rule: one that is not two-place money is not a trade row, its order goes to `dropped` (escalated `trade_without_id`) and it is reported. So the plan's "cumulative notional equals legacy's `P·Q` exactly" holds only when every derived price is two-place money. A money question: for the owner.
+* **Unmatched protective attempts do not stop at the close.** The plan said to stop if they continue past 15:30 IST. They do: with legacy holding to the end (synthetic), the shadow's square-off close at 15:13 IST is unmatched and is retried under a **new** key (`prot:<position>:close:<n>`) at every scheduled pass, 141 attempts through 15:59:47 IST, after `SESSION_CLOSED`. The plan assumed one key resubmitted (S5-3). The comparison links them to the first (one cause); `test_unmatched_protective_attempts_stop_at_the_close` is `xfail(strict)` as the record.
+* **Funds missing gives `PRT-R06`, not `ADM-R05`.** With every cycle dropped, the loss latch cannot be judged and the kernel refuses `PRT-R06 check_inert` (`kernel/safety.py:644`); the plan expected `ADM-R05`.
+* **The shadow's calendar fact.** The kernel's sessions read the trading day from the market store's `reference` stream; legacy's market copy has none. The tests record it in the shadow store (labelled synthetic). Step 6 needs a source (open).
+* **Entrypoints.** `COMPOSITIONS["shadow"]` names `at-shadow-copier` and `at-shadow`; the wheel declares neither yet, so the shipped manifest reports both missing until step 6 adds them (with a `main` for the driver).
+
+**Tests run (Windows, affected only):** `tests/contracts`, `tests/recovery`, `tests/integration/test_kernel_host.py`, `tests/integration/test_shared_engine.py`, the new shadow-day file, `tests/unit/test_legacy_market.py`, `tests/unit/test_settings_resolver.py`. Run 1: 845 passed, 47 failed, 6 errors, 10 skipped, 1 xfailed. 45 failures and the 6 errors were `OSError: [Errno 28] No space left on device` (the C: drive filled, not from this tree: its pytest and scratch directories held under 1.5 GB). Two were real and fixed: the responder called `str.replace`, which the reach test bans by name (`aware` now slices), and `test_legacy_copier.py::test_settings_fields` pinned the shadow root's old scope. A test also left `-wal`/`-shm` files beside step 2's Tier-1 ledger fixture; the rehearsal now copies the fixture first, and the two empty files were removed. Run 2 (the same set, `--basetemp` under the scratchpad): 899 passed, 10 skipped, 1 xfailed (the protective-attempts finding), 0 failed. The funds test added after the break checks was run on its own: 1 passed. `ast.parse` passes on every edited Python file.
+
+**Break checks** (script `break_part2.py` in the session scratchpad, on a scratch copy of the tree, each file restored and its md5 confirmed):
+
+| Break | Failed |
+|---|---|
+| 1. Import `socket` in the responder | `test_shadow_modules_reach` |
+| 3. Build the kernel's settings with the effective `ledger.path` | `test_shadow_never_opens_the_production_ledger` |
+| 5. Answer an unmatched entry `rejected` | `test_shadow_day_unmatched_entry_is_not_sent_once` |
+| 6. Answer an unmatched entry `acknowledged` | `test_shadow_day_unmatched_entry_is_not_sent_once` |
+| 7. Match an entry without the bar | `test_shadow_day_matches_only_the_same_bar` |
+| 8. Wait inside `send` (the clock moved) | `test_shadow_day_worker_never_waits` |
+| 9. Step past the settled horizon | `test_late_line_waits_for_its_pass` |
+| 10. Leave legacy-only orders out of the books | `test_shadow_day_matched_unmatched_foreign` |
+| 12. Fill IDs that change on reread | `test_shadow_day_matched_unmatched_foreign` (a second FILL) |
+| 13. Stamp market records with the read time | `test_mapping_keeps_legacy_stamps` |
+| 15. Order lines by `at` as text | `test_books_at_the_clock_and_ist_day` |
+| 19. Pair the latest cursor line unchecked | `test_comparison_refuses_unpaired_heads` |
+| 20. Count a consequence as its own defect | `test_one_cause_links_by_subject` |
+| 21. Report every attempt of an unmatched protective action | `test_comparison_of_a_matched_day` |
+| 23. Read past the whole members | `test_whole_members_only_from_the_cursor` |
+| 26. `KillInputs.resolve` over production's paths | `test_kill_input_follows_the_settled_pass` |
+| 27. Judge the copied `KILL` at wall time | `test_kill_after_the_decision_does_not_refuse_it` |
+| 28. Also take a close's fills from the entry's close fields | `test_close_command_fills_from_its_own_row` |
+| 29. Pair on every file `B` pins | `test_pairing_checks_only_the_driver_files` |
+| New: funds outside production's money rule | `test_funds_follow_productions_money_rule` (the first run did not bite with `test_shadow_day_matched_unmatched_foreign`; the test was added and the break rerun) |
+| New: a fill price that is not ledger money | `test_four_place_average_is_not_ledger_money` |
+| New: the pin without `prefixes` | `test_pin_holds_every_decision_and_market_prefix` |
+| New: a transient row checked for an enabled unit | `test_validate_shadow_composition` |
+
+Not run, with the reason: 25 (one observation cycle per stamp; the synthetic budget is never reached, so it cannot bite here), 30 (the comparison reads only `plans/1`; no path from `decisions/1` exists to break), 31 (no channel is composable through `compose_shadow`; the no-socket stand-in covers it). Breaks 2, 4, 11, 14, 16–18, 22, 24 and 32–34 ran in part 1.
+
+**End-to-end, one fixture day** (`test_comparison_of_a_matched_day`): the matched synthetic day 2026-11-04 (one `scripted_rule` entry, 75 of `NIFTY26N0424000CE` at 100.00, filled; legacy-only order `B-9`), copied by the real copier in 14 passes, driven to 16:00 IST, rehearsed into `rehearsal/2026-11-04/ledger.db` and compared: `| 2026-11-04 | B 13 | H 602 | defects 1 (+140 linked) | migrations 0 | not clean |`. The plan, fill (`legacy:B-1:75` at 100.00), position and foreign order agree; the one defect is the shadow's 15:13 IST square-off close that synthetic legacy never sent, its 140 later attempts linked to it; not clean because three rows are not compared.
+
+**Continuation:** the three rows not compared; a source for the shadow's calendar fact; the two console entrypoints and the driver's `main` (step 6); and the four findings above, which wait on the owner or the coordinator.
+
 ## Step 6 — the shadow on production (outline; pre-approved)
 
 Deepened after step 5 is built. Class D under the standing rules: it reads production observations into separate copies and ledgers, holds no credential and opens no broker socket.
