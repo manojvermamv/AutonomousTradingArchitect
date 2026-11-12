@@ -295,12 +295,189 @@ At `CAPTURE_PINNED` of a new `cutover-` op, a ledger at `ledger.path` is set asi
 * The builder writes the break checks and their results in the as-built note; each fails a listed test; every file restored (md5).
 * Nothing touched the EC2, a key, a broker or money. The integration edits are listed for their spec owners, and the two owner questions above are recorded as asked.
 
-## Step 2 — continuity (outline)
+### Step 1 as built
 
-Deepened after step 1 is built: the migration spec's [continuity across later releases](../../design/migration-recovery-rollback-continuity.md#continuity-across-later-releases-req-mig-008).
+**Built** in OA_NEW `cbacf4d` on `slice-14` (from `slice-08` `f3fe443`), one commit, not merged, not pushed. Built in the worktree `OA_NEW-s14` with `PYTHONPATH` set to its `src` (checked before each run: `autonomous_trading.__file__` in `OA_NEW-s14`).
 
-* **Proves** PRF-MIG-15 over the built kernel and installer: a release change refused over an open position; restarts and a session transition over a partial fill, an uncertain cancel and active protection, with a late fill and a crash at the handoff; `CFG-R11` in a test-only composition.
-* **Test file:** `tests/recovery/test_release_continuity.py`.
+| Part | Files |
+|---|---|
+| The two event kinds (`migration` family, `native`); `IMPORT_KINDS` an explicit set; the fold ignores both | `kernel/ledger/store.py`, `kernel/ledger/projections.py`, `resources/events.schema.json` |
+| The kernel side: the genesis owes a fence naming `legacy:<host_id>` that counts only with `credential_rotated_at` and `book_observation_digest`; `SES-R09 rollback_continued` on the human advance; routine check 9; `LeaseStore.put_once`/`get_once`; `route_retirement_key` | `kernel/recovery.py` |
+| The `RouteRetirement` write after the first claim that follows the genesis, retried and alerted | `kernel/host.py` |
+| The pure rules: `CUTOVER_STATES`, `OWNER_PAUSES`, `CONTINUE_STATES`, `legacy_store_reasons`, `cutover_boundary`, `cutover_failure_end`, `authority_reasons`, `carried_safety_drafts`, `projection_heads`, `genesis_payload`, `continue_refusals` | `operations/deployment.py` |
+| `pin_boundary`, `views_of_reads`; `scan` reads import kinds only | `operations/legacy_import.py` |
+| The probe (classification table empty until a capture) | `operations/key_probe.py` (new) |
+| `legacy_polkit_rule`, `key_probe_unit_properties` | `operations/isolation.py` |
+| `cutover`, `attest-rotation`, `continue-legacy`, `cutover-root`; the cutover branches of `resume` and `restore`; exit 5; the `Host` seams; `fake_systemctl` `mask`/`unmask`; the third sudoers line | `deploy/install.py` |
+| `cutover.legacy_units`, `cutover.legacy_ledger`, `cutover.legacy_settings_file` | `settings/schema.py`, `resources/defaults.yaml`, `config/live.example.yaml` |
+| The cutover evening for the owner | `docs/operations.md` |
+| Tests | `tests/recovery/test_initial_cutover.py` (new, 124), `tests/recovery/cutover_support.py` (new: the rehearsal and the child driver), `tests/conftest.py` (`FakeLeaseStore.put_once`/`get_once`), `tests/contracts/test_rendered_units.py` (three lines per copy) |
+
+**Run.** Windows, Python 3.14 (`.venv-slice01`), plain pytest, affected only: the 44 test files importing a changed module plus `tests/unit/test_secret_references.py`, twice: **1972 passed, 25 skipped, 1 xfailed** both times. After two tests were tightened (below), `test_initial_cutover.py` alone twice: **124 passed** both times. The `tests/contracts` guards that run `python -I` check the main checkout, not this worktree; the coordinator re-runs them after the merge. No full suite. The first run found three failures, fixed before the counted runs: `defaults.yaml` lacked the new fields (`test_fields`); a second production `lease_store_for` call site (now one helper, `_lease_store`); the host's retirement stage on a stub composition with no ledger (now: no writer, nothing to retire).
+
+**Break checks** (`s14_breaks.py` in the session scratchpad): **30, each failing its listed test**; every file restored (md5 checked against a list taken before). The first pass caught 28. B22 (the name-collision refusal removed) was also refused later by `apply-root`, and B24 (the anchor check removed) failed earlier at the read-back of a fake destination. Both tests were tightened: the first now asserts the refusal comes before `OBSERVER_READY`, the second uses a real directory destination that hides only the anchor. Both are now caught.
+
+| # | Broken | Caught by |
+|---|---|---|
+| B01–B04 | the genesis fence owed; a weak fence counting; the human advance and routine check 9 after a continuation | the kernel-side tests |
+| B05–B06 | the retirement never written; written before the first claim | `test_host_writes_route_retirement_after_first_claim` |
+| B07–B10 | `uncertain` not held; the sender lease ignored; the failure end keyed on `done`; a named authority difference ignored | the pure-rule tests |
+| B11–B13 | the kill flag not carried; an `unreconciled` hold carried; an expired pause carried | the carried-state tests |
+| B14–B15 | the claim and the lease head unchecked by `continue_refusals` | `test_continue_refused` |
+| B16–B17 | any 4xx taken as a refusal; the probe's verdict ignored | the probe tests; `test_refused_at_key_probed_when_stand_in_accepts_old_key` |
+| B18–B24 | `cutover-root` trusting the log; a weak fence accepted by the installer; an unknown ledger set aside; no legacy restart after a post-stop refusal; the collision allowed; no PRF-OPS-09 record needed; no anchor check | the rehearsal tests |
+| B25–B26 | `IMPORT_KINDS` from the family; `scan` reading native kinds | `test_every_carried_payload_commits`; `test_native_migration_kinds_leave_the_import_scan_alone` |
+| B27–B30 | the lease left unreleased; credentials kept; legacy restarted on a replaced key; `restore` keyed on `done` | `test_after_continue_…_lease_abnormal`; `test_cp_x1_restore_refused_once_masking_may_have_run` |
+
+**Crash points, each killing a real process** (the installer in a child, `AT_REHEARSAL_CRASH`, or `CUT_CRASH_BATCH` inside the import): CP-X1 (`restore` and `resume`, plus `restore` refused after the `LEGACY_WRITER_GONE` intent), CP-X2 (resume finishes the import; `continue-legacy` then a retry sets the ledger aside), CP-X2a (killed at each of ten states after the rotation, resumed to the fence pause, one genesis), CP-X3 (resume; continue), CP-X3a (continue-legacy killed after each of its six steps, re-run idempotently). CP-X4/X5 at the ledger: continue allowed with no claim; with a real dispatched claim continue refuses and the migration composition refuses (`MIG-R01`). The retirement written on the restarted host's first pass is shown at the host level, not with a killed kernel process. CP-X6: each of its reasons alone (a restore marker or gap after the genesis, the retirement record, a lease head of another epoch) over a real ledger.
+
+**Differences from the text above**, each smaller than a decision:
+
+* **The binding file** is `cutover-binding/1`, `{binding: {candidate_ids}, strategies: {legacy name: candidate id}}`: the owner states which candidate is which legacy strategy, because the installer does not compose the strategy registry.
+* **`OBSERVER_READY` unmasking on a retry** checks that the kernel and market hold no credential file, not that legacy is stopped. On a retry legacy runs again on its key, which is expected; the plan's check would refuse every retry.
+* **`continue-legacy` starts the observation route** when a crash or refusal left it stopped (CP-X3 after `SWITCHED`), so its boundary has fresh books. `FAILED_AFTER_ROTATION` stops the kernel, market and relay, and leaves the route running.
+* **`continue-legacy` straight after a crash** of an open cutover op is allowed (CP-X2's row); that op then counts as ended for a new `cutover`.
+* **The `fence_required` message is unchanged** (no `: migration_genesis` suffix); existing tests and the operator surface read it exactly.
+* **The rehearsal's Tier-1 ledger** is the fixture cut before its planted `FUTURE_KIND` row (step 1's quarantine case), so `HISTORY_TRANSFERRED` is not blocked. The rehearsal's day is today's IST day: the copier names the final copy by it. Rehearsal rows skip on a weekend because the importer refuses a weekend day.
+* **The rehearsal helper is imported** from `test_release_activation.py`, not moved.
+
+**Deviations** (recorded for review):
+
+* **Unit names collide.** Legacy at 445eb116 ships `at-strategy.service`, `at-strategy.timer`, `at-backup.service` and `at-backup.timer` (`deploy/systemd/`), the same names the target renders. Writing the target's units would replace a running legacy unit file, and masking one name masks both. `CUTOVER_STAGED` refuses `CFG-R10 unit_name_collision` while any listed legacy unit shares a rendered name. A production cutover with legacy's real list therefore refuses until this is decided.
+* **Masking on a real systemd is not checked.** `systemctl mask` refuses a unit whose file is in `/etc/systemd/system`, where legacy's units live. The fake `systemctl` does not model that, so step 3 must check it on copies.
+
+**Not built, carried:**
+
+* the production runners: `isolated_work.py --key-probe` (the unit properties are built, the mode is not wired); the copier pass and the `legacy_views/1` runner (SLICE-13 step 6). Each refuses in production (`MIG-R18` or `CFG-R08`) until composed.
+* rendering `legacy_polkit_rule` into `apply-root`'s files (the function exists and is tested).
+* the production backup destination and lease store (POL-O01).
+* `scripts/verify_recovery.py` calling `projection_heads`.
+* the record formats SLICE-13 step 7 (`ops09-record/1`) and SLICE-11 step 11 (the D10 record's `bundle_digest`) must emit, as this step reads them.
+* the wrong-key capture for `REFUSAL_SIGNATURES`.
+* the integration edits listed for the spec owners.
+
+**Open for the owner:** the unit-name collision (rename one set, or another way to tell them apart); the two owner questions above (the binding hold proposal; the root-written additions).
+
+## Step 2 — continuity
+
+<a id="step-2--continuity-outline"></a>The authorities are the migration spec's [continuity across later releases](../../design/migration-recovery-rollback-continuity.md#continuity-across-later-releases-req-mig-008) and PRF-MIG-15, the configuration spec's [history compatibility](../../design/configuration-artifacts-release.md#history-compatibility-bootstrappy) (`CFG-R11`, "checked at the same two points") and [activation boundary](../../design/configuration-artifacts-release.md#the-activation-boundary), the protection spec's PRF-PRT-12 (which names the same test file), and Combined-F6 (`README.md:909`). Step 2 is TASK-S14-02. Target citations are OA_NEW `slice-08` at `97ef7c0` (step 1 merged), read on 12 November 2026; the builder re-reads each cited line before using it. Class S: temporary directories, the simulated broker, the installer's rehearsal mode with the fake `systemctl`. **Nothing touches the EC2, a key, a broker or money.** No score, threshold or money value is set.
+
+**In plain words.** This step proves that work the system still owes (a half-filled order, a cancel nobody knows landed, a stop protecting a position) keeps its meaning and its name through a restart, a crash and a night between two sessions, and that a new release cannot be switched in while such work is open. It also builds one missing refusal: a release whose code cannot run a live position's protection is refused before it is switched in.
+
+### Decisions
+
+#### What is built and what is only proved
+
+* **Built (production change, small):** `CFG-R11`. The configuration spec runs it at activation and SLICE-11 step 7 planned it (`check`, the Composition row of PRF-CFG-07), but step 7 as built carried it: `grep CFG-R11` finds no code in OA_NEW. Under the first release's activation boundary the account is flat at every release change, so `CFG-R11` finds nothing by construction and changes no live behaviour; the spec says it still runs. It sets no score, threshold or entry gate.
+* **Only proved:** everything else. The kernel's restart, session and protection behaviour exists (SLICE-03, SLICE-06 steps 2 and 5, SLICE-13 step 5's after-close rule); this step adds no kernel code.
+* **Built on the coordinator's decision** (below): `restore` after a converged activation runs the activation boundary.
+
+#### `CFG-R11` (`operations/deployment.py`, `deploy/install.py`)
+
+* **`continuity_reasons(reader) -> list[str]`** in `operations/deployment.py`, beside `compatible` (`deployment.py:322-335`): `kernel.protection.unrunnable_legs` (`protection.py:131-144`) over the reader's connection (passed as an object with `connection = reader.conn`, so the kernel function is unchanged), each `(position_id, reason)` as `CFG-R11 obligation_unrunnable: <position_id> <reason>` (`ladder_version_unknown` or `policy_unloadable`, `protection.py:116-128`).
+* **Whose code judges.** `runnable` reads `SUPPORTED_LADDERS` and `ProtectionPolicy` of the interpreter that runs it. Every `at-installer` command runs as `<release>/venv/bin/python -I <release>/deploy/install.py` (OA_NEW `docs/operations.md:19`), so `check R` and `activate R` judge R's own code. **Spec and code:** the spec's manifest-only `compatible` needs no code of R; `CFG-R11` does, and gets it from this rule. Not added to the manifest.
+* **Where it runs.** **Deviation (from the configuration spec's "two points": the kernel before it opens the writer, and the installer before it activates an older release):** the kernel's start does not refuse, by SLICE-06 step 5's recorded Deviation (`SLICE-06-protection-and-safety.md`, "At the advance: report, never refuse": refusing the advance would stop every position's protection; the kernel reports `unrunnable` and isolates the leg). The installer runs it for every release change, forward or rollback, not only towards an older release:
+  1. `check` (`install.py:869`), after `compatible` (`:902-907`), through the same `_ledger_reader`: `found += [("CFG-R11", x) for x in continuity_reasons(reader)]`; `VERIFIED_DISARMED` `done` gains `unrunnable: []`.
+  2. `_step` (`install.py:1848`) at `BOUNDARY_QUIET` and `QUIET_BEFORE_SWITCH`, after `_boundary` passes: a new `_continuity(ctx)` reads the ledger again (Combined-F6: "verify the actual head at activation", since the head may have moved since `check`) and raises `Refused("CFG-R11", …)`; the `done` facts gain `unrunnable: []`. It runs after the boundary, so in production a non-flat ledger refuses `CFG-R13` first; `CFG-R11` is reached only when the boundary is disabled (a test) or a later in-session release (Combined-F6, the owner's listed improvement) removes it. The refusal actions are the state's (`activation.refusal_actions`): at `BOUNDARY_QUIET` nothing stops; at `QUIET_BEFORE_SWITCH` the stopped set restarts.
+* **Not added:** the kernel's own start (the Deviation above); the cutover's `cutover_boundary` (its ledger holds only imported history, no native `protection_state`, before the switch); `restore` (it runs the current release's code, not the previous one's, so it cannot judge the previous code; a converged op's `restore` runs the boundary only, below).
+* **The "test-only composition"** is `monkeypatch.setattr(inst, "boundary_reasons", lambda *a, **k: [])` inside the test. No production flag or seam disables the boundary.
+
+#### Decision: `restore` after `CONVERGED` is a rollback (coordinator, 12 November 2026)
+
+`restore` (`install.py:2076-2117`) stops the new set, re-applies the previous copy and starts it, checking `compatible` only after a migration; it never ran the activation boundary. Its purpose is undoing a failed or crashed transition, which began at a quiet boundary. After a `CONVERGED` activation it is a rollback and would switch releases over open obligations. **Decided:** legacy applies its flat list to every deploy (Fork call 1 of SLICE-11 and of this slice) and the migration spec says every release change happens flat, so `restore` of an op whose last record is `CONVERGED` runs the same boundary as `activate` (`boundary_reasons`) before stopping anything, refusing `CFG-R13` with the refusal recorded on the `restore-` op (`RESTORING` `refused`). `_continuity` is not run there (the bullet above). A mid-transition crash or failed op restores as before (CP-R3…CP-R5 unchanged).
+
+#### The obligation world (test helpers in `tests/recovery/test_release_continuity.py`)
+
+Labelled synthetic, on the protection loop worlds of `tests/unit/test_protection_loop.py` (imported, not copied): `world_of` (`:56`), `entry` (`:64`), `pass_` (`:80`), `settle` (`:86`), `add_close` (`:106`), `leg` (`:111`), `desires` (`:116`), `admitted_keys` (`:125`), `RISE` (`:151`), `bar` (`:168`); from `tests/conftest.py`: `admission_world` (`:929`), `build_admission_world` (`:918`), `admit_human` (`:231`), `owner_authorize` (`:283`), `book_step` (`:1141`), `observe` (`:1134`), `FakeCalendar` (`:146`), `FakeLeaseStore` (`:63`), `CAL`, `SCOPE`, `CANDIDATE`, `POLICY_ID`, `bound` (`:528-540`).
+
+* **`story(world) -> pid`**, the obligations open at once:
+  1. **Partial fill:** `entry(world, fill=25)`: E1 for 75 acknowledged, 25 filled; the stop placed for 25 (`stop_on_fill`) and confirmed at 15.00 after `settle` (the shape of `test_a_later_fill_raises_the_stop`, `test_protection_loop.py:320-337`).
+  2. **Active protection:** `bar` over `RISE[:3]` with `settle` after each: the trail active at 23.50, one level modify of S1 confirmed.
+  3. **Uncertain cancel:** `admit_human(world.comp, CancelRequest(CommandKey("k-cancel"), TEST_PRINCIPAL, ACCT, "E1"))` (E1's working remainder of 50), the responder step `{"result": "timeout"}`, `dispatch`: `k-cancel` is `UNCERTAIN` with one `DISPATCH_CLAIMED`. A real dispatch, not `unresolved`'s written events (`conftest.py:989`); if admission refuses the test principal, the builder uses the owner and says so.
+* **`late_fill(world)`:** `book_step(kind="fill", order_id="E1", quantity=50, fill_id="F-E1b")`: the cancel lost the race.
+* **`obligations(writer) -> dict`**, what must not change: for every command not terminal, `(command_key, verb, state, request digest, attempt count, last attempt state)`; every position not closed, `(position_id, owned_quantity, state)`; every `protection_state` row, `(position_id, ladder_version, policy_version, exit_reason)`; the last `PROTECTION_DESIRED` per position, `(desired_level, desired_quantity, ladder_state, ladder_version, policy_version)`; the broker order IDs of each live leg. No sequences or times, so two runs compare.
+* **`carry(old, new)`:** the broker outlives a kernel restart, so the new composition's simulated broker takes the old one's `_orders`, `_trades` and `_last_price` (the seams `test_crash_boundaries.py:374-383` sets), and the new `FixtureMarket` the old `close_rows` and `ticks`. After a killed child the parent seeds the book as the child left it, as `_reopen_protected` does (`test_crash_boundaries.py:362-384`).
+* **Restarts:** clean is `comp.recovery.shutdown(True)` (`recovery.py:620`), the loop stopped, then `world_of(admission_world, reopen=True)` on the shared `FakeLeaseStore` (routine advance, as `test_restart_mid_session`, `test_session_transitions.py:72-81`). A kill is a child process: this test file is also the driver (`__main__`, as `test_crash_boundaries.py:1600-1663`), building with `build_admission_world(…, fault_plan=FaultPlan(point))` and exiting 86; the parent reopens with a fresh `FakeLeaseStore` (the lease after a crash is PRF-SES's subject, not this one's).
+* **The session transition:** the policy `bound(ai_mode="off", review_required=False, protection=ProtectionPolicy(session_close="broker"))` (as `test_session_close_broker_sends_nothing`, `test_protection_loop.py:597-605`), so the position is still open at the 15:30 IST close (labelled synthetic: in production the broker's square-off is the backstop and a day order would lapse). The close is `recovery.tick()` after 10:00Z; the next day is `world.comp.sessions.calendar.days[(CAL, "2026-11-03")] = FakeCalendar.day("2026-11-03")` (the dictionary `test_close_survives_calendar_outage` edits, `test_session_transitions.py:125-131`); a second binding `b-2` is authorized before it, so the continuity hook runs (`lifecycle.py:194-199`: only on a changed `binding_id`). `b-2` names a second bound policy whose `ProtectionPolicy` differs from 2 November's (`protection_policy_from({"ladder": {"atr_mult": 2.5}})`, as `test_a_leg_keeps_its_policy_after_the_binding_changes`, `test_protection_loop.py:890-900`), so a leg taking the new policy changes `policy_version` and the assertion can fail. Its ladder version cannot differ: this code runs one ladder (`SUPPORTED_LADDERS`, `contracts/decisions.py:154`), and a leg on an unsupported one is the unrunnable case. After the close, protection makes no attempt (`ProtectionLoop._after_close`, `protection.py:903`). If the simulated book is day-scoped, the test seeds the 3 November book as the carried state and says so.
+* **The installer rehearsal:** `Rehearsal` imported from `tests/recovery/test_release_activation.py:320` (as step 1 did), subclassed as `ContinuityRehearsal` whose `build` adds the readers a real bundle has (`readers.event` as `deployment.py:180` makes them, `schema.migration_revision` the highest migration), so `compatible` passes over a real ledger. `obligation_ledger(path, *, older_ladder=False)` runs `story` in a world at `path` (`trail.LADDER_VERSION` patched to `premium@older` while it runs, as `test_protection_loop.py:903-912`, when `older_ladder`), shuts it down cleanly and returns the pid; the file is copied to `{DIR}/srv/ledger/ledger.sqlite` (`rehearse_init`, `install.py:1454`) **after** `rh.ready()`, except where a test checks over it.
+
+### Tests
+
+**`tests/recovery/test_release_continuity.py`** (new, PRF-MIG-15 and PRF-PRT-12's session part; as built, 18 with `test_restore_after_a_crash_mid_transition_is_unchanged`):
+
+| Group | Test | Asserts |
+|---|---|---|
+| Release change refused | `test_release_change_over_open_obligations_refused_before_any_stop[forward\|rollback]×[broker_and_ledger\|ledger_only]` | A converged; B ready; the obligation ledger placed; `rh.set_broker(positions=1, orders=2)` or flat; `activate` B (forward) or, with B current, A again (rollback) → `CFG-R13`; the reasons name the broker's position and working orders (first variant) and `command(s) in flight, uncertain or working` (both); no `STOPPING` record; every unit active on the current release; `current` unchanged; `projection_heads` (`deployment.py:778`) of the ledger equal before and after |
+| | `test_restore_after_a_converged_activation_over_open_obligations` | A then B converged, the obligation ledger placed, `restore` → refused `CFG-R13`, nothing stopped, `current` is B; with the ledger flat `restore` converges on A (as `test_first_install_then_a_release_then_restore`) |
+| `CFG-R11` | `test_check_refuses_a_release_that_cannot_run_a_live_leg` | The older-ladder ledger in place before `check` → `CFG-R11 obligation_unrunnable: <pid> ladder_version_unknown`; refused record; no `VERIFIED_DISARMED` `done`; with `decisions.SUPPORTED_LADDERS` patched to include the older ladder the same `check` passes (the running code judges) |
+| | `test_activation_with_the_boundary_disabled_refuses_an_unrunnable_leg[forward\|rollback]` | B checked (rollback: B converged, then A again) over a flat ledger; the older-ladder ledger placed; boundary disabled (test-only) → `activate` refuses `CFG-R11` at `BOUNDARY_QUIET`; nothing stopped; `current` is A |
+| | `test_continuity_is_still_run_on_a_flat_change` | A flat ledger (the story run to its exit, position closed) → `VERIFIED_DISARMED`, `BOUNDARY_QUIET` and `QUIET_BEFORE_SWITCH` facts carry `unrunnable: []`; `CONVERGED` |
+| Restarts | `test_a_clean_restart_keeps_every_obligation` | `obligations` equal before shutdown and after the reopen's advance, before any observation; no `COMMAND_ADMITTED` or `DISPATCH_CLAIMED` written by recovery; `recovery.report["unrunnable"]` empty |
+| | `test_a_restart_then_a_late_fill_equals_the_continuous_run` | Two worlds (own ledger path and `RecordedClock`), the same steps: `story`; [restart]; `late_fill`; `bar` over `RISE[3:5]`; `settle`. `obligations` equal; `k-cancel` has one claim in each; the raise is one modify of S1 to 75; the trail levels after the restart equal the continuous run's (the ladder state carried) |
+| Session transition | `test_a_session_transition_carries_the_obligations[running\|down_over_the_close]` | `story`; the close (`calendar_close`, or the kernel shut down before 10:00Z and reopened at 09:05 IST, `closed_in_recovery`); `late_fill` after the close: the `FILL` recorded, no new `prot:` key while closed; `b-2` authorized; 09:20 IST: `SESSION_OPENED` for 3 November with `b-2`; then one desire at 75 and one raise of S1, each with the 2 November `ladder_version` and `policy_version`; `k-cancel` one claim; the `command_identity` row of the placement unchanged |
+| | `test_a_session_with_an_unrunnable_carried_leg_does_not_open` | The older-ladder story across the close: `SESSION_OPEN_FAILED` reason `continuity` on 3 November, once over several ticks; no `SESSION_OPENED`; `recovery.report["unrunnable"]` names the leg |
+| Crash at the handoff (a killed process) | `test_killed_at_the_handoff_then_resumed[in_session\|next_session]` | Child: `story`, (`next_session`: through the close and the next open), `late_fill`, killed at `CP-P4` (`protection.py:1125`: the desire at 75 committed, the raise not admitted). Parent: reopen, seed the book, passes → one desire at 75 (not recorded again), one raise of S1 to 75, `k-cancel` one claim, no other new key; `obligations` equal to the continuous run taken to the same point |
+| | `test_killed_between_the_close_and_the_next_open` | Child: `story`, the tick that commits `SESSION_CLOSED`, `os._exit(86)`. Parent: reopen next morning → no second `SESSION_CLOSED`; the 3 November session opens; carried as above |
+
+**Changed existing:** none expected. Existing rehearsal rows have no ledger at `ledger.path`, so `check` and the quiet states see `unrunnable: []`.
+
+### Files
+
+| File | Change |
+|---|---|
+| `src/autonomous_trading/operations/deployment.py` | `continuity_reasons` |
+| `deploy/install.py` | `CFG-R11` in `check`; `_continuity` at `BOUNDARY_QUIET` and `QUIET_BEFORE_SWITCH`; the boundary in `restore` of a converged op |
+| `docs/operations.md` | `CFG-R11` in the release and rollback text |
+| `tests/recovery/test_release_continuity.py` | New, with its child driver |
+| Integration edits (for the spec owners) | The configuration spec: the kernel-start Deviation and the installer-code rule; `restore` of a converged op is a rollback under the boundary; **spec drift:** PRF-MIG-15 cites "the Combined-F6 row (`README.md:1255`)", but `:1255` is the D10 row and the Combined-F6 row is `README.md:432`; the protection spec's PRF-PRT-12 file column lists `tests/unit/test_protection_loop.py` (SLICE-06's rows) beside this file; SLICE-11's carried PRF-CFG-07 Composition row (`CFG-R11`) is met here |
+
+### Completion conditions (step 2)
+
+* The new tests, `tests/recovery/test_release_activation.py`, `tests/recovery/test_initial_cutover.py`, `tests/unit/test_protection_loop.py`, `tests/recovery/test_crash_boundaries.py` and the layering and import guards pass twice on Windows, Linux-only rows skipped with their reason. No full suite.
+* Each crash row kills a real process.
+* Break checks, written in the as-built note, each failing a listed test, every file restored (md5): `continuity_reasons` returns `[]`; `_continuity` skipped at `BOUNDARY_QUIET`; the obligation ledger's uncertain cancel dropped from `ledger_reasons`; the after-close rule removed (a raise sent while closed); the continuity hook made always true; `CP-P4`'s desire written twice on resume.
+* Nothing touched the EC2, a key, a broker or money.
+
+### Step 2 as built
+
+**Built** in OA_NEW `9972386` on `slice-14` (from `slice-08` `97ef7c0`), one commit, then fast-forwarded onto `slice-08`; not pushed. Built in the worktree `OA_NEW-s14` with `PYTHONPATH` set to its `src`.
+
+| Part | Files |
+|---|---|
+| `continuity_reasons(reader)` (`CFG-R11 obligation_unrunnable`) | `operations/deployment.py` |
+| `CFG-R11` in `check` (`VERIFIED_DISARMED` facts gain `unrunnable`); `_continuity` after the boundary at `BOUNDARY_QUIET` and `QUIET_BEFORE_SWITCH` (`QUIET_AFTER_STOP` keeps the boundary only); `restore` of a `CONVERGED` op (called without `op`) runs `boundary_reasons` before anything stops, refusing `CFG-R13` as `RESTORING` `refused` | `deploy/install.py` |
+| Release, rollback and `CFG-R11` text | `docs/operations.md` |
+| Tests: 18 | `tests/recovery/test_release_continuity.py` (new, with its child driver) |
+
+**Run.** Windows, Python 3.14 (`.venv-slice01`), plain pytest, affected only, twice: `tests/contracts`, the new file, `test_release_activation.py`, `test_initial_cutover.py`, `test_recovery_set.py`, `test_restore_fencing.py`, `test_crash_boundaries.py`, `tests/integration/test_supervisor.py`, `tests/unit/test_protection_loop.py`: **1050 passed, 12 skipped** both times. After the fast-forward, `tests/contracts` in the main checkout (whose `python -I` guards read it): **525 passed, 5 skipped**. No full suite.
+
+**Break checks** (`s14_step2_breaks.py` in the session scratchpad): **8, each failing its listed test**; every file restored (md5 checked).
+
+| # | Broken | Caught by |
+|---|---|---|
+| B1 | `continuity_reasons` returns nothing | `test_check_refuses_a_release_that_cannot_run_a_live_leg` |
+| B2 | `_continuity` skipped | `test_activation_with_the_boundary_disabled_refuses_an_unrunnable_leg` |
+| B3 | uncertain and working commands dropped from the boundary | `test_release_change_over_open_obligations_refused_before_any_stop` |
+| B4 | the after-close rule removed | `test_a_session_transition_carries_the_obligations` |
+| B5 | the session continuity hook always true | `test_a_session_with_an_unrunnable_carried_leg_does_not_open` |
+| B6 | the converged `restore`'s boundary removed | `test_restore_after_a_converged_activation_over_open_obligations` |
+| B7 | the boundary on every `restore`, mid-transition too | `test_restore_after_a_crash_mid_transition_is_unchanged` (added for this break) |
+| B8 | `check` skips `CFG-R11` | `test_check_refuses_a_release_that_cannot_run_a_live_leg` |
+
+**Crash rows kill a real process:** CP-P4 at the late fill in session and after the next day's open, and a kill right after `SESSION_CLOSED`; the installer killed at `SWITCHED:intent` before the mid-transition `restore`.
+
+**Differences from the text above**, each smaller than a decision:
+
+* **The restart's broker** is seeded through `build`'s `wrap` before the reopened composition's first read (the old book copied), so the first read never sees an empty book; after a killed child, the book is the in-process reference run's at the same point.
+* **Two worlds on one account** each take their own `FakeLeaseStore` (one store would refuse the second `SES-R10 lease_held`).
+* **`ContinuityRehearsal`** overrides `build_copy` too, so the root copy's bundle matches the staged one.
+* **`test_continuity_reasons_judge_the_running_code`** was merged into the `check` test (the review's item 5): the same `check` passes with `SUPPORTED_LADDERS` widened.
+* **Added:** `test_restore_after_a_crash_mid_transition_is_unchanged` (CP-R3…R5 keep their restore with a position open).
+* **The session test asserts** b-2's `policy_version` differs from 2 November's before checking the leg kept 2 November's.
+
+**Deviations** (recorded for review): the kernel's start does not refuse `CFG-R11` (SLICE-06 step 5's Deviation; Decisions above); `CFG-R11` runs at every release change, not only towards an older release; `restore` judges no `CFG-R11` (it runs the current code).
+
+**Not built, carried:** the integration edits listed in Files (configuration spec, protection spec PRF-PRT-12 file column, the `README.md:1255` → `:432` spec drift, SLICE-11's PRF-CFG-07 Composition row met here).
 
 ## Step 3 — the cutover rehearsal on copies (outline)
 
