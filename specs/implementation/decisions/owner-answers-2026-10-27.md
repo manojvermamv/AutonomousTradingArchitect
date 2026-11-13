@@ -105,3 +105,12 @@ The production EC2 (`debian-oa`) is suspended permanently, with its data: legacy
 | Do the four backup settings block staging | No: reported only, as built | `backup.destination`, `backup.retention`, `backup.passphrase_held_offbox`, `backup.storage_credential_held_offbox` are reported at staging and never refuse; nothing stops install, testing or trading without a backup (`REPORTED_WHILE_UNBOUND`, `deploy/install.py`). The trade-off was named to the owner: until a backup is configured, a host loss loses the data again |
 | Strategy-timer binding hold | No hold, as the spec says | The strategy timer starts at the end of the install; the binding match is reported, never a refusal. The owner's switch of OpenAlgo to live is the moment of control |
 | The five local days | Use them as simulation data, after validation | Before any use they are checked (gaps, duplicate minutes, impossible jumps, missing strikes, out-of-hours rows), and, once a new OpenAlgo exists, the spot bars are re-fetched from its history and compared (chains cannot be re-fetched). They serve backup and restore rehearsals at real size, a local first-install rehearsal with a fake OpenAlgo replaying them, and store-size and replay-timing measurement; not OpenAlgo's real load |
+
+## The new system's own root rules (2026-11-13)
+
+| Topic | Answer | What it means |
+|---|---|---|
+| Supervisor emergency stop (polkit, `at-supervisor` may only stop `at.slice`) | Accepted | As built (SLICE-11 step 4) |
+| Installer manages its own units (polkit, `at-installer`, the target's units only) | Accepted | As built (SLICE-11 step 7) |
+| Installer root steps (sudoers, `install.py apply-root` and `enable-units`, no argument after them) | Accepted | As built; the `cutover-root` line is not installed on a fresh host |
+| Isolated work for operators (sudoers, `%at-operators … isolated_work.py --work-dir *`) | Accepted on one condition | A test must prove `scripts/isolated_work.py` refuses every unsafe argument it can be given through the wildcard (paths outside its allowed roots, extra unit properties, a different user, the `--shadow` and `--key-probe` modes on a fresh host) before this line is installed. The `--shadow` line is not installed on a fresh host |
