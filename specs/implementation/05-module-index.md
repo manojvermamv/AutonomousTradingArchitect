@@ -128,7 +128,7 @@ These are files the slices need that README §6 does not list (T-01…T-23). T-0
 | T-56 | `tests/unit/test_provider_records.py` | SLICE-09 | Provider and run records, replay (PRF-STR-06) ([SLICE-09](plan/slices/SLICE-09-strategies-and-cognition.md)) |
 | T-57 | `tests/integration/test_review_producer.py` | SLICE-09 | The review producer (PRF-STR-07) ([SLICE-09](plan/slices/SLICE-09-strategies-and-cognition.md)) |
 | T-58 | `tests/unit/test_model_strategy.py` | SLICE-09 | Model strategy proposals (PRF-STR-08) ([SLICE-09](plan/slices/SLICE-09-strategies-and-cognition.md)) |
-| T-59 | `deploy/systemd/at-strategy.service` | SLICE-11 | The strategy host's unit: README §6 has none; legacy's unit name ([SLICE-09](plan/slices/SLICE-09-strategies-and-cognition.md)) |
+| T-59 | `deploy/systemd/at-strategy-host.service` | SLICE-11 | The strategy host's unit: README §6 has none; legacy's unit name until renamed apart (owner, 13 November 2026) ([SLICE-09](plan/slices/SLICE-09-strategies-and-cognition.md)) |
 | T-60 | `tests/unit/test_operator_authorization.py` | SLICE-10 | Requests and confirmations (PRF-SEC-01, -02) ([SLICE-10](plan/slices/SLICE-10-security-and-operator.md)) |
 | T-61 | `tests/unit/test_secret_references.py` | SLICE-10 | Secret references (PRF-SEC-04) ([SLICE-10](plan/slices/SLICE-10-security-and-operator.md)) |
 | T-62 | `tests/integration/test_unix_channel.py` | SLICE-10 | The local sockets, Linux only (PRF-SEC-05) ([SLICE-10](plan/slices/SLICE-10-security-and-operator.md)) |

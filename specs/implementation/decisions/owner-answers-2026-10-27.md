@@ -84,3 +84,11 @@ OpenAlgo's `/api/v1/funds` carries no margin figure (captured `funds_20260802…
 | Topic | Answer | What it means |
 |---|---|---|
 | Margin when funds report none | Use available cash (recommended) | When the funds observation has no margin figure, `margin_available` is the observed `availablecash`, the rule legacy's reservation path uses (`src/runtime/ai_management/advice_orchestration.py:85` @445eb116, `funds.get("margins", available)`). Position rows and open orders with no amount follow legacy's treatment on the same path rather than refusing `observation_field_missing`. The broker remains the real margin boundary. Supersedes SLICE-07's "no guessed money field" for this one field |
+
+## Unit names that clash with legacy (2026-11-13)
+
+Legacy at 445eb116 ships `at-strategy.service/.timer`, `at-backup.service/.timer`, `at-research.slice`, `at-research-worker.service` and `at-research-model.service` (`deploy/systemd/`); the target rendered or started units under the same names, so `CUTOVER_STAGED` refused `CFG-R10 unit_name_collision` (SLICE-14 step 1 as built). Options put: rename the target's units; decide later.
+
+| Topic | Answer | What it means |
+|---|---|---|
+| Clashing unit names | Rename the new units | The target's units become `at-strategy-host.service/.timer`, `at-ledger-backup.service/.timer`, `at-research-jobs.slice`, `at-research-job-offline.service`, `at-research-job-model.service`. Legacy's names are unchanged. Only unit names change: system users, groups, principals and console commands keep their names. The collision check also covers the transient units the target starts. `at-tier1-authority.service` is legacy's unit, named by the target only to stop it; unchanged |

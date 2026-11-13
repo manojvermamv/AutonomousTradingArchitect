@@ -82,7 +82,7 @@ The decision text is the requirement; the label is a reminder. REQ-MIG-011…013
 
 ### CUJ-MIG-1: The nightly backup
 
-At 17:15 IST the backup timer starts `at-backup.service`. The backup copies the ledger with SQLite's backup API while the kernel keeps running, reads its head back (sequence 48 211, hash `9c1e…`), copies the evidence objects the ledger references up to that head, the market store, the operator's authorization store and OpenAlgo's two databases, and writes a manifest naming every object and its SHA-256. It uploads the set, reads a sample back, and records the head in the manifest as an off-host anchor. One evidence object referenced at sequence 47 900 is missing: the manifest lists it under `gaps`, and the backup alerts. The kernel is never stopped or slowed beyond one read transaction.
+At 17:15 IST the backup timer starts `at-ledger-backup.service`. The backup copies the ledger with SQLite's backup API while the kernel keeps running, reads its head back (sequence 48 211, hash `9c1e…`), copies the evidence objects the ledger references up to that head, the market store, the operator's authorization store and OpenAlgo's two databases, and writes a manifest naming every object and its SHA-256. It uploads the set, reads a sample back, and records the head in the manifest as an off-host anchor. One evidence object referenced at sequence 47 900 is missing: the manifest lists it under `gaps`, and the backup alerts. The kernel is never stopped or slowed beyond one read transaction.
 
 ### CUJ-MIG-2: The server dies at 11:40 during a session
 
@@ -134,7 +134,7 @@ gaps            [{kind: evidence_missing | market_unreadable | openalgo_failed, 
 
 ### Backup (`operations/backup.py`)
 
-* **When.** `at-backup.timer` (runtime spec's unit table: daily 11:45 UTC, randomized 15 min, persistent, legacy's timing, POL-047). The backup is a required participant of a production composition; without `backup.destination` the composition refuses activation (configuration spec, `CFG-R08`).
+* **When.** `at-ledger-backup.timer` (runtime spec's unit table: daily 11:45 UTC, randomized 15 min, persistent, legacy's timing, POL-047). The backup is a required participant of a production composition; without `backup.destination` the composition refuses activation (configuration spec, `CFG-R08`).
 * **How, in order**, each step logged to `paths.run/backups/backup.jsonl` with `intent` and `done`:
   1. stage in `paths.scratch/backup-<set>/`, inside `envelope.backup_reserve.*` (runtime spec);
   2. copy the ledger with the SQLite backup API from a read-only connection, in steps, then open the copy, verify the chain, read its head and run `integrity_check` (legacy's snapshot method for the Tier-1 ledger, `src/tier1/recovery.py:138-163`, `:185-192`); the head read from the copy is the set's head;
