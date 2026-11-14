@@ -126,3 +126,9 @@ The production EC2 (`debian-oa`) is suspended permanently, with its data: legacy
 | Topic | Answer | What it means |
 |---|---|---|
 | `reconciliation.unknown_domain_settlement` | `accounting_only` (was `forbid`, 2026-10-27) | An identity-verified effect of `unknown` domain releases its reservation for obligation accounting only. It is labelled `unknown` and never counts toward live performance, promotion or economics; `conflicting` never settles. Why: OpenAlgo's books carry no live/sandbox marker, so under `forbid` every completed entry kept its money `HELD`; in SLICE-15's five-day replay that refused every entry from the third day (225 refusals). The source check that `forbid` waited on (TASK-S07-05) can no longer run on the lost server. It also matches legacy at 445eb116, which released a sent reservation once the structure was `CLOSED` and its own orders terminal, with no domain check (`src/core/framework/execution/reservations.py:532`). Bound in `config/live.example.yaml` and the replay harness; `defaults.yaml` stays refusing until the profile binds it. |
+
+## Q-029's approved row and `PRT-R06` (2026-11-14)
+
+| Topic | Answer | What it means |
+|---|---|---|
+| Does Q-029's approved difference (`ADM-R05`) also cover `PRT-R06 check_inert` when funds are missing? | Void, closed | The approved-difference list existed only for the SLICE-13 comparison with live legacy, void since the server was lost (2026-11-13). No code change: either code refuses new entries while broker data is missing. |
