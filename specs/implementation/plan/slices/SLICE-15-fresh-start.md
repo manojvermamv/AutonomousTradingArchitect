@@ -4,7 +4,7 @@
 * **Why this slice exists.** The production EC2 (`debian-oa`) was lost with all its data ([Server lost: start fresh](../../decisions/owner-answers-2026-10-27.md#server-lost-start-fresh-2026-11-13)). The owner chose a fresh start with the new system only. The steps that needed live legacy — SLICE-11 steps 9–11 (in part), SLICE-13 steps 6–7 and SLICE-14 steps 3–5 — are void or moved here. This slice replaces them with a fresh first install, rehearsed in full on the owner's Windows PC, then carried out on a new server.
 * **Precedence:** the master README, then the ROADMAP, then this package. Authorities: the [configuration spec](../../design/configuration-artifacts-release.md) (installer, release transitions), the [runtime spec](../../design/runtime-isolation-observability-deployment.md) (isolation, measurement), the [migration spec](../../design/migration-recovery-rollback-continuity.md) (recovery set, backup, restore). Every intentional difference from legacy is marked **Deviation**; every money-touching fork keeps legacy's live behaviour at 445eb116 and is marked **Fork call** ([standing rules](../../decisions/owner-answers-2026-10-27.md#standing-rules-2026-10-30)). **No score, threshold, entry gate or money value is set or changed here.**
 * **Owner answers applied:** Server lost: start fresh (2026-11-13); The new system's own root rules (2026-11-13); Unit names that clash with legacy (2026-11-13); Standing rules (2026-10-30); Margin limit when OpenAlgo reports none (2026-11-05).
-* **Builds on:** OA_NEW `slice-08` at `bbbd768` (local only): SLICE-11 steps 1–8, SLICE-12, SLICE-13 steps 1–5, SLICE-14 steps 1–2 as built. Branch `slice-15`, cut from `slice-08`.
+* **Builds on:** OA_NEW `slice-08` at `bbbd768` (since 2026-11-14 pushed as `agentic-desk` at `f202caa`): SLICE-11 steps 1–8, SLICE-12, SLICE-13 steps 1–5, SLICE-14 steps 1–2 as built. Branch `slice-15`, cut from `slice-08`.
 * **Environment.** Steps 1–6 run on the owner's Windows PC only: no WSL, no Linux, about 9 GB free on `C:`. No credential, no real key, no broker, no money. Backups go to a local folder or a local restic repository; OpenAlgo is a fake on loopback. Every check that needs Linux (real systemd, real users, POSIX modes, `sudo`, polkit, Unix sockets with `SO_PEERCRED`) becomes a row in [the waiting list](#linux-only-rows-waiting-for-the-new-server), run at step 7.
 * **Environment classes.** Steps 1–6: S (this PC, temporary or scratch directories). Step 7: P, **owner's word** for every part.
 
@@ -56,6 +56,10 @@ Recorded here, not run on this PC. Each one is run in step 7 or is marked as wai
 | The strategy timer's calendar `ExecCondition` and session preflight under real systemd | SLICE-09 |
 | The backup timer and `ResticDestination` against the real B2 or R2 repository, with anchors | SLICE-11 step 8 carry |
 | The supervisor's emergency stop of `at.slice` | SLICE-11 step 4 |
+| The production-profile rows carried to the EC2: PRF-PRT-06's frozen-kernel half, real `systemctl show`, `SIGTERM` handling (`tests/contracts/test_capabilities.py:1210` skips with "Linux, the EC2"), the network fence, kill release across users, `install-root-copy` | SLICE-11 lines 1534, 2552 (added by the 2026-11-14 check) |
+| Crash points CP-R2…CP-R7, the PRF-CFG-05 Rollback row and the PRF-CFG-07 Composition row through the real installer (SLICE-11's PRF-CFG-01…08 completion condition) | SLICE-11 line 2550 "not built, carried" (2026-11-14 check) |
+| C-1 capture against the real OpenAlgo: option chain with Greeks and `multioptiongreeks`; un-skips `test_pe_delta_sign_at_the_source` (`tests/integration/test_openalgo_contract.py:1360`). Run in step 7.2 right after OpenAlgo starts | SLICE-08 status, pending (2026-11-14 check) |
+| Measure `strategies.host.seal_wait_ms` and `strategies.host.review_retry_ms` (not produced by step 6) | SLICE-11 line 321 (2026-11-14 check) |
 
 ---
 
@@ -559,6 +563,17 @@ Every part is asked first. Order:
 * Step 4's reconciled days and step 6's measurements are recorded with the "converted simulation, not legacy-comparable" label.
 * Step 5 ran on `DirectoryDestination`; the restic anchor gap is carried to step 7.
 * Step 7 is done on the owner's word, or recorded as waiting, with the server, the backup account and the licence named.
+
+## Carried after the fresh check (2026-11-14)
+
+A fresh reviewer read SLICE-08…15 against OA_NEW `f202caa`. Every step is built (all cited commits exist) or marked void/moved. Items that had no live home are carried here; Linux-only ones are rows in [the waiting list](#linux-only-rows-waiting-for-the-new-server).
+
+* **Bundle candidate schema** (SLICE-12 line 1421): `operations/deployment.py:178-180` still writes `candidates_schema: None` and `readers.candidate: []` though `resources/candidates.schema.json` exists. Buildable on this PC; next framework item.
+* **TASK-S12-09 golden file** (SLICE-12 lines 9, 34, 137): `tests/fixtures/research/legacy_identity_445eb116.json` does not exist, so `test_candidate_freeze.py:185` and `test_custody_ledger.py:213` always skip. The first half needs only the local legacy checkout at 445eb116 and synthetic inputs, so it is buildable here; the second half (the EC2 comparison) is void with the server.
+* **Supervisor snapshot cost** (step 6 finding): one FILL lookup per open command; past the 2,000 ms budget at 800 open entries, inside it at 400. Live accounts hold a few. Framework item, not a present limit.
+* **SLICE-14 "not built, carried" lists** (SLICE-14 lines 349-357, 480): void with the fresh start — key probe, shadow copier, legacy polkit, `REFUSAL_SIGNATURES`. Still live, carried to step 7.6: the `ops09-record/1` format for PRF-OPS-09, `verify_recovery.py` calling `projection_heads` (it does not today), and the spec-owner integration edits.
+* **Stale text** (low): `config/live.example.yaml:35,47`, SLICE-13 line 1244, SLICE-14 lines 513-516 and SLICE-11 lines 2762-2765 still name SLICE-11 steps 9/10, the copier's EC2 dry start and cutover steps 4/5; read them as superseded by this slice. The "every step below is an outline" status lines of SLICE-09…15 predate the as-built notes.
+* **Owner finding, not tuned** (step 5): `HELD` reservations under `forbid` carry across days; by the end of day 2 nine hold ₹63,228.75 of about ₹64,800 cash, and from day 3 every entry is refused for funds (225 refusals). Proposal only; the owner decides.
 
 ## Open questions for the owner
 
