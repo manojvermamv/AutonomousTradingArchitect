@@ -569,7 +569,27 @@ Every part is asked first. Order:
 A fresh reviewer read SLICE-08…15 against OA_NEW `f202caa`. Every step is built (all cited commits exist) or marked void/moved. Items that had no live home are carried here; Linux-only ones are rows in [the waiting list](#linux-only-rows-waiting-for-the-new-server).
 
 * **Bundle candidate schema** (SLICE-12 line 1421): `operations/deployment.py:178-180` still writes `candidates_schema: None` and `readers.candidate: []` though `resources/candidates.schema.json` exists. Buildable on this PC; next framework item.
+  * **Done 2026-11-14** (OA_NEW, commit `794053a`).
+    * **The bundle.** `build_manifest` records `schema.candidates_schema` as the SHA-256 of `candidates.schema.json`, as it does for the events schema. It records `readers.candidate` as `candidate_readers(schema)`: the top-level kinds, today `["PromotionRecord/v1"]`.
+    * **The reader shape (Deviation).** It is a list of names, not `[kind, version]` pairs, because the version is part of the name, as in the record's `schema` key. The spec left the shape open (`"candidate": [...]`).
+    * **Verification.** `compatible()` (CFG-R09, run by the kernel at start, the installer and the restore) now checks stored candidate representations, as the configuration spec asks once SLICE-12 records any. The ledger keeps only a promotion record's digest, so `CANDIDATE_EVENTS` maps a stored `PROMOTION_RECORDED`/1 to `PromotionRecord/v1`, the only representation the kernel accepts. A bundle that cannot read it refuses with `CFG-R09 incompatible_history: candidate PromotionRecord/v1`.
+    * **Unchanged.** `verify_loaded` already hashes `candidates.schema.json` as a resource, so it needed no change.
+    * **Tests.**
+      * `test_custody_promotion.py::test_candidate_readers_in_compatibility` is new.
+      * `test_installed_artifact.py::test_resources_and_schema` now also checks the digest and the readers.
+      * The run covered `test_custody_promotion`, `test_release_continuity`, `test_release_activation`, `test_recovery_set`, `test_initial_cutover`, `test_supervisor` and `tests/contracts/`. It ran twice: 860 passed, 7 skipped each time (platform skips).
+    * **Breaks.** Three, each caught by the new test, every file restored (md5):
+      * the candidate check removed from `compatible`;
+      * the readers keep the `.part` kinds;
+      * the map names version 2.
+    * **Not changed.** The synthetic `A0` and `_real_bundle_readers` fixtures keep `candidate: []`, because their ledgers hold no promotion record.
 * **TASK-S12-09 golden file** (SLICE-12 lines 9, 34, 137): `tests/fixtures/research/legacy_identity_445eb116.json` does not exist, so `test_candidate_freeze.py:185` and `test_custody_ledger.py:213` always skip. The first half needs only the local legacy checkout at 445eb116 and synthetic inputs, so it is buildable here; the second half (the EC2 comparison) is void with the server.
+  * **Done 2026-11-14** (OA_NEW, commit `d8cd25a`; as built in SLICE-12 under "TASK-S12-09 first half as built").
+    * `scripts/gen_research_parity.py` writes the golden from a `git archive 445eb116` export. Two runs gave identical bytes.
+    * Its custody and bundle values equal the ones legacy computed for step 1 and step 3.
+    * The two skipped tests now run and pass, and `test_promotion_gate.py::test_golden` is new. The three files ran twice: 91 passed, 0 skipped.
+    * Four breaks were each caught, and every file was restored.
+    * The second half is marked void in SLICE-12.
 * **Supervisor snapshot cost** (step 6 finding): one FILL lookup per open command; past the 2,000 ms budget at 800 open entries, inside it at 400. Live accounts hold a few. Framework item, not a present limit.
 * **SLICE-14 "not built, carried" lists** (SLICE-14 lines 349-357, 480): void with the fresh start — key probe, shadow copier, legacy polkit, `REFUSAL_SIGNATURES`. Still live, carried to step 7.6: the `ops09-record/1` format for PRF-OPS-09, `verify_recovery.py` calling `projection_heads` (it does not today), and the spec-owner integration edits.
 * **Stale text** (low): `config/live.example.yaml:35,47`, SLICE-13 line 1244, SLICE-14 lines 513-516 and SLICE-11 lines 2762-2765 still name SLICE-11 steps 9/10, the copier's EC2 dry start and cutover steps 4/5; read them as superseded by this slice. The "every step below is an outline" status lines of SLICE-09…15 predate the as-built notes.

@@ -31,7 +31,7 @@
   * strategies spec: the host computes `CandidateId` from what it loaded and refuses a model-driven `plan`/`trade` strategy whose binding flag is `false`;
   * configuration spec: `bootstrap.py` composes the `EnginePort` for research;
   * traceability rows for REQ-RES-009…016.
-* **TASK-S12-09, second half:** running the custody, access-ledger and trial readers over a read-only copy of the production custody chain, anchor and trial records (metadata only; no protected payload opened). The boundary rule pre-approves reading recorded market days, not research custody, so this waits for the owner's word; without it the readers are first run on production data at SLICE-13.
+* **TASK-S12-09, second half:** running the custody, access-ledger and trial readers over a read-only copy of the production custody chain, anchor and trial records (metadata only; no protected payload opened). The boundary rule pre-approves reading recorded market days, not research custody, so this waits for the owner's word; without it the readers are first run on production data at SLICE-13. **Void (2026-11-14):** the EC2 and every production record on it were lost on 13 November and the owner chose a fresh start (SLICE-15), so there is no production custody chain, anchor or trial record to read. The first half is built (below, "TASK-S12-09 first half as built").
 
 ## Review resolution (2026-10-30)
 
@@ -136,7 +136,30 @@ Each keeps legacy's behaviour because it touches money or a promotion gate. Each
 
 ## Before step 1 — characterizations (TASK-S12-09, outline)
 
-Deepened before step 1. `scripts/gen_research_parity.py` (**T-87**), run once against a legacy checkout and never in the suite, as SLICE-06's and SLICE-08's generators, writes `tests/fixtures/research/legacy_identity_445eb116.json` (**T-86**): on synthetic inputs, legacy's `json_sha256` and `json_form` over inputs with integer keys, a `default=str` value (a date, a `Path`), `NaN` and `Infinity`; custody event hashes and anchors for a scripted sequence of operations, the locked-access rows it writes; `CandidateBundle.digest` for one bundle per family; a dataset manifest identity; an evaluation identity; a `RewardSpec` digest; Wilson bounds at `z` 1.96 and clustered effective n for three sample shapes. Provenance goes in `tests/fixtures/manifests.json`. It also records whether legacy's `CandidateRegistry` load re-hashes every artifact (the spec marks it **not checked**). The second half (production metadata) waits for the owner's word (Excluded).
+Deepened before step 1. `scripts/gen_research_parity.py` (**T-87**), run once against a legacy checkout and never in the suite, as SLICE-06's and SLICE-08's generators, writes `tests/fixtures/research/legacy_identity_445eb116.json` (**T-86**): on synthetic inputs, legacy's `json_sha256` and `json_form` over inputs with integer keys, a `default=str` value (a date, a `Path`), `NaN` and `Infinity`; custody event hashes and anchors for a scripted sequence of operations, the locked-access rows it writes; `CandidateBundle.digest` for one bundle per family; a dataset manifest identity; an evaluation identity; a `RewardSpec` digest; Wilson bounds at `z` 1.96 and clustered effective n for three sample shapes. Provenance goes in `tests/fixtures/manifests.json`. It also records whether legacy's `CandidateRegistry` load re-hashes every artifact (the spec marks it **not checked**). The second half (production metadata) waits for the owner's word (Excluded). **The second half is void (2026-11-14):** the server and its production records are gone (SLICE-15).
+
+### TASK-S12-09 first half as built (2026-11-14)
+
+**In plain words.** The test file that pins the old system's fingerprints now exists. It was made by running the old system's own code, at the 445eb116 commit, on invented inputs on this PC. The three tests that compare the new code with it no longer skip, and all pass. Nothing from the lost server was needed or read.
+
+* **Generator** `scripts/gen_research_parity.py` (T-87). Command, in its docstring: `git -C <OA> archive 445eb116 src config pyproject.toml | tar -x -C <export>`, then `python -I scripts/gen_research_parity.py --legacy <export> --out tests/fixtures/research/legacy_identity_445eb116.json`. Two runs wrote identical bytes (30,171). Provenance is in `tests/fixtures/manifests.json`.
+* **Golden** `tests/fixtures/research/legacy_identity_445eb116.json` (T-86), format `legacy-identity/1`, every input synthetic:
+  * `hasher`: ten inputs (integer keys, a date and a `PurePosixPath` under `default=str`, `NaN`, `±Infinity`, a tuple, nested, empty, float forms), each with legacy's `json_sha256` and its `json_form` digest. Values JSON cannot hold are tagged (`$int_keys`, `$date`, `$path`, `$tuple`).
+  * `custody`: the step 1 scripted chain through legacy's `CustodyLedger`, with the authority root at legacy's default (the custody root, as `CustodyLedger.configured` passes it). It gives each event hash, the chain's SHA-256 and length (3,926 bytes, no CR), and the anchor as a template with `{root}`.
+  * `locked_access`: a holdout declared, opened, claimed and completed through legacy's `TrialLedger`, with its custody chain and both `locked-oos-access` rows (`reserved`, `consumed`).
+  * `bundles`: one per family (five). `dataset_manifest`: an identity that legacy's `read_manifest` accepts. `evaluation`: an identity over integer horizon keys. `reward_spec`: `NET_POINTS_AFTER_CHARGES`. `wilson` at z 1.96 and `clustered_effective_n`: three shapes each.
+  * `registry_load_rehashes`: **true**, read from `registry.py` `_verify_at`, which re-hashes every listed artifact (lines 372-381). It was not run, because its directory descriptors do not open on Windows. This answers the spec's "not checked".
+* **Cross-check.** The generator's custody hashes, chain digest and five bundle digests equal the values step 1 and step 3 computed from legacy on 2026-11-03.
+* **Windows shims.** The generator uses four, and only on Windows: no-op `fcntl.flock`, `os.register_at_fork` stubbed, directory `os.open` with fsync skipped, and `O_BINARY`. `uuid4`, `datetime.now` and `time.time` are scripted in the legacy modules on every OS.
+* **Deviation.** The step 1 constants put `/srv/at/research-custody` in the anchor. At 445eb116, legacy refuses a second operation when `_authority_root` differs from the root ("configured custody root changed"), so the golden's chain uses legacy's default. The event hashes do not depend on the root.
+* **Recorded, not compared.** The `locked_access` section is not compared, because the target's trial ledger is a port with its own ids. Its hashes that cover legacy's migration events are `null`: those events record the trial directory's path, so they differ between two directories. The `access_rows`, declaration and trial are equal across runs.
+* **Consumers.** The three tests are `tests/unit/test_custody_ledger.py::test_golden` (hasher, custody), `tests/unit/test_candidate_freeze.py::test_golden` (bundles, dataset manifest, evaluation identity) and `tests/unit/test_promotion_gate.py::test_golden` (Wilson, effective n, reward; new).
+* **Tests.** The three files ran twice: 91 passed, 0 skipped each time. Before this, the two golden tests skipped.
+* **Breaks.** Four, each caught by its golden test, every file restored (md5):
+  * `json_form` with `default=repr`;
+  * Wilson's low bound rounded to 3 places;
+  * `evaluation_identity` without `json_form`;
+  * one golden bundle digest altered.
 
 ## Step 1 — custody and bundles
 
@@ -1418,7 +1441,7 @@ The sessions, intent and strategies design specs carry the integration edits.
 | `custody_witness` input (**Deviation**) | Malformed input raises `ValueError` rather than refusing. The kernel keeps its own `CUSTODY_KINDS`, because it may not import research |
 | Doors (**Deviation**) | The three new operations take the default door row (offered, no confirmation) on the CLI and the owner API |
 | Test principals | Entries use the existing human test principal holding `g-test`, not `strategy:m` services. K4 submits one witness directly, because the scripted chain submits more than one and `errors == 1` could not hold |
-| Not built | The deployment artifact still writes `"candidates_schema": None` |
+| Not built | The deployment artifact still writes `"candidates_schema": None`. **Built 2026-11-14** (SLICE-15 "Carried after the fresh check", Bundle candidate schema) |
 | Break checks | 22, the plan's set. Each anchor was present once, each mutation failed its listed test on the intended assertion, and every file was restored (md5). Run twice: by the builder, and again by the lead before the commit. Script: `s12f_breaks.py` in the session scratchpad |
 
 **Tests run (Windows, affected only, plain OA_NEW, no path override):** 22 files plus `tests/contracts/`: 1,136 passed, 12 skipped (platform skips), twice by the builder and once more by the lead before the commit.
