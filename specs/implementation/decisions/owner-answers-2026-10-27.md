@@ -12,7 +12,7 @@
 | Q-003 | View freshness (90 s, POL-018) is measured from the decision bar's **close**, not its open. More lenient than legacy by one bar | `market.view_age_stamp: bar_close` |
 | Q-004 | Protective actions never wait on unrelated unresolved entries (option A); priority between protection and entries stays the fixed admission-order rule | `protective_independence: same_group_only`; `coordinator.busy_applies_to: entries_only` |
 | Q-005 | First release: BuyerEdge on the current account | composition scope for SLICE-11/SLICE-14 |
-| Q-006 | An identity-verified effect of `unknown` domain never releases its reserved money | `reconciliation.unknown_domain_settlement: forbid` |
+| Q-006 | An identity-verified effect of `unknown` domain never releases its reserved money. **Superseded 2026-11-14:** releases for accounting only ([Q-006 revisited](#q-006-revisited-release-held-money-for-bookkeeping-2026-11-14)) | `reconciliation.unknown_domain_settlement: accounting_only` (was `forbid`) |
 | Q-007 | First test at the source whether a place field round-trips as our tag (TASK-S07-05); if not, the owner resolves each such timeout by a recorded action (`attempt_resolve`). Never adopt by shape | `attempt_resolve` grant action added in SLICE-03/07 |
 | Q-008 | Analyzer, unknown and conflicting obligations count against live capacity | `capacity.count_non_live_obligations: count` |
 | Q-009 | A routine same-host restart whose checks are clean resumes automatically under a standing authorization; a restore, host change or `RECOVERY_GAP` still needs a human `RECOVERY_ADVANCED` and the fence | `recovery.routine_advance: standing` |
@@ -120,3 +120,9 @@ The production EC2 (`debian-oa`) is suspended permanently, with its data: legacy
 | Topic | Answer | What it means |
 |---|---|---|
 | Install restic on the Windows PC for SLICE-15's backup rehearsal | No: use a folder | SLICE-15's backup and restore rehearsal uses `operations.backup`'s local-directory destination. `ResticDestination` (and its anchor gap) is first exercised on the new server with the B2/R2 repository, recorded there as waiting |
+
+## Q-006 revisited: release held money for bookkeeping (2026-11-14)
+
+| Topic | Answer | What it means |
+|---|---|---|
+| `reconciliation.unknown_domain_settlement` | `accounting_only` (was `forbid`, 2026-10-27) | An identity-verified effect of `unknown` domain releases its reservation for obligation accounting only. It is labelled `unknown` and never counts toward live performance, promotion or economics; `conflicting` never settles. Why: OpenAlgo's books carry no live/sandbox marker, so under `forbid` every completed entry kept its money `HELD`; in SLICE-15's five-day replay that refused every entry from the third day (225 refusals). The source check that `forbid` waited on (TASK-S07-05) can no longer run on the lost server. It also matches legacy at 445eb116, which released a sent reservation once the structure was `CLOSED` and its own orders terminal, with no domain check (`src/core/framework/execution/reservations.py:532`). Bound in `config/live.example.yaml` and the replay harness; `defaults.yaml` stays refusing until the profile binds it. |
