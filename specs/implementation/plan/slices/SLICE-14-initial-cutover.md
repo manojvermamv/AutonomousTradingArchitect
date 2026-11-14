@@ -27,9 +27,9 @@
 |---|---|---|---|
 | 1 | The cutover states in `operations/deployment.py` and the `cutover` and `continue-legacy` commands of `deploy/install.py`, including `OBSERVER_READY`, the observation route's re-key at `CREDENTIAL_ROTATED`, `KEY_PROBED`, `BACKUP_ANCHORED` and `FAILED_AFTER_ROTATION`; legacy's refusal list over legacy's stores; masking; the carried safety state and the strategy-authority check in the genesis; the derived retirement and the `RouteRetirement` record (`kernel/host.py`); `continue-legacy`'s refusals, target masking, credential removal, `ROLLBACK_CONTINUATION` and the `abnormal` lease; setting aside an earlier attempt's ledger; the kernel-side fence and continuation checks in `kernel/recovery.py` | S (rehearsal directory, fake `systemctl`, simulated broker, step 1 fixtures of SLICE-13) | PRF-MIG-13 |
 | 2 | The continuity proofs of REQ-MIG-008 over the built kernel and installer | S | PRF-MIG-15 |
-| 3 | **Owner's word.** The whole cutover walked in rehearsal mode on the EC2 against the shadow's copies of production legacy stores, isolated as step 3 says, with the copied books standing in for the broker and a fake `systemctl`; the go-back walked from two points | D (owner's word; nothing that trades is touched) | Rehearsal record |
-| 4 | **Owner's word.** The production cutover, `CUTOVER_STAGED` to `CONVERGED`, with the owner's key replacement, fence and advance | P | PRF-MIG-14, PRF-SES-07 |
-| 5 | **Owner's word.** After the first session: the first claim's sequence and the `RouteRetirement` record confirmed as the old route's retirement; legacy's retained tools pointed at `paths.compat`, each running keyless with no broker network; legacy's run directory kept read-only in the recovery set | P | PRF-MIG-14 (retirement part) |
+| 3 | **Void (2026-11-13, server lost; see SLICE-15).** **Owner's word.** The whole cutover walked in rehearsal mode on the EC2 against the shadow's copies of production legacy stores, isolated as step 3 says, with the copied books standing in for the broker and a fake `systemctl`; the go-back walked from two points | D (owner's word; nothing that trades is touched) | Rehearsal record |
+| 4 | **Void (2026-11-13, server lost; see SLICE-15).** **Owner's word.** The production cutover, `CUTOVER_STAGED` to `CONVERGED`, with the owner's key replacement, fence and advance | P | PRF-MIG-14, PRF-SES-07 |
+| 5 | **Void (2026-11-13, server lost; see SLICE-15).** **Owner's word.** After the first session: the first claim's sequence and the `RouteRetirement` record confirmed as the old route's retirement; legacy's retained tools pointed at `paths.compat`, each running keyless with no broker network; legacy's run directory kept read-only in the recovery set | P | PRF-MIG-14 (retirement part) |
 
 **Why this order.** Step 1 is the code of the cutover; step 2 proves the release machinery it reuses keeps obligations whole; step 3 proves the whole evening on real data without risk; step 4 does it; step 5 can only follow a first trading day. Step 2 may be built in parallel with step 1 by a second agent owning `tests/recovery/test_release_continuity.py` only.
 
@@ -481,6 +481,8 @@ Labelled synthetic, on the protection loop worlds of `tests/unit/test_protection
 
 ## Step 3 — the cutover rehearsal on copies (outline)
 
+**Void (2026-11-13, server lost; see SLICE-15).** No legacy stores to copy; the fresh first install is rehearsed locally in SLICE-15 step 4.
+
 Deepened after step 1 is built; held until the owner's word, which the owner has not pre-approved. It changes nothing that trades, but it runs the real installer and kernel on the production host, so it runs under this isolation:
 
 * a new directory under `paths.shadow.root/rehearsal-<n>/`, holding the candidate wheel installed with its lock, its own `release.root`, its own ledger, evidence store, market store, compat root and a `DirectoryLeaseStore`; nothing under the production `release.root`, no unit file written, no `current` link touched, no `systemctl` but the installer's fake one;
@@ -493,6 +495,8 @@ Deepened after step 1 is built; held until the owner's word, which the owner has
 
 ## Step 4 — the production cutover (outline; needs the owner's word)
 
+**Void (2026-11-13, server lost; see SLICE-15).** No legacy to cut over from; the new server's fresh first install is SLICE-15 step 7.
+
 Production-sensitive: "the cutover (SLICE-14)" is asked first under the standing rules. Deepened, then held until the owner names the release and the evening.
 
 * **Before the word, ready or not** (a list for the owner): the candidate `VERIFIED_DISARMED` on the host and the same bundle in the shadow and the D10 rehearsal; the licence, account, account limits, lease store and backup destination bound; PRF-OPS-09's record (which `CUTOVER_STAGED` checks); the shadow days and their defect counts (one or two clean end-to-end days are enough, by the owner's answer, and nothing counts them); step 3's record if the owner chose to run it; the conversion decision (PRF-MIG-08); the carried safety state the genesis will record, and the note that `run/KILL` stops working after the switch; the open items above.
@@ -500,6 +504,8 @@ Production-sensitive: "the cutover (SLICE-14)" is asked first under the standing
 * **Produces:** PRF-MIG-14 and PRF-SES-07: the cutover record, and the evidence that the old route cannot send (the probe's refusal, or the owner's attestation labelled as such; the old units masked).
 
 ## Step 5 — after the first session (outline; needs the owner's word)
+
+**Void (2026-11-13, server lost; see SLICE-15).** No old route to retire and no legacy tools or run directory remain.
 
 Deepened after step 4. Production-sensitive because it changes the configuration of tools on the production host.
 

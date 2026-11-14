@@ -43,9 +43,9 @@
 | 6 | Storage classes, the reserve, the disk-full matrix, `at.slice` (T-79) with the backup's reserve, and admission (`operations/isolation.py`); the `work` and `copier` participants; `scripts/isolated_work.py` (with `--shadow` for SLICE-13's copier); `scripts/safe_tests.py` over it; telemetry (`operations/telemetry.py`) | S | PRF-OPS-04, PRF-OPS-05, PRF-OPS-06 |
 | 7 | The installer (`deploy/install.py`): render (units, users, the directory table, polkit, sudoers), the root copy and `apply-root`, stage, check, activate through every transition state with the three boundary checks and the ordered start, resume, restore, the host-level log, the rehearsal mode; the unit templates (`deploy/systemd/*`); `config/live.example.yaml`; `docs/operations.md` | S (rehearsal directory, fake `systemctl`) | PRF-CFG-03, PRF-CFG-05, PRF-CFG-06, PRF-CFG-07, PRF-CFG-08, PRF-OPS-07 |
 | 8 | The recovery set, backup, clean-host restore and the send-lease store adapter, as the migration spec specifies them, against synthetic stores | S | The migration spec's proofs for REQ-MIG-006 and REQ-MIG-007 (synthetic) |
-| 9 | Recorded sessions copied read-only into an isolated directory on the EC2; `Measurement` records for every measured refusing field, including legacy's own read load on the account (`operations/verification.py`) | R (pre-approved) | PRF-OPS-08 |
-| 10 | **Owner's word.** The candidate release staged on the production host to `VERIFIED_DISARMED`, not switched; the host's versions and the account limits in force recorded | P | PRF-CFG-09 |
-| 11 | **Owner's word, after POL-O01 is answered.** A real backup restored with the exact candidate artifact and schema on an isolated clean host; crashes, unresolved effects, identity, custody and refusal before fencing exercised | P | D10 rehearsal evidence (`README.md:1232`) |
+| 9 | **Changed (2026-11-13): server part void; see SLICE-15 step 6.** Recorded sessions copied read-only into an isolated directory on the EC2; `Measurement` records for every measured refusing field, including legacy's own read load on the account (`operations/verification.py`) | R (pre-approved) | PRF-OPS-08 |
+| 10 | **Moved to SLICE-15 step 7 (2026-11-13).** **Owner's word.** The candidate release staged on the production host to `VERIFIED_DISARMED`, not switched; the host's versions and the account limits in force recorded | P | PRF-CFG-09 |
+| 11 | **Moved to SLICE-15 step 7, B2/R2 destination (2026-11-13).** **Owner's word, after POL-O01 is answered.** A real backup restored with the exact candidate artifact and schema on an isolated clean host; crashes, unresolved effects, identity, custody and refusal before fencing exercised | P | D10 rehearsal evidence (`README.md:1232`) |
 
 Steps 1 and 2 come first because every process start, every unit and every test of later steps goes through the resolver, the bundle check and the handshakes. **Step 2 depends on step 8 for production use:** a production kernel needs the send-lease store adapter and bound lease settings, or it refuses even a human advance (`SES-R10`, OA_NEW `kernel/recovery.py:400`, `:409`). Step 2 therefore builds and tests `compose_production` with SLICE-03's fake lease store, and a production composition refuses until `recovery.lease_store` is bound (step 8 builds the adapter; POL-O01 chooses its place). Step 3 comes before step 4 because the supervisor reads the heartbeat the host writes. Step 7 comes after 3–6 because it renders every unit those steps define.
 
@@ -2730,6 +2730,8 @@ As the migration spec specifies, with these build choices:
 
 ## Step 9 — measurement on recorded sessions (outline)
 
+**Changed (2026-11-13, server lost; see SLICE-15).** The server part (copying recorded sessions and legacy's records on the EC2, legacy's own read load on the account) is void. What can still be measured without a server moves to SLICE-15 step 6 (on the replayed recorded days); OpenAlgo's real load waits for SLICE-15 step 7.
+
 Deepened after step 7 is built: the runtime spec's [measurement](../../design/runtime-isolation-observability-deployment.md#measurement-operationsverificationpy).
 
 * **Pre-approved read-only work** (standing rules): copying recorded market days and legacy's records on the EC2 into an isolated directory, and reading the deployed OpenAlgo's settings with no order. Runs through `scripts/isolated_work.py` in `~/claude-desktop/` or the separate development checkout, never in the live checkout.
@@ -2737,6 +2739,8 @@ Deepened after step 7 is built: the runtime spec's [measurement](../../design/ru
 * **Feeds** PRF-ADM-07 and PRF-PRT-08 (their owners run them) and the PRF-PRT-10 baseline's recorded tick rates (SLICE-06 step 5).
 
 ## Step 10 — staging on the production host (outline; needs the owner's word)
+
+**Moved (2026-11-13, server lost) to SLICE-15 step 7**, staging on the new server with a fresh-host profile: no legacy drop-in, no legacy beside it.
 
 Production-sensitive: "any deploy" is asked first under the standing rules. Deepened, then held until the owner says so for this release.
 
@@ -2747,6 +2751,8 @@ Production-sensitive: "any deploy" is asked first under the standing rules. Deep
 * **Blocked until bound** (`check` refuses otherwise): `release.license`; the account settings; `recovery.lease_store` and the lease timings, which wait for the backup destination (POL-O01); every measured value step 9 produced.
 
 ## Step 11 — the real restore rehearsal (outline; needs the owner's word)
+
+**Moved (2026-11-13, server lost) to SLICE-15 step 7**, against the owner's B2 or R2 restic repository (POL-O01 answered 2026-11-13); SLICE-15 step 5 rehearses it first on this PC with a local destination.
 
 Production-sensitive: "the real restore rehearsal" is asked first under the standing rules, and it needs POL-O01 (the backup destination) answered. Deepened then from the migration spec's procedure: restore a real backup with the exact candidate artifact and schema on an isolated clean host; exercise crashes, unresolved effects, identity preservation, monotonic custody and refusal before fencing (D10, `README.md:1201`). The rehearsal reports its restore duration; it is judged against `recovery.rto_secs` only if the owner binds one (POL-047). Rehearsal evidence grants no activation.
 

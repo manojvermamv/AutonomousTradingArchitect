@@ -32,8 +32,8 @@
 | 3 | `scripts/migrate_legacy.py` for the chosen route: the migration composition in `bootstrap.py`, the boundary pin, the per-record events, `010_import.sql` (T-91; 009 is taken by SLICE-12) and its fold into D04, batches, resume, anomalies, same-boundary validation | S | PRF-MIG-07 |
 | 4 | The `orders/1` projection: its serializer in `adapters/compatibility.py`; the projector and its read-only refresher thread in `kernel/ledger/export.py`, requested by the host after every pass, never on the send path; the sidecar and its scoped rebuild; the forbidden roots; the consumer list in `docs/migration.md`; the import guard; parity proved with legacy's own readers | S | PRF-MIG-09, PRF-LED-06 |
 | 5 | `compose_shadow` and `COMPOSITIONS["shadow"]`; one shadow process driven in legacy's recorded time (`operations/shadow_run.py`); `LegacyOutcomeResponder` and `LegacyBooks` (`adapters/legacy_responder.py`), `LegacyMarketFeed` (`adapters/legacy_market.py`); `scripts/compare_parity.py shadow` with the head pair, the exact comparison set, the gate table and the owner-only approved-difference table | S | PRF-MIG-10, PRF-MIG-11 (composition rows) |
-| 6 | The shadow on the production host: the candidate wheel under `paths.shadow.root`, the copier and the shadow processes as transient units through `scripts/isolated_work.py`, the nightly import rehearsal, the daily comparison reports, the first night's measurement of the copy's effect on legacy's commits | D (pre-approved) | PRF-MIG-12 |
-| 7 | The supervisor against the shadow ledger, reading the broker only through the observation route, within the read budget left after legacy's own load | D; **owner's word** when the route starts a key holder | PRF-OPS-09 |
+| 6 | **Void (2026-11-13, server lost; see SLICE-15).** The shadow on the production host: the candidate wheel under `paths.shadow.root`, the copier and the shadow processes as transient units through `scripts/isolated_work.py`, the nightly import rehearsal, the daily comparison reports, the first night's measurement of the copy's effect on legacy's commits | D (pre-approved) | PRF-MIG-12 |
+| 7 | **Void (2026-11-13, server lost; see SLICE-15).** The supervisor against the shadow ledger, reading the broker only through the observation route, within the read budget left after legacy's own load | D; **owner's word** when the route starts a key holder | PRF-OPS-09 |
 
 **Why this order.** Every later step reads legacy's formats through step 1's readers, and the fixtures are the only legacy data the suite may use (A08-F4). The importer's handling of legacy's ledger depends on the route, so the comparison (step 2) comes before the importer (step 3); the readers and the mapping table are what the comparison measures, and its production census needs a copy of legacy's ledger, so the copier is built and proved in step 2, before its first production use, and reused unchanged by steps 5 and 6. The projection (step 4) is independent of the shadow but the shadow's kernel writes it, so it comes before step 5. Steps 6 and 7 run what steps 1–5 built, on production copies. Step 4 may be built in parallel with step 3 by a second agent owning `kernel/ledger/export.py` and the serializer only.
 
@@ -1222,6 +1222,8 @@ Three commits on `slice-08` in OA_NEW, on top of `f3fe443`, one per fix: `bd8be0
 
 ## Step 6 — the shadow on production (outline; pre-approved)
 
+**Void (2026-11-13, server lost; see SLICE-15).** No legacy is left to shadow; SLICE-15 step 4 replays the recorded days over a fake OpenAlgo instead.
+
 Deepened after step 5 is built. Class D under the standing rules: it reads production observations into separate copies and ledgers, holds no credential and opens no broker socket.
 
 * **Does:** installs the candidate wheel with its lock into a virtual environment under `paths.shadow.root` (isolated work, not a deploy: no unit file, no `current` link, nothing of legacy touched); runs the copier, the shadow market process, the BuyerEdge host and the kernel as transient units through `scripts/isolated_work.py` in `at.slice`; after each close, copies legacy's ledger once by the backup API, runs the import rehearsal into a separate rehearsal ledger, and runs `compare_parity.py shadow`; records each day in `docs/migration.md`.
@@ -1230,6 +1232,8 @@ Deepened after step 5 is built. Class D under the standing rules: it reads produ
 * **Produces:** PRF-MIG-12. Defects found are fixed in the slice that owns the behaviour, then the comparison is re-run on the stored copies. The record lists the clean end-to-end days for the owner (one or two are enough, by the owner's answer); no code counts them.
 
 ## Step 7 — the supervisor against the shadow ledger (outline; owner's word when a key holder starts)
+
+**Void (2026-11-13, server lost; see SLICE-15).** PRF-OPS-09 runs against the real ledger in the `analyze` sessions on the new server (SLICE-15 step 7).
 
 Deepened when step 6 runs cleanly: the runtime spec's PRF-OPS-09.
 

@@ -114,3 +114,9 @@ The production EC2 (`debian-oa`) is suspended permanently, with its data: legacy
 | Installer manages its own units (polkit, `at-installer`, the target's units only) | Accepted | As built (SLICE-11 step 7) |
 | Installer root steps (sudoers, `install.py apply-root` and `enable-units`, no argument after them) | Accepted | As built; the `cutover-root` line is not installed on a fresh host |
 | Isolated work for operators (sudoers, `%at-operators … isolated_work.py --work-dir *`) | Accepted on one condition | A test must prove `scripts/isolated_work.py` refuses every unsafe argument it can be given through the wildcard (paths outside its allowed roots, extra unit properties, a different user, the `--shadow` and `--key-probe` modes on a fresh host) before this line is installed. The `--shadow` line is not installed on a fresh host |
+
+## Restic on the development PC (2026-11-13)
+
+| Topic | Answer | What it means |
+|---|---|---|
+| Install restic on the Windows PC for SLICE-15's backup rehearsal | No: use a folder | SLICE-15's backup and restore rehearsal uses `operations.backup`'s local-directory destination. `ResticDestination` (and its anchor gap) is first exercised on the new server with the B2/R2 repository, recorded there as waiting |
