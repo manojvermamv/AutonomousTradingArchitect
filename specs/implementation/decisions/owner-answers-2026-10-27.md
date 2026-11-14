@@ -138,3 +138,22 @@ The production EC2 (`debian-oa`) is suspended permanently, with its data: legacy
 | Topic | Answer | What it means |
 |---|---|---|
 | A fill price with more than two decimal places (legacy's four-place cumulative averages, e.g. 118.4501) | Keep the two-place rule; watch for it | The shadow part is void with the server. Live, `openalgo_books._trade` never rounds: a row whose price is not two-place money is left out and its order escalated for a person. Every captured OpenAlgo tradebook price is two-place. SLICE-15 step 7's `analyze` sessions count any such row before the owner switches to live. Not chosen: rounding on read (silent paise differences from the broker), or a four-place ledger (every money path, hard to undo). |
+
+## SLICE-16 and SLICE-17 choices (2026-11-14)
+
+The owner accepted every recommendation at once. Each keeps legacy @445eb116 or leaves the value unbound.
+
+| # | Topic | Answer |
+|---|---|---|
+| F-1 (S16) | Poll or trade in special sessions (muhurat) or outside regular hours | No, as legacy |
+| F-2 (S16) | Square-off on an early-close day | Stays at the policy's fixed time (15:13), as legacy |
+| F-3 (S16) | BuyerEdge reading backfilled history after a late start | No; it reads tick bars only, as legacy |
+| S16 | `market.source.backfill_on_start` | `false` (legacy has no backfill; saves rate-limited history calls) |
+| S16 | Polls and the strategy host on an early recorded close | Keep legacy's fixed 15:30 session end; no early stop |
+| F-4 (S16) | Strategy host start gate | Keep legacy's holiday/unknown-day skip and preflight refusals |
+| F-6 (S16) | Windowed or partial-day research toward promotion | Never |
+| S17 | Twin's consult filter (which bars ask the model) | Unbound, refusing until the owner sets it; tests use labelled synthetic values |
+| S17 | Model provider, model, key, `advisor.budgets` | Unset; build with the fake provider |
+| S17 | `promotion.directional.*` | Unbound (a threshold, the owner's); legacy's 5/15/30 bars, 30 scored, 1.96 offered when he binds it |
+| S17 | Exam baseline | `buyer_edge` |
+| S17 | Real locked exam | Waits for days recorded with bid/ask on the new server; only a synthetic-store exam runs now |
