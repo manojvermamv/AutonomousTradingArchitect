@@ -60,6 +60,7 @@ Recorded here, not run on this PC. Each one is run in step 7 or is marked as wai
 | Crash points CP-R2…CP-R7, the PRF-CFG-05 Rollback row and the PRF-CFG-07 Composition row through the real installer (SLICE-11's PRF-CFG-01…08 completion condition) | SLICE-11 line 2550 "not built, carried" (2026-11-14 check) |
 | C-1 capture against the real OpenAlgo: option chain with Greeks and `multioptiongreeks`; un-skips `test_pe_delta_sign_at_the_source` (`tests/integration/test_openalgo_contract.py:1360`). Run in step 7.2 right after OpenAlgo starts | SLICE-08 status, pending (2026-11-14 check) |
 | Measure `strategies.host.seal_wait_ms` and `strategies.host.review_retry_ms` (not produced by step 6) | SLICE-11 line 321 (2026-11-14 check) |
+| In the `analyze` sessions (step 7.6): count tradebook rows left out because their price is not two-place money (`openalgo_books._trade` returns the order ID, escalated); any such row goes to the owner before live | Owner 2026-11-14, four-place fill prices |
 
 ---
 

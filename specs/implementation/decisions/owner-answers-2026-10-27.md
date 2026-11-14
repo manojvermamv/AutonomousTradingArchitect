@@ -132,3 +132,9 @@ The production EC2 (`debian-oa`) is suspended permanently, with its data: legacy
 | Topic | Answer | What it means |
 |---|---|---|
 | Does Q-029's approved difference (`ADM-R05`) also cover `PRT-R06 check_inert` when funds are missing? | Void, closed | The approved-difference list existed only for the SLICE-13 comparison with live legacy, void since the server was lost (2026-11-13). No code change: either code refuses new entries while broker data is missing. |
+
+## Four-place fill prices (2026-11-14)
+
+| Topic | Answer | What it means |
+|---|---|---|
+| A fill price with more than two decimal places (legacy's four-place cumulative averages, e.g. 118.4501) | Keep the two-place rule; watch for it | The shadow part is void with the server. Live, `openalgo_books._trade` never rounds: a row whose price is not two-place money is left out and its order escalated for a person. Every captured OpenAlgo tradebook price is two-place. SLICE-15 step 7's `analyze` sessions count any such row before the owner switches to live. Not chosen: rounding on read (silent paise differences from the broker), or a four-place ledger (every money path, hard to undo). |
