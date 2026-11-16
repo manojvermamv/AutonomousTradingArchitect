@@ -105,7 +105,7 @@ Recorded here, not run on this PC. Each one is run in step 7 or is marked as wai
 
 #### Backup while unbound
 
-No change. The four `backup.*` items stay in `REPORTED_WHILE_UNBOUND` (`install.py:605`): reported at staging, never refusing. `convergence` reports `backup: unavailable` until the step 7 account exists (owner's answer: "Do the four backup settings block staging: No").
+No change. The four `backup.*` items stay in `REPORTED_WHILE_UNBOUND` (`install.py:605`): reported at staging, never refusing. `convergence` reports `backup: unavailable` until the step 7 account exists (owner's answer: "Do the four backup settings block staging: No"). Since 2026-11-16 the set also holds SLICE-17's `strategies.consult_filters` and `cognition.proposal_teams` (OA_NEW f7e453c; guard `test_every_owner_only_setting_is_classed_as_blocking_or_reported`).
 
 ### Tests
 
