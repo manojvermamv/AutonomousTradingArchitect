@@ -280,6 +280,18 @@ A review produced for intent digest `d1` is submitted for an entry whose intent 
 * Legacy's exit advice is a recommendation, recorded with its position and evidence identity (`src/runtime/ai_management/advice.py:868-897`); it never produces an action by itself (POL-028).
 * `application_request(advice_id, principal, reason)` turns an authenticated human's application into one typed close or protection-modify request, as legacy's `apply_advice` issues one close or protection request (`advice.py:899-991`), which then passes normal admission, where the position is revalidated. The human route and its confirmation are SLICE-10's (`interfaces/authorization.py`).
 
+### The AI twin of BuyerEdge and late starts (SLICE-17, SLICE-16; as built 2026-11-14)
+
+Added after the build; the slice files are the record ([SLICE-17](../plan/slices/SLICE-17-ai-twin-of-buyer-edge.md), [SLICE-16](../plan/slices/SLICE-16-start-at-any-time.md)).
+
+* **Declared inputs.** `RoleSpec.features` (optional, `cognition/blueprint.py`) names entries of `cognition/tools.py` `FEATURE_NAMES`; `role_inputs` shows a role only its declared features, each with its source and instant. A legacy-shaped blueprint keeps its shape and digest.
+* **The twin `ai_buyer_edge`** (`strategies/ai_buyer_edge.py`, `decision_method: model`) scores every bar with its own BuyerEdge scorer, asks the model only on bars its consult filter passes, and answers CE, PE or abstain with a conviction and a reason. It never chooses strike, size, price or stop. A failed call abstains.
+* **Consult filter.** `strategies.consult_filters.ai_buyer_edge.*` ships unbound; `compose_strategy_host` refuses before anything opens while it is unbound. A raising filter asks (legacy).
+* **Observe-only.** Authority `none` in the host, and the twin's `CandidateId` is left out of the standing binding, so a forced submit is refused `ADM-R14`. `registry.is_model_driven` answers "did a model decide".
+* **Live route.** `ReviewCore` answers a second operation, `propose`, on `review-channel/1`; a strategy peer may ask for itself only, and no producer means an abstention `not_configured`. With no cognition user installed (the first release), `at-strategy` still starts: a rule strategy's reviews are unavailable and a model strategy refuses (OA_NEW `87b3b4d`, `bootstrap.strategy_review_port`).
+* **Late starts (SLICE-16).** Each view carries `day_coverage`, the host journals `DAY_COVERAGE` per window, and `market/start_gate.py` keeps legacy's calendar skip and preflight refusals; nothing is backfilled.
+* **Promotion** of the twin is only by an approved `PromotionRecord` for one frozen version ([research spec](research-rl-custody-promotion.md#windowed-research-and-the-twins-candidate-slice-16-slice-17-as-built-2026-11-14)).
+
 ## Failure modes and crash points
 
 | Point | What happens | Recovery |

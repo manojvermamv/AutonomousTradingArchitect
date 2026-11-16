@@ -115,6 +115,8 @@ capacity_check(plan, observation, open_reservations, *, max_worst_case_loss, res
 4. `margin_available` present and `margin ≤ margin_available − (Σ open margins + external margin)` — else `margin`.
 5. With `capacity.count_non_live_obligations: count` (the only accepted value) every open reservation counts.
 
+**Note (2026-11-16).** Rules 2 and 4 were superseded by the owner's 2026-11-05 call ([Margin limit when OpenAlgo reports none](../../decisions/owner-answers-2026-10-27.md#margin-limit-when-openalgo-reports-none-2026-11-05)), which the code follows (`kernel/admission.py:139-192`): a missing row `amount` or `margin`, and a missing `funds.position_margin` or `funds.working_margin`, count 0 (`_absent_is_zero`), and when `margin_available` is missing the margin limit is `available`. An empty book refuses only when its coverage is `no`; coverage `unknown` counts as flat (a SLICE-13 Fork call, 2026-11-12).
+
 Arithmetic is `Decimal` on the decimal strings; nothing is rounded.
 
 ### Step 1 tests

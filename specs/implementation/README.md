@@ -1,6 +1,6 @@
 # AutonomousTrading — specification and implementation-plan package
 
-* **Status:** proposed. Nothing in this package is implemented, tested or production-accepted.
+* **Status:** built in OA_NEW (`agentic-desk`) through SLICE-17, except SLICE-15 step 7 (the new server, waiting on the owner), as of 2026-11-16. Each [slice file's](plan/slices/) "as built" sections are the build record. Nothing is production-accepted.
 * **Pinned to:** ATA `main` at `b9bb32c` and legacy AT at `445eb116` ([provenance](00-provenance.md)).
 
 ## The rule that comes first

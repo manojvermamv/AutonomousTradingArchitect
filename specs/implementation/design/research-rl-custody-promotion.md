@@ -322,6 +322,16 @@ An evaluation finds three closed trades whose advisor lineage is incomplete. It 
 * **Recall.** `recall(MemoryQuery(purpose, session, as_of, strategy, account, license_scope, partitions)) -> list[MemoryItem]` returns only items whose filters all match the caller's scope; a cache entry is keyed by the full scope, so one caller's result never serves another (A06-F5, `README.md:871`). The `protected` partition is never returned. As in legacy, memory is an optional input declared by no shipped strategy; declaring it is a strategy version change (Fork call).
 * **Reflection** produces `Proposal(kind: experiment | candidate, rationale, evidence_refs, justification: statistical | mechanical, measured_sample)` records in the `research` partition and submits an experiment as a job through the research-job port. It carries legacy's evidence-quality rule for proposals: a statistical claim states its measured sample and reliability band, a mechanical claim cites its evidence (`src/interfaces/mcp/core/proposals.py:1-60`). It never writes settings, prompts, weights, limits, registry rows, bindings or promotion records (POL-029). `cognition.improvement.mode` binds `read_only`, legacy's default (`config/defaults.yaml:864-869`).
 
+### Windowed research and the twin's candidate (SLICE-16, SLICE-17; as built 2026-11-14)
+
+Added after the build; the slice files are the record ([SLICE-16 step 5](../plan/slices/SLICE-16-start-at-any-time.md#step-5--windowed-research), [SLICE-17](../plan/slices/SLICE-17-ai-twin-of-buyer-edge.md)).
+
+* **Windows** (`research/windows.py`): `ResearchWindow(day, slices)` holds one or more half-open `[from, to)` exchange-time slices on one date, ordered, non-overlapping and inside the recorded session; anything else is refused. A dataset takes `windows` in place of, or beside, `days`.
+* **No look-ahead.** Each slice replays with `ReplaySpec(session_open=from, session_close=to)`; the view cutoff is the clock, a horizon past the slice's end is `censored` and never read, and a gap is never filled.
+* **Custody.** Every result records its windows, each slice's `day_coverage`, the input store digest and `clock_identity`, through the existing `TrialLedger` and `CustodyLedger` events. A days-only dataset's identity is unchanged (the legacy golden still holds).
+* **Never counted toward promotion.** `reserve_locked_evaluation`, the locked exam and the promotion gate refuse a windowed dataset (`DatasetError("windowed research is exploratory")`).
+* **The twin's candidate (SLICE-17 step 5).** The replay engine takes a real proposal port; the receipt carries `prompt_identity`, so one changed word of the prompt or one declared feature is another `CandidateId`. The candidate is frozen and examined like any other; it reaches `plan` or `trade` only by an approved `PromotionRecord`, and a model strategy at `plan` or `trade` still refuses in production until the binding flag is read (SLICE-17 P-7).
+
 ## Failure modes and crash points
 
 | Point | What happens | Recovery |

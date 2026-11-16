@@ -1,8 +1,8 @@
 # Traceability matrix
 
-* **Status:** proposed, non-normative. Generated from the requirement-key tables in [design/](design/) by a read-only script kept outside the repository (described in [consistency/cross-document-check.md](consistency/cross-document-check.md)).
+* **Status:** non-normative. Built in OA_NEW (`agentic-desk`) through SLICE-17, except SLICE-15 step 7 (the new server, waiting on the owner), as of 2026-11-16; each [slice file's](plan/slices/) "as built" sections are the record of which proofs pass. Generated from the requirement-key tables in [design/](design/) by a read-only script kept outside the repository (described in [consistency/cross-document-check.md](consistency/cross-document-check.md)).
 * **Precedence:** a key is a pointer. Its requirement is the cited master decision or policy row. If this file and a spec disagree, the spec's key table wins and the matrix is regenerated.
-* **Proof status:** *specified* = expected outcomes written, no code yet; *pointer* = the master acceptance row that the slice turns into named proofs when its full spec is written ([test strategy](tests/test-strategy.md#proof-classes-and-status)). Nothing here is *passing*.
+* **Proof status:** *specified* = expected outcomes written, no code yet; *pointer* = the master acceptance row that the slice turns into named proofs when its full spec is written ([test strategy](tests/test-strategy.md#proof-classes-and-status)); *built* = the named tests pass in the slice's as-built record. The generated rows below keep their generation-time status; the slice files' as-built sections supersede it.
 
 Counts: **165** keys in full-depth specs, each with a module, a task and a proof; **0** keys in stubs, each pointing at a master acceptance row.
 
@@ -175,6 +175,24 @@ Counts: **165** keys in full-depth specs, each with a module, a task and a proof
 | REQ-STR-009 | A05-F2 (`README.md:841`); POL-019 | `strategies/worker.py` | [strategies-and-cognition](design/strategies-and-cognition.md#requirement-keys) | TASK-S09-02 | PRF-STR-02 | specified |
 | REQ-STR-010 | POL-028; D12 (`README.md:752`) | `cognition/advice.py` | [strategies-and-cognition](design/strategies-and-cognition.md#requirement-keys) | TASK-S09-06 | PRF-STR-07 | specified |
 | REQ-STR-011 | POL-023; A05-F2 (`README.md:841`) | `strategies/worker.py, kernel/policy.py` | [strategies-and-cognition](design/strategies-and-cognition.md#requirement-keys) | TASK-S09-09 | PRF-STR-02, PRF-STR-03 | specified |
+
+## Slices 15–17 (added by hand, 2026-11-16)
+
+These slices carry no requirement keys; each row points at the slice step that holds its requirement, tests and as-built record. Not generated.
+
+| Key | Decision and policy (the requirement) | Module | Spec | Task | Proof | Proof status |
+|---|---|---|---|---|---|---|
+| SLICE-15 step 1 | [Server lost: start fresh](decisions/owner-answers-2026-10-27.md#server-lost-start-fresh-2026-11-13); fresh-host install profile | `deploy/install.py` | [SLICE-15](plan/slices/SLICE-15-fresh-start.md#step-1--the-fresh-host-install-path) | step 1 | PRF-CFG-03/06 fresh rows (`test_fresh_first_install_converges_with_no_legacy_rules`) | built (`6d584c2`) |
+| SLICE-15 step 2 | The owner's condition on the isolated-work sudo line | `scripts/isolated_work.py` | [SLICE-15](plan/slices/SLICE-15-fresh-start.md#step-2--isolated-work-through-the-sudo-wildcard) | step 2 | `tests/isolation/test_resource_storage_scope.py` | built (`5fc3ff5`) |
+| SLICE-15 steps 3–4 | Five recorded days as replay data; local first-install rehearsal over a fake OpenAlgo | `scripts/convert_recorded_days.py, tests/replay/` | [SLICE-15](plan/slices/SLICE-15-fresh-start.md#step-4--local-first-install-rehearsal-and-the-replayed-days) | steps 3–4 | Rehearsal record; per-day reconciliation | built (`165788a`, `3db6e8d`) |
+| SLICE-15 steps 5–6 | REQ-MIG-006/007 at real size (local); PRF-OPS-08 (the PC part) | `operations/backup.py, operations/restore.py, operations/verification.py` | [SLICE-15](plan/slices/SLICE-15-fresh-start.md#step-5--backup-and-restore-at-real-size-on-this-pc) | steps 5–6 | Backup rehearsal; measurement records | built (`770e537`, `f202caa`) |
+| SLICE-15 step 7 | D10 evidence on a new server | (deployment) | [SLICE-15](plan/slices/SLICE-15-fresh-start.md#step-7--the-new-server-outline-needs-the-owner-and-a-server) | step 7 | PRF-CFG-09, PRF-OPS-09, the Linux-only rows | waiting on the owner |
+| SLICE-16 steps 2–3 | Start at any time; day coverage; the late start (F-1…F-5 as answered 2026-11-14) | `market/view.py, market/start_gate.py, strategies/worker.py` | [SLICE-16](plan/slices/SLICE-16-start-at-any-time.md#step-2--the-recorded-session-and-the-day-coverage) | steps 2–3 | `test_market_view.py`, `test_strategy_invocation.py` | built (2026-11-14) |
+| SLICE-16 step 4 | Late starts and mid-session restarts reconcile, nothing re-sent | `tests/replay/` | [SLICE-16](plan/slices/SLICE-16-start-at-any-time.md#step-4--the-replay-proofs-on-the-converted-days) | step 4 | `tests/replay/test_start_anytime.py`, `tests/integration/test_start_anytime_parts.py` | built (2026-11-14) |
+| SLICE-16 step 5 | Windowed research, no look-ahead, never counted toward promotion (F-6) | `research/windows.py, research/datasets.py` | [SLICE-16](plan/slices/SLICE-16-start-at-any-time.md#step-5--windowed-research) | step 5 | `test_research_windows.py` (property tests included) | built (2026-11-14) |
+| SLICE-17 steps 2–3 | A05-F3 model strategy; declared inputs; observe-only twin `ai_buyer_edge` | `cognition/tools.py, cognition/blueprint.py, strategies/ai_buyer_edge.py, strategies/registry.py` | [SLICE-17](plan/slices/SLICE-17-ai-twin-of-buyer-edge.md#step-3--the-twin-outline) | steps 2–3 | `test_declared_features.py`, `test_ai_buyer_edge.py` | built (2026-11-14) |
+| SLICE-17 steps 4–5 | Side-by-side comparison; candidate freeze and exam; promotion only by PromotionRecord | `tests/replay/replay_harness.py, bootstrap.py, research/candidates.py` | [SLICE-17](plan/slices/SLICE-17-ai-twin-of-buyer-edge.md#step-5--one-frozen-version-and-its-exam-outline) | steps 4–5 | `test_twin_replay.py`, `test_twin_candidate.py` | built (2026-11-14) |
+| SLICE-17 step 6 | Live-observe wiring: `propose` on `review-channel/1` | `adapters/unix_channel.py, bootstrap.py` | [SLICE-17](plan/slices/SLICE-17-ai-twin-of-buyer-edge.md#step-6--live-observation-and-docs-outline) | step 6 | `tests/integration/test_twin_proposals.py` (in-process); live half in SLICE-15 step 7 | built in part (2026-11-14) |
 
 ## Stub domains (deepened at their slice)
 

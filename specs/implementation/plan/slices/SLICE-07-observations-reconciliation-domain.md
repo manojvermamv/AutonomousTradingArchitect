@@ -1,10 +1,10 @@
 # SLICE-07 — Observations, reconciliation, domain and the OpenAlgo adapter
 
-* **Status:** proposed. Steps 1–4 are built (OA_NEW `9bc4529`, `ee2225a`, `c58f10e` and `1b42505` on `slice-07`; [Step 1 as built](#step-1-as-built), [Step 2 as built](#step-2-as-built), [Step 3 as built](#step-3-as-built), [Step 4 as built](#step-4-as-built)). What remains needs the owner: TASK-S07-05 and TASK-S07-06, and Q-022 and Q-023 before the adapter is composed, and each is deepened once the step before it is built, as SLICE-04's and SLICE-05's were (the delivery plan's depth rule).
+* **Status:** built. Steps 1–4 are built (2026-10-28; OA_NEW `9bc4529`, `ee2225a`, `c58f10e` and `1b42505` on `slice-07`; [Step 1 as built](#step-1-as-built), [Step 2 as built](#step-2-as-built), [Step 3 as built](#step-3-as-built), [Step 4 as built](#step-4-as-built)). The owner's answers to Q-022 (option B) and Q-023 (option C, the human half) are built (2026-11-16; OA_NEW `3ff7314` and `8fcd108`; [note](#q-022-and-q-023-built-2026-11-16)). What remains needs the owner: TASK-S07-05 (no endpoint contract is bound yet) and TASK-S07-06, and each is deepened once the step before it is built, as SLICE-04's and SLICE-05's were (the delivery plan's depth rule).
 * **Precedence:** the master README, then the ROADMAP, then this package. The authority is the [execution-domain spec](../../design/execution-domain-and-observations.md) (evidence contract, attribution and combination, reconciliation, the OpenAlgo adapter), with the [ledger spec](../../design/ledger-and-atomic-transaction.md) for the events findings become. Every deviation is marked **Deviation**. No score, threshold or money value is set: every refusing setting is bound only to labelled synthetic or owner-answered values in tests.
 * **Phase:** master Phase 1/3 (D15, D16, ATA-06, the A06-F2 decision). Class S → R: steps 1–3 are disarmed (the simulated broker only); step 4 builds the real adapter and proves it against recorded responses and a local fake server, never a deployment.
 * **Builds on:** [SLICE-05](SLICE-05-dispatch-conflicts-scheduling.md) as built; branch `slice-07` cut from `slice-05` (OA_NEW `a4c4516`).
-* **Owner answers applied:** Q-006 (`reconciliation.unknown_domain_settlement: forbid`), Q-007 (`attempt_resolve`; never adopt by shape), Q-008 (`capacity.count_non_live_obligations: count`, bound since SLICE-04), Q-012 (a target-bound verb's effective domain is its target's), Q-016 (`reconciliation.foreign_response: escalate`).
+* **Owner answers applied:** Q-006 (`reconciliation.unknown_domain_settlement: forbid` as built; `accounting_only` since 2026-11-14, [Q-006 revisited](../../decisions/owner-answers-2026-10-27.md#q-006-revisited-release-held-money-for-bookkeeping-2026-11-14)), Q-007 (`attempt_resolve`; never adopt by shape), Q-008 (`capacity.count_non_live_obligations: count`, bound since SLICE-04), Q-012 (a target-bound verb's effective domain is its target's), Q-016 (`reconciliation.foreign_response: escalate`).
 * **Tasks and proofs:**
   * **Step 1:** TASK-S07-04's attribution and TASK-S07-02's pure core (PRF-DOM-01; PRF-DOM-02, -03 and -09 for the pure rules).
   * **Step 2:** the rest of TASK-S07-02, plus TASK-S07-03 and the commit side of TASK-S07-04 (PRF-LED-11, PRF-LED-12's redelivered fill, PRF-DOM-02's once-per-key and idempotence clauses).
@@ -515,7 +515,7 @@ resolve_attempt(writer, authority, auth, command_key, attempt_no, legs: Mapping[
 
 | Setting (field) | Values | Env (`test` profile) | Owner answer |
 |---|---|---|---|
-| `reconciliation.unknown_domain_settlement` (`unknown_domain_settlement`) | `forbid`, `accounting_only` | `AT_UNKNOWN_DOMAIN_SETTLEMENT` | Q-006 binds `forbid` |
+| `reconciliation.unknown_domain_settlement` (`unknown_domain_settlement`) | `forbid`, `accounting_only` | `AT_UNKNOWN_DOMAIN_SETTLEMENT` | Q-006 bound `forbid` (2026-10-27); `accounting_only` since 2026-11-14 ([Q-006 revisited](../../decisions/owner-answers-2026-10-27.md#q-006-revisited-release-held-money-for-bookkeeping-2026-11-14)) |
 | `reconciliation.clock_skew_secs` (`clock_skew_secs`) | int ≥ 0 (a new non-negative kind) | `AT_CLOCK_SKEW_SECS` | measured; synthetic in tests |
 | `reconciliation.working_escalation_secs` (`working_escalation_secs`) | int > 0 | `AT_WORKING_ESCALATION_SECS` | measured; synthetic in tests |
 | `reconciliation.foreign_response` (`foreign_response`) | `record_only`, `escalate` (`hold_entries` refused) | `AT_FOREIGN_RESPONSE` | Q-016 binds `escalate` |
@@ -631,7 +631,7 @@ TASK-S07-07 and TASK-S07-08, with PRF-DOM-08's shared engine. Proofs:
 
 * PRF-DSP-09: row 6 against the loop's observations, and an arrival waking the coordinator;
 * PRF-ADM-09: B5 against the loop's funds and positions, with step 2's ledger positions;
-* PRF-DOM-08: CUJ-DOM-1, and facts recorded under `forbid` while releases wait;
+* PRF-DOM-08: CUJ-DOM-1, and facts recorded under `forbid` while releases wait (the tests still pin `forbid`; the owner's value is `accounting_only` since 2026-11-14, Q-006 revisited);
 * PRF-DOM-02's older-observation and redelivery (F-O6) clauses, now at the loop.
 
 The authorities are the execution-domain spec's [polling](../../design/execution-domain-and-observations.md#polling), [ports](../../design/execution-domain-and-observations.md#ports-kernelportspy) and [simulated broker](../../design/execution-domain-and-observations.md#simulated-broker-adapterssimulated_brokerpy) sections, and the dispatch spec's [coordinator loop](../../design/dispatch-and-coordination.md#coordinator-loop-on-the-writer-thread-one-io-worker-per-account). The step builds on step 2 as built (OA_NEW `ee2225a`). Fresh EGM design and implementation-readiness reviewers reviewed it ([review](../../egm/plan/review.md#slice-07-step-3-review-2026-10-28)), and their findings are resolved in the text below.
@@ -1040,9 +1040,9 @@ All legacy citations are at 445eb116.
   * everything else, including empty, → `unknown`. Nothing maps to `expired`, since no capture shows it.
 * **A dropped trade of ours is escalated.** `Observation` gains `dropped: tuple[str, ...] = ()`. For a tradebook, reconciliation gives `escalate` (`trade_without_id`, subject the order ID), once per key, for every dropped order ID that identity ties to one of our commands. A resting stop that fills after its command completed is therefore never silently lost. The reason joins the execution-domain spec's list.
 * **What this means before the owner decides, which the owner should know.** The adapter is not composed until these are settled:
-  * **Admission refuses every entry through it.** B5 refuses a missing money field and never counts it as zero (intent spec). `margin_available` is `None`, so B5 refuses `margin`. Any position row, or any open order that is neither reserved nor protective, has no amount, so B5 refuses `observation_field_missing`. An empty book is flat only under complete coverage, which needs a contract. The adapter fills no money field from a guess. TASK-S04-03 with TASK-S07-05 characterize the fields.
-  * **On live Upstox, no fill is recorded.** Live rows carry no trade ID, so under the built rule no entry ever creates a ledger position, and every close is refused `not_open`. [Q-022](../../decisions/owner-questions.md#q-022) asks the owner how to count such trades.
-  * **A close, cancel or modify that times out has no automatic resolution.** Every domain is `unknown`, so no absence route exists, and `attempt_resolve` covers entries only. It stays `UNCERTAIN`, and conflict row 2 then holds later closes on its position. [Q-023](../../decisions/owner-questions.md#q-023) asks the owner how to resolve one.
+  * **Admission refuses every entry through it.** B5 refuses a missing money field and never counts it as zero (intent spec). `margin_available` is `None`, so B5 refuses `margin`. Any position row, or any open order that is neither reserved nor protective, has no amount, so B5 refuses `observation_field_missing`. An empty book is flat only under complete coverage, which needs a contract. The adapter fills no money field from a guess. TASK-S04-03 with TASK-S07-05 characterize the fields. *(2026-11-16: superseded by the owner's 2026-11-05 margin call, which the code follows; [note](#q-022-and-q-023-built-2026-11-16).)*
+  * **On live Upstox, no fill is recorded.** Live rows carry no trade ID, so under the built rule no entry ever creates a ledger position, and every close is refused `not_open`. [Q-022](../../decisions/owner-questions.md#q-022) asks the owner how to count such trades. *(2026-11-16: answered B and built; [note](#q-022-and-q-023-built-2026-11-16).)*
+  * **A close, cancel or modify that times out has no automatic resolution.** Every domain is `unknown`, so no absence route exists, and `attempt_resolve` covers entries only. It stays `UNCERTAIN`, and conflict row 2 then holds later closes on its position. [Q-023](../../decisions/owner-questions.md#q-023) asks the owner how to resolve one. *(2026-11-16: answered C; the human half is built; [note](#q-022-and-q-023-built-2026-11-16).)*
 * **A provable `not_sent` stays `not_sent`.** `_finish` turns a result with `raw` `None` into `OUTCOME_AMBIGUOUS` (`evidence_unpublished`); it now does so only when the class is not `not_sent`. A stalled resolver or a dropped connection uses up the deadline, so it never gets to publish, yet it provably sent nothing. Recovery is unchanged: with no evidence, an interrupted attempt is still `interrupted`. The dispatch spec's worker paragraph is amended.
 * **Evidence.**
   * **Transport results:** a send publishes `{"kind": "transport_result", "command_key", "attempt_no", "request_digest", "endpoint", "request", "http_status", "response", "arrived_at", "cls", "legs", "domain"}` with `attempt=(command_key, attempt_no)`.
@@ -1222,6 +1222,17 @@ Commit `1b42505` on `slice-07`, on top of step 3's `c58f10e`. It changes 27 path
 
 Two checks survived their first run and the tests were strengthened. The `written` break needed the RST case. The key break needed both scrubs removed, because the key is scrubbed twice. Both then failed.
 
+### Q-022 and Q-023 built (2026-11-16)
+
+Added after the build; the step records above are left as they were.
+
+| Item | Built | Tests |
+|---|---|---|
+| [Q-022](../../decisions/owner-questions.md#q-022) option B (answered 2026-10-30) | OA_NEW `3ff7314`: `adapters/openalgo_books.py` `anonymous_evidence_key` gives a trade with no trade ID legacy's `anonymous-evidence:v1:<sha256>:<occurrence>` identity. The upstream report to OpenAlgo is drafted for the owner, not posted | `tests/integration/test_openalgo_contract.py::test_a_trade_without_id_gets_legacys_hashed_identity` |
+| [Q-023](../../decisions/owner-questions.md#q-023) option C, the human half (answered 2026-10-30) | OA_NEW `8fcd108`: `kernel/lifecycle.py` `resolve_attempt` (`_RESOLVABLE`) resolves a close, cancel or modify escalated `unknown_domain_unresolved` (and a modify's `target_ended`); a cancel or modify names only its own target | `tests/integration/test_reconciliation_commits.py`: `test_a_human_resolves_a_timed_out_close_reached_or_never_reached`, `test_a_timed_out_close_that_placed_nothing`, `test_a_human_resolves_a_timed_out_cancel_or_modify_by_its_target`, `test_a_non_entry_resolve_needs_its_escalation` |
+
+Still open: TASK-S07-05's endpoint contracts are not bound, and TASK-S07-06 waits for the owner's authorization. The capacity bullet above ("Admission refuses every entry through it") is superseded for the margin field by the owner's 2026-11-05 call ([Margin limit when OpenAlgo reports none](../../decisions/owner-answers-2026-10-27.md#margin-limit-when-openalgo-reports-none-2026-11-05)): `kernel/admission.py:139-192` counts a missing row amount or margin as 0 and uses `available` as the margin limit when `margin_available` is missing. An empty book whose coverage is `unknown` counts as flat (a SLICE-13 Fork call, 2026-11-12); only coverage `no` refuses.
+
 ## Completion conditions
 
 1. Every earlier test and every test of the built steps passes in a clean environment with no broker variables.
@@ -1230,4 +1241,4 @@ Two checks survived their first run and the tests were strengthened. The `writte
 
 ## Prerequisites
 
-SLICE-05 as built. No open owner question blocks a step: [Q-022](../../decisions/owner-questions.md#q-022) and [Q-023](../../decisions/owner-questions.md#q-023) block only the adapter's production composition (SLICE-11). TASK-S07-05 and TASK-S07-06 wait for the owner's authorization and block no step.
+SLICE-05 as built. No open owner question blocks a step: [Q-022](../../decisions/owner-questions.md#q-022) and [Q-023](../../decisions/owner-questions.md#q-023) blocked only the adapter's production composition (SLICE-11); both are answered (2026-10-30) and built (2026-11-16, [above](#q-022-and-q-023-built-2026-11-16)). TASK-S07-05 and TASK-S07-06 wait for the owner's authorization and block no step.
