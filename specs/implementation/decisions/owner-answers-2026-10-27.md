@@ -157,3 +157,17 @@ The owner accepted every recommendation at once. Each keeps legacy @445eb116 or 
 | S17 | `promotion.directional.*` | Unbound (a threshold, the owner's); legacy's 5/15/30 bars, 30 scored, 1.96 offered when he binds it |
 | S17 | Exam baseline | `buyer_edge` |
 | S17 | Real locked exam | Waits for days recorded with bid/ask on the new server; only a synthetic-store exam runs now |
+
+## SLICE-18 server-readiness choices (2026-11-16)
+
+Asked one at a time; [SLICE-18](../plan/slices/SLICE-18-server-readiness.md#owner-forks) holds the options.
+
+| # | Topic | Answer |
+|---|---|---|
+| F-7 (S18) | Lock store unreachable mid-session | **B.** The kernel's own stop modifies, trail moves and square-off closes still go while the lease is provably unexpired (`lease_clock < confirmed_until`); new entries wait from the first failed renewal |
+| F-1 (S18) | Where the send lease lives | **A.** Cloudflare R2, conditional uploads, in its own bucket with its own token (separate from the backup) |
+| F-2 (S18) | Extra services in the first release | **A.** As built: no `at-cognition`, `at-mcp` or `at-console` installed; their templates are built and tested; added by a later release once the owner sets a model, key and budget (the draft had recommended adding cognition) |
+| F-4 (S18) | Owner actions on day one | **A.** Reads, advice application and owner-only candidate approval are composed; configuration, registry and policy edits go through `install.py stage` |
+| F-5 (S18) | Example profile beyond the answers | **A.** Bind POL-018 90 s, POL-019 7 s, POL-021 60 s and BuyerEdge's policy block from legacy @445eb116 line by line, with the owner's answers and derived digests; `ai_mode: observe`, legacy's value (`config/defaults.yaml:847-850` @445eb116; the plan had inferred `off`) |
+| F-6 (S18) | Parity with legacy | **Owner's own answer:** no August-days partial run; rely on the golden unit tests now, and run legacy's code offline (from git, never installed) on each analyze-session day the new server records, the report to the owner before live |
+| F-3 (S18) | One-step promotion | Not asked: decided by "Promotion: the old system's rules" (2026-10-30); the text is corrected, nothing is enforced |
