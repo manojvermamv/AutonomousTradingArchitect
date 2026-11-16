@@ -53,7 +53,11 @@ Recorded here, not run on this PC. Each one is run in step 7 or is marked as wai
 | POSIX modes and owners in restore (`test_a_restore_refuses_an_existing_directory_with_another_mode`) and the real-symlink case (`test_a_symlink_cannot_escape_the_shadow_root`), both skipped on Windows | SLICE-11 step 8 as built |
 | The two-process `flock` race and the directory `fsync` of `DirectoryLeaseStore` | SLICE-11 step 8 |
 | The installer's `apply-root`, `enable-units` and real `systemctl` through every `FIRST_INSTALL` state on a real host | SLICE-11 step 7 |
-| The strategy timer's calendar `ExecCondition` and session preflight under real systemd | SLICE-09 |
+| `at-strategy-host.service` started by its timer on a recorded holiday or unknown day exits 0 through the in-process start gate (`market/start_gate.py`): the unit is not marked failed and `Restart=on-failure` does not restart it; a preflight refusal exits 1 and restarts on failure within `StartLimitBurst` | SLICE-16 step 3 (replaces SLICE-09's `ExecCondition` row) |
+| `systemctl start at-strategy-host` at a mid-session minute through the installer's polkit rule: the gate reads the market store as the strategy user and the host decides from the next confirmed window | SLICE-16 step 3 |
+| SLICE-16's R1 and R2 with the kernel, market and strategy hosts as separate units over the kernel channel, restarted by systemd (`Restart=` policies): the lease wait (`wait_for_lease`) observed, a pending send resolved once through the books | SLICE-16 step 4 |
+| The market unit's `Restart=always` producing SLICE-16 R4's `process_stopped` row and the gap in the day's coverage | SLICE-16 step 4 |
+| The supervisor's assessment staying fresh across a kernel restart | SLICE-16 step 4 |
 | The backup timer and `ResticDestination` against the real B2 or R2 repository, with anchors | SLICE-11 step 8 carry |
 | The supervisor's emergency stop of `at.slice` | SLICE-11 step 4 |
 | The production-profile rows carried to the EC2: PRF-PRT-06's frozen-kernel half, real `systemctl show`, `SIGTERM` handling (`tests/contracts/test_capabilities.py:1210` skips with "Linux, the EC2"), the network fence, kill release across users, `install-root-copy` | SLICE-11 lines 1534, 2552 (added by the 2026-11-14 check) |
@@ -61,6 +65,10 @@ Recorded here, not run on this PC. Each one is run in step 7 or is marked as wai
 | C-1 capture against the real OpenAlgo: option chain with Greeks and `multioptiongreeks`; un-skips `test_pe_delta_sign_at_the_source` (`tests/integration/test_openalgo_contract.py:1360`). Run in step 7.2 right after OpenAlgo starts | SLICE-08 status, pending (2026-11-14 check) |
 | Measure `strategies.host.seal_wait_ms` and `strategies.host.review_retry_ms` (not produced by step 6) | SLICE-11 line 321 (2026-11-14 check) |
 | In the `analyze` sessions (step 7.6): count tradebook rows left out because their price is not two-place money (`openalgo_books._trade` returns the order ID, escalated); any such row goes to the owner before live | Owner 2026-11-14, four-place fill prices |
+| The twin's `propose` over cognition's real `review-channel/1` socket with `SO_PEERCRED`: a strategy peer asks for itself only, another strategy's request refused | SLICE-17 step 6 |
+| `at-strategy-host` for `ai_buyer_edge` as its own unit beside BuyerEdge's (row `authority: none`, `strategies.consult_filters.ai_buyer_edge.*` bound by the owner); its view resolved by the same `buyer_edge` policy | SLICE-17 step 6 |
+| One `analyze` session with the twin at `none`: its consultations recorded (or abstaining `not_configured` until the owner binds `cognition.proposal_teams.ai_buyer_edge` and the advisor key), BuyerEdge's sends unchanged, and the review request per twin intent counted (Fork-call note in SLICE-17) | SLICE-17 step 6 |
+| The twin's cognition files under the real `paths.evidence` on Linux (no 260-character path limit; the Windows replay needed a short directory) | SLICE-17 step 4 |
 
 ---
 

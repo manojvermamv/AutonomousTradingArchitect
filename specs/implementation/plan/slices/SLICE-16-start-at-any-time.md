@@ -1,6 +1,6 @@
 # SLICE-16 — Start at any time: late starts, mid-session restarts, partial days and windowed research
 
-* **Status:** proposed (2026-11-14). Step 1 (the audit) is built: it is this file's [Step 1 — audit (as built)](#step-1--audit-as-built). Steps 2–5 are outlines in the standing rules' sense: each step's exact detail is written just before it is built, reviewed by two fresh EGM reviewers, built, run twice with the suite, break-checked and recorded "as built".
+* **Status:** built (2026-11-14): steps 1–5 as built below. Step 1 (the audit) is built: it is this file's [Step 1 — audit (as built)](#step-1--audit-as-built). Steps 2–5 are outlines in the standing rules' sense: each step's exact detail is written just before it is built, reviewed by two fresh EGM reviewers, built, run twice with the suite, break-checked and recorded "as built".
 * **Why this slice exists.** The owner wants the operator or a timer to start, stop, restart or recover any part of the new system (kernel, market host, strategy host, cognition, operator, supervisor, observer, research jobs) at any minute between the exchange's open and close, not only at 09:15. Behaviour must be correct, and nothing may be re-sent or lost.
 * **Precedence:** the master README, then the ROADMAP, then this package. Authorities: the [market-data spec](../../design/market-data-and-canvas.md) (calendar, views, quality), the [strategies spec](../../design/strategies-and-cognition.md) (host, warm-up), the [sessions and recovery rules](SLICE-03-sessions-authority-recovery.md) with Q-009, and the [migration spec](../../design/migration-recovery-rollback-continuity.md). Every intentional difference from legacy is marked **Deviation**. Every money-touching fork keeps legacy's live behaviour at 445eb116 and is marked **Fork call**. **No score, threshold, entry gate or money value is set or changed here.**
 * **Owner answers applied:** Q-009 (`recovery.routine_advance: standing`: a clean same-host restart resumes by itself; a restore, a host change or a `RECOVERY_GAP` needs a human `RECOVERY_ADVANCED` and the fence); Q-006 revisited (`accounting_only`, 2026-11-14); Standing rules (2026-10-30); Server lost: start fresh (2026-11-13).
@@ -17,15 +17,15 @@
 
 Step 2 fixes the calendar and the day coverage. Step 3 handles the late start. Step 4 proves late starts and restarts on the converted days. Step 5 adds windowed research. Nothing here changes how the system trades unless the owner answers a fork call below.
 
-## Fork calls for the owner (answer before building)
+## Fork calls for the owner (answered 2026-11-14)
 
-Each one keeps legacy at 445eb116 unless the owner chooses otherwise. Two block a step; the rest only need an answer before live use.
+Each one keeps legacy at 445eb116 unless the owner chooses otherwise. **All are answered as proposed** ([owner answers](../../decisions/owner-answers-2026-10-27.md), "SLICE-16 and SLICE-17 choices (2026-11-14)"). Two further answers from the same table bind this slice: `market.source.backfill_on_start` defaults to `false` (legacy has no backfill), and polls and the strategy host keep legacy's fixed 15:30 end on an early recorded close (no early stop).
 
 | # | Blocks | Question | Legacy at 445eb116 | Proposed default (legacy) |
 |---|---|---|---|---|
 | F-4 | Step 3 | Does the strategy host start through legacy's start gate? This covers the calendar `ExecCondition` and the session preflight, and whether a missed timer fires on a late boot. | `deploy/systemd/at-strategy.service:46-50` skips the start on a holiday or an unknown calendar (`deploy/session_calendar.py`), and `session_preflight.py` refuses a start that would record nothing. `at-strategy.timer:16-19` fires Mon–Fri with `Persistent=false`, so a box booted after the start time waits for the operator. | Carry the calendar skip: on a holiday or an unknown day the host exits 0 and records why. The kernel already refuses those sessions, so no money changes. Keep `Persistent=false`. For the preflight, carry each legacy check that maps onto the new stores, as a refusal (legacy). The alternative is report-only, which would be a Deviation. |
 | F-6 | Step 5 | May a windowed or partial-day research result count towards promotion (locked exam days, effective sample)? | Research is whole days only; nothing partial exists to count. | Never counted. Windowed results are exploratory, and promotion and the locked exam stay whole-day. |
-| F-1 | — | Should the system poll and trade in a special session (muhurat, weekend) or after the regular hours? | Polls only on weekdays 09:00–15:59 (`src/interfaces/mcp/core/scheduler.py:174-178`, `* 9-15 * * mon-fri`), skipped after the close (`marketpull.py:888-896`). The strategy timer runs Mon–Fri only. | No. Step 2 only reads the recorded session for views and ends polls at an early close. Start hours stay legacy's. |
+| F-1 | — | Should the system poll and trade in a special session (muhurat, weekend) or after the regular hours? | Polls only on weekdays 09:00–15:59 (`src/interfaces/mcp/core/scheduler.py:174-178`, `* 9-15 * * mon-fri`), skipped after the close (`marketpull.py:888-896`). The strategy timer runs Mon–Fri only. | No (answered). Step 2 only reads the recorded session for views and quality. Poll hours, start and end, stay legacy's (owner: fixed 15:30). |
 | F-2 | — | On an early-close day, should the framework square off before the day's close? | It squares off at the policy's fixed time (`src/runtime/session_close.py:116-117`, default 15:13). After an early close the broker's square-off backstops. | Policy time unchanged (`kernel/protection.py:1301-1330` already matches). |
 | F-3 | — | After a late start, may BuyerEdge read the day's earlier minutes fetched from history? | There is no same-day backfill: `marketheal.py:43-58` heals past spot days only. BuyerEdge's tape is the tick bars recorded since its start (`runner.py:96-102`). | No. Step 3 records the backfill as labelled `history_bar` data, and BuyerEdge's view policy keeps `bars: ticks`. |
 | F-5 | — | (Information.) After a restart, BuyerEdge's in-memory scorer state and the drawdown-rate window start empty, so decisions after a restart can differ from an uninterrupted run. | Per-process in both: `src/strategies/buyer_edge.py:2494-2504` and `src/runtime/session_state.py:227-234`. | No change. OA_NEW matches (`strategies/worker.py:588-601`, `kernel/admission.py:399`, `:559-564`). Step 4's comparisons account for it. |
@@ -35,16 +35,20 @@ Each one keeps legacy at 445eb116 unless the owner chooses otherwise. Two block 
 | Step | Builds | Reuses | Proofs |
 |---|---|---|---|
 | 1 | The audit: every place that assumes a full day, a 09:15 start or a complete set of bars, and which deliverables are already built | — | This file (as built) |
-| 2 | The recorded session and the day coverage. `SessionTiming` is built from the recorded `trading_day` fact. Quality's expected windows follow it. Each view gets `day_coverage`. Polls and the host stop at the recorded close when it is earlier. | `StoreMarket.trading_day` (`market/view.py:985-1009`), `quality._expected`, coverage rows | Unit tests (named in step 2) |
-| 3 | The late start. The market host backfills the day's missed spot minutes as labelled `history_bar` records (never ticks, chain or Greeks, and never an outage). `BarContext.day` and a per-window coverage record go in the host. The start gate follows F-4. | `OpenAlgoMarketSource._history_bars` (`adapters/openalgo.py:868`), the host store | Unit and integration tests |
-| 4 | The replay proofs on the converted days. Starts at 09:15, 09:16, 10:30, 12:00, 14:00, 15:12 (after `no_new_trade_after` 15:10) and 15:14. Restarts mid-day with an open position and with a pending send, a market outage, a strategy-host restart and a human advance. | SLICE-15 harness (`tests/replay/`), `_compose_kernel(fault_plan=…, receipt=…)` | `-m replay` matrix; synthetic always-run versions |
+| 2 | The recorded session and the day coverage. `SessionTiming` is built from the recorded `trading_day` fact. Quality's expected windows follow it. Each view gets `day_coverage`. Polls and the host keep legacy's fixed 15:30 end (owner, 2026-11-14). | `StoreMarket.trading_day` (`market/view.py:985-1009`), `quality._expected`, coverage rows | Unit tests (named in step 2) |
+| 3 | The late start. `BarContext.day` and a per-window `DAY_COVERAGE` record in the host; the start gate follows F-4 as answered (legacy's calendar skip and preflight refusals). No backfill: `market.source.backfill_on_start` was answered `false` and nothing reads backfilled bars (see step 3). | `View.day_coverage` (step 2), the host store | Unit tests |
+| 4 | The replay proofs: starts at 09:15 (baseline), 10:30, 14:00 and one minute after the baseline's last admitted entry; restarts mid-day with an open position (routine and owner advance, crash and clean stop), a market outage and a strategy-host restart; synthetic always-run versions. | SLICE-15 harness (`tests/replay/`) | `-m replay` runs; synthetic always-run versions |
 | 5 | Windowed research: any day ranges, intraday windows, a few minutes, non-contiguous slices and gappy data. Nothing looks ahead, and each result records its windows and the data it used, in custody. | `ReplaySpec.session_open/close` and `clock_identity` (`research/replay.py:1451-1466`, `:1689`), `datasets.build` | Property tests (hypothesis); golden identity unchanged |
 
 **Order.** Step 3 needs step 2's `DayCoverage`. Step 4 needs both. Step 5 shares no files with 2–4 and may be built in parallel by a second agent once F-6 is answered.
 
 ## Deviations
 
-* **D-1 (no `Host.session_now`):** the owner's goal names a `Host.session_now` seam. None exists under that name. Every participant takes time from the injected `Clock` (`contracts/clock.py:48-51`). The calendar's fixed offset turns that time into exchange time (`contracts/market.py:253-258`), and the host's time zone is never used, apart from BuyerEdge's copied `get_ist_now` (`strategies/buyer_edge.py:1012-1024`), which is bound to the bar's stamp during scoring (`:2692-2705`). That seam is kept. No new one is added.
+* **D-1 (no `Host.session_now`):** the owner's goal names a `Host.session_now` seam. None exists under that name. Every participant takes time from the injected `Clock` (`contracts/clock.py:48-51`). The calendar's fixed offset turns that time into exchange time (`contracts/market.py:253-258`), and the host's time zone is never used, apart from BuyerEdge's copied `get_ist_now` (`strategies/buyer_edge.py:1012-1024`), which is bound to the bar's stamp during scoring (`:2692-2705`). That seam is kept. No new one is added. The wall-clock fallbacks left in `src/` are **accepted**, each because it decides nothing about a session, a window or an order:
+  * `cognition/records.py:91` (`_at(None)`): an audit stamp default. Every production caller passes the injected clock's time (`cognition/review.py:166`, `:209`; `cognition/advice.py:108`, `:152`; `cognition/records.py:500`, `:507`).
+  * `research/custody.py:314` and `:1873`: the custody ledger's and `adopt`'s default clock when none is injected; custody stamps, never a market cutoff (research cutoffs come from `ReplaySpec`, step 5).
+  * `research/jobs.py:1167`: a lease's `expires_at` against `time.time()`; a process-liveness check, not exchange time.
+  * `operations/backup.py:67`, `:643`, `operations/restore.py:283`, `operations/deployment.py:449`, `operations/telemetry.py:59`: operations logs, backup status and telemetry retention stamps.
 * **D-2 (one calendar table):** "any exchange calendar" is served by the `CALENDARS` table (`contracts/market.py:275`) plus the recorded facts (holidays, special and shortened sessions from OpenAlgo's timings and holidays, `market/ingest.py:359-430`, each fact naming its `source`). No second exchange is added: none has a facts source yet. The fixed IST constants in about 15 modules (for example `kernel/admission.py:18`, `market/store.py:29`, `research/rl/environment.py:162`) are left. They equal the one calendar's offset, and the research and RL ones are part of identities bound to legacy (`research/rl/environment.py:180-188`).
 * **D-3 (cognition's retry clamp):** `secs_to_session_close` (`cognition/providers.py:246-252`) keeps the regular close. Cognition opens no market store, and the clamp only delays a retry. No money is involved.
 * **D-4 (no coverage in prompts):** the production review producer has no context reader and no teams (`bootstrap.py:1587`), so no prompt sees bars. Adding a coverage field to a model's prompt would change model input. That waits until a context reader is built, and then it is a Fork call.
@@ -149,141 +153,173 @@ Marks: **C** correct already. **D** defect. **M=** money behaviour that already 
 
 ## Step 2 — the recorded session and the day coverage
 
-**Files:** `market/view.py`, `market/quality.py`, `market/ingest.py`, `strategies/worker.py` (`serve` only), `contracts/market.py` (a `DayCoverage` record), tests below.
+**Files:** `contracts/market.py` (a `DayCoverage` record), `market/view.py`, `market/quality.py`, tests below. `market/ingest.py` and `strategies/worker.py` are not changed: the owner kept legacy's fixed 15:30 end (2026-11-14), so neither the poll nor the host stop moves.
 
 **Behaviour.**
 
-* `StoreMarket.session_timing(calendar_id, date) -> SessionTiming` reads the same fact as `trading_day` (`view.py:985-1009`), under the same visibility (`available_at <= now`):
-  * `Holiday` gives `closed`.
-  * `DayUnavailable` gives `unknown`.
-  * A `TradingDay` gives `open`. It gives `special` when its local window is outside the calendar's weekdays or regular hours.
-  * The view holds it as `View.session_timing`, resolved once per view.
-* `quality._expected` uses `timing.open`/`timing.close` when the timing is `open` or `special`, and `Assessment.calendar` becomes `recorded_session`. On `unknown` or no timing it keeps the regular hours and `regular_hours` (today's behaviour). No count, warm-up rule or threshold changes.
-* `View.day_coverage(instrument) -> DayCoverage(date, basis, session_open, session_close, first_window, last_window, expected, present, gaps, interrupted, complete)`:
-  * `gaps` are runs of expected windows with no bar.
-  * `interrupted` are the coverage rows (`interrupted`, `gap`, `process_stopped`) clipped to the session, each with its detail.
-  * `complete` is true only when every expected window up to the session close is final and present. Before the close, or after any gap, it is false. No view says a day is complete when it is not.
+* `session_timing_of(reader, calendar, date, now=, through=)` reads the same fact as `StoreMarket.trading_day` (`view.py`, one shared `_trading_day_value`), under the same visibility (`seq <= head`, `available_at <= now`):
+  * `Holiday` (`open: false`) gives `closed`.
+  * No fact, or a malformed one, gives `unknown` (fails closed).
+  * A window gives `open`. It gives `special` when its local window falls outside the calendar's weekdays or regular hours. A shortened day inside the regular hours (an early close) is `open` with the earlier close.
+  * `View.session_timing` holds it once per view (cutoff and head of the view); `StoreMarket.session_timing(calendar_id, date)` answers it at the clock's now.
+* `quality.assess` takes its expected windows from `session_windows(view, …)`: the recorded session when the timing is `open` or `special` (`Assessment.calendar` = `recorded_session`), none on `closed`, and on `unknown` the regular hours on a weekday with `regular_hours` (today's behaviour). No count rule, warm-up rule or threshold changes.
+* `View.day_coverage(instrument) -> DayCoverage(date, instrument, basis, status, session_open, session_close, first_window, last_window, expected, present, gaps, interrupted, complete)`, in one-minute windows of the policy's bars:
+  * `gaps` are inclusive runs `(first, last)` of expected windows with no bar.
+  * `interrupted` are the coverage rows with status `interrupted` or `gap` (a `process_stopped` row is `interrupted`) that overlap the session, clipped to it. A row is visible once written: at its `scope_to`, at or before the cutoff, and `seq <= head`.
+  * `complete` is true only on a recorded session whose every window up to the close is final and present. Before the close, after any gap, or with no recorded session it is false. `DayCoverage` refuses `complete` with a gap or without a recorded session.
+  * `DayCoverage.wire()` is its canonical dict, for step 3's journal and SLICE-17's declared inputs.
   * `StoreMarket.coverage` stays.
-* `MarketLoop._poll_due` and `next_wake` stop at `min(regular close, recorded close)` when the timing is known. The start rule is unchanged (F-1). `WorkerHost.serve` stops at the same earlier close.
+* **No early stop (owner).** `MarketLoop._poll_due`, `next_wake` and `WorkerHost.serve` keep legacy's weekday 09:00–15:30 (F-1, fixed 15:30). Protection does not depend on them: the square-off fires at the policy's time from the code's calendar offset and never reads the store or the poll hours (`kernel/protection.py:1301-1330`, F-2).
 
 **Tests:**
 
-* `test_market_windows.py::test_session_timing_from_the_trading_day_fact` (open, holiday, unknown, special 18:00–19:00, a fact not yet available).
+* `test_market_view.py::test_session_timing_from_the_trading_day_fact` (open, early close, holiday, unknown, special 18:00–19:00, a Saturday session, a malformed fact, a fact not yet available, and `StoreMarket.session_timing`). It is here, not in `test_market_windows.py`, because it needs a store.
 * `test_market_quality.py::test_expected_windows_follow_the_recorded_session` (early close 13:00; special session; unknown falls back to `regular_hours`).
-* `test_market_view.py::test_day_coverage_after_a_late_start` (first window 12:00, gaps 09:15–11:59, `complete` false).
-* `::test_day_coverage_names_a_process_stop` (an 11:00–11:10 stop in `interrupted` and `gaps`).
-* `::test_day_coverage_complete_only_after_the_close`.
-* `test_market_ingest.py::test_polls_stop_at_an_early_recorded_close`.
+* `test_market_view.py::test_day_coverage_after_a_late_start` (first window 12:00, gap 09:15–11:59, `complete` false).
+* `::test_day_coverage_names_a_process_stop` (an 11:00–11:10 stop in `interrupted` and `gaps`; another instrument's row ignored; unseen before it was written).
+* `::test_day_coverage_complete_only_after_the_close` (and `regular_hours` never complete).
+* `::test_day_coverage_on_a_closed_day`.
+* `test_market_ingest.py::test_polls_keep_the_regular_close_on_an_early_close_day` (owner's fixed 15:30).
 * `::test_polls_start_unchanged_on_a_special_day` (F-1).
-* `test_strategy_invocation.py::test_serve_stops_at_the_recorded_close`.
 
 **Break checks:**
 
-* `_expected` ignores the timing.
+* `_expected` (now `session_windows`) ignores the timing.
 * `complete` is true before the close.
 * A `process_stopped` row is dropped from `interrupted`.
-* A `special` timing opens polls before 09:00.
 * A fact with a future `available_at` is used.
 
 **Linux waiting list:** none.
 
+### Step 2 as built
+
+**Built** 2026-11-14 on OA_NEW `agentic-desk` (commit `SLICE-16 step 2:`).
+
+* **What.** `DayCoverage` (`contracts/market.py`); `session_timing_of`, `View.session_timing`, `View.day_coverage`, `session_windows` and `StoreMarket.session_timing` (`market/view.py`, sharing `_trading_day_value` with `trading_day`, whose answers are unchanged); `quality.assess` on `session_windows` with the `recorded_session`/`regular_hours` label; `coverage(..., instrument=)` on the store's reads (`market/store.py`), so a day-coverage read loads one instrument's rows.
+* **Tests.** 8 new (5 in `test_market_view.py`, 1 in `test_market_quality.py`, 2 in `test_market_ingest.py`). Run 1: the market, port, canvas, strategy-invocation and legacy-market files plus `tests/contracts`, 863 passed, 5 skipped, 2 failed: `test_capabilities.py::test_simulation_has_no_live_adapter` and `::test_check_opens_nothing` assert `adapters.openalgo` is not yet imported, which another file in the same process had imported; both pass alone and in `tests/contracts` alone. Run 2, the same files with `tests/contracts` in its own process: 336 passed; 529 passed, 5 skipped.
+* **Breaks** (each failed its test, then was restored): timing ignored in `_session_bounds` (3 failed); `complete` without the whole session (1); `process_stopped` rows dropped (1); a fact used before its `available_at` (1).
+* **Deviations from the outline.** No early stop for polls or the host (owner, fixed 15:30), so `market/ingest.py` and `strategies/worker.py` are unchanged and their two tests became "keeps legacy's hours" tests. The timing test sits in `test_market_view.py` (it needs a store). A coverage row is visible from its `scope_to` (when it was written), not its `scope_from`, so a view never sees a stop recorded after its cutoff.
+* **Fork calls.** None. Protection is unaffected (the square-off reads no store, `kernel/protection.py:1301-1330`).
+
 ## Step 3 — the late start
 
-**Files:** `market/ingest.py` (`MarketLoop._open` backfill), `market/sources.py` and `adapters/openalgo.py` (a `history` read on the source protocol, reusing `_history_bars`), `settings/schema.py` and `settings/loader.py` (one data setting), `strategies/worker.py` (`BarContext.day`, a `DAY_COVERAGE` journal kind), `bootstrap.py` (`serve_strategy` start gate per F-4), `deploy/systemd/at-strategy-host.service` (an `ExecCondition` per F-4), tests below.
+**Files:** `strategies/worker.py` (`BarContext.day`, the `DAY_COVERAGE` journal kind, `StrategyHost.start_gate`), `market/start_gate.py` (new), `bootstrap.py` (`serve_strategy` runs the gate before `serve`), tests below. The unit file and the market host are not changed (see the decisions below).
+
+**Decisions taken before building (owner answers, 2026-11-14):**
+
+* **No backfill is built.** `market.source.backfill_on_start` was answered `false`, legacy has none (F-3), and nothing in this release would read a backfilled bar: BuyerEdge's view policy is `bars: ticks`, and no strategy, admission or protection read uses `history` bars on a live day. The late start is made honest instead by `DayCoverage` (the missing morning is a named gap, `complete` false). So no setting is added and nothing can refuse when it is unbound (reviewer fix 3 is moot). If a future consumer reads `history` bars, the backfill (one `history` read per spot instrument from the recorded open to the first start, `history_bar` records with `arrival_at` = the fetch instant, never ticks, chain or Greeks, never after the day's first record) is built then, behind that setting with default `false`.
+* **The start gate runs in-process.** The installer allows a unit exactly one `Exec` line (`deploy/install.py:243-248`), so no `ExecCondition` or `ExecStartPre` is added. **Deviation:** `at-strategy <id>` runs the gate after composing the host and before the first pass. A skip exits 0 (legacy's `ExecCondition` exit 1: the unit is not failed and not restarted); a refusal exits 1 (legacy's failed `ExecStartPre`: `Restart=on-failure` as before).
 
 **Behaviour.**
 
-* **Backfill, data only.** At the market host's first start of an exchange date, when the store holds no record of an instrument's spot for that date before now, the loop makes one `history` read per spot instrument for the recorded session's open up to now. It writes one-minute `history_bar` records:
-  * `event_at` is the bar start and `arrival_at` is the fetch instant, so no view cut off earlier can see them.
-  * The source is the history source. The coverage row is `covered` with detail `backfill`, or `gap`/`interrupted` as a fetch is today.
-  * It never writes ticks, chain or Greeks (they cannot be refetched; legacy `heal.py`, 445eb116).
-  * It never covers an outage after the day's first record. An outage stays a gap (deliverable 6).
-  * It is controlled by `market.source.backfill_on_start: bool`. When unbound it refuses with `RefusingParameterUnbound`, as every market setting does.
-  * BuyerEdge's view policy keeps `bars: ticks`, so its decisions are unchanged (F-3).
-* **The partial day as a fact.** `BarContext` gains `day: DayCoverage`, the trigger view's `day_coverage` (step 2). The host records it once per decided window as a `DAY_COVERAGE` journal row in the host store, holding `first_window`, `gaps`, `interrupted` and `complete`. The intent and abstention payloads are unchanged, so evidence digests, command keys and admission are identical (the deepening confirms by digest test). BuyerEdge and EMA cross ignore `day`.
-* **Start gate (F-4, as answered).** If answered as proposed:
-  * `at-strategy --check-day` exits 0 on an open or special recorded day (including before the open) and 1 on a holiday or an unknown day. It is used as the unit's `ExecCondition`.
-  * The legacy preflight checks that map onto the new stores refuse the start: ticks flowing in the market store, warm-up not above the bars the session can still give, and the freshness bound at least twice the poll interval. Each check's legacy line is cited when it is deepened.
-  * A start after the close exits 0 at once.
+* **The partial day as a fact.** `BarContext` gains `day` (default `None`) after `invocation_id`, so every positional construction (`strategies/worker.py`, `tests/unit/test_buyer_edge_parity.py:180`) is unchanged. It is the trigger view's `day_coverage(underlying)` (step 2), or `None` if that read fails, so a coverage read never turns a decision into a `strategy_error`. SLICE-17 reads it as `ctx.day` and puts `ctx.day.wire()` in its declared inputs.
+* **The record.** The host writes one `DAY_COVERAGE` journal row per decided window, in the same transaction as the window's `PLANNED` row: the trigger plus `DayCoverage.wire()` (`first_window`, `gaps`, `interrupted`, `complete` and the rest). Warm-up windows get none. The intent and abstention payloads are unchanged, so evidence digests, command keys and admission are identical. BuyerEdge and EMA cross ignore `day`.
+* **Start gate (F-4, legacy).** `start_gate(...)` in `market/start_gate.py`:
+  * The calendar (legacy `deploy/session_calendar.py`, `at-strategy.service:46-50` @445eb116): the recorded `trading_day` fact (step 2's `session_timing_of`). `closed` or `unknown` skips. Legacy asked OpenAlgo at the timer's start; here the fact is the market host's, recorded from 09:05, so an unknown weekday is read again every 30 s until the regular open (09:15), then skipped. `open` or `special` goes on.
+  * The preflight's BLOCK lines that read the market store (`deploy/session_preflight.py:254-326`, `:351-379`): none before the regular open or after the close (legacy's `pre`/`post` phases); in session, no ticks for the underlying today, the newest tick older than 180 s (`STALE_TICKS_SECS`, legacy's), or no confirmed bar refuse. An unreadable store refuses. Legacy's WARN lines (cadence, a warm-up not yet elapsed, the feed socket) refuse nothing, as legacy; the outline's "warm-up not above the bars the session can still give" and "freshness bound at least twice the poll interval" were WARNs in legacy and are not carried as refusals. Legacy's other BLOCKs map onto checks the start already makes (release convergence: the manifest verification; entry limits: the bound settings; writable: the host store's open; disarmed execution: the host has no sending code).
+  * After the close it starts, and `serve` runs one pass and stops (legacy's order, unchanged).
 
-**Tests:**
+**Tests** (`test_strategy_invocation.py`):
 
-* `test_market_ingest.py::test_a_late_first_start_backfills_spot_history_bars` (12:00 start; bars 09:15–11:59 as `history_bar`; arrival = fetch instant; `covered backfill`).
-* `::test_backfill_is_invisible_to_an_earlier_cutoff`.
-* `::test_no_backfill_after_the_days_first_record` (a restart after an outage leaves the gap).
-* `::test_backfill_never_writes_ticks_chain_or_greeks`.
-* `::test_backfill_unbound_refuses`.
-* `test_strategy_invocation.py::test_bar_context_carries_the_day_coverage`.
-* `::test_day_coverage_journal_per_window`.
-* `::test_intent_digest_unchanged_by_day_coverage`.
-* `test_strategy_invocation.py::test_check_day_exit_codes` (holiday, unknown, open before the open, special, after the close).
-* `test_rendered_units.py::test_strategy_unit_has_the_day_condition` (if F-4 as proposed).
+* `test_bar_context_carries_the_day_coverage` (a 10:40 first bar: gap 09:15–10:39, `complete` false, each view's own windows only).
+* `test_day_coverage_journal_per_window` (one row per decided window, none for warm-up, none on a second pass).
+* `test_intent_digest_unchanged_by_day_coverage` (published outputs' digests equal with `day` and with it forced to `None`).
+* `test_start_gate_calendar` ×5 (holiday skip; unknown read again to 09:15, then skip; recorded at 09:05 then start before the open; a Saturday special day goes on to the preflight; after the close start).
+* `test_start_gate_preflight_in_session` (no ticks refuse; fresh ticks and bars start; ticks 4 min old refuse).
+* `test_start_gate_counts_only_bars_confirmed` (an unsealed bar is not a bar).
 
 **Break checks:**
 
-* Backfill with `arrival_at` = bar time (look-ahead).
-* Backfill after an outage.
-* Backfill written to the `spot` stream (BuyerEdge would read it).
 * `DAY_COVERAGE` folded into the intent payload.
-* `--check-day` exits 0 on unknown.
+* An unknown day starts instead of skipping.
+* The stale-tick refusal removed.
 
-**Linux waiting list (new rows):**
+**Linux waiting list (new rows, in SLICE-15's table):**
 
-* `at-strategy-host.service`'s `ExecCondition` skipping a holiday under real systemd without marking the unit failed. This replaces SLICE-15's row "the strategy timer's calendar `ExecCondition` and session preflight".
+* `at-strategy-host.service` started by its timer on a holiday or unknown day exits 0 through the in-process gate without being marked failed or restarted; a refusal exits 1 and restarts within `StartLimitBurst`. This replaces SLICE-15's row "the strategy timer's calendar `ExecCondition` and session preflight".
 * `systemctl start at-strategy-host` at a mid-session minute through the installer's polkit rule.
+
+### Step 3 as built
+
+**Built** 2026-11-14 on OA_NEW `agentic-desk` (commit `SLICE-16 step 3:`).
+
+* **What.** `BarContext.day` (default `None`, after `invocation_id`) and the `DAY_COVERAGE` journal kind, written in the `PLANNED` row's transaction (`strategies/worker.py`); `market/start_gate.py` (new): `day_status`, `preflight`, `start_gate`, `gate_for(host)`; `serve_strategy` runs the gate before `serve` (`bootstrap.py`). `tests/integration/test_shared_engine.py`'s PRF-STR-11 journal assertions now set the new `DAY_COVERAGE` rows apart and check one per decided window.
+* **Tests.** 10 new in `test_strategy_invocation.py` (3 day-coverage, 7 gate). Runs (the strategy-invocation, BuyerEdge-parity, model-strategy, registry, shared-engine, unix-channel and `tests/replay` files, then `tests/contracts` in its own process): run 1, 223 passed, 14 skipped; 529 passed, 5 skipped. Run 2 the same. An earlier pair of runs, before the gate moved to `market/`, also passed the first set (327 passed, 14 skipped, with the shadow-day and custody-promotion files) and failed only PRF-STR-09 (`test_prf_str_09_the_tree_has_no_finding`), which the move fixed.
+* **Breaks** (each failed its test, then was restored): the day folded into an intent (`test_intent_digest_unchanged_by_day_coverage`); an unknown day starting (`test_start_gate_calendar[unknown]`); the stale-tick refusal removed (`test_start_gate_preflight_in_session`).
+* **Deviations.** The gate runs in-process, not as `ExecCondition`/`ExecStartPre` (the installer's one-`Exec`-line rule). It lives in `market/`, not `strategies/`: a module the host imports changes every strategy's declared code set (`DESCRIPTOR["code"]`, STR-R03 caught it), and PRF-STR-09 lets only `strategies/worker.py` open a database (the guard caught `strategies/start_gate.py`). An unknown weekday is read again until 09:15 (the fact is the market host's from 09:05, where legacy asked OpenAlgo at the timer). No backfill and no setting (owner `false`; nothing reads it). Changing `worker.py` changes every strategy's code digest and so its candidate ID, as any host change does; no golden pins one.
+* **Fork calls.** None. Legacy's preflight WARN lines (cadence, warm-up not elapsed) stay non-refusing, as legacy; the outline had named two of them as refusals, which would have been a difference from legacy and was not built.
 
 ## Step 4 — the replay proofs on the converted days
 
-**Files (test support only):**
-
-* `tests/replay/replay_harness.py`, which gains:
-  * `build(…, market_from=None, until=None, receipt=None, fault_plan=None)`;
-  * a `restart(r, at, parts=…)` helper that closes the named compositions without their stop sequence (as a crash) and recomposes them on the same root;
-  * the night skip, unchanged.
-* `tests/replay/fake_openalgo.py`, which serves `history` from the converted spot bars at or before now (for step 3's backfill).
-* `tests/replay/test_start_anytime.py`, marked `replay`.
-* `tests/integration/test_start_anytime_synthetic.py`, which always runs over the SLICE-15 synthetic two-hour afternoon.
+**Files (test support only):** `tests/replay/replay_harness.py`, `tests/replay/test_start_anytime.py` (new), `tests/integration/test_start_anytime_parts.py` (new). No production code changes.
 
 **Harness changes.**
 
-* With `market_from=T`, batches fetched before `T` are dropped, modelling a market host that was not running. Without it, the market ran from 09:15 and only the kernel and host start late.
-* `receipt` lets a run use a `routine_advance: standing` receipt (Q-009), where today it is `never` (`bootstrap.py:2389`).
-* `fault_plan` is `_compose_kernel`'s existing seam (`bootstrap.py:144`).
+* `build(…, market_from=None, until=None, receipt=None)`. With `market_from=T`, batches fetched before `T` are dropped: a market host that was not running. Without it, the market ran from the start and only the kernel and host start late. `until` ends the run early. `receipt` replaces the replay's `_SHADOW_RECEIPT` (`routine_advance: never`), so a run can use `standing` (Q-009).
+* `driver.drop_market(frm, to)`: the market host down over `[frm, to)`; nothing fetched then is committed.
+* `restart(r, parts=("kernel", "market", "host"), receipt=, stop=False)` closes the named parts and recomposes them on the same root at the clock's instant:
+  * A crash (`stop=False`) runs no stop sequence. The crashed epoch's send lease is then expired at the restart's instant, as the kernel host's `wait_for_lease` would leave it (the wait itself is SLICE-15's Linux row).
+  * A clean stop (`stop=True`) runs the kernel host's stop: unsent entries refused `stopping`, a drain, then `recovery.shutdown(clean=True)`, which releases the lease clean.
+  * A kernel restart also recomposes the host, because its kernel port belongs to the old composition. It starts a fresh driver over the remaining batches. Its first step refuses the earlier epoch's unsent entries and performs the owner's acts (the advance only if recovery still waits for one).
+  * The lease store is the build's, as a restart on the same host finds it.
+* The night skip is unchanged.
 
-**Runs** on 2026-08-07, the day with the most fills (39 admitted, 18 fills in SLICE-15). Estimated time is shown against the full-day p50 of 509 s.
+**Fault plan (R2) not rebuilt in process.** `FaultPlan` ends the process (`os._exit(86)`, `kernel/coordinator.py:176-178`), so a pending send cannot be killed inside one replay process. The pending-send crash points are already proven by `tests/recovery/test_crash_boundaries.py` (CP-D1, CP-P1…P4, CP-B1…B5, subprocesses). The same check over the converted days with separate units is SLICE-15's Linux row.
 
-| Run | Start or event | Asserts |
+**Reviewer fix 1 (the 15:12 run).** Nothing binds `no_new_trade_after` (`defaults.yaml:123` is `""`, and the harness binds none). So the "after the last entry" run starts one minute after A0's last admitted command, read from A0's ledger. The 15:14 run is dropped: after the 15:13 square-off it shows nothing A5 does not.
+
+**Always-run synthetic runs** (`test_start_anytime.py`, the SLICE-15 synthetic afternoon 13:15–15:29 with the scripted rule, ENTER CE at its first decided bar):
+
+| Run | Event | Asserts |
 |---|---|---|
-| A0 | 09:15, the uninterrupted baseline | SLICE-15's reconciliation, no difference |
-| A1–A6 | Whole system from 09:16, 10:30, 12:00, 14:00, 15:12 and 15:14 (`market_from` = start, backfill bound) | Reconciles; every decision's trigger at or after the start. `DAY_COVERAGE` on every window: `first_window` at or after the start, `complete` false before 15:30, the backfill visible as `history_bar` only. First decision at least `warmup_bars` after the first tick bar (row 16). 15:12 and 15:14 admit nothing (warm-up and `no_new_trade_after`), and the session still opens and closes, flat. |
-| A7 | Kernel and host from 12:00, market from 09:15 | The host decides the morning's bars. Every ENTER whose view is older than `max_view_age_secs` is refused `ADM-R05` at B1, and none is sent (row 15). Fake orders equal admitted entries. |
-| R1 | Open position: crash the kernel, market and host at the first fill + 2 min (read from A0), restart with `standing` | `EPOCH_ACTIVATED`, then `RECOVERY_ADVANCED basis routine_standing`. No command key placed twice at the fake. The open position's stop is not re-placed, and its desired levels equal A0's bar for bar until its exit or the first decision that differs (F-5, recorded). The latch's `SAFETY_CHECK_STATE` and any `LOSS_LATCH_TRIPPED` agree with its own books; until the restart the ledger prefix equals A0's. Flat; reconciles. |
-| R2 | Pending send: `fault_plan` kills the kernel after `DISPATCH_CLAIMED`, after the fake accepted the order and before the outcome | After restart the attempt is resolved by `coordinator.recover` through the books (existing path, CP-D1). Exactly one fake order for that command and its fill in the ledger once. No re-send; no other unverified item. |
-| R3 | As R1 with a `never` receipt | Stays in recovery (no entries, protection per the recovery hold rules) until a human `recovery advance` through the operator path. Then it continues and reconciles. |
-| R4 | Market outage 11:00–11:10, the market host restarted alone | A `process_stopped` row. No bar and no decision trigger in 11:00–11:10. `day_coverage.gaps` names it. No backfill into it. |
-| R5 | Strategy host restarted alone at 13:00 | `STATE_RESET host_restart`. Every invocation id is unique, and a `COMPLETED` row not yet handed off is handed off once or abandoned per Fork call 11. No duplicate entry request. |
+| Late start | Kernel, market and host from 14:00 (`market_from` 14:00) | Reconciles. The first decided bar is the one that closed at 14:00 (13:59), nothing earlier. One entry. Every `DAY_COVERAGE` row starts at or after it, is not complete, and names the gap 09:15–13:58. One session, opened and closed. |
+| R4 | Market host down 14:00–14:10, restarted alone | Reconciles. A `process_stopped` row. No decided bar inside the outage. The day's coverage names the gap and the stop. |
+| R5 | Strategy host restarted alone at 14:30 | Reconciles. Invocation IDs unique. The one entry is never requested again. |
+| R1 | Kernel, market and host crashed two minutes after the first fill, `standing` receipt | Reconciles. Open at the restart. Advances `routine_standing`. One entry at the fake, and the kernel's own `square_off` closes it. |
+| R3 | As R1 with `never` | The owner's advance (`human`), then as R1. |
+| Clean stop | As R1, with the stop sequence | `routine_standing`, then as R1. |
 
-Time: A0–A6 sum to about 3.7 day-equivalents. A7 and R1–R5 run on `until` windows of about 2 h each. That totals about 6 day-equivalents, around 50 min, and up to 80 min on a loaded PC. The always-run synthetic file covers A6-like, R1, R2 and R4 on the two-hour day in under 2 min.
+**In-process parts** (`test_start_anytime_parts.py`, reviewer fix 4):
+
+* Cognition with a review in flight: the request is recorded, then the process stops. The next process's `recover` answers it once (`unavailable`, `cancelled`), and a repeat request answers nothing new.
+* Cognition after a clean stop: an answered review is never answered again.
+* The observer: the same reads after a restart. It holds no session state, only a per-process request budget.
+* A research job interrupted mid-session: the lease runs out, `recover` ends it `failed` and interrupted, a retry is a new attempt, and a queued job stays queued.
+* The operator holds no restart state of its own: its sessions and requests are the kernel's (`CliSession` opens one per connection, `interfaces/api.py:748-757`), and a connection ends with the process. R3's owner advance goes through the authority's relay (`operations/shadow_run.py:120-131`), the path the operator door uses. No separate operator test was added.
+* A model strategy's proposal in flight is not tested separately. The production review producer has no teams (`bootstrap.py:1587`); SLICE-17 builds the twin's proposal path.
+
+**Converted-day runs** (`test_converted_start_anytime_matrix`, marked `replay`, on 2026-08-07 with BuyerEdge): A0 (09:14, baseline); whole-system late starts at 10:30, 14:00 and one minute after A0's last admitted command; R1 (crash two minutes after A0's first fill, `standing`); R4 (market down 11:00–11:10); R5 (host restarted at 13:00). Each run reconciles, opens and closes its session, and acknowledges every command key once. A late start's first decided bar closed at or after its start, and its coverage is not complete.
 
 **Break checks:**
 
-* The earlier-epoch refusal skipped (R2 must catch a re-send).
-* The routine advance accepted with `never` (R3).
-* `process_stopped` not written (R4).
-* `market_from` ignored (A2 must fail its first-window check).
-* Protection re-placing a confirmed stop at recovery (R1).
+* The routine advance accepted under a `never` receipt (R3 must see `human`, not `routine_standing`).
+* A clean stop releasing its lease `abnormal` (the clean-stop run must still advance `routine_standing`).
+* `market_from` ignored (the late start's first-bar check must fail).
+* `process_stopped` not written on the market restart (R4).
 
-**Record:** a "Start at any time" table in `docs/migration.md` beside "The replayed days", labelled "converted simulation data, not legacy-comparable (no bid/ask)".
+**Record:** a "Start at any time" table in OA_NEW `docs/migration.md` beside "The replayed days", labelled "converted simulation data, not legacy-comparable (no bid/ask)".
 
 **Linux waiting list (new rows):**
 
 * R1 and R2 with the kernel, market and strategy hosts as separate units over the kernel channel, restarted by systemd (`Restart=` policies), the lease wait (`wait_for_lease`) observed.
 * The market unit's `Restart=always` producing R4's `process_stopped` row.
-* The supervisor's assessment staying fresh across a kernel restart.
+* The supervisor's assessment staying fresh across a kernel restart (the supervisor's real-unit restart stays on SLICE-15's list).
+
+### Step 4 as built
+
+**Built** 2026-11-14 on OA_NEW `agentic-desk` (commit `SLICE-16 step 4:`, after step 5 at the coordinator's request). Test support and the record only; no production code changed.
+
+* **What.** `tests/replay/replay_harness.py`: `market_from`, `until`, `receipt`, `drop_market`, `restart` (crash or clean stop; the build's lease store; a crashed lease expired at the restart). `tests/replay/test_start_anytime.py`: 6 synthetic tests and the converted matrix. `tests/integration/test_start_anytime_parts.py`: 4 in-process tests. OA_NEW `docs/migration.md`: "Start at any time".
+* **Harness fixes found on the way.** A restarted `MarketLoop` must be given the calendar itself: `build` gives the first loop the kernel's market port, which a first start never reads, but `MarketLoop._open` does on a restart. A kernel restart must leave the earlier lease as a real restart finds it: still held after a crash (expired by the lease wait), released clean after a stop. Without that the restarted kernel stays in recovery and only the broker's 15:15 square-off closes the position, leaving the ledger open. That is correct kernel behaviour (Q-009 check 6), not a defect.
+* **Tests.** Run 1 (synthetic and parts): 10 passed. Run 2 (all of `tests/replay` without `AT_REPLAY_DATA`, with SLICE-15's replay tests, and the parts file): 21 passed, 7 skipped. The converted matrix (`-m replay`, 2026-08-07): 1 passed in 18 min 49 s, every run reconciled (table in OA_NEW `docs/migration.md`).
+* **Results.** A0 = SLICE-15's 2026-08-07 (340 decisions, 39 admitted, 18 fills, flat). R1 advanced `routine_standing` and ended as A0 (18 fills, the same realised); R5 ended as A0; R4's outage changed the bars and the trades (10 fills). A late start's first decided bar closed at or after its start. A5 (15:03) decided nothing: fewer than 20 bars were left.
+* **Breaks.** `market_from` ignored (late start failed); `process_stopped` not written (R4 failed); a clean stop releasing `abnormal` (clean-stop run failed). The routine advance under `never` with check 1 removed **survived**: the `never` receipt's limit 0 (check 8) refuses it too. That is defence in depth, recorded.
+* **Deviations.** R2 is not rebuilt in process (see above; `test_crash_boundaries.py` covers it). The 15:12/15:14 runs became A5 (reviewer fix 1). A7 (kernel and host late, market from 09:15) is not run: this slice's audit row 15 and `test_strategy_invocation.py::test_a_catch_up_is_planned_then_refused_stale_at_b1` already prove the morning's ENTERs are refused `ADM-R05`. The operator and a model proposal in flight have no separate test (see above).
+* **Fork calls.** None. No money or BuyerEdge behaviour differs from legacy. The restarted BuyerEdge engine starts empty (F-5) and changed nothing that traded on this day.
 
 ## Step 5 — windowed research
 
-**Files:** `research/windows.py` (new), `research/datasets.py`, `research/replay.py`, `research/trials.py`, `research/evaluation.py`, `bootstrap.py` (`run_dataset_build`'s `spec_for`), tests below. Blocked on F-6.
+**Files:** `research/windows.py` (new), `research/datasets.py`, `research/replay.py`, `research/trials.py`, `research/evaluation.py`, `bootstrap.py` (`run_dataset_build`'s `spec_for`), `research/jobs.py` (the `windows` argument), tests below. F-6 answered: never counted.
 
 **Behaviour.**
 
@@ -292,7 +328,7 @@ Time: A0–A6 sum to about 3.7 day-equivalents. A7 and R1–R5 run on `until` wi
 * **Outcome horizons** that reach past the slice's end are marked `censored` and never read.
 * **Gappy data.** `day_coverage` of the slice is recorded, and a gap is never filled.
 * **The record.** Every result (row, trial, evaluation) records `windows`, each slice's `day_coverage`, the input store digest and `clock_identity`, and enters custody through the existing `TrialLedger`/`CustodyLedger` events.
-* **Identity unchanged.** A dataset given only `days` has no `windows` key, so its identity, the golden `tests/fixtures/research/legacy_identity_445eb116.json`, and every existing digest are unchanged.
+* **Identity unchanged.** A dataset given only `days` has no `windows` key (`windows` sits outside `OPTIONAL_IDENTITY_FIELDS`, whose lists the golden pins), so its identity, the golden `tests/fixtures/research/legacy_identity_445eb116.json`, and every existing digest are unchanged.
 * **Promotion (F-6 as proposed).** Windowed datasets are refused by `reserve_locked_evaluation`, the locked exam and the promotion gate (`DatasetError("windowed research is exploratory")`). Whole-day ones are unchanged.
 
 **Tests:**
@@ -306,7 +342,8 @@ Time: A0–A6 sum to about 3.7 day-equivalents. A7 and R1–R5 run on `until` wi
   * `test_no_look_ahead_in_any_window`: for every decision in any random set of slices, every record the replay read has `available_at` at or before the decision instant, and the decision is inside its slice.
   * `test_slices_are_independent`: one slice's result is unchanged by adding data or slices after it.
   * `test_gaps_are_never_filled`: no bar appears in a window whose records were removed.
-* Custody: `test_custody_ledger.py::test_windowed_dataset_in_custody`.
+* Custody: `test_research_windows.py::test_windowed_dataset_in_custody` (custody records the window's day through the existing ordinary exposure).
+* `test_research_windows.py::test_a_window_outside_the_recorded_session_is_refused`.
 
 **Break checks:**
 
@@ -316,6 +353,27 @@ Time: A0–A6 sum to about 3.7 day-equivalents. A7 and R1–R5 run on `until` wi
 * A windowed dataset accepted by the locked exam.
 
 **Linux waiting list:** none (research runs the same on this PC).
+
+### Step 5 as built
+
+**Built** 2026-11-14 by a second agent in a worktree off OA_NEW `13f5a9b` (step 2), applied on step 3 (`ddfd35c`) and committed as `SLICE-16 step 5:` (it shares no file with steps 2–4 but `bootstrap.py`, in another function). F-6 as answered: windowed research never counts toward promotion.
+
+* **What.**
+  * `research/windows.py` (new; imports only the standard library and `contracts`, inside the research boundary PRF-RES-14): `ResearchWindow(day, slices)` with half-open `[from, to)` exchange-time `HH:MM` slices, non-empty, ordered, non-overlapping, and inside the recorded session `[open, close)` (`check_session`, refusing a closed or unknown day); `parse_windows` (one window per day); `whole_day` = `[open, close)`; `slice_gaps` (a `DayCoverage` wire's gaps clipped to a slice); `censor`.
+  * `research/replay.py`: `ReplaySource(..., timing_for=, coverage_for=)`; `rows(..., windows=)` replays one `ReplaySpec` per slice (`session_open`/`session_close` = the slice, so the engine's clock and the `closes` view are cut at the slice's end). Decisions and observations are the slice's own (the host still decides the date's earlier bars, which are the past; they are counted as `decisions_outside_slice` and are never rows). `windowed_labels` is `directional_labels` with every horizon or observed endpoint reaching the slice's end marked `censored` (never read, never a refusal). Each windowed row carries `window`; `RowBatch.windows` holds one record per slice: day, slice, spec digest, `clock_identity`, `input_digest`, replay run id, decision counts, the view's `DayCoverage` at the slice's end and the slice's own gaps. The days-only path is unchanged (same rows, no new keys); `economic_cost_days` lists a day once.
+  * `research/datasets.py`: `build(..., windows=)`; window days join `days`, a day without its own window is its whole recorded session. A windowed build is refused (`DatasetError("windowed research is exploratory")`) with a locked-OOS role or declared locked day, partition roles, or a locked trial/claim; `reserve_locked_evaluation(..., windowed=True)` refuses the same. Only a windowed manifest has `windows` in its identity (`WINDOW_IDENTITY_FIELD`, kept outside `OPTIONAL_IDENTITY_FIELDS`, whose list the golden pins). Custody: the window days enter through the existing `expose_ordinary` call.
+  * `research/evaluation.py`: `evaluate` refuses a windowed manifest first (`EvaluationError("windowed research is exploratory")`), so no exam and no promotion gate reads one.
+  * `research/jobs.py`: `windows` is a `research.dataset_build` argument.
+  * `bootstrap.py` `run_dataset_build`: `spec_for` takes the day's recorded session (step 2's `session_timing_of`) and falls back to legacy's fixed 09:15–15:30 when none is recorded (identical text on a regular day, so days-only identities are unchanged); `timing_for` and `coverage_for` (the strategy view's `day_coverage(...).wire()` at the slice's end) are passed to `ReplaySource`; `days` may be omitted when `windows` names them.
+* **Tests.** `tests/unit/test_research_windows.py`, 15 tests: `test_window_validation` ×6, `test_slice_result_records_windows_coverage_and_inputs`, `test_horizon_past_the_slice_is_censored`, `test_a_window_outside_the_recorded_session_is_refused`, `test_whole_day_dataset_identity_unchanged`, `test_windowed_dataset_in_custody`, `test_windowed_dataset_refused_by_the_locked_exam_and_promotion`, and three `hypothesis` properties over random slices and random gaps in a real market store (25 examples each): `test_no_look_ahead_in_any_window`, `test_slices_are_independent`, `test_gaps_are_never_filled`. The engine is a double that decides on every bar visible at the clock it is stepped to; the closes are read through a real view cut at the spec's end. Runs (worktree, the new file plus `test_promotion_gate`, `test_dataset_fitting`, `test_custody_ledger`, `test_candidate_freeze` (the golden), `test_research_attempts`, `test_rl_research`, `test_research_worker`, `test_custody_promotion`, `test_shared_engine`; then `tests/contracts` in its own process): run 1 230 passed, 1 skipped; 525 passed, 10 skipped. Run 2 the same. On the main checkout after step 3, the same files: run 1, 230 passed, 1 skipped, and `tests/contracts` 529 passed, 5 skipped, 1 failed (`test_prf_str_09_the_run_time_watch`, while a replay test ran beside it; it passed alone and in run 2); run 2, 230 passed, 1 skipped; 530 passed, 5 skipped.
+* **Breaks** (each failed, then restored): the slice's cutoff left at the day's end (1 failed); horizons not censored at the slice's end (1); `windows` added to a days-only identity (1); a windowed dataset accepted by `evaluate` (1). A fifth, dropping only the endpoint check in `windowed_labels`, failed nothing: `censor` and the cut-off closes already cover it (defence in depth, recorded).
+* **Deviations from the outline.**
+  * A whole day is `[open, close)`, not `[open, close]`: that is the days-only replay's own `session_close`, so a whole-day window replays the same rows (tested).
+  * The custody test is in `test_research_windows.py`, not `test_custody_ledger.py`; custody records the window's day through the existing ordinary exposure (no new custody event kind).
+  * `windows` is not added to `OPTIONAL_IDENTITY_FIELDS`: the golden `legacy_identity_445eb116.json` pins legacy's two field lists (`test_candidate_freeze.py::test_golden` failed when it was).
+  * A slice's end never raises legacy's "available directional label has no observed horizon endpoint"; such a label is censored. A days-only day keeps legacy's refusal.
+  * `evaluate` refuses any windowed manifest, locked or not, so a windowed dataset is rows only (exploratory).
+* **Fork calls.** None. No score, threshold, gate or money value changed; BuyerEdge and the days-only replay are unchanged.
 
 ## Completion conditions
 
