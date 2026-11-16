@@ -263,6 +263,8 @@ Checked in `strategies/buyer_edge.py`:
 
 **Built** in OA_NEW `165788a` on `slice-08` (after `5fc3ff5`; local only, not pushed).
 
+**The converted copy was deleted on 2026-11-16** (owner's cleanup, after SLICE-16 and SLICE-17). The originals stay tracked in OA on `legacy`. The `replay`-marked tests skip until it is rebuilt: `scripts/convert_recorded_days.py --source <the originals> --out run/replay-data/2026-08` (the lot options as in the conversion report), then `AT_REPLAY_DATA` names it.
+
 | Part | Where |
 |---|---|
 | The converter, as the decisions above, standard library only, importing no adapter | `scripts/convert_recorded_days.py` (new) |

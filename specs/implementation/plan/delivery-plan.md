@@ -18,7 +18,7 @@
 
 ## Build order
 
-SLICE-01 → 02 → 03 → 04 → 05 → 07 → 06, then 08 and 09 (in that order), 10 and 12 (in parallel with 08–09, against frozen contracts, `README.md:1185-1186`), 11, 13, 14. SLICE-06 follows SLICE-07 because protection needs fills and observations.
+SLICE-01 → 02 → 03 → 04 → 05 → 07 → 06, then 08 and 09 (in that order), 10 and 12 (in parallel with 08–09, against frozen contracts, `README.md:1185-1186`), 11, 13, 14; then 15 (in place of 14's cutover, owner 2026-11-13), and 16 and 17 (owner 2026-11-14). SLICE-06 follows SLICE-07 because protection needs fills and observations.
 
 ## Slices
 
@@ -38,6 +38,9 @@ SLICE-01 → 02 → 03 → 04 → 05 → 07 → 06, then 08 and 09 (in that orde
 | [SLICE-12](slices/SLICE-12-research-rl-custody-promotion.md) research, RL, custody, promotion | 6 | S (TASK-S12-09 second half on the owner's word) | A07-F1…F4, POL-038…POL-045, D06 (claim half) | SLICE-03 (binding); SLICE-07, SLICE-08, SLICE-09 (step 1, step 5), SLICE-10 (commands), SLICE-11 step 1 for named steps | POL-O03 (legacy statistic kept) | PRF-RES-01…14; PRF-DSP-12 (rule part) |
 | [SLICE-13](slices/SLICE-13-disarmed-shadow-and-conversion.md) disarmed shadow, compatibility projections, conversion method | 4 | S → D | D02 ownership in shadow, A10-F3, AUD-05/A04-F4 comparison, A02-F5, Combined-F3 | SLICE-07, SLICE-08, SLICE-09, SLICE-11 | X-002 | PRF-MIG-06…12; PRF-LED-06; PRF-OPS-09 (owner's word if a key holder starts); conversion method recorded |
 | [SLICE-14](slices/SLICE-14-initial-cutover.md) initial cutover | 7 | S → P | ATA-03, D10, A04-F2 cross-host, Combined-F6 | SLICE-01…SLICE-13 as Q-005 needs; SLICE-11 steps 10–11; PRF-OPS-09 | Q-005, POL-O01, POL-047, licence | PRF-MIG-13, PRF-MIG-15; owner-authorized cutover record (PRF-MIG-14); PRF-SES-07 |
+| [SLICE-15](slices/SLICE-15-fresh-start.md) fresh start (new server, no legacy cutover) | — | S → P (step 7 on the owner's word and a server) | Fresh-host install, D10 evidence, PRF-OPS-08/09, REQ-MIG-006/007 | SLICE-11, SLICE-13 (readers), SLICE-14 replaced by the owner's fresh start (2026-11-13) | POL-O01 (backup account) | Steps 1–6 as built; step 7: PRF-CFG-09, one or two analyze sessions |
+| [SLICE-16](slices/SLICE-16-start-at-any-time.md) start at any time | — | S | Late start and mid-session restart of every participant, day coverage, windowed research (F-1…F-6 as answered 2026-11-14) | SLICE-08, SLICE-09, SLICE-12, SLICE-15 (harness) | none | Steps 1–5 as built; Linux restarts under systemd on SLICE-15's list |
+| [SLICE-17](slices/SLICE-17-ai-twin-of-buyer-edge.md) AI twin of BuyerEdge (observe-only) | — | S | A05-F3 model strategy, declared inputs, candidate freeze and exam; promotion only by PromotionRecord | SLICE-09, SLICE-12, SLICE-15 (harness) | twin filter, model and budget; promotion.directional.* (owner) | Steps 1–6 as built (step 6 in-process half); Linux rows on SLICE-15's list |
 
 ## Task index
 
