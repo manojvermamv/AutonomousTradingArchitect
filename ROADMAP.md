@@ -12,15 +12,25 @@ Implemented, committed and pushed as source `b88014e` (`agentic-desk`), with thi
 
 ## Current delivery status — 2026-11-17 UTC
 
-Source: `AutonomousTrading/agentic-desk` at `0c5a0d5ec688bce5d902d33966d51ccda59036ae`. Specification baseline: `claude/spec-implementation-package` at `8ce605948cc7a9b2a777f3d591cd9c58bc46c104`. This update supersedes older open-task summaries for these items; historical slice and audit evidence remains intact.
+Source: `AutonomousTrading/agentic-desk` at `b1238ca7acc77e584263ae19b3bccd140670ea84`. This section supersedes older open-task summaries; historical slice and audit evidence stays as dated.
 
-- Completed implementation: shared SLICE-14 restore fingerprints (`e1ed9b7`), offline OPS09 verifier (`1a950f7`), inert staging with deferred owner bindings (`0c5a0d5`). The test-directory conflict is resolved without weakening assertions.
-- Recorded validation: 19 focused staging tests, 270 recovery/settings tests, and 537 contracts passed with 7 contract skips. Logs remain in `OA_NEW/.workspace/logs`. These are prior execution results, not fresh tests for this documentation update or production acceptance.
-- This Ubuntu host is authorized for deployment outside `~/at-test`. Staging passed the old owner-binding gate but refused missing enabled `strategies.registry`. Its partial release is not staged, verified or active. Readiness still requires lease/session bindings. No trading services activated and no genuine passing OPS09 session record exists.
-- Account and strategies (owner 2026-11-17, source `1c13647`): the account follows OpenAlgo's login, as legacy did. `install.py stage --openalgo-key-file` pins the broker OpenAlgo's ping reports (OpenAlgo has no account-ID endpoint; `account_id` is the label `openalgo`, exchange NFO), and the kernel stops new entries, never exits, while another broker is logged in. The example profile binds `http://127.0.0.1:5000`, legacy's live registry (BuyerEdge on at trade, others off) and legacy's live limits. 1,057 targeted tests passed on the server.
-- Worst-case loss per position: owner's `30000.00` (2026-11-17), one position's full premium, in the example profile.
-- Next: bind timers and runtime settings; configure assessment storage under the owner-approved main-disk policy; investigate calendar bootstrap (the installer's lease read credential is fixed: `3aec1a4`, its own `/etc/autonomous-trading/installer-credentials`); finish artifact/readiness and activation requirements; collect genuine analyze-session evidence; reassess remaining SLICE-15 work.
-- Backup integration, restic anchors and backup/restore rehearsal remain deferred until explicitly requested. Missing licence, recovery-target and journal metadata are report-only. Financial policies and activation safeguards remain unchanged. Cognition/model approval/console work remains deferred to its owning slices.
+**Done and pushed (17 November 2026):**
+
+- Shared SLICE-14 restore fingerprints (`e1ed9b7`), offline OPS09 verifier (`1a950f7`), inert staging with deferred owner bindings (`0c5a0d5`).
+- The installer's own read-only lease token, `/etc/autonomous-trading/installer-credentials` (`3aec1a4`): `activate`, run as at-installer, no longer needs root's backup credentials.
+- Main-disk assessment storage with capacity floors and local daily sealed copies (`b88014e`; [decision](#assessment-storage-correction--owner-decision-2026-11-17-utc)).
+- The account follows OpenAlgo's login, as legacy did (`1c13647`): `install.py stage --openalgo-key-file` pins the broker OpenAlgo's ping reports (OpenAlgo has no account-ID endpoint, so `account_id` is the label `openalgo`, exchange NFO); the kernel refuses new entries, never exits, while another broker is logged in. The example profile binds the host's OpenAlgo (`http://127.0.0.1:5000`), legacy's live registry (BuyerEdge on at trade, the others off) and legacy's live account limits.
+- Worst-case loss per position: the owner's `30000.00`, one position's full premium (`4342691`).
+- Validation, as run: 1,057 targeted tests passed on the Ubuntu host for the account change (one replay skip); 445 for the storage change; 360 for the lease token. Logs are in `OA_NEW/.workspace/logs` on that host. These are development runs, not production acceptance.
+
+**Still open, in order:**
+
+1. Rebuild the host's pending profile (`/etc/autonomous-trading/production.pending.yaml`) from the current example; the partial release `20261117T030749Z-e50268362cac` predates it and is not staged, verified or active.
+2. Owner bindings still unbound: R2 send-lease store and tokens, session lifetime and sessions per identity, recovery-time objective; licence and journal are report-only.
+3. Timers and measured runtime settings; a legitimate market-calendar bootstrap before the first activation (never a faked closed market).
+4. Artifact trust record, `stage --openalgo-key-file`, `check`, root copy and activation; then genuine analyze-mode sessions and the OPS09 review.
+
+Backup integration, restic anchors and backup/restore rehearsal stay deferred until the owner asks. Cognition, model approval and console work stay with their own slices. No trading service is active.
 
 This document tracks the audit and architecture path toward a later production-ready AutonomousTrading build. It is directional: dates describe evidence windows and review snapshots, not delivery promises. A roadmap status follows the default branch of this repository; a source-code audit always names the separate source repository, branch, and revision it actually inspected.
 

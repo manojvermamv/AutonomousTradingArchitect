@@ -1,6 +1,6 @@
 # AutonomousTrading — specification and implementation-plan package
 
-* **Status (2026-11-17 UTC):** shared restore fingerprints, the offline OPS09 verifier and deferred staging bindings are implemented. SLICE-15 host deployment and genuine session evidence remain incomplete. This Ubuntu host is authorized, separate from development. See [current delivery status](../../ROADMAP.md#current-delivery-status--2026-11-17-utc). Historical slice build records remain intact; nothing is production-accepted.
+* **Status (2026-11-17 UTC):** shared restore fingerprints, the offline OPS09 verifier, deferred staging bindings, the installer's own lease token, main-disk assessment storage, the OpenAlgo-login account and the owner's worst-case loss are implemented and pushed. The host deployment (SLICE-15 step 7) and genuine session evidence remain open. See [current delivery status](../../ROADMAP.md#current-delivery-status--2026-11-17-utc).
 * **Workspace:** former ATA is now `OA_NEW/.workspace/specifications`, a separate repository on `claude/spec-implementation-package`. Historical ATA references do not require another directory.
 * **Pinned to:** ATA `main` at `b9bb32c` and legacy AT at `445eb116` ([provenance](00-provenance.md)).
 
