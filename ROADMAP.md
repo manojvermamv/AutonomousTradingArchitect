@@ -12,7 +12,7 @@ Implemented, committed and pushed as source `b88014e` (`agentic-desk`), with thi
 
 ## Current delivery status — 2026-11-17 UTC
 
-Source: `AutonomousTrading/agentic-desk` at `40b5f1b7de7bfd3551d9a69813427d0691d991da`. This section supersedes older open-task summaries; historical slice and audit evidence stays as dated.
+Source: `AutonomousTrading/agentic-desk` at `b58abca058938878d892f4441f4758045ce09b5b`. This section supersedes older open-task summaries; historical slice and audit evidence stays as dated.
 
 **Done and pushed (17 November 2026):**
 
@@ -22,6 +22,8 @@ Source: `AutonomousTrading/agentic-desk` at `40b5f1b7de7bfd3551d9a69813427d0691d
 - The account follows OpenAlgo's login, as legacy did (`1c13647`): `install.py stage --openalgo-key-file` pins the broker OpenAlgo's ping reports (OpenAlgo has no account-ID endpoint, so `account_id` is the label `openalgo`, exchange NFO); the kernel refuses new entries, never exits, while another broker is logged in. The example profile binds the host's OpenAlgo (`http://127.0.0.1:5000`), legacy's live registry (BuyerEdge on at trade, the others off) and legacy's live account limits.
 - Worst-case loss per position: the owner's `30000.00`, one position's full premium (`4342691`).
 - Installer records (`40b5f1b`), found by a root audit of the host preparation: a stage refused after its intent records `STAGING refused` and `resume` reports it; `check` refuses `CFG-R10 not_staged` a release without `STAGED done`. A fresh build at `40b5f1b` sits under `/opt/autonomous-trading` (export identical to git; every build-record hash verified). The host's pending profile is rebuilt from the current example.
+- Credential names (`628e3f5`): the example's credential locators are now the names systemd's LoadCredential gives the files (`openalgo_api_key`; the two lease-store tokens added), held by a guard test; before, a production kernel would have refused `missing` at its first start.
+- Guides (`b58abca`, `guides/` in the source repository): deployment (fresh and redeploy, rollback), office PC and server sync with a server-loss plan, a real-world checklist, and the R2 lease setup.
 - Validation, as run: 1,057 targeted tests passed on the Ubuntu host for the account change (one replay skip); 445 for the storage change; 360 for the lease token. Logs are in `OA_NEW/.workspace/logs` on that host. These are development runs, not production acceptance.
 
 **Still open, in order:**
