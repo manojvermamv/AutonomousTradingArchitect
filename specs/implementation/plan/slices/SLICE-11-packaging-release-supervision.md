@@ -1393,7 +1393,7 @@ Canonical JSON: `{"format": "at-assessment/1", "at": clock.now().utc_iso, "head"
 
 #### Settings (`settings/schema.py`)
 
-* **New field `supervisor.assessment_path`**, kind `("path", "required_evidence")`, scope `("supervisor", "backup")`, environment `AT_SUPERVISOR_ASSESSMENT_PATH`, register `deployment`, shipping `null`. **Its filesystem:** the supervisor's start refuses (`refused: supervisor.assessment_path shares a filesystem with ledger.path`) when the existing nearest ancestor of each path has the same `st_dev`; the filesystems themselves are chosen when step 7 creates the directories, so step 7's `check` repeats the rule on the host.
+* **New field `supervisor.assessment_path`**, kind `("path", "required_evidence")`, scope `("supervisor", "backup")`, environment `AT_SUPERVISOR_ASSESSMENT_PATH`, register `deployment`, shipping `null`. **Its filesystem:** the supervisor's start refuses (`refused: supervisor.assessment_path shares a filesystem with ledger.path`) when the existing nearest ancestor of each path has the same `st_dev`; the filesystems themselves are chosen when step 7 creates the directories, so step 7's `check` repeats the rule on the host. *Superseded 2026-11-17 (owner, source `b88014e`): the shared-filesystem refusal is removed; the main disk is allowed, a mounted volume is optional, and capacity floors guard both (see the banner above).*
 * **Five fields widen their scope** to a new `shared:reconciliation` = `("kernel", "supervisor")`: `reconciliation.max_observation_age_secs`, `.clock_skew_secs`, `.working_escalation_secs`, `.foreign_response`, `.unknown_domain_settlement` (`settings/schema.py:215-241`). No value, default or register changes; the supervisor reads the same values to judge freshness and matching by the kernel's rule.
 
 #### Fork calls in this step
@@ -2103,7 +2103,7 @@ The re-review ("Ready to build: no") left sections A–G; the owner's rulings, e
 | `paths.evidence` | `at-kernel` | `at-ledger-readers` | `2750` | Kernel evidence |
 | `<paths.evidence>/strategies` | `at-strategy` | `at-ledger-readers` | `2750` | Each strategy host's store `<id>/host.sqlite` (OA_NEW `bootstrap.py:1430`), under `UMask=0077` |
 | Parent of `market.store_path` | `at-market` | `at-market-readers` | `2750` | The market store, `0640` under `UMask=0027` |
-| `supervisor.assessment_path` (its own filesystem, `check` below) | `at-supervisor` | `at-assessment-readers` | `2750` | Assessments and the index, `0640` under `UMask=0027`; the installer and backup read |
+| `supervisor.assessment_path` (its own filesystem as built here; since 2026-11-17 the main disk is allowed, a mounted volume optional) | `at-supervisor` | `at-assessment-readers` | `2750` | Assessments and the index, `0640` under `UMask=0027`; the installer and backup read |
 | `paths.scratch` | root | root | `0755` | — |
 | `<paths.scratch>/<participant>`, one per unit | the participant's user | the same | `0700` | That unit's scratch |
 | `/run/at-observer` | `at-observer` (systemd's `RuntimeDirectory=`) | `at-observer-readers` | `0750` | The observer's socket `0660` (code) |
