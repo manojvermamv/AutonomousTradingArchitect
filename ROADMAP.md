@@ -12,7 +12,7 @@ Implemented, committed and pushed as source `b88014e` (`agentic-desk`), with thi
 
 ## Current delivery status — 2026-11-17 UTC
 
-Source: `AutonomousTrading/agentic-desk` at `b1238ca7acc77e584263ae19b3bccd140670ea84`. This section supersedes older open-task summaries; historical slice and audit evidence stays as dated.
+Source: `AutonomousTrading/agentic-desk` at `40b5f1b7de7bfd3551d9a69813427d0691d991da`. This section supersedes older open-task summaries; historical slice and audit evidence stays as dated.
 
 **Done and pushed (17 November 2026):**
 
@@ -21,14 +21,15 @@ Source: `AutonomousTrading/agentic-desk` at `b1238ca7acc77e584263ae19b3bccd14067
 - Main-disk assessment storage with capacity floors and local daily sealed copies (`b88014e`; [decision](#assessment-storage-correction--owner-decision-2026-11-17-utc)).
 - The account follows OpenAlgo's login, as legacy did (`1c13647`): `install.py stage --openalgo-key-file` pins the broker OpenAlgo's ping reports (OpenAlgo has no account-ID endpoint, so `account_id` is the label `openalgo`, exchange NFO); the kernel refuses new entries, never exits, while another broker is logged in. The example profile binds the host's OpenAlgo (`http://127.0.0.1:5000`), legacy's live registry (BuyerEdge on at trade, the others off) and legacy's live account limits.
 - Worst-case loss per position: the owner's `30000.00`, one position's full premium (`4342691`).
+- Installer records (`40b5f1b`), found by a root audit of the host preparation: a stage refused after its intent records `STAGING refused` and `resume` reports it; `check` refuses `CFG-R10 not_staged` a release without `STAGED done`. A fresh build at `40b5f1b` sits under `/opt/autonomous-trading` (export identical to git; every build-record hash verified). The host's pending profile is rebuilt from the current example.
 - Validation, as run: 1,057 targeted tests passed on the Ubuntu host for the account change (one replay skip); 445 for the storage change; 360 for the lease token. Logs are in `OA_NEW/.workspace/logs` on that host. These are development runs, not production acceptance.
 
 **Still open, in order:**
 
-1. Rebuild the host's pending profile (`/etc/autonomous-trading/production.pending.yaml`) from the current example; the partial release `20261117T030749Z-e50268362cac` predates it and is not staged, verified or active.
+1. The partial release `20261117T030749Z-e50268362cac` predates the current profile and build; it is not staged, verified or active, and the next stage replaces the need for it.
 2. Owner bindings still unbound: R2 send-lease store and tokens, session lifetime and sessions per identity, recovery-time objective; licence and journal are report-only.
 3. Timers and measured runtime settings; a legitimate market-calendar bootstrap before the first activation (never a faked closed market).
-4. Artifact trust record, `stage --openalgo-key-file`, `check`, root copy and activation; then genuine analyze-mode sessions and the OPS09 review.
+4. Artifact trust record for the `40b5f1b` build, `stage --openalgo-key-file`, `check`, root copy and activation; then genuine analyze-mode sessions and the OPS09 review.
 
 Backup integration, restic anchors and backup/restore rehearsal stay deferred until the owner asks. Cognition, model approval and console work stay with their own slices. No trading service is active.
 
