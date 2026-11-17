@@ -4,6 +4,8 @@
 * **Workspace:** former ATA is now `OA_NEW/.workspace/specifications`, a separate repository on `claude/spec-implementation-package`. Historical ATA references do not require another directory.
 * **Pinned to:** ATA `main` at `b9bb32c` and legacy AT at `445eb116` ([provenance](00-provenance.md)).
 
+* **Owner storage correction (2026-11-17):** main-disk assessments are allowed; optional volume, ongoing capacity entry gate and local post-close sealed copies replace the separate-filesystem hard blocker. See [decision and verification status](../../ROADMAP.md#assessment-storage-correction--owner-decision-2026-11-17-utc).
+
 ## The rule that comes first
 
 **The master wins.** The [master README](../../README.md), then [ROADMAP](../../ROADMAP.md), then this package:

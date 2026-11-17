@@ -1,5 +1,15 @@
 # Roadmap
 
+## Assessment storage correction — owner decision 2026-11-17 UTC
+
+The owner replaces the SLICE-11 separate-filesystem hard gate: assessments may share the main disk with the ledger. A second volume is optional, selected for a staged release when actually mounted; a directory alone is not a separate volume. No mid-session move or silent fallback from a selected unavailable mount. This is consistent with master A09-F3, which does not mandate separate physical storage.
+
+Startup requires adequate free space. The selected default is a 10% hard floor and 15% early-warning/entry-stop floor, strengthened by a larger explicit byte reserve. This supports the owner's example 5 GB optional volume without imposing an impossible 5 GB free-space default. The supervisor monitors continuously; new entries stop under pressure while existing-position protection/exit handling remains available. The kernel independently enforces entry admission/dispatch safety.
+
+A local daily checksummed read-only assessment archive follows confirmed recorded market close, with an explicit cutoff and retained original evidence. Later assessments must remain visible as uncovered evidence rather than be silently claimed as sealed. Atomic publication, retries, unknown calendar and disk pressure require targeted verification. A local archive is not off-host backup or protection against loss of the disk; remote backup/restic/restore work remains deferred.
+
+Implementation is complete in the working tree: 48 focused checks and 7 staging checks passed; independent review accepted corrections R1–R4. The installed-wheel check outside the checkout also passed (1 test); final commit/evidence details are recorded in the workspace result; no host activation or live acceptance is implied. This section supersedes the old separate-disk blocker in delivery summaries and SLICE-11 as-built filesystem assertions. Historical records remain dated.
+
 ## Current delivery status — 2026-11-17 UTC
 
 Source: `AutonomousTrading/agentic-desk` at `0c5a0d5ec688bce5d902d33966d51ccda59036ae`. Specification baseline: `claude/spec-implementation-package` at `8ce605948cc7a9b2a777f3d591cd9c58bc46c104`. This update supersedes older open-task summaries for these items; historical slice and audit evidence remains intact.
@@ -7,7 +17,7 @@ Source: `AutonomousTrading/agentic-desk` at `0c5a0d5ec688bce5d902d33966d51ccda59
 - Completed implementation: shared SLICE-14 restore fingerprints (`e1ed9b7`), offline OPS09 verifier (`1a950f7`), inert staging with deferred owner bindings (`0c5a0d5`). The test-directory conflict is resolved without weakening assertions.
 - Recorded validation: 19 focused staging tests, 270 recovery/settings tests, and 537 contracts passed with 7 contract skips. Logs remain in `OA_NEW/.workspace/logs`. These are prior execution results, not fresh tests for this documentation update or production acceptance.
 - This Ubuntu host is authorized for deployment outside `~/at-test`. Staging passed the old owner-binding gate but refused missing enabled `strategies.registry`. Its partial release is not staged, verified or active. Readiness still requires lease/session bindings. No trading services activated and no genuine passing OPS09 session record exists.
-- Next: bind real strategy/account/timer and runtime settings; provide distinct assessment storage; investigate calendar bootstrap and lease credential access; finish artifact/readiness and activation requirements; collect genuine analyze-session evidence; reassess remaining SLICE-15 work.
+- Next: bind real strategy/account/timer and runtime settings; configure assessment storage under the owner-approved main-disk policy; investigate calendar bootstrap and lease credential access; finish artifact/readiness and activation requirements; collect genuine analyze-session evidence; reassess remaining SLICE-15 work.
 - Backup integration, restic anchors and backup/restore rehearsal remain deferred until explicitly requested. Missing licence, recovery-target and journal metadata are report-only. Financial policies and activation safeguards remain unchanged. Cognition/model approval/console work remains deferred to its owning slices.
 
 This document tracks the audit and architecture path toward a later production-ready AutonomousTrading build. It is directional: dates describe evidence windows and review snapshots, not delivery promises. A roadmap status follows the default branch of this repository; a source-code audit always names the separate source repository, branch, and revision it actually inspected.
