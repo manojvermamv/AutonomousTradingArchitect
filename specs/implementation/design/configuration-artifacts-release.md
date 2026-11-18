@@ -325,6 +325,11 @@ The installer (`deploy/install.py`, [runtime spec](runtime-isolation-observabili
 
 ### The activation boundary
 
+> **Owner amendment, 18 November 2026 (D-008, source `a90b633`).** `activate` no longer checks the market's hours;
+> every other item below stays, and `restore` and the cutover keep the market check. Activating after the close is the
+> owner's safeguard (a switch never loses the live session's market data), not an installer rule. An activation during
+> the market restarts the kernel and so ends that day (D-007).
+
 * **Fork call (keep legacy's live rule).** A release is activated only when, for every bound account:
   * the session calendar confirms the market closed (unknown refuses);
   * the broker shows no open position and no working order;
@@ -362,7 +367,7 @@ The installer (`deploy/install.py`, [runtime spec](runtime-isolation-observabili
 
 ## Risks and limits
 
-* **The activation boundary keeps every release change after the close and flat,** as legacy. A defect found during the session is fixed in the next post-close release; the broker-held stop and the running kernel stand meanwhile.
+* **The activation boundary keeps every release change flat** (and, since D-008, after the close only by the owner's safeguard). A defect found during the session is fixed in the next post-close release; the broker-held stop and the running kernel stand meanwhile.
 * **`RECORD` verification proves integrity of what is installed,** not that the wheel was built from reviewed source; provenance (Git SHA, builder) is recorded but not verified.
 * **Same-host activation only.** The `current` link is exclusive on one host; moving a host is the migration spec's fenced handoff, never this flow (A04-F2).
 * **The licence gate blocks production staging** until the owner chooses one, by the standing rules.

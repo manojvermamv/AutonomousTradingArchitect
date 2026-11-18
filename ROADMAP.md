@@ -10,9 +10,52 @@ A local daily checksummed read-only assessment archive follows confirmed recorde
 
 Implemented, committed and pushed as source `b88014e` (`agentic-desk`), with this record as specification `476ae06`. The server's runs: 48 focused checks and 7 staging checks passed, independent review accepted corrections R1–R4, and the installed-wheel check outside the checkout passed (1 test). Because the focused run predated the review fixes, every test file the commit touched was rerun against the committed code before the push: 8 files, 445 passed, 0 failed (server `.workspace/logs/b88014e-verify.log`). Evidence details are in the server workspace result `.workspace/notes/assessment-storage-result.md`; no host activation or live acceptance is implied. This section supersedes the old separate-disk blocker in delivery summaries and SLICE-11 as-built filesystem assertions. Historical records remain dated.
 
-## Current delivery status — 2026-11-17 UTC
+## Current delivery status — 2026-11-18 UTC
 
-Source: `AutonomousTrading/agentic-desk` at `b58abca058938878d892f4441f4758045ce09b5b`. This section supersedes older open-task summaries; historical slice and audit evidence stays as dated.
+Source: `AutonomousTrading/agentic-desk` at `bd89de3` (the staged release's build is `d3645ce`). This section supersedes
+the 17 November one below and older open-task summaries; historical slice and audit evidence stays as dated. Decisions
+D-007 to D-010 are in the source repository's `docs/decisions.md`.
+
+**Done (18 November 2026):**
+
+- **First install, analyze mode.** Release `20261118T024927Z-1a4b7b40a60d` (build `0e63372`) runs on the Ubuntu host
+  with OpenAlgo in analyze mode, logged in to Upstox; the R2 send lease, the owner settings, the market calendar and
+  the owner-approved profile are bound; runtime settings are bound provisionally. The kernel waits in
+  `RECOVERY_WRITING` for the owner's recovery advance, standing binding and entry grant, so no entry was possible.
+- **Corrections found on the host:** the strategy host could not reach its evidence folder (`452790c`); `stage
+  --openalgo-key-file /dev/stdin` reads the open pipe (`452790c`); the supervisor expected kernel book reads where the
+  ledger gives the kernel nothing to read, which would have refused every redeploy (`0f310f1`).
+- **D-007, the early close** (`17d6353`): OpenAlgo unreachable 120 s (`reconciliation.broker_unreachable_close_secs`),
+  a kernel stop, or a kernel restart mid-session records `SESSION_CLOSING`, refuses entries for the rest of the day and
+  squares off under `protection.session_close`. This reverses CUJ-SES-1's "continue in the session".
+- **D-008, activation without the market-hours check; D-009, late starts** (`a90b633`): activation keeps the flat-book,
+  ledger, sender, continuity and lease checks; restore and the cutover keep the market check. The strategy timer also
+  fires right after it starts (`OnActiveSec=1s`). Activating after the close stays the owner's safeguard.
+- **D-010, the host stays on and the owner reads the data** (`d3645ce`): the EC2 idle auto-stop counts the installed
+  kernel as work; the owner's login joins the ledger, market and assessment reader groups from the installer's
+  sysusers file.
+- **Session evidence, 18 November** (analyze, no entries): R2 774/774 sampling cycles, 3 single 5 s timeouts, PUT p95
+  1.78 s against a 120 s lease renewed every 20 s; OpenAlgo 0 errors; market data complete all session (353,242
+  records); core services 0 restarts, 0 faults. Dispatch, queue and reconciliation timings stay unmeasured.
+- Validation, as run on the Ubuntu host: the full suite 3,624 passed before the early-close test updates; then 759,
+  567, 185 and 385 targeted, 0 failed; each change had a deliberate break caught. Development runs, not production
+  acceptance.
+
+**Still open, in order:**
+
+1. Activate the staged release `20261118T111411Z-877fb6f9eaaa` (build-record sha256 `56b2acab…61a5`), on the owner's
+   word. Until then D-007 and D-009 are not in effect on the host.
+2. The owner's recovery advance, then the standing binding and entry grant for BuyerEdge.
+3. Analyze-mode sessions with entries and OPS09 reviews; measure dispatch, queue and reconciliation; replace the
+   provisional runtime settings with measured ones.
+4. Re-run the converted-day start-anytime matrix (run R1 predates D-007) when the converted days are on a machine.
+
+Backup integration, restic anchors and backup/restore rehearsal stay deferred until the owner asks. Live mode only on
+the owner's word.
+
+## Delivery status — 2026-11-17 UTC (history; superseded by 18 November above)
+
+Source: `AutonomousTrading/agentic-desk` at `b58abca058938878d892f4441f4758045ce09b5b`. Historical slice and audit evidence stays as dated.
 
 **Done and pushed (17 November 2026):**
 

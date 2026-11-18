@@ -1,6 +1,9 @@
 # AutonomousTrading — specification and implementation-plan package
 
-* **Status (2026-11-17 UTC):** shared restore fingerprints, the offline OPS09 verifier, deferred staging bindings, the installer's own lease token, main-disk assessment storage, the OpenAlgo-login account and the owner's worst-case loss are implemented and pushed. The host deployment (SLICE-15 step 7) and genuine session evidence remain open. See [current delivery status](../../ROADMAP.md#current-delivery-status--2026-11-17-utc).
+* **Status (2026-11-18 UTC):** the first release is installed on the Ubuntu host in analyze mode; the early close
+  (D-007), activation without the market-hours check (D-008), late starts (D-009) and the owner's read access (D-010)
+  are built and staged. See [current delivery status](../../ROADMAP.md#current-delivery-status--2026-11-18-utc).
+* **Status (2026-11-17 UTC, history):** shared restore fingerprints, the offline OPS09 verifier, deferred staging bindings, the installer's own lease token, main-disk assessment storage, the OpenAlgo-login account and the owner's worst-case loss are implemented and pushed. The host deployment (SLICE-15 step 7) and genuine session evidence remain open. See [current delivery status](../../ROADMAP.md#delivery-status--2026-11-17-utc-history-superseded-by-18-november-above).
 * **Workspace:** former ATA is now `OA_NEW/.workspace/specifications`, a separate repository on `claude/spec-implementation-package`. Historical ATA references do not require another directory.
 * **Pinned to:** ATA `main` at `b9bb32c` and legacy AT at `445eb116` ([provenance](00-provenance.md)).
 

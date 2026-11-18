@@ -354,3 +354,13 @@ PRF-PRT-14 (the supervisor cannot construct a sending adapter, open the authorit
 | SLICE-02 | `operations/verification.py`'s reader-impact measurement | (PRF-LED-14's measurement) |
 | SLICE-11 | Everything in this file, in the [slice file's steps](../plan/slices/SLICE-11-packaging-release-supervision.md#steps) | PRF-OPS-01…08; PRF-PRT-14; PRF-PRT-06 (kernel frozen half); PRF-DOM-06 when the mediator is built |
 | SLICE-13 | The supervisor run against the disarmed shadow's ledger | PRF-OPS-09 |
+
+## Owner amendments, 18 November 2026
+
+* **Late starts (D-009, `a90b633`).** The strategy host's timer fires at the session clock and once right after it
+  starts (`OnActiveSec=1s`), so a stack started while the market is live runs the strategy that day; the host's start
+  gate still skips a closed day and refuses until the market store has live ticks and a confirmed bar.
+* **The host stays on; the owner reads the data (D-010, `d3645ce`).** The EC2 idle auto-stop counts the installed
+  kernel as work (`scripts/at-trading-work-probe`). The sysusers file adds the owner's own login (the human `uid:` row
+  of `operator.owner`, named by the host's passwd) to `at-ledger-readers`, `at-market-readers` and
+  `at-assessment-readers`: read-only, never a writer's or a key holder's group, and no user is created.
