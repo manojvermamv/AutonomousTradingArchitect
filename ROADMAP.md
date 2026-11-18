@@ -43,24 +43,24 @@ D-007 to D-010 are in the source repository's `docs/decisions.md`.
   kernel as work; the owner's login joins the ledger, market and assessment reader groups from the installer's
   sysusers file.
 - **Session evidence, 18 November** (analyze, no entries): the R2 send lease ran 774 rounds, 772 ok; two 5 s timeouts
-  (11:08 and 11:10 IST), never back to back; no R2 5xx; p95 write 1.78 s, read 0.56 s, against the bound (provisional)
+  (11:08 and 11:10 IST), never back to back, and one lost reply at 14:45 (the write landed; the next renewal adopted it); no R2 5xx; p95 write 1.78 s, read 0.56 s, against the bound (provisional)
   `lease_secs` 120 and `lease_renew_secs` 20. OpenAlgo 0 errors; market data complete all session (353,242 records);
   core services 0 restarts, 0 faults. Dispatch, queue and reconciliation timings stay unmeasured.
 - Validation, as run on the Ubuntu host: the first full suite had 3,624 passed and 17 failed (14 expected a mid-session
-  restart to continue, fixed under D-007; 1 web-console file list; 2 location-bound). Then targeted runs of 759, 567,
-  185, 385 and 434 passed. The full suite was not re-run after the fixes. Development runs, not production acceptance.
+  restart to continue, fixed under D-007; 1 web-console file list; 2 location-bound). Then targeted runs of 407, 759,
+  567, 185, 385 and 434 passed. The full suite was not re-run after the fixes. Development runs, not production acceptance.
 
 **Still open, in order:**
 
 1. Before 09:15 IST on 19 November (owner): OpenAlgo logged in to Upstox.
 2. The 19 November analyze session with BuyerEdge entries and its OPS09 review; the first dispatch, queue and
    reconciliation timings.
-3. Owner drill: stop OpenAlgo for 3 minutes with a position open.
-4. Replace the provisional runtime settings with measured ones (a new stage and activation, after the close).
+3. Replace the provisional runtime settings with measured ones (a new stage and activation, after the close).
+4. Owner drill: stop OpenAlgo for 3 minutes with a position open.
 5. Re-run the R1 start-anytime matrix under D-007 (run R1 predates it) when the converted days are on a machine.
 6. Known gaps: a real late start during market hours is untried. A restore to release `20261118T024927Z-1a4b7b40a60d`
    fails once an early close has been recorded: that release's kernel cannot fold `SESSION_CLOSING`, so the index
-   check reports `events_unfoldable`, which cannot be repaired. Only that one release is affected; this is not CFG-R09.
+   check marks the index unrepairable (`events_unfoldable`) and the kernel cannot advance. Only that one release is affected; this is not CFG-R09.
 
 Backup integration, restic anchors and backup/restore rehearsal stay deferred until the owner asks. Live mode only on
 the owner's word. The AI twin (SLICE-17), the web console and MCP are not in the first release.
