@@ -158,6 +158,11 @@ The owner accepted every recommendation at once. Each keeps legacy @445eb116 or 
 | S17 | Exam baseline | `buyer_edge` |
 | S17 | Real locked exam | Waits for days recorded with bid/ask on the new server; only a synthetic-store exam runs now |
 
+> **Superseded in part, 17 November 2026 (D-005, OA_NEW docs/decisions.md).** The F-1 (S16) row on special sessions and
+> the row on polls at an early recorded close no longer hold for polling and the start gate: both follow the recorded
+> exchange session, including shortened, extended and weekend sessions (NFO closes 15:40). The answers above are kept as
+> given. F-2 (S16), the square-off at the policy's fixed time, is unchanged: D-005 leaves square-off to the owner's settings.
+
 ## SLICE-18 server-readiness choices (2026-11-16)
 
 Asked one at a time; [SLICE-18](../plan/slices/SLICE-18-server-readiness.md#owner-forks) holds the options.

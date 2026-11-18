@@ -1,9 +1,9 @@
 # Delivery plan
 
-* **Status:** revised after EGM stage 9 ([review](../egm/plan/review.md)). As of 2026-11-16 every slice below is built in OA_NEW (`agentic-desk`) except SLICE-15 step 7 (the new server, waiting on the owner); each slice file's "as built" sections are the record.
-* **Precedence:** the master phases (master `README.md:1176-1188`) and the ROADMAP delivery order (`ROADMAP.md:282`) win. This plan only orders work **inside** those phases and adds no gate. Production-sensitive steps stay in Phase 7 (D10, ATA-03).
+* **Status:** revised after EGM stage 9 ([review](../egm/plan/review.md)). As of 2026-11-18 every slice below is built in OA_NEW (`agentic-desk`); SLICE-15 step 7 is under way: the server is installed and the release is active in analyze mode; first entry session 19 November; backup deferred. Each slice file's "as built" sections are the record.
+* **Precedence:** the master phases (master `README.md:1209-1221`) and the ROADMAP delivery order (`ROADMAP.md:372`) win. This plan only orders work **inside** those phases and adds no gate. Production-sensitive steps stay in Phase 7 (D10, ATA-03).
 * **Source of truth for slice contents:** each spec's Delivery table. This plan's proof and question columns are copied from them; where they disagree, the spec wins and this plan is corrected.
-* **Depth rule:** SLICE-01, SLICE-02 and SLICE-03 have full, zero-decision slice files. Every other slice lists its acceptance proofs here and gets its own file, with exact files, signatures and task IDs, when work on it starts. A slice with no task rows below is a stub slice: its spec deepens first (`README.md:1133`).
+* **Depth rule:** SLICE-01, SLICE-02 and SLICE-03 have full, zero-decision slice files. Every other slice lists its acceptance proofs here and gets its own file, with exact files, signatures and task IDs, when work on it starts. A slice with no task rows below is a stub slice: its spec deepens first (`README.md:1166`).
 
 ## Environment classes
 
@@ -18,7 +18,7 @@
 
 ## Build order
 
-SLICE-01 → 02 → 03 → 04 → 05 → 07 → 06, then 08 and 09 (in that order), 10 and 12 (in parallel with 08–09, against frozen contracts, `README.md:1185-1186`), 11, 13, 14; then 15 (in place of 14's cutover, owner 2026-11-13), and 16 and 17 (owner 2026-11-14). SLICE-06 follows SLICE-07 because protection needs fills and observations.
+SLICE-01 → 02 → 03 → 04 → 05 → 07 → 06, then 08 and 09 (in that order), 10 and 12 (in parallel with 08–09, against frozen contracts, `README.md:1218-1219`), 11, 13, 14; then 15 (in place of 14's cutover, owner 2026-11-13), and 16 and 17 (owner 2026-11-14). SLICE-06 follows SLICE-07 because protection needs fills and observations.
 
 ## Slices
 
@@ -37,9 +37,9 @@ SLICE-01 → 02 → 03 → 04 → 05 → 07 → 06, then 08 and 09 (in that orde
 | [SLICE-11](slices/SLICE-11-packaging-release-supervision.md) packaging, release, supervision, isolation, backup and restore | 2/7 (rehearsal only) | S → R → P (steps 10–11 on the owner's word) | D05, D06, A02-F1…F4, A04-F3/F5, A03-F4/F5, A09-F1…F4, D10; the observation mediator only without native read-only proof (A06-F2) | SLICE-02, SLICE-03, SLICE-06, SLICE-07, SLICE-10 (SLICE-08, SLICE-09 by build order) | Q-005; POL-O01, POL-047, licence (refusing) | PRF-CFG-01…11; PRF-OPS-01…08 (PRF-OPS-09 in SLICE-13); PRF-PRT-14; PRF-PRT-06 (kernel frozen half); PRF-XC-02 (production composition); PRF-DOM-06 when the mediator is built; D10 rehearsal evidence; measured refusing values recorded and approved (TASK-S11-07) |
 | [SLICE-12](slices/SLICE-12-research-rl-custody-promotion.md) research, RL, custody, promotion | 6 | S (TASK-S12-09 second half on the owner's word) | A07-F1…F4, POL-038…POL-045, D06 (claim half) | SLICE-03 (binding); SLICE-07, SLICE-08, SLICE-09 (step 1, step 5), SLICE-10 (commands), SLICE-11 step 1 for named steps | POL-O03 (legacy statistic kept) | PRF-RES-01…14; PRF-DSP-12 (rule part) |
 | [SLICE-13](slices/SLICE-13-disarmed-shadow-and-conversion.md) disarmed shadow, compatibility projections, conversion method | 4 | S → D | D02 ownership in shadow, A10-F3, AUD-05/A04-F4 comparison, A02-F5, Combined-F3 | SLICE-07, SLICE-08, SLICE-09, SLICE-11 | X-002 | PRF-MIG-06…12; PRF-LED-06; PRF-OPS-09 (owner's word if a key holder starts); conversion method recorded |
-| [SLICE-14](slices/SLICE-14-initial-cutover.md) initial cutover | 7 | S → P | ATA-03, D10, A04-F2 cross-host, Combined-F6 | SLICE-01…SLICE-13 as Q-005 needs; SLICE-11 steps 10–11; PRF-OPS-09 | Q-005, POL-O01, POL-047, licence | PRF-MIG-13, PRF-MIG-15; owner-authorized cutover record (PRF-MIG-14); PRF-SES-07 |
-| [SLICE-15](slices/SLICE-15-fresh-start.md) fresh start (new server, no legacy cutover) | — | S → P (step 7 on the owner's word and a server) | Fresh-host install, D10 evidence, PRF-OPS-08/09, REQ-MIG-006/007 | SLICE-11, SLICE-13 (readers), SLICE-14 replaced by the owner's fresh start (2026-11-13) | POL-O01 (backup account) | Steps 1–6 as built; step 7: PRF-CFG-09, one or two analyze sessions |
-| [SLICE-16](slices/SLICE-16-start-at-any-time.md) start at any time | — | S | Late start and mid-session restart of every participant, day coverage, windowed research (F-1…F-6 as answered 2026-11-14) | SLICE-08, SLICE-09, SLICE-12, SLICE-15 (harness) | none | Steps 1–5 as built; Linux restarts under systemd on SLICE-15's list |
+| [SLICE-14](slices/SLICE-14-initial-cutover.md) initial cutover | 7 | S → P | ATA-03, D10, A04-F2 cross-host, Combined-F6 | SLICE-01…SLICE-13 as Q-005 needs; SLICE-11 steps 10–11; PRF-OPS-09 | Q-005, POL-O01, POL-047, licence | PRF-MIG-13, PRF-MIG-15; owner-authorized cutover record (PRF-MIG-14); PRF-SES-07. Superseded by SLICE-15 (owner, 2026-11-13); not run. |
+| [SLICE-15](slices/SLICE-15-fresh-start.md) fresh start (new server, no legacy cutover) | — | S → P (step 7 on the owner's word and a server) | Fresh-host install, D10 evidence, PRF-OPS-08/09, REQ-MIG-006/007 | SLICE-11, SLICE-13 (readers), SLICE-14 replaced by the owner's fresh start (2026-11-13) | POL-O01 (backup account) | Steps 1–6 as built; step 7: PRF-CFG-09, one or two analyze sessions. Step 7: install and activation done 18 November; analyze sessions from 19 November. |
+| [SLICE-16](slices/SLICE-16-start-at-any-time.md) start at any time | — | S | Late start and mid-session restart of every participant, day coverage, windowed research (F-1…F-6 as answered 2026-11-14) | SLICE-08, SLICE-09, SLICE-12, SLICE-15 (harness) | none | Steps 1–5 as built; Linux restarts under systemd on SLICE-15's list (since D-007 a kernel restart mid-session ends that day's trading). |
 | [SLICE-17](slices/SLICE-17-ai-twin-of-buyer-edge.md) AI twin of BuyerEdge (observe-only) | — | S | A05-F3 model strategy, declared inputs, candidate freeze and exam; promotion only by PromotionRecord | SLICE-09, SLICE-12, SLICE-15 (harness) | twin filter, model and budget; promotion.directional.* (owner) | Steps 1–6 as built (step 6 in-process half); Linux rows on SLICE-15's list |
 
 ## Task index
@@ -52,7 +52,7 @@ Task IDs are stable. SLICE-01 tasks are its file rows. Tasks of a stub slice are
 | TASK-S02-01 … TASK-S02-06 | 02 | Detailed in the SLICE-02 file (rows 1–17) | The SLICE-02 test tables |
 | TASK-S03-01 … TASK-S03-06 | 03 | Detailed in the SLICE-03 file | The SLICE-03 test table |
 | TASK-S02-01 | 02 | Index-table rebuild (`fold`) and D04 comparison at startup, recovery and detected change; repair | PRF-LED-08 |
-| TASK-S02-02 | 02 | Bounded independent reader and reader-impact measurement (WAL growth, checkpoint progress) | PRF-LED-14; A03 runtime row (`README.md:1240`) |
+| TASK-S02-02 | 02 | Bounded independent reader and reader-impact measurement (WAL growth, checkpoint progress) | PRF-LED-14; A03 runtime row (`README.md:1275`) |
 | TASK-S02-03 | 02 | Evidence store (T-23), publication before reference, attempt lookup, export with outcome class | PRF-DOM-05, REQ-LED-014 |
 | TASK-S02-04 | 02 | Disk-full, I/O-error and read-only-remount variants of commit-failure truthfulness | PRF-LED-07 (extension) |
 | TASK-S02-05 | 02 | Ledger invariant state machine test | PRF-LED-09 |
@@ -120,11 +120,11 @@ Task IDs are stable. SLICE-01 tasks are its file rows. Tasks of a stub slice are
 | TASK-S10-08 | 10 | The MCP tools; read versus disclose | PRF-SEC-08, PRF-SEC-09 |
 | TASK-S10-09 | 10 | Restore continuity through the security journal | PRF-SEC-10 |
 | TASK-S10-10 | 10 | The legacy console moved into `operator_ui` | PRF-SEC-11 |
-| TASK-S11-01 | 11 | Installable artifact, entrypoints outside the checkout, `requirements.lock` | `README.md:1221` |
-| TASK-S11-02 | 11 | Settings resolver, immutability, bundle manifest | `README.md:1226-1227` |
-| TASK-S11-03 | 11 | Supervisor and protection-status reporting | `README.md:1240`; PRF-PRT-14 |
-| TASK-S11-04 | 11 | Resource envelopes and storage classes | `README.md:1247` |
-| TASK-S11-05 | 11 | Recovery manifest, backup and clean-host restore rehearsal; the send-lease store adapter | `README.md:1232`; D10 |
+| TASK-S11-01 | 11 | Installable artifact, entrypoints outside the checkout, `requirements.lock` | `README.md:1256` |
+| TASK-S11-02 | 11 | Settings resolver, immutability, bundle manifest | `README.md:1261-1262` |
+| TASK-S11-03 | 11 | Supervisor and protection-status reporting | `README.md:1275`; PRF-PRT-14 |
+| TASK-S11-04 | 11 | Resource envelopes and storage classes | `README.md:1282` |
+| TASK-S11-05 | 11 | Recovery manifest, backup and clean-host restore rehearsal; the send-lease store adapter | `README.md:1267`; D10 |
 | TASK-S11-06 | 11 | Observation mediator for non-kernel processes, only if TASK-S07-06 does not prove native read-only credentials | PRF-DOM-06 |
 | TASK-S11-07 | 11 | Measure each measured refusing value in the [register](../design/cross-cutting-invariants.md#refusing-parameter-pattern-req-xc-003) on recorded sessions (A09-F4); record the measurement with the release binding for the owner's approval | Measurement records |
 | TASK-S11-08 | 11 | Staged release transitions with the post-stop and pre-switch checks, activation boundary, rollback compatibility | PRF-CFG-03, PRF-CFG-05, PRF-CFG-08 |
@@ -143,7 +143,7 @@ Task IDs are stable. SLICE-01 tasks are its file rows. Tasks of a stub slice are
 | TASK-S12-08 | 12 | Capability boundary | PRF-RES-14 |
 | TASK-S12-09 | 12 | Legacy identity golden values; production metadata read on the owner's word | PRF-RES-08 (fixture) |
 | TASK-S13-01 | 13 | Compare upgrade versus import with actual mappings; record the choice and reason; confirm or replace the provisional schema | REQ-MIG-005; X-002 |
-| TASK-S13-02 | 13 | Disarmed shadow and same-head comparison | `README.md:1199` |
+| TASK-S13-02 | 13 | Disarmed shadow and same-head comparison | `README.md:1234` |
 | TASK-S13-03 | 13 | Generated JSONL projection with versioned format and consumer list | REQ-MIG-003; PRF-LED-06 |
 | TASK-S13-04 | 13 | Legacy readers and fixtures | PRF-MIG-06 |
 | TASK-S13-05 | 13 | The importer | PRF-MIG-07 |

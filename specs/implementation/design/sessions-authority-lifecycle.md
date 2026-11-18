@@ -42,7 +42,7 @@ The master accepted scoped financial sessions owned by the kernel (ATA-05), expl
 
 1. Every financial action is checked against a current grant at admission, and the admitted grant is checked again at dispatch (A06-F1 with D13).
 2. Exactly one process writes a given ledger on its host, proved by the lock and the epoch; a replacement on another host sends only after fence evidence (A04-F2).
-3. New entries are scoped to one canonical financial session. A restart continues the open session and never invents a new one (ATA-05).
+3. New entries are scoped to one canonical financial session. A restart never invents a new session. After the open it ends the day (`SESSION_CLOSING` `restarted`, D-007) (ATA-05).
 4. Protective and owner actions on existing exposure never depend on a session being open. Their own rules decide them (AUD-01, `README.md:754`, `:773`).
 5. Timed rules use declared clock domains. Deadlines survive restart without reset or extension (Combined-F1).
 
@@ -71,7 +71,7 @@ The master accepted scoped financial sessions owned by the kernel (ATA-05), expl
 
 ## Critical user journeys
 
-All times are IST (`Asia/Kolkata`). The NSE F&O calendar in the examples opens at 09:15 and closes at 15:30.
+All times are IST (`Asia/Kolkata`). The NSE F&O calendar in the examples opens at 09:15 and closes at 15:30 (examples only; the live close is the recorded OpenAlgo session, 15:40 for NFO, D-005).
 
 ### CUJ-SES-1: Mid-session restart
 
@@ -251,9 +251,9 @@ Session-close **exits** (square-off) belong to `kernel.protection`, which runs t
 
 #### Which session an entry belongs to
 
-* The request names the session and the **kernel confirms** it: admission check A3 requires it to be the `OPEN` session for the account and the calendar of the intent's underlying.
+* The request names the session and the **kernel confirms** it: admission check A3 requires it to be the `OPEN` session for the account and the calendar of the intent's underlying, and no `SESSION_CLOSING` for that session (D-007).
 * Admission check A3 tests the request's `session_id` before planning ([intent spec](intent-to-admission.md#admission-kerneladmissionpy)); check B6 confirms after planning that all plan legs belong to that session's calendar. A plan whose legs span two calendars is refused there (`ADM-R10`).
-* Only new entries need an `OPEN` session (`SES-R07` at admission check A3 and at dispatch). Cancel, modify, close, owner actions, protection and reconciliation follow their own safety, grant and conflict rules.
+* Only new entries need an `OPEN` session, and no `SESSION_CLOSING` for that session (D-007) (`SES-R07` at admission check A3 and at dispatch). Cancel, modify, close, owner actions, protection and reconciliation follow their own safety, grant and conflict rules.
 
 #### Invariants
 
@@ -380,7 +380,7 @@ Restrictions can be added while recovering; permissions are widened only in `OPE
 | `SES-R03` (`grant_revoked`) | The grant (or the admitted grant) is revoked | `check`, `recheck` |
 | `SES-R04` (`grant_expired`) | The grant is outside its validity window | `check`, `recheck` |
 | `SES-R05` (`delegation_exceeded`) | The delegation chain is broken or too deep | `check`, `recheck` |
-| `SES-R07` (`session_not_open`) | A new entry with no `OPEN` session for its scope and date | Admission check A3 and dispatch row 4, from `kernel.lifecycle` state |
+| `SES-R07` (`session_not_open`) | A new entry with no `OPEN` session for its scope and date, or one with a `SESSION_CLOSING` for that session (D-007) | Admission check A3 and dispatch row 4, from `kernel.lifecycle` state |
 | `SES-R08` (`binding_not_authorized`) | No standing binding covers the scope and date | `validate_binding`, at session open |
 | `SES-R09` (`recovery_stage`) | The current stage forbids the action | `authority.check` |
 | `SES-R10` (`lease_held`) | Another holder has an unexpired send lease for the account, and no fence names it | the send lease |
@@ -455,7 +455,7 @@ Restrictions can be added while recovering; permissions are widened only in `OPE
 | Session = process lifetime | A mid-session restart would reset session state (ATA-05) |
 | Session derived from the calendar only, never recorded | The calendar would become activation authority (ATA-05) |
 | An operator opens each session daily | Adds a daily manual workflow the legacy desk does not have; a standing binding keeps the legacy behaviour |
-| A separate "closing" session state | Square-off is per strategy policy (protection), so the extra state had no effect of its own |
+| A separate "closing" session state | Square-off is per strategy policy (protection), so the extra state had no effect of its own. Owner amendment, 18 Nov 2026 (D-007): an early close is recorded as the `SESSION_CLOSING` event, not a state; the session stays `OPEN` to its recorded close |
 | Advance every restart to `OPERATING` automatically when recovery finds no gaps | A blanket automatic activation, which A04-F2 forbids. The chosen rule is narrower: same host, no restore, no unfenced gap, D04 clean, no unverified item ([Q-009 answer](../decisions/owner-answers-2026-10-27.md)) |
 | Persist the recovery stage | A restart must re-inspect anyway; persisting would let a process that crashed in `OPERATING` resume without inspection |
 | Deadlines judged by a wall-clock ratchet in process | A backward jump would stretch a deadline's real duration |
@@ -471,7 +471,7 @@ Class **T** is an automated test; **M** is a measurement. "Must fail if" names t
 |---|---|---|---|---|
 | PRF-SES-01 | T | `tests/unit/test_authority_grants.py` | Each check step fires for its case; a revoked G1 plus an expired G2 gives no `Allowed`; the grant choice is deterministic; CUJ-SES-3; a parent's revocation invalidates its children | authority is checked only at admission, or another grant substitutes at dispatch |
 | PRF-SES-02 | T | `tests/unit/test_authority_grants.py` | A principal named in the payload but not authenticated gives `SES-R01`; kernel principals have only their built-in actions | the payload principal is trusted |
-| PRF-SES-03 | T | `tests/recovery/test_session_transitions.py` | CUJ-SES-1, -2 and -4, CP-S1/S2, F-S8/F-S9 give exactly the tabled events; close before open; a late start opens late; the close reason is right | a session check applies to non-entry actions |
+| PRF-SES-03 | T | `tests/recovery/test_session_transitions.py` | CUJ-SES-1 as amended (`SESSION_CLOSING` `restarted`), -2 and -4, CP-S1/S2, F-S8/F-S9 give exactly the tabled events; close before open; a late start opens late; the close reason is right | a session check applies to non-entry actions |
 | PRF-SES-04 | T | `tests/unit/test_clock_contract.py` | Recorded and live clocks give identical deadline outcomes; backward and forward jumps leave in-process deadlines unchanged; after a restart no deadline is extended; a backward jump never keeps a session open past its close | a wall-clock ratchet is used in process |
 | PRF-SES-05 | T | `tests/recovery/test_restore_fencing.py` | Second writer refused (`LED-R07`); a second ledger file for the same account cannot advance while the first holds the send lease (`SES-R10`); a lease `cas` lost while operating stops dispatch and exits; activation atomic; `INSPECTING` writes nothing; the actions-per-stage table, cell by cell; under `recovery.routine_advance: human`, no `OPERATING` without a human `RECOVERY_ADVANCED` | the lock or stage check is removed |
 | PRF-SES-06 | T | `tests/recovery/test_restore_fencing.py` | A restored pre-revocation grant and its children are invalidated without continuity evidence; CP-S4 resumes; the owner root path still works | the snapshot grant is accepted |

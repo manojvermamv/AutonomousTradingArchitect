@@ -63,7 +63,7 @@ The master accepted: bounded protection in the kernel with recoverable desired, 
 | REQ-PRT-003 | Desired protection is persisted through the sole writer; attempted and confirmed states are read from the linked command and reconciliation | ATA-01; Protection state row (`:731`); POL-014 | PRF-PRT-01, -03 |
 | REQ-PRT-004 | The approved ladder moves the stop on a confirmed bar close; exits are tested on a tick; a gap peak is recorded, not applied | ATA-01; POL-012, POL-013; LD-05 | PRF-PRT-02, -08 |
 | REQ-PRT-005 | Protective actions are typed requests through normal admission; the protective stop is one resting close per position | ATA-01; AUD-01 (`:754`); POL-008 | PRF-PRT-01, -06 |
-| REQ-PRT-006 | Session-close exit follows the per-policy switch: omitted means `square_off`, which runs the exit sequence; under kill nothing is sent | POL-010 | PRF-PRT-07 |
+| REQ-PRT-006 | Session-close exit follows the per-policy switch: omitted means `square_off`, which runs the exit sequence; under kill nothing is sent; including an early close (D-007) | POL-010 | PRF-PRT-07 |
 | REQ-PRT-007 | Permission matrix per named action and actor under kill, latch and holds | Safety table row 3 (`:772`); POL-002…POL-004 | PRF-PRT-04, -05 |
 | REQ-PRT-008 | This spec owns precedence row 3 (the permission matrix) and the conflict part of row 2. Row 1 (integrity) belongs to the ledger and authority, row 4 (stale evidence) to admission check B1, row 5 (cognition unavailable) to `kernel.policy` | Safety table (`:766-774`) | PRF-PRT-04, -11 |
 | REQ-PRT-009 | Explicit, versioned conflict relation over typed actions, unresolved effects and shared exposure | ATA-04 (`:454`) | PRF-PRT-11 |
@@ -86,7 +86,7 @@ The master accepted: bounded protection in the kernel with recoverable desired, 
 
 * **Given** `PROTECTION_DESIRED(84.85)` is committed and the modify is `UNCERTAIN`.
 * **When** the kernel restarts and is advanced to `OPERATING`.
-* **Then** the leg reads `PENDING`; the believed stop stays 80.00 until an observation proves otherwise; a fresh row at 84.85 confirms 84.85 (POL-014); no second modify is submitted while the first is unresolved (PRF-PRT-03).
+* **Then** the leg reads `PENDING`; the believed stop stays 80.00 until an observation proves otherwise; a fresh row at 84.85 confirms 84.85 (POL-014); no second modify is submitted while the first is unresolved (PRF-PRT-03). If the restart is after the open, the day also ends (D-007).
 
 ### CUJ-PRT-3: Kill engaged during a ratchet
 
@@ -326,6 +326,14 @@ A multi-leg structure entry creates one position per leg (ledger `position` row)
 ### Session-close exit (`kernel/protection.py`)
 
 This section is the authority for the session-close exit and for kill during it.
+
+> **Owner amendment, 18 November 2026 (D-007).** A session with a `SESSION_CLOSING` (OpenAlgo unreachable 120 s,
+> a graceful kernel stop, or a restart mid-session) is treated as past its square-off time. Under `square_off`
+> protection runs the same exit as at 15:13 (cancel the broker's stop and target, close at market), sent when OpenAlgo
+> answers; on a kernel stop it keeps running recovery ticks and passes for up to 40 s while a position is open, then
+> drains. Under `broker` nothing is sent. The value bound in the 18 November 2026 release is `broker`, so today an
+> early close sends nothing and the broker's square-off closes the position. If OpenAlgo answers only after the
+> recorded close, protection has stopped for that session and the broker's square-off is the backstop.
 
 * With `square_off`, at `SquareOffTime` protection records `EXIT_STARTED` (reason `square_off`, cause `session_id`) once per position and runs the exit sequence.
 * The sequence (for any exit reason) continues after `SESSION_CLOSED` if it has started (a close needs no open session) and after a restart. A restart after the square-off time and before `SESSION_CLOSED` starts it. A refused or conflicting step is retried at the next evaluation.

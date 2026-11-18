@@ -34,6 +34,8 @@ Status: **open owner decision** unless a row says answered. Each question is a g
 | [Q-028](#q-028) | The daily-loss latch: the whole account's P&L (legacy) or only the system's own positions (the spec)? | `scripts/run_framework_live.py:7983-7988` @445eb116; [SLICE-06 step 4](../plan/slices/SLICE-06-protection-and-safety.md#step-4--the-latch-safety-visibility-and-the-recovery-hold) | TASK-S06-04 | answered 2026-10-29 ([answers](owner-answers-2026-10-27.md)) |
 | [Q-029](#q-029) | A restart that cannot read the broker: hold every strategy until a person releases it (legacy), or let the stale-book refusal lift on its own? | `scripts/run_framework_live.py:3127-3169` @445eb116; [SLICE-06 step 4](../plan/slices/SLICE-06-protection-and-safety.md#step-4--the-latch-safety-visibility-and-the-recovery-hold) | TASK-S06-03 | answered 2026-10-29 ([answers](owner-answers-2026-10-27.md)) |
 
+> **Owner answers, 18 November 2026 (D-007…D-010, OA_NEW docs/decisions.md).** An abnormal stop ends the day like the close: OpenAlgo unreachable for 2 minutes, a kernel stop or a restart mid-session records `SESSION_CLOSING`, and no entry is taken for the rest of that day (D-007). Activation no longer checks market hours; activating after the close is the owner's own safeguard, and `restore` and the cutover keep the check (D-008). The stack may start late while the market is live (D-009). The server stays on, and the owner's login reads the trading data read-only (D-010).
+
 ---
 
 ## Q-001
@@ -185,6 +187,10 @@ Proof: Restart mid-session with an open position; the time until protection resu
 - **A — Recommended:** Keep a human advance after every restart for the first release, and have the supervisor alert at once when a restart is waiting. This follows A04-F2 literally. Revisit after measured restart frequency.
 - **B:** Allow a standing authorization, recorded once by the owner, that advances a restart automatically only when every condition holds: same trading date, same release and policy binding, D04 clean, no recovery gap, no unresolved attempt. Anything else waits for a human. This needs the master's owner to confirm it is not a "blanket" activation (an X item would record that).
 - **C:** A free-text answer.
+
+> **Owner amendment, 18 November 2026 (D-007).** The routine advance still brings a restarted kernel to `OPERATING`,
+> so protection resumes. But a restart after the open now ends that day: the kernel records `SESSION_CLOSING`
+> `restarted`, and entries are refused `SES-R07` until the next trading day.
 
 ---
 
@@ -656,6 +662,11 @@ Proof: tests/recovery/test_crash_boundaries.py; PRF-PRT-04.
 **Recommendation: A, for now.** A person looking before trading resumes is the only check on positions until the system compares them itself. Once it does, B becomes the simpler and safe choice. Step 4 is written for A and marks each line B changes.
 
 **Answer (2026-10-29): option B.** No hold: entries wait while the broker cannot be read and resume on their own once it answers. Until the kernel compares positions (step 5), a position that disagrees with the records after such a restart is not noticed by the system.
+
+> **Owner amendment, 18 November 2026 (D-007).** Option B now ends with the day. A restart after the open ends that
+> day (`restarted`), and while the kernel is `OPERATING`, its own book reads failing for 120 s
+> (`reconciliation.broker_unreachable_close_secs`) end it too (`broker_unreachable`). Entries then stay refused
+> `SES-R07` for the rest of the day, even once OpenAlgo answers.
 
 ## Q-030
 

@@ -2,7 +2,7 @@
 
 * **Status (2026-11-18 UTC):** the first release is installed on the Ubuntu host in analyze mode; the early close
   (D-007), activation without the market-hours check (D-008), late starts (D-009) and the owner's read access (D-010)
-  are built and activated (18 November, 17:29 IST); BuyerEdge holds an entry grant for 19 November. See [current delivery status](../../ROADMAP.md#current-delivery-status--2026-11-18-utc).
+  are built and activated (18 November, 17:29 IST); BuyerEdge holds an entry grant for 19 November. Release `20261118T115832Z-bb7baf172aaa` is active; kernel `OPERATING`. See [current delivery status](../../ROADMAP.md#current-delivery-status--2026-11-18-utc).
 * **Status (2026-11-17 UTC, history):** shared restore fingerprints, the offline OPS09 verifier, deferred staging bindings, the installer's own lease token, main-disk assessment storage, the OpenAlgo-login account and the owner's worst-case loss are implemented and pushed. The host deployment (SLICE-15 step 7) and genuine session evidence remain open. See [current delivery status](../../ROADMAP.md#delivery-status--2026-11-17-utc-history-superseded-by-18-november-above).
 * **Workspace:** former ATA is now `OA_NEW/.workspace/specifications`, a separate repository on `claude/spec-implementation-package`. Historical ATA references do not require another directory.
 * **Pinned to:** ATA `main` at `b9bb32c` and legacy AT at `445eb116` ([provenance](00-provenance.md)).
@@ -29,9 +29,9 @@
 
 ## Reading order for SLICE-01 (about one hour)
 
-1. Master [Recommendation and required behavior](../../README.md#recommendation) (`README.md:1-40`).
-2. Master [target diagram 1](../../README.md#primary-target-diagram-1--higher-level-architecture) (`README.md:512-566`).
-3. Master [financial authority and executable contracts](../../README.md#financial-authority-and-executable-contracts) (`README.md:722-776`).
+1. Master [Recommendation and required behavior](../../README.md#recommendation) (`README.md:1-42`).
+2. Master [target diagram 1](../../README.md#primary-target-diagram-1--higher-level-architecture) (`README.md:514-572`).
+3. Master [financial authority and executable contracts](../../README.md#financial-authority-and-executable-contracts) (`README.md:732-787`).
 4. The status legend and glossary below.
 5. [Delivery plan](plan/delivery-plan.md), then [SLICE-01](plan/slices/SLICE-01-disarmed-financial-core.md).
 6. Only the specs SLICE-01 uses:
@@ -50,7 +50,7 @@
 | [legacy-divergence.md](legacy-divergence.md) | Where legacy code disagrees with accepted decisions | proposed (evidence) |
 | [traceability.md](traceability.md) | Requirement key → decision → module → spec → task → proof (generated) | proposed |
 | [design/](design/) | 13 full-depth specs, 1 cross-cutting invariants file | proposed |
-| [plan/delivery-plan.md](plan/delivery-plan.md) | 14 slices inside the master phases, plus the task index | proposed |
+| [plan/delivery-plan.md](plan/delivery-plan.md) | the slices (SLICE-01 to SLICE-18) inside the master phases, plus the task index | built (SLICE-14 replaced by SLICE-15) |
 | [plan/slices/SLICE-01-disarmed-financial-core.md](plan/slices/SLICE-01-disarmed-financial-core.md) | First slice, prepared for execution | proposed |
 | [tests/test-strategy.md](tests/test-strategy.md) | Proof classes, A08 rules, fault injection, coverage map | proposed |
 | [decisions/owner-questions.md](decisions/owner-questions.md) | Open owner questions (Q-nnn) with their dependent tasks | open |
@@ -87,18 +87,18 @@
 
 | Axis | Values | Source |
 |---|---|---|
-| Evidence class | **C** source-verified · **O** runtime observation · **H** historical claim · **P** proposed direction · **R** external reference · **D** recommendation · **U** unverified | `README.md:15` |
+| Evidence class | **C** source-verified · **O** runtime observation · **H** historical claim · **P** proposed direction · **R** external reference · **D** recommendation · **U** unverified | `README.md:17` |
 | Lifecycle state | proposed · accepted design · implemented · tested · production-accepted | `AGENTS.md:71` |
 | Proof status (this package) | *specified* · *executable* · *passing* | [test strategy](tests/test-strategy.md#proof-classes-and-status) |
 
-This package labels its own content **proposed**. A master decision it cites is **accepted design**. No item is implemented, tested or production-accepted.
+This package labels its own content **proposed**. A master decision it cites is **accepted design**. Since November the slices are implemented and tested in `agentic-desk`, and the first release is installed (analyze mode); none is production-accepted.
 
 ## ID glossary
 
 | ID family | Meaning | Owner |
 |---|---|---|
 | D01–D16, A01-Fn … A10-Fn, Combined-F1–F6, AUD-01–05, ATA-01–09 | Accepted (or dispositioned) master decisions | Master README/ROADMAP |
-| F1–F9 | Legacy defects found by the 24 Oct audit (`README.md:187-201`) | Master |
+| F1–F9 | Legacy defects found by the 24 Oct audit (`README.md:195-205`) | Master |
 | POL-nnn | Proposed README §9 policy row (staging) | This package |
 | REQ-XXX-nnn | Requirement key: a pointer to a decision or POL row; three-letter domain codes (LED, SES, ADM, DSP, DOM, PRT, XC, MKT, STR, RES, SEC, CFG, OPS, MIG) | This package |
 | PRF-XXX-nn | Proof | This package |
@@ -120,14 +120,14 @@ This package labels its own content **proposed**. A master decision it cites is 
 | Obligation | A financial obligation (reservation or exposure, D16; continuity, Combined-F6) | A proof obligation, which is called a "proof" here |
 | Session | A **financial session** (ATA-05): scoped, recorded and validated by the kernel | A process lifetime or a calendar day by itself |
 | Owner | The human **Owner** (decisions); "specified in" (the spec that details a module); "owning module" (code) | — |
-| Canvas | The new deterministic market scratchpad (`README.md:806`); no legacy code exists | — |
+| Canvas | The new deterministic market scratchpad (`README.md:816`); no legacy code exists | — |
 | Hold | One per-strategy condition with a recorded reason (`operator` or `recovery`) | Two separate mechanisms |
 
 ## Terms used across the specs
 
 | Term | Meaning |
 |---|---|
-| Composition | One assembled runtime: production, or one simulation run, each with its own ledger (`README.md:567`, `:802`) |
+| Composition | One assembled runtime: production, or one simulation run, each with its own ledger (`README.md:570`, `:812`) |
 | Disarmed | A composition with no live adapter, credential or broker socket |
 | Principal | The authenticated identity behind an action: a human, or a `kernel:<module>` principal ([sessions spec](design/sessions-authority-lifecycle.md#identity-contract-contractsidentitypy)) |
 | Writer thread | The one kernel thread that runs every ledger write ([ledger spec](design/ledger-and-atomic-transaction.md#writer-runtime-and-readers)) |
@@ -148,14 +148,14 @@ This package labels its own content **proposed**. A master decision it cites is 
 
 | Legacy @445eb116 | Target module | Basis |
 |---|---|---|
-| `src/tier1/envelope.py`, `ledger.py`, `schema.py` | `kernel/ledger/envelope.py`, `store.py`, `schema.py` + `resources/migrations/001_initial.sql` | §7 reuse/harden (`README.md:1143`) |
-| `src/tier1/coordinator.py`, `openalgo_adapter.py` | `kernel/coordinator.py`, `adapters/openalgo.py` | §7 extract/refactor (`README.md:1144`) |
-| `src/runtime/tier1_authority/*`, `src/tier1/recovery.py` | `kernel/authority.py`, `kernel/recovery.py`, `adapters/unix_channel.py` | §7 wrap/extract (`README.md:1145`) |
-| `src/runtime/execution_gateway/*`, `src/core/framework/execution/{registry,reservations,reconcile}.py` | `kernel/admission.py`, `kernel/reservations.py`, `kernel/reconciliation.py` | §7 refactor ownership (`README.md:1146`) |
-| `src/core/framework/runtime/orchestrator.py`, `structures/planner.py` | `kernel/planner.py`, `kernel/selection.py` | §7 one planning port (`README.md:1147`) |
-| `src/core/framework/protection/trail.py`, `structures.py` | `kernel/protection.py` | §7 (`README.md:1148`) |
+| `src/tier1/envelope.py`, `ledger.py`, `schema.py` | `kernel/ledger/envelope.py`, `store.py`, `schema.py` + `resources/migrations/001_initial.sql` | §7 reuse/harden (`README.md:1173`) |
+| `src/tier1/coordinator.py`, `openalgo_adapter.py` | `kernel/coordinator.py`, `adapters/openalgo.py` | §7 extract/refactor (`README.md:1174`) |
+| `src/runtime/tier1_authority/*`, `src/tier1/recovery.py` | `kernel/authority.py`, `kernel/recovery.py`, `adapters/unix_channel.py` | §7 wrap/extract (`README.md:1175`) |
+| `src/runtime/execution_gateway/*`, `src/core/framework/execution/{registry,reservations,reconcile}.py` | `kernel/admission.py`, `kernel/reservations.py`, `kernel/reconciliation.py` | §7 refactor ownership (`README.md:1176`) |
+| `src/core/framework/runtime/orchestrator.py`, `structures/planner.py` | `kernel/planner.py`, `kernel/selection.py` | §7 one planning port (`README.md:1177`) |
+| `src/core/framework/protection/trail.py`, `structures.py` | `kernel/protection.py` | §7 (`README.md:1178`) |
 | `src/core/framework/execution/sender.py` (kill matrix), `loss_latch.py` | `kernel/safety.py` | POL-002, POL-004 |
-| `src/runtime/ai_management/service.py` | `kernel/policy.py` (application) and `cognition/review.py` (evidence) | §7 (`README.md:1152`); D12 |
+| `src/runtime/ai_management/service.py` | `kernel/policy.py` (application) and `cognition/review.py` (evidence) | §7 (`README.md:1182`); D12 |
 
 ## Re-pinning
 
@@ -180,6 +180,6 @@ Run on 2026-10-26; the numbers and the checker's full text are in [consistency/c
 | J6 SLICE-01 stage 9 | pass: round 2 found 0 Blockers |
 | J7 scope | pass: only `specs/implementation/` changed |
 
-Passing the checker shows only that the documents agree with each other and with the master. It does not show the design is correct. No proof is *executable* or *passing* yet.
+Passing the checker shows only that the documents agree with each other and with the master. It does not show the design is correct. No proof is *executable* or *passing* yet (26 October). Proofs are now executable and passing in `agentic-desk`; see [ROADMAP current delivery status](../../ROADMAP.md#current-delivery-status--2026-11-18-utc).
 
 **Owner decisions:** every question ([Q-001…Q-016](decisions/owner-questions.md)) and master correction ([X-001…X-007](consistency/master-contradictions.md)) was answered on 2026-10-27; the [answers](decisions/owner-answers-2026-10-27.md) give each config setting and its first-release value, and the specs carry them. Every limit and switch stays a configurable refusing setting. SLICE-01 depends on none of them.

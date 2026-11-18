@@ -2,7 +2,7 @@
 
 > Owner storage update, 2026-11-17: shared main-disk assessment storage is permitted. A separate volume is optional, not a step-7 deployment prerequisite. Capacity protection and local sealed daily assessment copies are specified in the [current decision](../../../../ROADMAP.md#assessment-storage-correction--owner-decision-2026-11-17-utc). Remote backup/restore work remains deferred until requested. Historical build results below are not verification of this change.
 
-* **Status:** steps 1–6 built (2026-11-13 to 2026-11-14), each recorded "as built" below; step 7 (the new server) waits for the owner and a server. Proposed 2026-11-13. Every step below began as an outline in the standing rules' sense: each step's exact detail (files, signatures, test tables, break checks) is written just before it is built, then reviewed by two fresh EGM reviewers, built, run twice with the suite, break-checked and recorded "as built".
+* **Status:** steps 1–6 built (2026-11-13 to 2026-11-14), each recorded "as built" below; step 7 (the new server) is under way on the owner's Ubuntu 24.04 host: first install 18 Nov 2026 (`20261118T024927Z-1a4b7b40a60d`), redeploy `20261118T115832Z-bb7baf172aaa` active since 17:29 IST; 7.2 and 7.4 done; 7.3 (backup) deferred by the owner; 7.5 partly run; 7.6 starts 19 Nov; 7.7 not started (see [the 18 November amendment](#step-7--the-new-server-outline-needs-the-owner-and-a-server)). Proposed 2026-11-13. Every step below began as an outline in the standing rules' sense: each step's exact detail (files, signatures, test tables, break checks) is written just before it is built, then reviewed by two fresh EGM reviewers, built, run twice with the suite, break-checked and recorded "as built".
 * **Why this slice exists.** The production EC2 (`debian-oa`) was lost with all its data ([Server lost: start fresh](../../decisions/owner-answers-2026-10-27.md#server-lost-start-fresh-2026-11-13)). The owner chose a fresh start with the new system only. The steps that needed live legacy — SLICE-11 steps 9–11 (in part), SLICE-13 steps 6–7 and SLICE-14 steps 3–5 — are void or moved here. This slice replaces them with a fresh first install, rehearsed in full on the owner's Windows PC, then carried out on a new server.
 * **Precedence:** the master README, then the ROADMAP, then this package. Authorities: the [configuration spec](../../design/configuration-artifacts-release.md) (installer, release transitions), the [runtime spec](../../design/runtime-isolation-observability-deployment.md) (isolation, measurement), the [migration spec](../../design/migration-recovery-rollback-continuity.md) (recovery set, backup, restore). Every intentional difference from legacy is marked **Deviation**; every money-touching fork keeps legacy's live behaviour at 445eb116 and is marked **Fork call** ([standing rules](../../decisions/owner-answers-2026-10-27.md#standing-rules-2026-10-30)). **No score, threshold, entry gate or money value is set or changed here.**
 * **Owner answers applied:** Server lost: start fresh (2026-11-13); The new system's own root rules (2026-11-13); Unit names that clash with legacy (2026-11-13); Standing rules (2026-10-30); Margin limit when OpenAlgo reports none (2026-11-05).
@@ -55,12 +55,12 @@ Recorded here, not run on this PC. Each one is run in step 7 or is marked as wai
 | POSIX modes and owners in restore (`test_a_restore_refuses_an_existing_directory_with_another_mode`) and the real-symlink case (`test_a_symlink_cannot_escape_the_shadow_root`), both skipped on Windows | SLICE-11 step 8 as built |
 | The two-process `flock` race and the directory `fsync` of `DirectoryLeaseStore` | SLICE-11 step 8 |
 | The installer's `apply-root`, `enable-units` and real `systemctl` through every `FIRST_INSTALL` state on a real host | SLICE-11 step 7 |
-| `at-strategy-host.service` started by its timer on a recorded holiday or unknown day exits 0 through the in-process start gate (`market/start_gate.py`): the unit is not marked failed and `Restart=on-failure` does not restart it; a preflight refusal exits 1 and restarts on failure within `StartLimitBurst` | SLICE-16 step 3 (replaces SLICE-09's `ExecCondition` row) |
-| `systemctl start at-strategy-host` at a mid-session minute through the installer's polkit rule: the gate reads the market store as the strategy user and the host decides from the next confirmed window | SLICE-16 step 3 |
-| SLICE-16's R1 and R2 with the kernel, market and strategy hosts as separate units over the kernel channel, restarted by systemd (`Restart=` policies): the lease wait (`wait_for_lease`) observed, a pending send resolved once through the books | SLICE-16 step 4 |
+| `at-strategy-host@buyer_edge.service` started by its timer (the timer also fires 1 s after it starts, `OnActiveSec=1s`, D-009) on a recorded holiday or unknown day exits 0 through the in-process start gate (`market/start_gate.py`): the unit is not marked failed and `Restart=on-failure` does not restart it; a preflight refusal exits 1 and restarts on failure within `StartLimitBurst` | SLICE-16 step 3 (replaces SLICE-09's `ExecCondition` row) |
+| `systemctl start at-strategy-host@buyer_edge` at a mid-session minute (D-009 also starts it 1 s after its timer starts) through the installer's polkit rule: the gate reads the market store as the strategy user and the host decides from the next confirmed window | SLICE-16 step 3 |
+| SLICE-16's R1 and R2 with the kernel, market and strategy hosts as separate units over the kernel channel, restarted by systemd (`Restart=` policies): the lease wait (`wait_for_lease`) observed, a pending send resolved once through the books. Owner amendment, 18 Nov 2026 (D-007): a restart after the open now ends that day (`SESSION_CLOSING` `restarted`; entries refused `SES-R07` for the rest of the day). Re-measure R1 under that rule | SLICE-16 step 4 |
 | The market unit's `Restart=always` producing SLICE-16 R4's `process_stopped` row and the gap in the day's coverage | SLICE-16 step 4 |
 | The supervisor's assessment staying fresh across a kernel restart | SLICE-16 step 4 |
-| The backup timer and `ResticDestination` against the real B2 or R2 repository, with anchors | SLICE-11 step 8 carry |
+| The backup timer and `ResticDestination` against the real B2 or R2 repository, with anchors. Deferred with the backup (owner, 18 Nov 2026). | SLICE-11 step 8 carry |
 | The supervisor's emergency stop of `at.slice` | SLICE-11 step 4 |
 | The production-profile rows carried to the EC2: PRF-PRT-06's frozen-kernel half, real `systemctl show`, `SIGTERM` handling (`tests/contracts/test_capabilities.py:1210` skips with "Linux, the EC2"), the network fence, kill release across users, `install-root-copy` | SLICE-11 lines 1534, 2552 (added by the 2026-11-14 check) |
 | Crash points CP-R2…CP-R7, the PRF-CFG-05 Rollback row and the PRF-CFG-07 Composition row through the real installer (SLICE-11's PRF-CFG-01…08 completion condition) | SLICE-11 line 2550 "not built, carried" (2026-11-14 check) |
@@ -421,7 +421,7 @@ temporary directory deleted after the run (`batch.py`); the converted data stays
 
 * **Inputs:** the five-day ledger, evidence store and market store step 4 wrote. Real size here means the size the system really produces from five days (the original market files are only about 3 MB; the stores are larger). If the stores are too small to show timing, a scaled set (N copies of the five days on later calendar dates, written by the same replay) is used, with N chosen so the whole run fits in **2 GB of free disk**. The PC has about 9 GB free, and legacy's 2 GiB storage floor must stay untouched.
 * **Destination: `DirectoryDestination`** (`operations/backup.py:95`). The owner answered "no restic install" on this PC (owner-answers, "Restic on the development PC", 2026-11-13).
-* **The restic anchor gap** (`ResticDestination.anchor_put` raises `restic_anchor`, `operations/backup.py:180-181`) stays open and moves to step 7, where it is built and proved against the B2/R2 repository.
+* **The restic anchor gap** (`ResticDestination.anchor_put` raises `restic_anchor`, `operations/backup.py:180-181`) stays open and moves to step 7, where it is built and proved against the B2/R2 repository. Deferred with the backup (owner, 18 Nov 2026).
 * **`backup.py main`** still refuses `destination_unbound` in every case (step 8 as built). This step wires `scheduled` and `status` to a **bound local destination** through a rehearsal profile only. A production profile still has nothing bound until step 7.
 * **Restore:** `operations/restore.py` into a fresh empty directory. Then `scripts/verify_recovery.py synthetic` checks over the restored set, with the exact candidate wheel installed into a blank venv (the step 8 shortcut "digest only" is lifted here, since this PC can build the wheel). Then the kernel is started on the restored ledger through `restore-start.json` and must reach the routine advance with the same heads.
 
@@ -478,7 +478,7 @@ separately: the five-day test 1 passed (50 min), the D10 test 1 passed (46 s). `
 rehearsal guard; staging outside the rehearsal accepted; no night skipped; the night starting before the close; the
 skip ignoring the nights.
 
-**Carried:** the restic anchor gap (`ResticDestination.anchor_put` raises `restic_anchor`) moves to step 7, unchanged.
+**Carried:** the restic anchor gap (`ResticDestination.anchor_put` raises `restic_anchor`) moves to step 7, unchanged. Deferred with the backup (owner, 18 Nov 2026).
 **Temporary items:** the kept run, the rehearsal work, the wheel and the blank venv lived under the scratchpad and were
 deleted after step 6 read them.
 
@@ -570,13 +570,23 @@ Every part is asked first. Order:
 6. **One or two sessions with OpenAlgo in `analyze`.** The system trades for real through OpenAlgo's public API; OpenAlgo's sandbox decides that nothing reaches the broker. No gate in the code. The supervisor runs against the real ledger (PRF-OPS-09, from SLICE-13 step 7). The day's books and ledger are reconciled as in step 4.
 7. **The owner switches OpenAlgo to live.** That switch is the moment of control (owner's answer: no strategy-timer binding hold). The first live session's sends are checked against OpenAlgo's books.
 
+> **Owner amendment, 18 November 2026 (D-007, D-008, D-009; OA_NEW `docs/decisions.md`).** Step 7 progress:
+> * **7.1** The server is the owner's Ubuntu 24.04 host, not Debian.
+> * **7.2** OpenAlgo runs in `analyze`, with Upstox as the broker.
+> * **7.3** Deferred by the owner. `backup.*` is reported while unbound; the release activated and converged without it.
+> * **7.4** First release `20261118T024927Z-1a4b7b40a60d` (build `0e63372`) installed 18 Nov. Release `20261118T115832Z-bb7baf172aaa` (build `d63928d`) staged and activated at 17:29 IST. Owner settings bound; runtime settings bound provisionally. `recovery.lease_store` is its own Cloudflare R2 bucket (F-1 A), `lease_secs` 120, `lease_renew_secs` 20, measured over 774 rounds (SLICE-18 R-3). The owner's human recovery advance reached `OPERATING`; the standing binding for 19 Nov and BuyerEdge's entry grant (19 Nov, 09:15–15:40 IST) are recorded. `protection.session_close` is bound to `broker`.
+> * **7.5** Rows partly run.
+> * **7.6** Begins 19 Nov. The 09:00 strategy start on 18 Nov failed on the `evidence/` folder's permission, fixed in OA_NEW `452790c`; the first 09:00 start after the fix is 19 Nov.
+> * **7.7** Not started.
+
 ## Completion conditions
 
 * Steps 1–6 are built, tested twice and break-checked, each recorded "as built" here.
 * The isolated-work wildcard test (step 2) passes, and its name is recorded for step 7's install.
 * Step 4's reconciled days and step 6's measurements are recorded with the "converted simulation, not legacy-comparable" label.
-* Step 5 ran on `DirectoryDestination`; the restic anchor gap is carried to step 7.
+* Step 5 ran on `DirectoryDestination`; the restic anchor gap is carried to step 7. Deferred with the backup (owner, 18 Nov 2026).
 * Step 7 is done on the owner's word, or recorded as waiting, with the server, the backup account and the licence named.
+  * Recorded 18 Nov 2026: host: the owner's Ubuntu 24.04 server; backup: deferred (owner, 18 Nov 2026); licence: not recorded.
 
 ## Carried after the fresh check (2026-11-14)
 
