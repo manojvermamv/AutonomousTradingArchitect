@@ -12,7 +12,7 @@ Implemented, committed and pushed as source `b88014e` (`agentic-desk`), with thi
 
 ## Current delivery status — 2026-11-18 UTC
 
-Source: `AutonomousTrading/agentic-desk` at `bd89de3` (the staged release's build is `d3645ce`). This section supersedes
+Source: `AutonomousTrading/agentic-desk`; the running release's build is `d63928d`. This section supersedes
 the 17 November one below and older open-task summaries; historical slice and audit evidence stays as dated. Decisions
 D-007 to D-010 are in the source repository's `docs/decisions.md`.
 
@@ -43,9 +43,10 @@ D-007 to D-010 are in the source repository's `docs/decisions.md`.
 
 **Still open, in order:**
 
-1. Activate the staged release `20261118T111411Z-877fb6f9eaaa` (build-record sha256 `56b2acab…61a5`), on the owner's
-   word. Until then D-007 and D-009 are not in effect on the host.
-2. The owner's recovery advance, then the standing binding and entry grant for BuyerEdge.
+1. DONE 18 November 17:29 IST, on the owner's word: release `20261118T115832Z-bb7baf172aaa` (`d63928d`, which also
+   fixes the installer's stop check for timers, found by the first redeploy) activated; the owner advanced recovery
+   (`OPERATING`), approved the 19 November standing binding and issued BuyerEdge's entry grant (09:15–15:40 IST).
+2. The 19 November analyze-mode session with BuyerEdge entries.
 3. Analyze-mode sessions with entries and OPS09 reviews; measure dispatch, queue and reconciliation; replace the
    provisional runtime settings with measured ones.
 4. Re-run the converted-day start-anytime matrix (run R1 predates D-007) when the converted days are on a machine.
