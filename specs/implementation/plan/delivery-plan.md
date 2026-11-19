@@ -1,7 +1,7 @@
 # Delivery plan
 
 * **Status:** revised after EGM stage 9 ([review](../egm/plan/review.md)). As of 2026-11-18 every slice below is built in OA_NEW (`agentic-desk`); SLICE-15 step 7 is under way: the server is installed and the release is active in analyze mode; first entry session 19 November; backup deferred. Each slice file's "as built" sections are the record.
-* **Precedence:** the master phases (master `README.md:1209-1221`) and the ROADMAP delivery order (`ROADMAP.md:413`) win. This plan only orders work **inside** those phases and adds no gate. Production-sensitive steps stay in Phase 7 (D10, ATA-03).
+* **Precedence:** the master phases (master `README.md:1209-1221`) and the ROADMAP delivery order (`ROADMAP.md:408`) win. This plan only orders work **inside** those phases and adds no gate. Production-sensitive steps stay in Phase 7 (D10, ATA-03).
 * **Source of truth for slice contents:** each spec's Delivery table. This plan's proof and question columns are copied from them; where they disagree, the spec wins and this plan is corrected.
 * **Depth rule:** SLICE-01, SLICE-02 and SLICE-03 have full, zero-decision slice files. Every other slice lists its acceptance proofs here and gets its own file, with exact files, signatures and task IDs, when work on it starts. A slice with no task rows below is a stub slice: its spec deepens first (`README.md:1166`).
 

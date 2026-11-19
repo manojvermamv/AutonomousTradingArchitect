@@ -12,9 +12,9 @@ Implemented, committed and pushed as source `b88014e` (`agentic-desk`), with thi
 
 ## Current delivery status — 2026-11-19 UTC
 
-Updated the evening of 19 November 2026 (IST). Source: `AutonomousTrading/agentic-desk` at `3f2b09b`; the running
-release's build is `1f7de02`. This section supersedes the 18 November one below. Decisions D-011 to D-014 are in the
-source repository's `docs/decisions.md`; D-015 is being written there.
+Updated after the evening deployment on 19 November 2026. The running build is
+`AutonomousTrading/agentic-desk` at `b90fdffe`. Decisions D-011 through D-015 are in the source repository's
+`docs/decisions.md`.
 
 **Done (19 November 2026):**
 
@@ -28,24 +28,20 @@ source repository's `docs/decisions.md`; D-015 is being written there.
   15:15 MIS square-off, whose order was foreign to the ledger and left a phantom position.
 - **Two fresh ledgers on the owner's word** (13:28 IST, and 15:49 IST to clear the phantom and the recovery hold it
   caused); the old ledgers are archived, not deleted.
-- **Running:** release `20261119T100828Z-91a2667a6d14` (build `1f7de02`), activated about 15:40 IST on the owner's
-  word; kernel `OPERATING`, no holds, broker flat; BuyerEdge holds an entry grant for 20 November, 09:15–15:40 IST.
-- **D-015 (owner, 19 November):** no legacy history import and no cutover. The shadow composition, the legacy adapters,
-  the history import and the installer's cutover commands are being removed from the code (D-001's import route ends).
+- **Running:** release `20261119T141735Z-c4ee7cf5c588` converged at 19:49 IST. The kernel is operating.
+  The ledger and OpenAlgo analyze books were flat, with the original 20 November binding (19) and entry grant (56).
+- **D-015:** deployed the removal of the legacy history import, cutover, shadow and legacy order projection.
+  The prior D-014 release remains available for restore. The unfinished 17 November release was retained.
 - Validation, as run on the Ubuntu host: full suite 3,722 passed, 19 skipped, 3 failed (the PRF-STR-02 test, fixed in
   `69581b9`; two `tests/isolation/test_resource_storage_scope.py` tests that fail on older code too, a host
-  permission). 500 affected tests passed for D-012. Development runs, not production acceptance.
+  permission). These three failures were subsequently fixed. Tonight's focused protection, isolation and helper run passed 289 checks with one skip.
 
 **Still open, in order:**
 
-1. Watch the first kernel square-off at 15:13 IST on 20 November (D-014).
-2. Carry out D-015 in the code repository.
-3. The OPS09 review and the dispatch, queue and reconciliation timings from the sessions with entries (not recorded
-   here as done); then measured runtime settings in place of the provisional ones (a new stage and activation).
-4. Owner drill: stop OpenAlgo for 3 minutes with a position open.
-5. Re-run the R1 start-anytime matrix under D-007 when the converted days are on a machine.
-6. Known gaps: 17 releases on disk (3.2 GB), pruned only by the installer;
-   a restore to release `20261118T024927Z-1a4b7b40a60d` still cannot fold `SESSION_CLOSING` (below).
+1. Verify the first market-session kernel square-off from ledger and broker evidence when a position crosses 15:13 IST (D-014).
+2. Review OPS09 and measure dispatch, queue and reconciliation timings from sessions with entries before updating the provisional runtime settings.
+3. Owner drill: stop OpenAlgo for 3 minutes with a position open.
+4. Re-run the R1 start-anytime matrix under D-007 when the converted days are on a machine.
 
 Backup integration stays deferred until the owner asks. Live mode only on the owner's word. The AI twin (SLICE-17),
 the web console and MCP are not in the first release.
@@ -153,7 +149,7 @@ The supplied React/TypeScript and HTML files are a 24 October audit presentation
 | | |
 |---|---|
 | 🎯 **Target** | A boundary-first architecture with selective reuse around deterministic financial authority, one live execution owner, OpenAlgo as the current live boundary, isolated simulation/replay, bounded cognition, reproducible research, and explainable recovery. |
-| 🧭 **Roadmap and audit branches** | This roadmap lives in `OA_NEW/.workspace/specifications`, branch `claude/spec-implementation-package`. The implementation is `AutonomousTrading/agentic-desk`; the running release is `20261119T100828Z-91a2667a6d14` (build `1f7de02`). The legacy audits at `445eb116` are history. |
+| 🧭 **Roadmap and audit branches** | This roadmap lives in `OA_NEW/.workspace/specifications`, branch `claude/spec-implementation-package`. The implementation is `AutonomousTrading/agentic-desk`; the running release is `20261119T141735Z-c4ee7cf5c588` (build `b90fdffe`). The legacy audits at `445eb116` are history. |
 | 🔎 **Current source audit** | Historical (legacy, 24–26 October): `AutonomousTrading` at `445eb116514d97c2574c44d4d5374f938dec57a3`, branch `claude/openalgo-trading-architecture-uu1bxn`; 24 October baseline, 25 October follow-up and scoped 26 October test/policy checks recorded below; no new runtime acceptance. Historical findings remain dated; accepted target changes are integrated in the master README. |
 | 📅 **Current evidence window** | Historical audit and design records run from 25 August–4 September, 10–11 October, 20 October, and 24–26 October 2026, including later target-only reviews. The dashboard files were downloaded on 24 October at 19:12–19:13 IST; that timestamp does not establish the audit's actual creation time; first deployed-host session evidence 18 November 2026 (analyze mode, no entries); first entries, protection and exits 19 November 2026 (analyze mode). |
 | 🧱 **Delivery shape** | Define justified boundaries, select reusable code, prove isolated target slices, and consolidate authority only after parity, recovery and fencing proof. Canvas and research may progress in parallel against stable contracts. |
@@ -456,7 +452,7 @@ Do not add a new idempotency system or retry protocol based only on the dashboar
 
 ### ✅ Preserve behavior while producing an installable target
 
-**Status 2026-11-19:** built in `agentic-desk` and running on the Ubuntu host (analyze mode). The first entries, protection and exits ran on 19 November; dispatch timings are not yet recorded. The cutover path in this text is superseded: legacy was lost on 13 November; fresh start (SLICE-15). D-015 (19 November) ends the history import and cutover; their code is being removed.
+**Status 2026-11-19:** built in `agentic-desk` and running on the Ubuntu host (analyze mode). The first entries, protection and exits ran on 19 November; dispatch timings are not yet recorded. The cutover path in this text is superseded: legacy was lost on 13 November; fresh start (SLICE-15). D-015 (19 November) removed the history import and cutover in build `b90fdffe`.
 
 Define target ownership and pure/effect boundaries first, then inventory current contracts, schemas, entrypoints and evidence to decide what fits. Reuse existing Tier-1 ledger, planner, gateway, replay, cognition, research, and operational code where target requirements and named compatibility proofs support it; source parity alone is insufficient. Keep compatibility readers during migration. Build a disarmed vertical slice and compare exact plans, refusals, reservations, lifecycle transitions, identities, and evidence before moving any financial authority.
 

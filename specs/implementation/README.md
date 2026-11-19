@@ -3,8 +3,8 @@
 * **Status (2026-11-19 UTC):** the first analyze-mode day with entries ran on 19 November (five BuyerEdge trades).
   D-011 to D-014 (leftover protective orders cancelled under a hold, stop and target anchored to the fill, entries
   priced from the newest chain, the kernel's own square-off at 15:13) are built and activated. Release
-  `20261119T100828Z-91a2667a6d14` (build `1f7de02`) is active; kernel `OPERATING` on a fresh ledger. D-015: no history
-  import and no cutover; that code is being removed. See [current delivery status](../../ROADMAP.md#current-delivery-status--2026-11-19-utc).
+  `20261119T141735Z-c4ee7cf5c588` (build `b90fdffe`) is active. The kernel is operating on the same ledger.
+  D-015 removed legacy history import and cutover. See [current delivery status](../../ROADMAP.md#current-delivery-status--2026-11-19-utc).
 * **Status (2026-11-18 UTC, history):** the first release is installed on the Ubuntu host in analyze mode; the early close
   (D-007), activation without the market-hours check (D-008), late starts (D-009) and the owner's read access (D-010)
   are built and activated (18 November, 17:29 IST); BuyerEdge holds an entry grant for 19 November. Release `20261118T115832Z-bb7baf172aaa` is active; kernel `OPERATING`. See [delivery status](../../ROADMAP.md#delivery-status--2026-11-18-utc-history-superseded-by-19-november-above).
