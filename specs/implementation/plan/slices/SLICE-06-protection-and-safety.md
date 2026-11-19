@@ -887,6 +887,9 @@ A `FILL` on an order whose role is `stop` or `target`, under an entry command:
   4. **`ORPHANED`:** the entry window has ended, `q` ≤ 0, and the leg rests. For a position closed by another route (F-P25), this is the spec's rule, built now. **[Q-027 item 3]** for an entry that never filled.
   5. **`CONFIRMED`:** `observed` rests within 0.05 of the desired level and at the desired order quantity.
   6. **`DESIRED`**.
+
+  > **Owner amendment — 19 November 2026 (D-011, OA_NEW `docs/decisions.md`).** `ORPHANED` now comes before `HELD_BACK`: a leftover stop or target on a flat position is cancelled even under a `sibling_failed` hold; only a rejected cancel of that order holds it back.
+
 * **Within the tolerance.** When `observed` rests within 0.05 of the desired level but not exactly on it, the observed level is adopted as the confirmed one (POL-014), so no modify chases a tick.
 * **The entry window** runs from the entry's claim until the entry command is `COMPLETED` or `REFUSED`.
 * **Subscripts.** The escalations that name a leg (`sibling_failed`, `sibling_held`, `unprotected`, `stop_rejected`) use the subject `<position_id>:<role>`, so `HELD_BACK` is derived per leg. Position-wide reasons keep `<position_id>`.

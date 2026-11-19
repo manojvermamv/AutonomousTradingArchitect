@@ -1,7 +1,7 @@
 # Delivery plan
 
 * **Status:** revised after EGM stage 9 ([review](../egm/plan/review.md)). As of 2026-11-18 every slice below is built in OA_NEW (`agentic-desk`); SLICE-15 step 7 is under way: the server is installed and the release is active in analyze mode; first entry session 19 November; backup deferred. Each slice file's "as built" sections are the record.
-* **Precedence:** the master phases (master `README.md:1209-1221`) and the ROADMAP delivery order (`ROADMAP.md:372`) win. This plan only orders work **inside** those phases and adds no gate. Production-sensitive steps stay in Phase 7 (D10, ATA-03).
+* **Precedence:** the master phases (master `README.md:1209-1221`) and the ROADMAP delivery order (`ROADMAP.md:413`) win. This plan only orders work **inside** those phases and adds no gate. Production-sensitive steps stay in Phase 7 (D10, ATA-03).
 * **Source of truth for slice contents:** each spec's Delivery table. This plan's proof and question columns are copied from them; where they disagree, the spec wins and this plan is corrected.
 * **Depth rule:** SLICE-01, SLICE-02 and SLICE-03 have full, zero-decision slice files. Every other slice lists its acceptance proofs here and gets its own file, with exact files, signatures and task IDs, when work on it starts. A slice with no task rows below is a stub slice: its spec deepens first (`README.md:1166`).
 
@@ -41,6 +41,8 @@ SLICE-01 → 02 → 03 → 04 → 05 → 07 → 06, then 08 and 09 (in that orde
 | [SLICE-15](slices/SLICE-15-fresh-start.md) fresh start (new server, no legacy cutover) | — | S → P (step 7 on the owner's word and a server) | Fresh-host install, D10 evidence, PRF-OPS-08/09, REQ-MIG-006/007 | SLICE-11, SLICE-13 (readers), SLICE-14 replaced by the owner's fresh start (2026-11-13) | POL-O01 (backup account) | Steps 1–6 as built; step 7: PRF-CFG-09, one or two analyze sessions. Step 7: install and activation done 18 November; analyze sessions from 19 November. |
 | [SLICE-16](slices/SLICE-16-start-at-any-time.md) start at any time | — | S | Late start and mid-session restart of every participant, day coverage, windowed research (F-1…F-6 as answered 2026-11-14) | SLICE-08, SLICE-09, SLICE-12, SLICE-15 (harness) | none | Steps 1–5 as built; Linux restarts under systemd on SLICE-15's list (since D-007 a kernel restart mid-session ends that day's trading). |
 | [SLICE-17](slices/SLICE-17-ai-twin-of-buyer-edge.md) AI twin of BuyerEdge (observe-only) | — | S | A05-F3 model strategy, declared inputs, candidate freeze and exam; promotion only by PromotionRecord | SLICE-09, SLICE-12, SLICE-15 (harness) | twin filter, model and budget; promotion.directional.* (owner) | Steps 1–6 as built (step 6 in-process half); Linux rows on SLICE-15's list |
+
+> **Owner amendment — 19 November 2026 (D-015, OA_NEW `docs/decisions.md`).** No legacy history import and no cutover: SLICE-13's shadow, legacy adapters and history import and SLICE-14's installer cutover commands are being removed from the code.
 
 ## Task index
 

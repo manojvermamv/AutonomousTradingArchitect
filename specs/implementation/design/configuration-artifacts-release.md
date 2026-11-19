@@ -330,6 +330,8 @@ The installer (`deploy/install.py`, [runtime spec](runtime-isolation-observabili
 > owner's safeguard (a switch never loses the live session's market data), not an installer rule. An activation during
 > the market restarts the kernel and so ends that day (D-007).
 
+> **Owner amendment — 19 November 2026 (D-015, OA_NEW `docs/decisions.md`).** No cutover: the installer's cutover commands (`cutover-root` and the `cutover-*` operations) are being removed; `restore` keeps the market check.
+
 * **Fork call (keep legacy's live rule).** A release is activated only when, for every bound account:
   * the session calendar confirms the market closed (unknown refuses);
   * the broker shows no open position and no working order;
@@ -342,7 +344,7 @@ The installer (`deploy/install.py`, [runtime spec](runtime-isolation-observabili
 
 ### Repository files
 
-* `config/live.example.yaml` (a `production` profile with every refusing field `null` and a comment naming its register row), `config/simulation.yaml`, `config/research.yaml` (when SLICE-12 builds research), `config/policies.example.yaml` (the bound-policy shape SLICE-04 reads, no values). No example carries a credential or a money value.
+* `config/live.example.yaml` (a `production` profile with every refusing field `null` and a comment naming its register row), `config/simulation.yaml`, `config/research.yaml` (when SLICE-12 builds research), `config/policies.example.yaml` (the bound-policy shape SLICE-04 reads, no values). No example carries a credential or a money value. As built (19 November 2026): only `config/live.example.yaml` ships; it carries the example bound policy (D-014 changed its `protection.session_close` to `square_off`).
 * `.github/workflows/verify.yml`: builds the wheel, runs `tests/contracts/test_installed_artifact.py` outside the checkout, runs the unit and contract suites through `scripts/safe_tests.py`, and runs `gitleaks`. It deploys nothing and holds no secret.
 * `.pre-commit-config.yaml`: `gitleaks` and the source hygiene checks, as legacy's secret guards.
 * `docs/operations.md`: releases, resume and restore, the activation boundary, and the owner-only items; `docs/decisions.md` gets each Fork call above.

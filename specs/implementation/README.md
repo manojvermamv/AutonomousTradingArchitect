@@ -1,8 +1,13 @@
 # AutonomousTrading — specification and implementation-plan package
 
-* **Status (2026-11-18 UTC):** the first release is installed on the Ubuntu host in analyze mode; the early close
+* **Status (2026-11-19 UTC):** the first analyze-mode day with entries ran on 19 November (five BuyerEdge trades).
+  D-011 to D-014 (leftover protective orders cancelled under a hold, stop and target anchored to the fill, entries
+  priced from the newest chain, the kernel's own square-off at 15:13) are built and activated. Release
+  `20261119T100828Z-91a2667a6d14` (build `1f7de02`) is active; kernel `OPERATING` on a fresh ledger. D-015: no history
+  import and no cutover; that code is being removed. See [current delivery status](../../ROADMAP.md#current-delivery-status--2026-11-19-utc).
+* **Status (2026-11-18 UTC, history):** the first release is installed on the Ubuntu host in analyze mode; the early close
   (D-007), activation without the market-hours check (D-008), late starts (D-009) and the owner's read access (D-010)
-  are built and activated (18 November, 17:29 IST); BuyerEdge holds an entry grant for 19 November. Release `20261118T115832Z-bb7baf172aaa` is active; kernel `OPERATING`. See [current delivery status](../../ROADMAP.md#current-delivery-status--2026-11-18-utc).
+  are built and activated (18 November, 17:29 IST); BuyerEdge holds an entry grant for 19 November. Release `20261118T115832Z-bb7baf172aaa` is active; kernel `OPERATING`. See [delivery status](../../ROADMAP.md#delivery-status--2026-11-18-utc-history-superseded-by-19-november-above).
 * **Status (2026-11-17 UTC, history):** shared restore fingerprints, the offline OPS09 verifier, deferred staging bindings, the installer's own lease token, main-disk assessment storage, the OpenAlgo-login account and the owner's worst-case loss are implemented and pushed. The host deployment (SLICE-15 step 7) and genuine session evidence remain open. See [current delivery status](../../ROADMAP.md#delivery-status--2026-11-17-utc-history-superseded-by-18-november-above).
 * **Workspace:** former ATA is now `OA_NEW/.workspace/specifications`, a separate repository on `claude/spec-implementation-package`. Historical ATA references do not require another directory.
 * **Pinned to:** ATA `main` at `b9bb32c` and legacy AT at `445eb116` ([provenance](00-provenance.md)).
@@ -88,7 +93,7 @@
 | Axis | Values | Source |
 |---|---|---|
 | Evidence class | **C** source-verified · **O** runtime observation · **H** historical claim · **P** proposed direction · **R** external reference · **D** recommendation · **U** unverified | `README.md:17` |
-| Lifecycle state | proposed · accepted design · implemented · tested · production-accepted | `AGENTS.md:71` |
+| Lifecycle state | proposed · accepted design · implemented · tested · production-accepted | `AGENTS.md:72` |
 | Proof status (this package) | *specified* · *executable* · *passing* | [test strategy](tests/test-strategy.md#proof-classes-and-status) |
 
 This package labels its own content **proposed**. A master decision it cites is **accepted design**. Since November the slices are implemented and tested in `agentic-desk`, and the first release is installed (analyze mode); none is production-accepted.
@@ -148,14 +153,14 @@ This package labels its own content **proposed**. A master decision it cites is 
 
 | Legacy @445eb116 | Target module | Basis |
 |---|---|---|
-| `src/tier1/envelope.py`, `ledger.py`, `schema.py` | `kernel/ledger/envelope.py`, `store.py`, `schema.py` + `resources/migrations/001_initial.sql` | §7 reuse/harden (`README.md:1173`) |
-| `src/tier1/coordinator.py`, `openalgo_adapter.py` | `kernel/coordinator.py`, `adapters/openalgo.py` | §7 extract/refactor (`README.md:1174`) |
-| `src/runtime/tier1_authority/*`, `src/tier1/recovery.py` | `kernel/authority.py`, `kernel/recovery.py`, `adapters/unix_channel.py` | §7 wrap/extract (`README.md:1175`) |
-| `src/runtime/execution_gateway/*`, `src/core/framework/execution/{registry,reservations,reconcile}.py` | `kernel/admission.py`, `kernel/reservations.py`, `kernel/reconciliation.py` | §7 refactor ownership (`README.md:1176`) |
-| `src/core/framework/runtime/orchestrator.py`, `structures/planner.py` | `kernel/planner.py`, `kernel/selection.py` | §7 one planning port (`README.md:1177`) |
-| `src/core/framework/protection/trail.py`, `structures.py` | `kernel/protection.py` | §7 (`README.md:1178`) |
+| `src/tier1/envelope.py`, `ledger.py`, `schema.py` | `kernel/ledger/envelope.py`, `store.py`, `schema.py` + `resources/migrations/001_initial.sql` | §7 reuse/harden (`README.md:1176`) |
+| `src/tier1/coordinator.py`, `openalgo_adapter.py` | `kernel/coordinator.py`, `adapters/openalgo.py` | §7 extract/refactor (`README.md:1177`) |
+| `src/runtime/tier1_authority/*`, `src/tier1/recovery.py` | `kernel/authority.py`, `kernel/recovery.py`, `adapters/unix_channel.py` | §7 wrap/extract (`README.md:1178`) |
+| `src/runtime/execution_gateway/*`, `src/core/framework/execution/{registry,reservations,reconcile}.py` | `kernel/admission.py`, `kernel/reservations.py`, `kernel/reconciliation.py` | §7 refactor ownership (`README.md:1179`) |
+| `src/core/framework/runtime/orchestrator.py`, `structures/planner.py` | `kernel/planner.py`, `kernel/selection.py` | §7 one planning port (`README.md:1180`) |
+| `src/core/framework/protection/trail.py`, `structures.py` | `kernel/protection.py` | §7 (`README.md:1181`) |
 | `src/core/framework/execution/sender.py` (kill matrix), `loss_latch.py` | `kernel/safety.py` | POL-002, POL-004 |
-| `src/runtime/ai_management/service.py` | `kernel/policy.py` (application) and `cognition/review.py` (evidence) | §7 (`README.md:1182`); D12 |
+| `src/runtime/ai_management/service.py` | `kernel/policy.py` (application) and `cognition/review.py` (evidence) | §7 (`README.md:1185`); D12 |
 
 ## Re-pinning
 
@@ -180,6 +185,6 @@ Run on 2026-10-26; the numbers and the checker's full text are in [consistency/c
 | J6 SLICE-01 stage 9 | pass: round 2 found 0 Blockers |
 | J7 scope | pass: only `specs/implementation/` changed |
 
-Passing the checker shows only that the documents agree with each other and with the master. It does not show the design is correct. No proof is *executable* or *passing* yet (26 October). Proofs are now executable and passing in `agentic-desk`; see [ROADMAP current delivery status](../../ROADMAP.md#current-delivery-status--2026-11-18-utc).
+Passing the checker shows only that the documents agree with each other and with the master. It does not show the design is correct. No proof is *executable* or *passing* yet (26 October). Proofs are now executable and passing in `agentic-desk`; see [ROADMAP current delivery status](../../ROADMAP.md#current-delivery-status--2026-11-19-utc).
 
 **Owner decisions:** every question ([Q-001…Q-016](decisions/owner-questions.md)) and master correction ([X-001…X-007](consistency/master-contradictions.md)) was answered on 2026-10-27; the [answers](decisions/owner-answers-2026-10-27.md) give each config setting and its first-release value, and the specs carry them. Every limit and switch stays a configurable refusing setting. SLICE-01 depends on none of them.

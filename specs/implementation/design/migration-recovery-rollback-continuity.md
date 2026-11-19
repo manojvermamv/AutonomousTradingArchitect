@@ -1,6 +1,8 @@
 # Migration, recovery, rollback and continuity
 
 * **Status:** proposed (package spec), deepened on 2026-10-30 from the 46-line stub this file was, when SLICE-13 and SLICE-14 were planned; it also writes the parts SLICE-11 step 8 builds (the recovery set, backup, restore, anchors, the send-lease store adapter, the release check). Not yet reviewed by EGM; it is reviewed with the [SLICE-13](../plan/slices/SLICE-13-disarmed-shadow-and-conversion.md) and [SLICE-14](../plan/slices/SLICE-14-initial-cutover.md) slice files and with [SLICE-11](../plan/slices/SLICE-11-packaging-release-supervision.md) step 8. Implements accepted master decisions; adds no new ones. Depth follows slices (`README.md:1133`).
+
+  > **Owner amendment — 19 November 2026 (D-015, OA_NEW `docs/decisions.md`).** No legacy history import and no cutover: the shadow composition, the legacy adapters, the history import and the installer's cutover commands specified here are being removed from the code. The recovery set, backup, restore, the send-lease store adapter and the release check stay.
 * **Precedence:** master README, then ROADMAP, then this file. A disagreement is an X item in [master-contradictions](../consistency/master-contradictions.md), never an edit here.
 * **Specified here (exclusive), and where:**
 

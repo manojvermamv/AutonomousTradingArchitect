@@ -47,6 +47,8 @@ Every row with status A is carried as a requirement key in [traceability.md](tra
 | POL-016 | A partial or cancelled live close without a fill total stays reserved until OpenAlgo's live rows carry the filled quantity | TIER1-CLOSE-SETTLE-1, 16 Oct (`OD:361`) | Live closes | record only | `kernel.reconciliation`, `kernel.reservations` (D16) | **A** | Close with no filled quantity → reservation unchanged until a row with filled quantity arrives |
 | POL-017 | Intraday product MIS | 16 Oct (`OD:359`) | Shipped strategies | `config/defaults.yaml:879` `product: MIS` | `kernel.planner` (bound policy) | **H** (strategy/host setting carried in bound policy, not hard-coded) | Plan carries the product from the bound policy |
 
+> **Owner amendment — 19 November 2026 (D-014, OA_NEW `docs/decisions.md`).** POL-010/POL-011: the first release now binds `protection.session_close: square_off` (was `broker`), in the bound policy and `config/live.example.yaml`; positions opened under `broker` keep it.
+
 ## C. Entry gates, freshness and timing
 
 | ID | Policy | Decision | Scope | Code @445eb116 | Target owner | Status | Oracle |

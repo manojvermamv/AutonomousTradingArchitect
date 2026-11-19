@@ -538,6 +538,8 @@ Step 2 is deepened only after the answer.
 
 **Answer (2026-10-28): option B.** After a refused or failed modify the ladder keeps the move's other fields and puts back only `sl`, as the live host did. Step 2 builds it, and step 1's library-rule "refused" outcome is replaced.
 
+> **Owner amendment — 19 November 2026 (D-012, OA_NEW `docs/decisions.md`).** The stop and target are re-anchored to the real fill (fill − points / fill + points, both ways); until the ladder activates, the anchored stop is not raised back to the broker's plan-level stop.
+
 ## Q-026
 
 **The deep-OTM delta exit: legacy's live host never ran it. Does the kernel run it?**

@@ -10,9 +10,50 @@ A local daily checksummed read-only assessment archive follows confirmed recorde
 
 Implemented, committed and pushed as source `b88014e` (`agentic-desk`), with this record as specification `476ae06`. The server's runs: 48 focused checks and 7 staging checks passed, independent review accepted corrections R1–R4, and the installed-wheel check outside the checkout passed (1 test). Because the focused run predated the review fixes, every test file the commit touched was rerun against the committed code before the push: 8 files, 445 passed, 0 failed (server `.workspace/logs/b88014e-verify.log`). Evidence details are in the server workspace result `.workspace/notes/assessment-storage-result.md`; no host activation or live acceptance is implied. This section supersedes the old separate-disk blocker in delivery summaries and SLICE-11 as-built filesystem assertions. Historical records remain dated.
 
-## Current delivery status — 2026-11-18 UTC
+## Current delivery status — 2026-11-19 UTC
 
-Updated the evening of 18 November 2026 (IST), after the 17:29 IST activation.
+Updated the evening of 19 November 2026 (IST). Source: `AutonomousTrading/agentic-desk` at `3f2b09b`; the running
+release's build is `1f7de02`. This section supersedes the 18 November one below. Decisions D-011 to D-014 are in the
+source repository's `docs/decisions.md`; D-015 is being written there.
+
+**Done (19 November 2026):**
+
+- **First analyze-mode day with entries.** Five BuyerEdge trades (65 × NIFTY CE each): +₹5,788.25 before costs (broker
+  realised P&L, owner's report). Six issues were found and fixed the same day.
+- **Fixes:** `fae71f9`, the `sibling_failed` timer runs only while a cancel or quantity change is due (it froze the
+  trail two minutes after every fill); **D-011** (`08c2707`), a leftover stop or target is cancelled even under a hold;
+  **D-012** (`08c2707`, `9152a84`), the stop and target are re-anchored to the real fill (fill − points / fill +
+  points, both ways); **D-013** (`08c2707`), an entry is priced from the newest chain the view sees; **D-014**
+  (`1f7de02`), `protection.session_close: square_off` (was `broker`): the kernel closes at 15:13 IST, before OpenAlgo's
+  15:15 MIS square-off, whose order was foreign to the ledger and left a phantom position.
+- **Two fresh ledgers on the owner's word** (13:28 IST, and 15:49 IST to clear the phantom and the recovery hold it
+  caused); the old ledgers are archived, not deleted.
+- **Running:** release `20261119T100828Z-91a2667a6d14` (build `1f7de02`), activated about 15:40 IST on the owner's
+  word; kernel `OPERATING`, no holds, broker flat; BuyerEdge holds an entry grant for 20 November, 09:15–15:40 IST.
+- **D-015 (owner, 19 November):** no legacy history import and no cutover. The shadow composition, the legacy adapters,
+  the history import and the installer's cutover commands are being removed from the code (D-001's import route ends).
+- Validation, as run on the Ubuntu host: full suite 3,722 passed, 19 skipped, 3 failed (the PRF-STR-02 test, fixed in
+  `69581b9`; two `tests/isolation/test_resource_storage_scope.py` tests that fail on older code too, a host
+  permission). 500 affected tests passed for D-012. Development runs, not production acceptance.
+
+**Still open, in order:**
+
+1. Watch the first kernel square-off at 15:13 IST on 20 November (D-014).
+2. Carry out D-015 in the code repository.
+3. The OPS09 review and the dispatch, queue and reconciliation timings from the sessions with entries (not recorded
+   here as done); then measured runtime settings in place of the provisional ones (a new stage and activation).
+4. Owner drill: stop OpenAlgo for 3 minutes with a position open.
+5. Re-run the R1 start-anytime matrix under D-007 when the converted days are on a machine.
+6. Known gaps: the two host-only isolation test failures (`15900ee`, after this record, changes the code and tests;
+   not yet re-run on the host); 17 releases on disk (3.2 GB), pruned only by the installer;
+   a restore to release `20261118T024927Z-1a4b7b40a60d` still cannot fold `SESSION_CLOSING` (below).
+
+Backup integration stays deferred until the owner asks. Live mode only on the owner's word. The AI twin (SLICE-17),
+the web console and MCP are not in the first release.
+
+## Delivery status — 2026-11-18 UTC (history; superseded by 19 November above)
+
+<a id="current-delivery-status--2026-11-18-utc"></a>Updated the evening of 18 November 2026 (IST), after the 17:29 IST activation.
 
 Source: `AutonomousTrading/agentic-desk`; the running release's build is `d63928d`. This section supersedes
 the 17 November one below and older open-task summaries; historical slice and audit evidence stays as dated. Decisions
@@ -106,16 +147,16 @@ The supplied React/TypeScript and HTML files are a 24 October audit presentation
 
 **Contents:** [At a glance](#at-a-glance) · [Accepted decisions and delivery order](#accepted-decisions-and-delivery-order) · [Remaining target audit order](#remaining-target-audit-order) · [Milestones](#milestones) · [Open work and evidence](#open-work-and-evidence) · [Audit history](#audit-history) · [Direction changes](#direction-changes) · [How this roadmap evolves](#how-this-roadmap-evolves) · [Working on the roadmap](#working-on-the-roadmap)
 
-**Design status — 26 October 2026 UTC (history; see [Current delivery status](#current-delivery-status--2026-11-18-utc) above):** ✅ A01–A10 and the combined review are complete for their accepted design scope; ✅ README and ROADMAP updates are recorded. Implementation and production proof remain pending. A03 includes the source-grounded kernel-failure re-audit and owner-selected corrections; A04 recovery/release contracts are recorded; A05 extension contracts are recorded; A06 security/operator contracts are recorded. The subsequent combined A01–A06 review accepted Combined-F4 authorization recovery continuity and Combined-F5 scoped strategy-state ordering; documentation is updated and proof remains pending. A07-F1–F4 are accepted and recorded; no A07-F5 was proposed. Revised A08-F1–F5 are accepted and recorded. A09-F1–F4 are accepted and recorded; capacity proof remains pending. A10-F1–F3 and Combined-F6 are accepted and recorded. The scoped policy-baseline direction is accepted; its inventory accepted 2026-10-27 ([`specs/implementation/02-policy-inventory.md`](specs/implementation/02-policy-inventory.md), X-006). Corrected ATA-05/01/04/03/06 refinements are now accepted, with implementation proof pending. Current continuation is scoped policy reconciliation and concrete first-release specification/planning; implementation and production actions still need their own scope. This update preserves the historical rows below.
+**Design status — 26 October 2026 UTC (history; see [Current delivery status](#current-delivery-status--2026-11-19-utc) above):** ✅ A01–A10 and the combined review are complete for their accepted design scope; ✅ README and ROADMAP updates are recorded. Implementation and production proof remain pending. A03 includes the source-grounded kernel-failure re-audit and owner-selected corrections; A04 recovery/release contracts are recorded; A05 extension contracts are recorded; A06 security/operator contracts are recorded. The subsequent combined A01–A06 review accepted Combined-F4 authorization recovery continuity and Combined-F5 scoped strategy-state ordering; documentation is updated and proof remains pending. A07-F1–F4 are accepted and recorded; no A07-F5 was proposed. Revised A08-F1–F5 are accepted and recorded. A09-F1–F4 are accepted and recorded; capacity proof remains pending. A10-F1–F3 and Combined-F6 are accepted and recorded. The scoped policy-baseline direction is accepted; its inventory accepted 2026-10-27 ([`specs/implementation/02-policy-inventory.md`](specs/implementation/02-policy-inventory.md), X-006). Corrected ATA-05/01/04/03/06 refinements are now accepted, with implementation proof pending. Current continuation is scoped policy reconciliation and concrete first-release specification/planning; implementation and production actions still need their own scope. This update preserves the historical rows below.
 
 ## At a glance
 
 | | |
 |---|---|
 | 🎯 **Target** | A boundary-first architecture with selective reuse around deterministic financial authority, one live execution owner, OpenAlgo as the current live boundary, isolated simulation/replay, bounded cognition, reproducible research, and explainable recovery. |
-| 🧭 **Roadmap and audit branches** | This roadmap lives in `OA_NEW/.workspace/specifications`, branch `claude/spec-implementation-package`. The implementation is `AutonomousTrading/agentic-desk`; the running release is `20261118T115832Z-bb7baf172aaa` (build `d63928d`). The legacy audits at `445eb116` are history. |
+| 🧭 **Roadmap and audit branches** | This roadmap lives in `OA_NEW/.workspace/specifications`, branch `claude/spec-implementation-package`. The implementation is `AutonomousTrading/agentic-desk`; the running release is `20261119T100828Z-91a2667a6d14` (build `1f7de02`). The legacy audits at `445eb116` are history. |
 | 🔎 **Current source audit** | Historical (legacy, 24–26 October): `AutonomousTrading` at `445eb116514d97c2574c44d4d5374f938dec57a3`, branch `claude/openalgo-trading-architecture-uu1bxn`; 24 October baseline, 25 October follow-up and scoped 26 October test/policy checks recorded below; no new runtime acceptance. Historical findings remain dated; accepted target changes are integrated in the master README. |
-| 📅 **Current evidence window** | Historical audit and design records run from 25 August–4 September, 10–11 October, 20 October, and 24–26 October 2026, including later target-only reviews. The dashboard files were downloaded on 24 October at 19:12–19:13 IST; that timestamp does not establish the audit's actual creation time; first deployed-host session evidence 18 November 2026 (analyze mode, no entries). |
+| 📅 **Current evidence window** | Historical audit and design records run from 25 August–4 September, 10–11 October, 20 October, and 24–26 October 2026, including later target-only reviews. The dashboard files were downloaded on 24 October at 19:12–19:13 IST; that timestamp does not establish the audit's actual creation time; first deployed-host session evidence 18 November 2026 (analyze mode, no entries); first entries, protection and exits 19 November 2026 (analyze mode). |
 | 🧱 **Delivery shape** | Define justified boundaries, select reusable code, prove isolated target slices, and consolidate authority only after parity, recovery and fencing proof. Canvas and research may progress in parallel against stable contracts. |
 | 🛡 **Decision boundary** | No roadmap item changes scores, thresholds, entry policy, emergency permissions, or live activation without the required evidence and owner decision. No audit label alone authorizes a broker-changing action. |
 
@@ -136,7 +177,7 @@ The [master README](README.md#25-october-follow-up-audit-and-accepted-target-dec
 | 4 — prove integrity | **D04: event-derived state verification** — `kernel.ledger.projections` | Alter epoch/command/broker indexes without changing events: mismatch is detected before financial authority proceeds. Clean reconstruction agrees at the required head. |
 | Parallel after contracts | **D08: explicit causal Canvas** — market/view/Canvas | Explicit cutoff, availability and freshness policies; late corrections and future bars cannot change earlier as-known facts. Geometry and interpretation remain distinct. |
 | Parallel after contracts | **D09: enforced cognition capabilities** — cognition ports and operations isolation | Native descendants cannot reach financial sockets/keys, mutable production files or protected evidence; permitted egress and resource caps work; job submission does not require mutual implementation imports. |
-| Before activation | **D10: recovery proof before cutover** — operations/recovery | Restore the candidate artifact/schema/backup on a clean isolated host; prove crash recovery, identity/custody continuity, refusal before fencing and exclusive activation. Actual cutover still needs fresh reconciliation and external old-writer fencing. **Owner note — 18 November 2026:** there is no cutover. The legacy host was lost on 13 November; SLICE-15's fresh start replaced the cutover. The first release runs in analyze mode with backup deferred; the backup and clean-host restore rehearsal stay open before live. |
+| Before activation | **D10: recovery proof before cutover** — operations/recovery | Restore the candidate artifact/schema/backup on a clean isolated host; prove crash recovery, identity/custody continuity, refusal before fencing and exclusive activation. Actual cutover still needs fresh reconciliation and external old-writer fencing. **Owner note — 18 November 2026:** there is no cutover. The legacy host was lost on 13 November; SLICE-15's fresh start replaced the cutover. The first release runs in analyze mode with backup deferred; the backup and clean-host restore rehearsal stay open before live. **Owner amendment — 19 November 2026 (D-015, source `docs/decisions.md`):** no history import and no cutover; the shadow, legacy adapters, history import and installer cutover commands are being removed. |
 
 The six later choices refine the delivery order above; they do not add six serial release gates or replace the original decisions:
 
@@ -406,7 +447,7 @@ The attached dashboard reports 12 issues across eight modules and proposes eight
 
 ### ✅ Implement accepted reliability contracts in isolated target slices
 
-**Status 2026-11-18:** built in `agentic-desk` and installed on the Ubuntu host (analyze mode). Deployed-broker evidence for F1/F2 outcomes and dispatch timings starts 19 November.
+**Status 2026-11-19:** built in `agentic-desk` and running on the Ubuntu host (analyze mode). The first entries, protection and exits ran on 19 November; dispatch timings are not yet recorded.
 
 Use F1–F5 as evidence for D01–D06, not as instructions to copy the source implementation or patch the read-only source first. With D11–D12 ownership established and applicable policies reconciled, implement D13–D16 together with the existing reliability work and accepted ATA session/protection/conflict/domain contracts. Establish explicit caller-visible outcomes when an external order is accepted but local persistence fails (F1), then settle cancel/modify intents for every submitted, rejected, ambiguous, or never-reached result (F2). Verify authority indexes against event-derived state (F3), establish installable resources/entrypoints and versioned deployment as well as package completeness (F4/D05), and share one typed environment contract across both research profiles and their renderer (F5/D06).
 
@@ -416,7 +457,7 @@ Do not add a new idempotency system or retry protocol based only on the dashboar
 
 ### ✅ Preserve behavior while producing an installable target
 
-**Status 2026-11-18:** built in `agentic-desk` and installed on the Ubuntu host (analyze mode). Deployed-broker evidence for F1/F2 outcomes and dispatch timings starts 19 November. The cutover path in this text is superseded: legacy was lost on 13 November; fresh start (SLICE-15).
+**Status 2026-11-19:** built in `agentic-desk` and running on the Ubuntu host (analyze mode). The first entries, protection and exits ran on 19 November; dispatch timings are not yet recorded. The cutover path in this text is superseded: legacy was lost on 13 November; fresh start (SLICE-15). D-015 (19 November) ends the history import and cutover; their code is being removed.
 
 Define target ownership and pure/effect boundaries first, then inventory current contracts, schemas, entrypoints and evidence to decide what fits. Reuse existing Tier-1 ledger, planner, gateway, replay, cognition, research, and operational code where target requirements and named compatibility proofs support it; source parity alone is insufficient. Keep compatibility readers during migration. Build a disarmed vertical slice and compare exact plans, refusals, reservations, lifecycle transitions, identities, and evidence before moving any financial authority.
 
@@ -451,10 +492,10 @@ The order below reflects the current audit's risk and dependencies. It is not a 
 | 3 | **F4 / D05 — installable application and deployment portability** | Explicit shipping manifest, resources and executable entrypoints without checkout/`.git`; versioned artifact/environment staging and failure-safe handoff; preserve current history on software rollback. |
 | 4 | **F5 / D06 — shared worker configuration contract** | Render both offline and advisor service environments from the shared schema; intentional paths pass, forbidden credentials refuse, and one job per profile completes in isolation. |
 | 5 | **F3 — derived authority state integrity** | Rebuild/compare mutable indexes and epochs against event-derived truth after startup, recovery, and external modification; preserve existing release-binding and projection checks. |
-| 6 | **F9 / D10 — recovery before cutover** | Before production activation, rehearse the candidate artifact/schema/backup restoration on a clean separate host; prove the old writer cannot act, reconcile accepted/pending/unknown commands, preserve identities, and activate only one writer. Initial migration additionally requires the ATA-03 naturally flat scope and retirement at first target attempt; later target upgrades retain Combined-F6. **Owner note — 18 November 2026:** there is no old writer and no migration (fresh start). Activation was in analyze mode; the backup and clean-host restore rehearsal stay open before live. |
+| 6 | **F9 / D10 — recovery before cutover** | Before production activation, rehearse the candidate artifact/schema/backup restoration on a clean separate host; prove the old writer cannot act, reconcile accepted/pending/unknown commands, preserve identities, and activate only one writer. Initial migration additionally requires the ATA-03 naturally flat scope and retirement at first target attempt; later target upgrades retain Combined-F6. **Owner note — 18 November 2026:** there is no old writer and no migration (fresh start). Activation was in analyze mode; the backup and clean-host restore rehearsal stay open before live. **Owner amendment — 19 November 2026 (D-015):** the import and cutover code is being removed. |
 | 7 | **F6–F8 — bounded compatibility and dormant API cleanup** | Auth contract tests; exact legacy replay shape/provenance checks; production-caller search and checkpoint consistency proof or removal. |
 | 8 | **Dashboard claims that are conditional or unverified** | Claim-specific load, runtime, custody, observability, or resilience evidence before changing their status. No implementation is implied by a scorecard number. |
-| 9 | **Production and broker acceptance** | Release-specific session evidence, exact broker observations, protection/reconciliation outcomes, resource use, and recovery proof. Analyze-mode evidence does not establish a real-broker lifecycle. 18 November: analyze session without entries (R2 lease, OpenAlgo, market data, services measured); entries from 19 November; dispatch timings unmeasured. |
+| 9 | **Production and broker acceptance** | Release-specific session evidence, exact broker observations, protection/reconciliation outcomes, resource use, and recovery proof. Analyze-mode evidence does not establish a real-broker lifecycle. 18 November: analyze session without entries (R2 lease, OpenAlgo, market data, services measured). 19 November: five analyze-mode trades with entries, protection and exits; dispatch timings not yet recorded. |
 | 10 | **Owner decisions** | Explicit choices for gross/net admission, emergency permissions, policy changes, and any multi-person governance requirement. Keep unresolved choices open; do not infer defaults from a dashboard recommendation. |
 
 Accepted ATA-05/01/04/03/06 proof obligations are detailed in the [affected ATA acceptance](#affected-ata-refinement-acceptance) and the master acceptance matrix; the scoped policy inventory accepted 2026-10-27 ([`specs/implementation/02-policy-inventory.md`](specs/implementation/02-policy-inventory.md), X-006).
@@ -500,6 +541,7 @@ Dates are preserved as evidence windows. The date of a report, the date of a sou
 | **26 October 2026 UTC — A09** | Target `main`, `5ff225c0d0868ff266a3814dd278e82327040a6d`; document-only deployment review, no runtime/source inspection or capacity benchmark. | ✅ A09-F1–F4 accepted and docs updated; production proof and numerical objectives pending. Pause without commit/push; A10 next. |
 | **26 October 2026 UTC — A10** | Target `main`, `5ff225c0d0868ff266a3814dd278e82327040a6d`, plus local A09; target-only integration review. | ✅ A10-F1–F3 accepted and docs updated; diagrams, composition scoping and compatibility retirement aligned. Proof pending; pause without commit/push. |
 | **13–18 November 2026** | Legacy host lost 13 November; SLICE-15 fresh start; first release installed 18 November, replaced 17:29 IST by `20261118T115832Z-bb7baf172aaa` (`d63928d`); kernel `OPERATING`; BuyerEdge entry grant for 19 November. | First deployed evidence (analyze mode). Production and live acceptance pending. |
+| **19 November 2026** | First analyze-mode day with entries: five BuyerEdge trades; fixes `fae71f9`, D-011–D-014; two fresh ledgers; release `20261119T100828Z-91a2667a6d14` (`1f7de02`) running. | Analyze-mode evidence of entries, protection and exits. Production and live acceptance pending. |
 | **Future scoped review: date TBD** | Name the target documents and/or source branch and SHA actually inspected. | Review affected requirements or findings only; source re-audit is not a prerequisite for isolated specifications or implementation. Record evidence limits and preserve prior dates. |
 
 ## Direction changes
@@ -530,6 +572,7 @@ This log records when newer dated evidence changes what the roadmap asks for. Do
 | **26 October 2026 UTC — affected ATA refinements** | Session/protection execution, conflicts, initial migration scope and domain evidence needed explicit corrected contracts. | Owner accepted A for ATA-05/01/04/03/06; ✅ documents aligned, implementation proof pending. | README/ROADMAP-only review at `461f9c2ad61e2f7f2df9b47711d305bc7bfc232d`; initial flat migration is an explicit new choice; preserve Combined-F6 for later target transitions and approved financial policies. |
 | **26 October 2026 UTC — full-document consistency correction** | Later ATA decisions were missing from some diagram inputs, tree responsibilities, acceptance rows and current continuation summaries. | Restore clock/ownership labels and align contracts, proof coverage, reuse and migration language with accepted decisions. | README/ROADMAP review at `3fb823a9a2dc83cce5e876359d36f3f82b61c81e`; documentation only, no new policies or runtime proof. Historical acceptance and source evidence remain dated. |
 | **18 November 2026** | CUJ-SES-1: a restart continues the session; activation only with the market closed; strategies start at the session clock; cutover from legacy. | D-007 to D-010 (early close, activation without the market-hours check, late start, host stays on with owner read access); the fresh start replaced the cutover (13 November). | Source repository `docs/decisions.md`. |
+| **19 November 2026** | A held leg is never touched; stop and target at the plan's levels; entries priced from the decision's exact-minute chain; the broker squares off at the close (`session_close: broker`); legacy history enters by import (D-001). | D-011 a leftover protective order is cancelled even under a hold; D-012 stop and target re-anchored to the real fill, both ways; D-013 entries priced from the newest chain the view sees; D-014 `session_close: square_off`; D-015 no history import and no cutover (their code is being removed). | Source repository `docs/decisions.md`; 19 November analyze session. |
 | **Future dated review: TBD** | Current accepted design and scoped outstanding evidence. | Record the next authorized target/source review at its actual revision. | Identify changed conclusions and affected work; preserve historical baselines and do not require an unrelated source audit. |
 
 <details>

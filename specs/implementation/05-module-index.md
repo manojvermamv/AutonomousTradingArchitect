@@ -27,7 +27,7 @@ Status: **proposed**, non-normative. The canonical, fully commented target tree 
 | `resources/migrations/001_initial.sql` | [ledger-and-atomic-transaction](design/ledger-and-atomic-transaction.md) | R | SLICE-01 (**provisional**, see [X-002](consistency/master-contradictions.md#x-002)) | Tier-1 schema (`:1143`) |
 | `settings/loader.py`, `settings/schema.py` | [configuration-artifacts-release](design/configuration-artifacts-release.md) | R | SLICE-01 (minimal) | Config scaffolding (`:1158`) |
 | `settings/secrets.py` | [security-and-operator](design/security-and-operator.md) | RP | SLICE-10 | — |
-| `market/ingest.py`, `providers.py`, `store.py`, `sources.py`, `view.py`, `quality.py` | [market-data-and-canvas](design/market-data-and-canvas.md) | R | SLICE-08 | Providers/MarketView (`:1150`) |
+| `market/ingest.py`, `store.py`, `sources.py`, `view.py`, `quality.py` (as built there is no `providers.py`: the stream order is `_stream_plan` in `ingest.py`; the OpenAlgo source `OpenAlgoMarketSource` is in `adapters/openalgo.py`) | [market-data-and-canvas](design/market-data-and-canvas.md) | R | SLICE-08 | Providers/MarketView (`:1150`) |
 | `market/canvas/*` | [market-data-and-canvas](design/market-data-and-canvas.md) | WC | SLICE-08 | Canvas algorithms (`:1160`) |
 | `strategies/registry.py`, `worker.py` | [strategies-and-cognition](design/strategies-and-cognition.md) | R | SLICE-09 | BuyerEdge/EMA/worker strategies (`:1149`) |
 | `strategies/buyer_edge.py`, `ema_cross.py`, `model_strategy.py` | [strategies-and-cognition](design/strategies-and-cognition.md) | WC | SLICE-09 | BuyerEdge/EMA/worker strategies (`:1149`) |
@@ -64,6 +64,10 @@ Status: **proposed**, non-normative. The canonical, fully commented target tree 
 | `scripts/verify_recovery.py`, `check_release.py` | [migration-recovery-rollback-continuity](design/migration-recovery-rollback-continuity.md) | RP | SLICE-11 | Backup/release/restore (`:1159`) |
 | `tests/*` | [tests/test-strategy.md](tests/test-strategy.md) | R | every slice | Legacy test suite and fixtures (`:1155`) |
 | `pyproject.toml`, `requirements.lock`, `config/*`, `.github/workflows/verify.yml`, `.pre-commit-config.yaml`, `docs/*` | [configuration-artifacts-release](design/configuration-artifacts-release.md) | R | SLICE-01 (`pyproject.toml` only) | Config/root/package scaffolding (`:1158`) |
+
+> **As built, 19 November 2026 (code `3f2b09b`).** Modules in the code with no row above: `operations/assessment_storage.py` (local assessment cutoff snapshots, the 17 November storage decision), `operations/supervisor_verification.py` (the offline OPS09 evidence check), `operations/parity.py` (legacy parity without legacy running, SLICE-18), `operations/key_probe.py` (the cutover's old-key probe, SLICE-14) and `adapters/openalgo_identity.py` (which broker OpenAlgo is logged in to, D-004).
+
+> **Owner amendment — 19 November 2026 (D-015, OA_NEW `docs/decisions.md`).** No legacy history import and no cutover: the shadow composition, the legacy adapters, the history import and the installer's cutover commands (among them the SLICE-13 and SLICE-14 tree deltas, `adapters/compatibility.py` and `scripts/migrate_legacy.py`) are being removed from the code; the code repository's D-015 names exactly what goes.
 
 `kernel/lifecycle.py` is the one module split across two specs. Session transitions and order/position transitions are specified separately because they change on different triggers. **Both commit through the single transaction defined in [ledger-and-atomic-transaction](design/ledger-and-atomic-transaction.md)**, which is the only spec that defines the atomic commit.
 
@@ -128,7 +132,7 @@ These are files the slices need that README §6 does not list (T-01…T-23). T-0
 | T-56 | `tests/unit/test_provider_records.py` | SLICE-09 | Provider and run records, replay (PRF-STR-06) ([SLICE-09](plan/slices/SLICE-09-strategies-and-cognition.md)) |
 | T-57 | `tests/integration/test_review_producer.py` | SLICE-09 | The review producer (PRF-STR-07) ([SLICE-09](plan/slices/SLICE-09-strategies-and-cognition.md)) |
 | T-58 | `tests/unit/test_model_strategy.py` | SLICE-09 | Model strategy proposals (PRF-STR-08) ([SLICE-09](plan/slices/SLICE-09-strategies-and-cognition.md)) |
-| T-59 | `deploy/systemd/at-strategy-host.service` | SLICE-11 | The strategy host's unit: README §6 has none; legacy's unit name until renamed apart (owner, 13 November 2026) ([SLICE-09](plan/slices/SLICE-09-strategies-and-cognition.md)) |
+| T-59 | `deploy/systemd/at-strategy-host@.service`, `at-strategy-host@.timer` | SLICE-11 | The strategy host's unit, as built a template per strategy with its timer: README §6 has none; legacy's unit name until renamed apart (owner, 13 November 2026) ([SLICE-09](plan/slices/SLICE-09-strategies-and-cognition.md)) |
 | T-60 | `tests/unit/test_operator_authorization.py` | SLICE-10 | Requests and confirmations (PRF-SEC-01, -02) ([SLICE-10](plan/slices/SLICE-10-security-and-operator.md)) |
 | T-61 | `tests/unit/test_secret_references.py` | SLICE-10 | Secret references (PRF-SEC-04) ([SLICE-10](plan/slices/SLICE-10-security-and-operator.md)) |
 | T-62 | `tests/integration/test_unix_channel.py` | SLICE-10 | The local sockets, Linux only (PRF-SEC-05) ([SLICE-10](plan/slices/SLICE-10-security-and-operator.md)) |
