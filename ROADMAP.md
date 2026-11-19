@@ -44,8 +44,7 @@ source repository's `docs/decisions.md`; D-015 is being written there.
    here as done); then measured runtime settings in place of the provisional ones (a new stage and activation).
 4. Owner drill: stop OpenAlgo for 3 minutes with a position open.
 5. Re-run the R1 start-anytime matrix under D-007 when the converted days are on a machine.
-6. Known gaps: the two host-only isolation test failures (`15900ee`, after this record, changes the code and tests;
-   not yet re-run on the host); 17 releases on disk (3.2 GB), pruned only by the installer;
+6. Known gaps: 17 releases on disk (3.2 GB), pruned only by the installer;
    a restore to release `20261118T024927Z-1a4b7b40a60d` still cannot fold `SESSION_CLOSING` (below).
 
 Backup integration stays deferred until the owner asks. Live mode only on the owner's word. The AI twin (SLICE-17),
