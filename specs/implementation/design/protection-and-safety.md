@@ -193,12 +193,13 @@ This section is the authority for the first-release placement ([Q-013 answer](..
 |---|---|---|
 | 1 | `ENDED` | The live order is observed terminal; or the leg was never reached or transport-rejected (escalate `unprotected` once if `q` > 0); or the basket response rejected the leg (escalate `stop_rejected` once for the stop) |
 | 2 | `PENDING` | The entry command is `ADMITTED`, `IN_FLIGHT` or `UNCERTAIN`; or the leg has an order ID whose role is not yet assigned; or `observed` is `None`; or one of the leg's own commands is `ADMITTED`, `IN_FLIGHT`, `UNCERTAIN` or `WORKING` |
-| 3 | `HELD_BACK` | A hold-bearing failure of this leg is escalated and its hold has not been released (no automatic request until a human releases the hold or acts on the leg) |
-| 4 | `ORPHANED` | The entry window has ended, `q` ≤ 0, and the leg rests: cancel it (escalate `orphan_under_kill` under kill) |
+| 3 | `ORPHANED` | The entry window has ended, `q` ≤ 0, and the leg rests: cancel it (escalate `orphan_under_kill` under kill), even under a hold; only a rejected *cancel* of this leg is not resent before the hold's release (owner, 19 November 2026, D-011) |
+| 4 | `HELD_BACK` | A hold-bearing failure of this leg is escalated and its hold has not been released (no automatic request until a human releases the hold or acts on the leg) |
 | 5 | `CONFIRMED` | `observed` shows the order resting at the desired level and the desired order quantity |
 | 6 | `DESIRED` | Anything else |
 
-* **Desired level:** for `stop`, `PROTECTION_DESIRED.desired_level`; for `target`, the plan's target price, never trailed.
+* **Desired level:** for `stop`, `PROTECTION_DESIRED.desired_level`; for `target`, the target the ladder was seeded with (`ladder_state.tgt`): the plan's target re-anchored to the fill (below), never trailed.
+* **Fill anchor (owner, 19 November 2026, D-012).** Once the entry window has closed and before the ladder activates, the stop and target move by the points between the plan's entry premium and the entry's average fill, and the ladder is seeded again from the fill (the original BuyerEdge's `register_filled_entry`). The stop never goes below the plan's; the plan's levels stay when the stop would not lie between 0 and the fill or the target above it.
 * **Desired order quantity:** during the entry window, the leg's current order quantity (no quantity request). After it, the leg's recorded fills plus `max(q, 0)`. This is the stop's `PROTECTION_DESIRED.desired_quantity` under this placement, re-recorded when it changes.
 * A basket leg in `DESIRED` or `ORPHANED` submits a `ModifyRequest` or a `CancelRequest` on its live order, never a placement.
 * **First desire.** At the first evaluation after the entry's outcome or resolution commits with the stop leg acknowledged or reached, protection records `PROTECTION_DESIRED` with `desired_level` = the plan's stop, `desired_quantity` = the stop's order quantity, `view_id` = the plan's `view_id`, and `ladder_state` seeded as legacy seeds `TrailPosition` at entry (`entry_premium` = the plan premium the basket was priced from, `Plan.entry_facts.entry_premium` ([SLICE-04 step 3](../plan/slices/SLICE-04-intent-to-admission.md#the-plan-it-returns)); the exact seed is characterized in TASK-S06-01).
@@ -224,7 +225,7 @@ This section is the authority for the first-release placement ([Q-013 answer](..
 | `ADM-R07` because the live order is already terminal; or completion with `target_terminal` | success | The leg is `ENDED` |
 | `PRT-R01` (kill) | kill | Not resubmitted; `orphan_under_kill` once (one reason for the leg, whichever path found it); the owner or a delegated principal may cancel it |
 | `PRT-R04` (a hold refuses automatic actions, under `safety.hold_automatic_actions: refused`) | held | Not resubmitted until the hold is released; escalated `sibling_held` once |
-| `REJECTED`; any other refusal; `UNCERTAIN` or `WORKING` beyond `reconciliation.working_escalation_secs` from its outcome's event time (the persisted-deadline rule of the [clock contract](sessions-authority-lifecycle.md#clock-contract-contractsclockpy-adaptersclockspy)) | hold-bearing | Escalated `sibling_failed` and held (below); the leg then reads `HELD_BACK` |
+| `REJECTED`; any other refusal; a due cancel or quantity request (never a trail move: corrected 19 November 2026) `UNCERTAIN` or `WORKING` beyond `reconciliation.working_escalation_secs` from its outcome's event time (the persisted-deadline rule of the [clock contract](sessions-authority-lifecycle.md#clock-contract-contractsclockpy-adaptersclockspy)) | hold-bearing | Escalated `sibling_failed` and held (below); the leg then reads `HELD_BACK` |
 
 This retries transient refusals, which legacy never did (`run_framework_live.py:4615-4616`), and holds on every lasting failure, as legacy did after the 15 October 2026 incident (`:4612-4620`).
 
