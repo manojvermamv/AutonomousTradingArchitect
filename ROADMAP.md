@@ -38,7 +38,8 @@ grant (702) issued with it. Decision D-016 is in the source repository's `docs/d
    sends under 6% of their deadlines, completions under 17% of the escalation limit; one chain stored 6.5 s after its
    minute against `market.http_timeout_ms` 5,000.
 5. Owner drills: stop OpenAlgo for 3 minutes with a position open; the emergency stop tried once.
-6. The recorded calendar checked against NSE's published holiday list.
+6. ~~The recorded calendar checked against NSE's published holiday list.~~ **Done 20 November 2026 (owner):** the
+   recorded NFO list (16 dates) matches NSE's; Tuesday 24 November is a holiday. Recheck each December.
 
 Backup integration stays deferred until the owner asks. Live mode only on the owner's word. The AI twin (SLICE-17),
 the web console and MCP are not in the first release.
