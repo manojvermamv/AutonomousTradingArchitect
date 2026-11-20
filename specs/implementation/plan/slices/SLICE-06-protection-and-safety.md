@@ -416,6 +416,8 @@ At the first evaluation that finds `q` > 0 and no desire, protection records the
 * **Ladder:** `trail.seed(entry_premium=float(entry_facts.entry_premium), target=float(target), stop=float(stop), conviction=0.0, quantity=q)`. Both states are equal.
 * **View:** the plan's `view_id`.
 
+> **Owner amendment, 20 November 2026 (D-012).** The seed is anchored to the entry's average fill: level = fill minus the plan's stop points, target = fill plus its target points, `entry_premium` = the fill; the plan's levels stay when the stop would not lie between 0 and the fill or the target above it (`anchored_levels`, `_desires`, `src/autonomous_trading/kernel/protection.py`).
+
 Two notes on the seed's values:
 
 * **`entry_premium`.** The planner stores it as `format(premium, ".2f")` (`planner.py:253`), not `repr`. It is the chain LTP, a two-place price on a 0.05 tick, so `float()` returns the same value; the host read the plan's figure too.
@@ -550,6 +552,9 @@ While an exit is open (above), it replaces the stop leg's own requests:
   * So a position that fills after the instant is still closed, as the host's every-pass check.
 * **An entry still working** (`ADMITTED`, `IN_FLIGHT`, `UNCERTAIN` or `WORKING`) is skipped, as the host skips a partly filled entry (`session_close.py:146-152`). It is escalated once (`square_off_entry_working`), and the broker's square-off is the backstop. It is evaluated again on later passes, after the entry ends.
 * **With `session_close: broker`** nothing is recorded or sent.
+
+  > **Owner amendment, 20 November 2026 (D-007, D-014).** A session with a recorded `SESSION_CLOSING` counts as past its square-off time, so the same exit starts at once (`_square_off`, `src/autonomous_trading/kernel/protection.py`); the bound policy is `square_off` since 19 November (SLICE-18 step 2).
+
 * **Under kill:** see the exit sequence.
 
 #### The structure-action map
@@ -917,6 +922,8 @@ So an entry rejected, never reached or never filled, or one whose roles are stil
   Step 2's rule 1 (re-record at `q`) is replaced under the basket by this rule. A modify's quantity is `desired_quantity` itself, the total, never `filled + desired_quantity`.
 * **The target** has no desire row. Its desired level is the plan's target, never trailed, and its desired quantity follows the same rule.
 
+> **Owner amendment, 20 November 2026 (D-012).** Once the entry window closes, a ladder not yet activated is seeded again from the average fill, and the stop and target are each modified once to fill minus / fill plus the plan's points (the target only ever to that anchor); the anchored stop is not raised back to the broker's plan-level stop, and the trail does not step before the entry completes (`_anchor_once`, `_is_anchor`, `_anchored_target`, `src/autonomous_trading/kernel/protection.py`).
+
 #### Requests
 
 **A basket leg never places.** It submits a `ModifyRequest` or a `CancelRequest` on its live order under `prot:<p>:<role>:<n>`, by step 2's one-request, retry and refusal-memory rules. Step 2's memory reads the chain above for a basket leg, in place of `_chain_commands`' `prot:` placements.
@@ -946,6 +953,8 @@ So an entry rejected, never reached or never filled, or one whose roles are stil
 * **Kill** (`PRT-R01`, or the pre-check's kill): `orphan_under_kill` once.
 * **Held** (`PRT-R04`): `sibling_held` once.
 * **Hold-bearing:** `REJECTED`, any other refusal, or `UNCERTAIN`/`WORKING` beyond the escalation time from its outcome. `sibling_failed` is escalated with its hold in one decision, and the leg reads `HELD_BACK`.
+
+> **Amendment, 20 November 2026 (`fae71f9`).** The escalation time runs only while a cancel or quantity change is due, from the position's latest `FILL` or the entry's `COMPLETED`; a trail move is never timed into `sibling_failed` (`_hold_bearing`, `_due_since`, `src/autonomous_trading/kernel/protection.py`).
 
 #### Exits under the basket
 

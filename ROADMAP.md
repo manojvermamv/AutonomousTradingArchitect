@@ -45,7 +45,9 @@ Updated after the evening deployment on 19 November 2026. The running build is
    acknowledgement 33–403 ms, acknowledgement to completion 1.4–15.0 s (source repository
    `.workspace/notes/session-20261119/closing-summary.json`, computed by `summarize.py:60-79` beside it).
 3. Owner drill: stop OpenAlgo for 3 minutes with a position open.
-4. Re-run the R1 start-anytime matrix under D-007 when the converted days are on a machine.
+4. ~~Re-run the R1 start-anytime matrix under D-007.~~ **Done 20 November 2026** on the Ubuntu server, with the
+   converted days rebuilt the same day: R1's 09:44 crash ends the day (`SESSION_CLOSING`): 4 admitted, 2 fills,
+   48 decisions refused `SES-R07`, flat (source repository `docs/migration.md`, "Start at any time").
 
 Backup integration stays deferred until the owner asks. Live mode only on the owner's word. The AI twin (SLICE-17),
 the web console and MCP are not in the first release.

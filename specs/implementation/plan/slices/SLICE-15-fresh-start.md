@@ -2,7 +2,7 @@
 
 > Owner storage update, 2026-11-17: shared main-disk assessment storage is permitted. A separate volume is optional, not a step-7 deployment prerequisite. Capacity protection and local sealed daily assessment copies are specified in the [current decision](../../../../ROADMAP.md#assessment-storage-correction--owner-decision-2026-11-17-utc). Remote backup/restore work remains deferred until requested. Historical build results below are not verification of this change.
 
-* **Status:** steps 1–6 built (2026-11-13 to 2026-11-14), each recorded "as built" below; step 7 (the new server) is under way on the owner's Ubuntu 24.04 host: first install 18 Nov 2026 (`20261118T024927Z-1a4b7b40a60d`), redeploy `20261118T115832Z-bb7baf172aaa` active since 17:29 IST; 7.2 and 7.4 done; 7.3 (backup) deferred by the owner; 7.5 partly run; 7.6 starts 19 Nov; 7.7 not started (see [the 18 November amendment](#step-7--the-new-server-outline-needs-the-owner-and-a-server)). Proposed 2026-11-13. Every step below began as an outline in the standing rules' sense: each step's exact detail (files, signatures, test tables, break checks) is written just before it is built, then reviewed by two fresh EGM reviewers, built, run twice with the suite, break-checked and recorded "as built".
+* **Status:** steps 1–6 built (2026-11-13 to 2026-11-14), each recorded "as built" below; step 7 (the new server) is under way on the owner's Ubuntu 24.04 host: first install 18 Nov 2026 (`20261118T024927Z-1a4b7b40a60d`), running release `20261119T141735Z-c4ee7cf5c588` (D-015) since 19 Nov 19:49 IST; 7.2 and 7.4 done; 7.3 (backup) deferred by the owner; 7.5 partly run; 7.6 analyze sessions with entries on 19 and 20 Nov; 7.7 not started (see [the 18 November amendment](#step-7--the-new-server-outline-needs-the-owner-and-a-server)). Proposed 2026-11-13. Every step below began as an outline in the standing rules' sense: each step's exact detail (files, signatures, test tables, break checks) is written just before it is built, then reviewed by two fresh EGM reviewers, built, run twice with the suite, break-checked and recorded "as built".
 * **Why this slice exists.** The production EC2 (`debian-oa`) was lost with all its data ([Server lost: start fresh](../../decisions/owner-answers-2026-10-27.md#server-lost-start-fresh-2026-11-13)). The owner chose a fresh start with the new system only. The steps that needed live legacy — SLICE-11 steps 9–11 (in part), SLICE-13 steps 6–7 and SLICE-14 steps 3–5 — are void or moved here. This slice replaces them with a fresh first install, rehearsed in full on the owner's Windows PC, then carried out on a new server.
 * **Precedence:** the master README, then the ROADMAP, then this package. Authorities: the [configuration spec](../../design/configuration-artifacts-release.md) (installer, release transitions), the [runtime spec](../../design/runtime-isolation-observability-deployment.md) (isolation, measurement), the [migration spec](../../design/migration-recovery-rollback-continuity.md) (recovery set, backup, restore). Every intentional difference from legacy is marked **Deviation**; every money-touching fork keeps legacy's live behaviour at 445eb116 and is marked **Fork call** ([standing rules](../../decisions/owner-answers-2026-10-27.md#standing-rules-2026-10-30)). **No score, threshold, entry gate or money value is set or changed here.**
 * **Owner answers applied:** Server lost: start fresh (2026-11-13); The new system's own root rules (2026-11-13); Unit names that clash with legacy (2026-11-13); Standing rules (2026-10-30); Margin limit when OpenAlgo reports none (2026-11-05).
@@ -132,6 +132,8 @@ No change. The four `backup.*` items stay in `REPORTED_WHILE_UNBOUND` (`install.
 The tests above pass twice with the affected files. The break checks fail their tests. No legacy-only rule is rendered for a fresh profile. "Step 1 as built" is recorded here.
 
 ### Step 1 as built
+
+> **Owner amendment, 20 November 2026 (D-015).** The fresh/legacy switch built here went with the legacy rules: `cutover`, `continue-legacy`, `cutover-root`, `--with-legacy-rules`, the shadow-copier sudoers file and `isolated_work.py --shadow` were removed in `d0133c5`, so every host renders only the fresh rules (`sudoers_files`, `deploy/install.py`).
 
 **Built** in OA_NEW `6d584c2` on `slice-08` (from `bbbd768`; local only, not pushed). Everything ran on Windows (`.venv-slice01`, Python 3.14), in temporary directories and the installer's rehearsal mode.
 
@@ -267,6 +269,8 @@ Checked in `strategies/buyer_edge.py`:
 
 **The converted copy was deleted on 2026-11-16** (owner's cleanup, after SLICE-16 and SLICE-17). The originals stay tracked in OA on `legacy`. The `replay`-marked tests skip until it is rebuilt: `scripts/convert_recorded_days.py --source <the originals> --out run/replay-data/2026-08` (the lot options as in the conversion report), then `AT_REPLAY_DATA` names it.
 
+> **Amendment, 20 November 2026.** Rebuilt on the Ubuntu server with the same command and lot options (`~/at-test/replay-data/2026-08`, 33 MB, 9 s; counts identical to the table below; source: legacy's `run/market-data` from `OA` on `legacy`, read only). `AT_REPLAY_DATA` names it there; the PC has no copy.
+
 | Part | Where |
 |---|---|
 | The converter, as the decisions above, standard library only, importing no adapter | `scripts/convert_recorded_days.py` (new) |
@@ -345,6 +349,8 @@ out-of-period lot never overrides a same-expiry one. Simulation data only: produ
 
 ### Step 4 as built
 
+> **Owner amendment, 20 November 2026 (D-015).** `ShadowDriver` (`src/autonomous_trading/operations/shadow_run.py@3f2b09b`) and `compose_shadow` were removed in `d0133c5`; the driver (now `ReplayDriver`) and the owner's acts live in `tests/replay/replay_harness.py`, and `read_market_file` moved from `adapters/compatibility.py` into `src/autonomous_trading/adapters/legacy_market.py`.
+
 **Built** in OA_NEW `3db6e8d` on `slice-08` (after `165788a`; local only, not pushed).
 
 | Part | Where |
@@ -370,6 +376,8 @@ but the fake's port; no `ADM-R09 observation_field_missing`; no command after th
 | 2026-08-05 | 340 | 39 | 31 PRT-R10, 4 ADM-R09 `amount` | 16 | flat | −1,488.50 |
 | 2026-08-06 | 340 | 29 | 45 PRT-R10 | 10 | flat | −1,140.75 |
 | 2026-08-07 | 340 | 39 | 43 PRT-R10 | 18 | flat | −1,472.25 |
+
+> **Amendment, 20 November 2026.** Re-measured on the Ubuntu server on today's code (`1465c4b`, after the 19 November trading changes D-011 to D-014), counted from the kept ledgers; every day reconciled with no difference and ended flat, all refusals `PRT-R10`: 3 Aug 42 admitted, 78 refused, 18 fills, −1,680.25; 4 Aug 24, 80, 12, −5,063.50; 5 Aug 49, 33, 20, −773.50; 6 Aug 26, 45, 10, −1,140.75; 7 Aug 22, 47, 10, −2,002.00 (about 3 minutes a day). The table above is the 13 November build's; `docs/migration.md` carries the current one.
 
 BANKNIFTY: 0 decisions on all five days, by construction, not a replay defect: BuyerEdge is bound to NIFTY only, in
 the port's descriptor (`strategies/buyer_edge.py:2021` `"underlying": "NIFTY"`; `create` at `:2753` builds the
@@ -453,6 +461,8 @@ Day 1 equals its own-ledger run (38 admitted, 16 fills). Then 3 admitted on 4 Au
 refused `ADM-R09 amount`. **Owner finding (step 4's, now across days):** under `unknown_domain_settlement: forbid` the 9
 `HELD` reservations (₹63,228.75 of ≈₹64,800 cash) survive the session boundary, so one day's held entries block every
 later day. Not tuned; it is the owner's call whether that is intended for OpenAlgo accounts.
+
+> **Amendment, 20 November 2026.** Re-run on the Ubuntu server under `accounting_only` (Q-006, 14 Nov) on today's code (`1465c4b`): reconciled with no difference; 1,700 decisions, 163 admitted, 283 refused (all `PRT-R10`), 70 fills, 0 reservations held, 5 sessions opened and closed, flat, 4 nights skipped, 29,105 steps; realised −10,660.00 (converted data, not a performance figure); 54 minutes. Every day equals its own-ledger run (step 4's amendment): nothing carries over the session boundary. Report `~/at-test/replay-data/reports/five-days-one-ledger.json` on the server.
 
 **The rehearsal at real size** (Windows development PC, 4 CPUs; `step5.json`):
 
@@ -579,6 +589,8 @@ Every part is asked first. Order:
 > * **7.6** Begins 19 Nov. The 09:00 strategy start on 18 Nov failed on the `evidence/` folder's permission, fixed in OA_NEW `452790c`; the first 09:00 start after the fix is 19 Nov.
 > * **7.7** Not started.
 
+> **Owner amendment, 20 November 2026 (D-014).** `protection.session_close` is bound `square_off` since 19 November (SLICE-18 step 2's amendment); positions opened under `broker` keep it.
+
 ## Completion conditions
 
 * Steps 1–6 are built, tested twice and break-checked, each recorded "as built" here.
@@ -617,7 +629,7 @@ A fresh reviewer read SLICE-08…15 against OA_NEW `f202caa`. Every step is buil
 * **Supervisor snapshot cost** (step 6 finding): one FILL lookup per open command; past the 2,000 ms budget at 800 open entries, inside it at 400. Live accounts hold a few. Framework item, not a present limit.
 * **SLICE-14 "not built, carried" lists** (SLICE-14 lines 349-357, 480): void with the fresh start — key probe, shadow copier, legacy polkit, `REFUSAL_SIGNATURES`. Still live, carried to step 7.6: the `ops09-record/1` format for PRF-OPS-09, `verify_recovery.py` calling `projection_heads` (it does not today), and the spec-owner integration edits.
 * **Stale text** (low): `config/live.example.yaml:35,47`, SLICE-13 line 1244, SLICE-14 lines 513-516 and SLICE-11 lines 2762-2765 still name SLICE-11 steps 9/10, the copier's EC2 dry start and cutover steps 4/5; read them as superseded by this slice. The "every step below is an outline" status lines of SLICE-09…15 predate the as-built notes.
-* **Owner finding, not tuned** (step 5): `HELD` reservations under `forbid` carry across days; by the end of day 2 nine hold ₹63,228.75 of about ₹64,800 cash, and from day 3 every entry is refused for funds (225 refusals). **Closed 2026-11-14:** the owner chose `accounting_only` ([Q-006 revisited](../../decisions/owner-answers-2026-10-27.md#q-006-revisited-release-held-money-for-bookkeeping-2026-11-14)). The five-day rerun reconciled with no difference: 175 admitted, 76 fills, 0 `ADM-R09` refusals, 0 reservations held at the end, flat (realised −9,152.00 on converted data, not a performance figure); 2 h 19 min.
+* **Owner finding, not tuned** (step 5): `HELD` reservations under `forbid` carry across days; by the end of day 2 nine hold ₹63,228.75 of about ₹64,800 cash, and from day 3 every entry is refused for funds (225 refusals). **Closed 2026-11-14:** the owner chose `accounting_only` ([Q-006 revisited](../../decisions/owner-answers-2026-10-27.md#q-006-revisited-release-held-money-for-bookkeeping-2026-11-14)). The five-day rerun reconciled with no difference: 175 admitted, 76 fills, 0 `ADM-R09` refusals, 0 reservations held at the end, flat (realised −9,152.00 on converted data, not a performance figure); 2 h 19 min. Re-run 20 Nov on today's code: 163 admitted, 70 fills, flat, realised −10,660.00 (step 5's amendment).
 
 ## Open questions for the owner
 

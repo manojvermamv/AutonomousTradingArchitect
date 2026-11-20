@@ -97,6 +97,8 @@ Marks: **C** correct already. **D** defect. **M=** money behaviour that already 
 | 22 | `deploy/systemd/at-strategy-host.service:1-3`, `:20` | No calendar `ExecCondition` and no session preflight: "SLICE-09's" to decide, never decided. SLICE-15's waiting row names a check that does not exist. | M? F-4 (`deploy/systemd/at-strategy.service:46-50`) |
 | 23 | `deploy/systemd/at-strategy-host.timer:7-8` | Weekdays at the session-start time, `Persistent=false` | M= `deploy/systemd/at-strategy.timer:16-19` |
 
+> **Owner amendment, 20 November 2026 (D-009).** Row 23's timer is now the template `deploy/systemd/at-strategy-host@.timer` (SLICE-18 step 6), which also fires 1 s after the timer starts (`OnActiveSec=1s`), so a late activation or boot runs the strategy that day.
+
 ### Cognition
 
 | # | Where | What it assumes | Mark |
@@ -138,6 +140,8 @@ Marks: **C** correct already. **D** defect. **M=** money behaviour that already 
 | 43 | `tests/replay/replay_harness.py:237-249`, `:289-299` | Night skip between replayed days | C (built) |
 | 44 | `tests/replay/replay_harness.py:317-318`, `:332` | `start=(h, m)` exists, but `ShadowDriver.step` commits every batch already due at the first step (`operations/shadow_run.py:279-282`). A late start therefore replays as "the market host ran all morning". It cannot model a late market host or a restart. | D (harness) |
 | 45 | `tests/replay/replay_harness.py:280-286`; `bootstrap.py:2389` | A fixed 09:15–15:30 fact for the converted days. The receipt's `routine_advance` is `never`, so no routine restart can be exercised. | C for the days; D for restarts (fixed in step 4) |
+
+> **Owner amendment, 20 November 2026 (D-015).** `ShadowDriver` (`src/autonomous_trading/operations/shadow_run.py@3f2b09b`) was removed in `d0133c5`; rows 44 and 45 and step 4's R3 relay now read `ReplayDriver` and `owner_act` in `tests/replay/replay_harness.py`.
 
 **Counts:** 45 rows. 22 correct already (C). 9 defects (D). 14 money behaviours: 8 already match legacy (M=), and 6 rows are fork candidates (M?), which make the five fork calls F-1, F-2, F-3, F-4 and F-6. F-5 is listed for information.
 
@@ -316,6 +320,8 @@ Marks: **C** correct already. **D** defect. **M=** money behaviour that already 
 * **Harness fixes found on the way.** A restarted `MarketLoop` must be given the calendar itself: `build` gives the first loop the kernel's market port, which a first start never reads, but `MarketLoop._open` does on a restart. A kernel restart must leave the earlier lease as a real restart finds it: still held after a crash (expired by the lease wait), released clean after a stop. Without that the restarted kernel stays in recovery and only the broker's 15:15 square-off closes the position, leaving the ledger open. That is correct kernel behaviour (Q-009 check 6), not a defect.
 * **Tests.** Run 1 (synthetic and parts): 10 passed. Run 2 (all of `tests/replay` without `AT_REPLAY_DATA`, with SLICE-15's replay tests, and the parts file): 21 passed, 7 skipped. The converted matrix (`-m replay`, 2026-08-07): 1 passed in 18 min 49 s, every run reconciled (table in OA_NEW `docs/migration.md`).
 * **Results.** A0 = SLICE-15's 2026-08-07 (340 decisions, 39 admitted, 18 fills, flat). R1 advanced `routine_standing` and ended as A0 (18 fills, the same realised); R5 ended as A0; R4's outage changed the bars and the trades (10 fills). A late start's first decided bar closed at or after its start. A5 (15:03) decided nothing: fewer than 20 bars were left.
+
+  > **Amendment, 20 November 2026 (D-007, D-011 to D-014; re-measured).** Re-run on the Ubuntu server at code `1465c4b` with the converted days rebuilt: every run reconciled and ended flat (12 min 21 s). A0 now 340 decisions, 22 admitted, 10 fills (D-012 anchors and D-013 prices change the trades); **R1** under D-007: the 09:44 crash ends the day, 4 admitted, 2 fills, 48 refused `SES-R07`; R5 ends as A0; A5 starts 11:40 (A0's last entry 11:39 + 1 min) and trades. Table: source repository `docs/migration.md`.
 * **Breaks.** `market_from` ignored (late start failed); `process_stopped` not written (R4 failed); a clean stop releasing `abnormal` (clean-stop run failed). The routine advance under `never` with check 1 removed **survived**: the `never` receipt's limit 0 (check 8) refuses it too. That is defence in depth, recorded.
 * **Deviations.** R2 is not rebuilt in process (see above; `test_crash_boundaries.py` covers it). The 15:12/15:14 runs became A5 (reviewer fix 1). A7 (kernel and host late, market from 09:15) is not run: this slice's audit row 15 and `test_strategy_invocation.py::test_a_catch_up_is_planned_then_refused_stale_at_b1` already prove the morning's ENTERs are refused `ADM-R05`. The operator and a model proposal in flight have no separate test (see above).
 * **Fork calls.** None. No money or BuyerEdge behaviour differs from legacy. The restarted BuyerEdge engine starts empty (F-5) and changed nothing that traded on this day.

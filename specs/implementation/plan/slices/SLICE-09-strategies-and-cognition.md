@@ -25,6 +25,9 @@
   4. the chain poll of one exact minute;
   5. the Greeks records of the day through the cutoff.
   Step 2 needs 1 and 2 (settled before step 2 is built); step 3 needs 3–5.
+
+  > **Owner amendment, 20 November 2026 (D-013).** Item 2 now serves the decision only: the kernel's planner and admission read the newest chain poll visible at the cutoff (SLICE-08 step 5's amendment), not the trigger minute's poll.
+
 * **Carried into the intent spec** (integration): the kernel's `record_decision` route and `SessionStats.setup_fresh` derived from it (the spec's [handoff](../../design/strategies-and-cognition.md#handoff-to-the-kernel-strategiesworkerpy)). TASK-S09-09 builds them in step 2 once the intent spec carries the text.
 * **SLICE-10:** the authenticated channel the strategy host and cognition use to reach the kernel (this slice uses in-process ports and a test principal); the human route that applies exit advice.
 * **SLICE-11:** the strategy-host and cognition services, including a strategy-host unit (proposed tree delta **T-59**, `deploy/systemd/at-strategy-host.service`, renamed from the legacy unit's name `at-strategy.service` by the owner on 13 November 2026); D09's OS enforcement and its proof (`tests/isolation/test_resource_storage_scope.py`); measuring `strategies.host.seal_wait_ms` and `strategies.host.review_retry_ms` (TASK-S11-07).

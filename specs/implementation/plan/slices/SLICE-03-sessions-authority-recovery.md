@@ -88,6 +88,8 @@ Authority(writer, clock, *, owner, stage: Callable[[], str], lease_hook=None)
 * **`Sessions.evaluate(stage)`:** nothing in `INSPECTING` or `STOPPED`. Closes every `OPEN` session whose `close_time ≤ effective_now` (`calendar_close` in `OPERATING`, `closed_in_recovery` in `RECOVERY_WRITING`; `closed_at` = the recorded close). Opens only in `OPERATING` with a calendar, over **every scope ever bound** (so a scope whose binding was revoked records `SES-R08` once): skip an existing session; else `validate_binding` (`SES-R08`), calendar (`holiday`, `calendar_unavailable`), the open window on wall now, the continuity hook when the binding changed; else `SESSION_OPENED`. Each `SESSION_OPEN_FAILED` once per scope, date and reason.
 * **`entry_session_check(writer, clock, session_id, candidate_id, revocation_effect)`:** `SES-R07` unless the row is `OPEN` **and** its `close_time` is after `effective_now` (an entry past the close is refused even before the tick records it); `SES-R07` when the binding is revoked under `stop_entries`; `ADM-R14` for an unbound candidate.
 
+> **Owner amendment, 20 November 2026 (D-007).** A session opened by an earlier kernel process, open at a clean kernel stop, or whose broker reads failed past `reconciliation.broker_unreachable_close_secs` records `SESSION_CLOSING` once and stays `OPEN` to its close, and `entry_session_check` refuses it `SES-R07` (`begin_closing`, `_early_closes`, `src/autonomous_trading/kernel/lifecycle.py`). CUJ-SES-1 (`test_restart_mid_session` in `tests/recovery/test_session_transitions.py`) now asserts that the restart ends the day.
+
 ## `kernel/recovery.py`
 
 ```text
