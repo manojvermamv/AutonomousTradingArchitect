@@ -33,8 +33,10 @@ grant (702) issued with it. Decision D-016 is in the source repository's `docs/d
 1. Release `8c7d99e` (owner's word), before Monday's open.
 2. Verify the first market-session kernel square-off when a position crosses 15:13 IST (D-014).
 3. Monday's open: the first index tick within seconds of 09:15 (the tick-gap fix live).
-4. Review OPS09 formally and measure queue and reconciliation timings before updating the provisional runtime
-   settings (an owner decision); dispatch intervals measured 19 November (below).
+4. Review OPS09 formally and update the provisional runtime settings (an owner decision). **Measured 19–20 November**
+   with the source repository's `scripts/measure_session.py` (`docs/measurements/session-timings-2026-11-19-20.md`):
+   sends under 6% of their deadlines, completions under 17% of the escalation limit; one chain stored 6.5 s after its
+   minute against `market.http_timeout_ms` 5,000.
 5. Owner drills: stop OpenAlgo for 3 minutes with a position open; the emergency stop tried once.
 6. The recorded calendar checked against NSE's published holiday list.
 
