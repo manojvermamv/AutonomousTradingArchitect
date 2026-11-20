@@ -4,7 +4,7 @@
   D-011 to D-014 (leftover protective orders cancelled under a hold, stop and target anchored to the fill, entries
   priced from the newest chain, the kernel's own square-off at 15:13) are built and activated. Release
   `20261120T105629Z-8d005bda889e` (build `7d97c03`, the tick-gap fix) is active since 20 Nov 16:27 IST. The kernel is operating on the same ledger.
-  D-015 removed legacy history import and cutover. See [current delivery status](../../ROADMAP.md#current-delivery-status--2026-11-19-utc).
+  D-015 removed legacy history import and cutover. See [current delivery status](../../ROADMAP.md#current-delivery-status--2026-11-20-utc).
 * **Status (2026-11-18 UTC, history):** the first release is installed on the Ubuntu host in analyze mode; the early close
   (D-007), activation without the market-hours check (D-008), late starts (D-009) and the owner's read access (D-010)
   are built and activated (18 November, 17:29 IST); BuyerEdge holds an entry grant for 19 November. Release `20261118T115832Z-bb7baf172aaa` is active; kernel `OPERATING`. See [delivery status](../../ROADMAP.md#delivery-status--2026-11-18-utc-history-superseded-by-19-november-above).
@@ -185,6 +185,6 @@ Run on 2026-10-26; the numbers and the checker's full text are in [consistency/c
 | J6 SLICE-01 stage 9 | pass: round 2 found 0 Blockers |
 | J7 scope | pass: only `specs/implementation/` changed |
 
-Passing the checker shows only that the documents agree with each other and with the master. It does not show the design is correct. No proof is *executable* or *passing* yet (26 October). Proofs are now executable and passing in `agentic-desk`; see [ROADMAP current delivery status](../../ROADMAP.md#current-delivery-status--2026-11-19-utc).
+Passing the checker shows only that the documents agree with each other and with the master. It does not show the design is correct. No proof is *executable* or *passing* yet (26 October). Proofs are now executable and passing in `agentic-desk`; see [ROADMAP current delivery status](../../ROADMAP.md#current-delivery-status--2026-11-20-utc).
 
 **Owner decisions:** every question ([Q-001…Q-016](decisions/owner-questions.md)) and master correction ([X-001…X-007](consistency/master-contradictions.md)) was answered on 2026-10-27; the [answers](decisions/owner-answers-2026-10-27.md) give each config setting and its first-release value, and the specs carry them. Every limit and switch stays a configurable refusing setting. SLICE-01 depends on none of them.

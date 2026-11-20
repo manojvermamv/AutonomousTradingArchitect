@@ -725,6 +725,8 @@ Commit `e27a436` on `slice-06`, on top of step 1's `03bbbde`. It changes 15 path
 | Pass no delta to `premium_exit` | `test_a_deep_otm_tick_starts_the_exit_and_beats_the_target` |
 | Run protection before `OPERATING` | `test_protection_never_runs_before_operating` |
 
+> **Amendment, 20 November 2026 (a correction, not a policy change).** The deep-OTM tick exit compares the size of the tick's delta, `abs(delta)`, with `delta_exit_threshold`, as the original strategy's delta cache did (`BuyerEdgeStrategy.py:6465` in legacy). OpenAlgo signs a put's delta negative, so the signed comparison sent every PE position out at its first tick (20 Nov analyze session: four of five trades). OA_NEW `8c7d99e` (`_tick_exit`, `src/autonomous_trading/kernel/protection.py`; tests `test_protection_loop.py` put cases); threshold unchanged.
+
 ## Step 3 — basket placement
 
 The authorities are:

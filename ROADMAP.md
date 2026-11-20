@@ -10,7 +10,39 @@ A local daily checksummed read-only assessment archive follows confirmed recorde
 
 Implemented, committed and pushed as source `b88014e` (`agentic-desk`), with this record as specification `476ae06`. The server's runs: 48 focused checks and 7 staging checks passed, independent review accepted corrections R1–R4, and the installed-wheel check outside the checkout passed (1 test). Because the focused run predated the review fixes, every test file the commit touched was rerun against the committed code before the push: 8 files, 445 passed, 0 failed (server `.workspace/logs/b88014e-verify.log`). Evidence details are in the server workspace result `.workspace/notes/assessment-storage-result.md`; no host activation or live acceptance is implied. This section supersedes the old separate-disk blocker in delivery summaries and SLICE-11 as-built filesystem assertions. Historical records remain dated.
 
-## Current delivery status — 2026-11-19 UTC
+## Current delivery status — 2026-11-20 UTC
+
+Updated the evening of 20 November 2026 (IST). Running: release `20261120T105629Z-8d005bda889e` (build `7d97c03`,
+the 09:15 tick-gap fix), converged 16:27 IST, kernel operating; Monday 23 November's binding (ledger 700) and entry
+grant (702) issued with it. Decision D-016 is in the source repository's `docs/decisions.md`.
+
+**Done (20 November 2026):**
+
+- **Second analyze-mode day.** Five BuyerEdge trades (one 25500 CE, four 25400 PE, 65 each): +₹702.00 before costs,
+  flat, every fill matched (source repository `.workspace/reports/2026-11-20-owner-report.md`).
+- **D-016 (owner):** an analyze-mode session counts as a live-broker check; the chain signal → order → protection →
+  exit → reconciliation is proven by the 19 and 20 November sessions.
+- **The 09:15 tick gap** fixed (`1465c4b`) and released (above).
+- **The deep-OTM exit** compared a put's signed delta with +0.10, so every PE position left at its first tick; fixed to
+  `abs(delta)` as the original strategy (`8c7d99e`, SLICE-06 step 2's amendment). **Not yet released.**
+- **Replay re-measured** on today's code (SLICE-15/16/17 amendments); R1 under D-007 done.
+- **Codex's 17 Markdown findings** fixed; CI green with Gitleaks.
+
+**Still open, in order:**
+
+1. Release `8c7d99e` (owner's word), before Monday's open.
+2. Verify the first market-session kernel square-off when a position crosses 15:13 IST (D-014).
+3. Monday's open: the first index tick within seconds of 09:15 (the tick-gap fix live).
+4. Review OPS09 formally and measure queue and reconciliation timings before updating the provisional runtime
+   settings (an owner decision); dispatch intervals measured 19 November (below).
+5. Owner drills: stop OpenAlgo for 3 minutes with a position open; the emergency stop tried once.
+6. The recorded calendar checked against NSE's published holiday list.
+
+Backup integration stays deferred until the owner asks. Live mode only on the owner's word. The AI twin (SLICE-17),
+the web console and MCP are not in the first release.
+
+<a id="current-delivery-status--2026-11-19-utc"></a>
+## Delivery status — 2026-11-19 UTC (history; superseded by 20 November above)
 
 Updated after the evening deployment on 19 November 2026. The running build is
 `AutonomousTrading/agentic-desk` at `b90fdffe`. Decisions D-011 through D-015 are in the source repository's
@@ -28,8 +60,7 @@ Updated after the evening deployment on 19 November 2026. The running build is
   15:15 MIS square-off, whose order was foreign to the ledger and left a phantom position.
 - **Two fresh ledgers on the owner's word** (13:28 IST, and 15:49 IST to clear the phantom and the recovery hold it
   caused); the old ledgers are archived, not deleted.
-- **Running:** release `20261120T105629Z-8d005bda889e` (build `7d97c03`, the 09:15 tick-gap fix) since 20 Nov 16:27 IST; before it
-  `20261119T141735Z-c4ee7cf5c588` from 19 Nov 19:49 IST. The kernel is operating; 23 Nov binding and grant issued.
+- **Running:** release `20261119T141735Z-c4ee7cf5c588` converged at 19:49 IST. The kernel is operating.
   The ledger and OpenAlgo analyze books were flat, with the original 20 November binding (19) and entry grant (56).
 - **D-015:** deployed the removal of the legacy history import, cutover, shadow and legacy order projection.
   The prior D-014 release remains available for restore. The unfinished 17 November release was retained.
@@ -39,7 +70,7 @@ Updated after the evening deployment on 19 November 2026. The running build is
 
 **Still open, in order:**
 
-1. Verify the first market-session kernel square-off from ledger and broker evidence when a position crosses 15:13 IST (D-014).
+1. ~~Verify the first market-session kernel square-off~~ carried to 20 November (flat before 15:13 that day).
 2. Review OPS09 formally and measure queue and reconciliation timings before updating the provisional runtime
    settings (an owner decision). Measured so far, 19 November, from the ledger (20 command attempts, one ledger
    segment; ledger intervals, not pure broker latency): admission to dispatch claim 3–49 ms, claim to recorded
@@ -149,7 +180,7 @@ The supplied React/TypeScript and HTML files are a 24 October audit presentation
 
 **Contents:** [At a glance](#at-a-glance) · [Accepted decisions and delivery order](#accepted-decisions-and-delivery-order) · [Remaining target audit order](#remaining-target-audit-order) · [Milestones](#milestones) · [Open work and evidence](#open-work-and-evidence) · [Audit history](#audit-history) · [Direction changes](#direction-changes) · [How this roadmap evolves](#how-this-roadmap-evolves) · [Working on the roadmap](#working-on-the-roadmap)
 
-**Design status — 26 October 2026 UTC (history; see [Current delivery status](#current-delivery-status--2026-11-19-utc) above):** ✅ A01–A10 and the combined review are complete for their accepted design scope; ✅ README and ROADMAP updates are recorded. Implementation and production proof remain pending. A03 includes the source-grounded kernel-failure re-audit and owner-selected corrections; A04 recovery/release contracts are recorded; A05 extension contracts are recorded; A06 security/operator contracts are recorded. The subsequent combined A01–A06 review accepted Combined-F4 authorization recovery continuity and Combined-F5 scoped strategy-state ordering; documentation is updated and proof remains pending. A07-F1–F4 are accepted and recorded; no A07-F5 was proposed. Revised A08-F1–F5 are accepted and recorded. A09-F1–F4 are accepted and recorded; capacity proof remains pending. A10-F1–F3 and Combined-F6 are accepted and recorded. The scoped policy-baseline direction is accepted; its inventory accepted 2026-10-27 ([`specs/implementation/02-policy-inventory.md`](specs/implementation/02-policy-inventory.md), X-006). Corrected ATA-05/01/04/03/06 refinements are now accepted, with implementation proof pending. Current continuation is scoped policy reconciliation and concrete first-release specification/planning; implementation and production actions still need their own scope. This update preserves the historical rows below.
+**Design status — 26 October 2026 UTC (history; see [Current delivery status](#current-delivery-status--2026-11-20-utc) above):** ✅ A01–A10 and the combined review are complete for their accepted design scope; ✅ README and ROADMAP updates are recorded. Implementation and production proof remain pending. A03 includes the source-grounded kernel-failure re-audit and owner-selected corrections; A04 recovery/release contracts are recorded; A05 extension contracts are recorded; A06 security/operator contracts are recorded. The subsequent combined A01–A06 review accepted Combined-F4 authorization recovery continuity and Combined-F5 scoped strategy-state ordering; documentation is updated and proof remains pending. A07-F1–F4 are accepted and recorded; no A07-F5 was proposed. Revised A08-F1–F5 are accepted and recorded. A09-F1–F4 are accepted and recorded; capacity proof remains pending. A10-F1–F3 and Combined-F6 are accepted and recorded. The scoped policy-baseline direction is accepted; its inventory accepted 2026-10-27 ([`specs/implementation/02-policy-inventory.md`](specs/implementation/02-policy-inventory.md), X-006). Corrected ATA-05/01/04/03/06 refinements are now accepted, with implementation proof pending. Current continuation is scoped policy reconciliation and concrete first-release specification/planning; implementation and production actions still need their own scope. This update preserves the historical rows below.
 
 ## At a glance
 
