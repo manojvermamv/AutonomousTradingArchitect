@@ -73,6 +73,8 @@ A NIFTY tick stamped 10:41:58 exchange time arrives at 10:42:08.5, 1.5 s after t
 
 A strategy resolves a view at 10:42:07.4 and sends an intent naming it. Admission, 300 ms later, opens the same view by its name: the market process has published 40 more records since, but the view names its store and its publication sequence, and its reads are bounded by them, so the spot, the chain and its `as_of` are the strategy's. Admission still measures their ages against its own clock (B1), as today.
 
+> **Owner amendment, 19 November 2026 (D-013, source repository `docs/decisions.md`).** Admission and the planner price an entry from the **newest** chain the same view can see (same store, publication head and cutoff), not necessarily the trigger minute's exact chain that scoring used; a newer poll can change the entry's price or strike. Scoring keeps its exact-minute join ([strategies-and-cognition](strategies-and-cognition.md), "One view per trigger"; code `market/view.py` `pick(newest=True)`).
+
 ### CUJ-MKT-3: The market process restarts mid-session
 
 The market process stops at 11:02 and restarts at 11:20. The store's coverage shows the chain and spot streams interrupted from the last committed record to the first new one. Views resolved after 11:20 read the new records; their quality reports the gap to any consumer whose lookback covers it. Protection's gap sources see the missing closes. Nothing is backfilled from `history` for today (non-goals).

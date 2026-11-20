@@ -39,7 +39,11 @@ Updated after the evening deployment on 19 November 2026. The running build is
 **Still open, in order:**
 
 1. Verify the first market-session kernel square-off from ledger and broker evidence when a position crosses 15:13 IST (D-014).
-2. Review OPS09 and measure dispatch, queue and reconciliation timings from sessions with entries before updating the provisional runtime settings.
+2. Review OPS09 formally and measure queue and reconciliation timings before updating the provisional runtime
+   settings (an owner decision). Measured so far, 19 November, from the ledger (20 command attempts, one ledger
+   segment; ledger intervals, not pure broker latency): admission to dispatch claim 3–49 ms, claim to recorded
+   acknowledgement 33–403 ms, acknowledgement to completion 1.4–15.0 s (source repository
+   `.workspace/notes/session-20261119/closing-summary.json`, computed by `summarize.py:60-79` beside it).
 3. Owner drill: stop OpenAlgo for 3 minutes with a position open.
 4. Re-run the R1 start-anytime matrix under D-007 when the converted days are on a machine.
 
@@ -442,7 +446,7 @@ The attached dashboard reports 12 issues across eight modules and proposes eight
 
 ### ✅ Implement accepted reliability contracts in isolated target slices
 
-**Status 2026-11-19:** built in `agentic-desk` and running on the Ubuntu host (analyze mode). The first entries, protection and exits ran on 19 November; dispatch timings are not yet recorded.
+**Status 2026-11-19:** built in `agentic-desk` and running on the Ubuntu host (analyze mode). The first entries, protection and exits ran on 19 November; dispatch intervals were measured from the ledger (see Still open, item 2).
 
 Use F1–F5 as evidence for D01–D06, not as instructions to copy the source implementation or patch the read-only source first. With D11–D12 ownership established and applicable policies reconciled, implement D13–D16 together with the existing reliability work and accepted ATA session/protection/conflict/domain contracts. Establish explicit caller-visible outcomes when an external order is accepted but local persistence fails (F1), then settle cancel/modify intents for every submitted, rejected, ambiguous, or never-reached result (F2). Verify authority indexes against event-derived state (F3), establish installable resources/entrypoints and versioned deployment as well as package completeness (F4/D05), and share one typed environment contract across both research profiles and their renderer (F5/D06).
 
@@ -452,7 +456,7 @@ Do not add a new idempotency system or retry protocol based only on the dashboar
 
 ### ✅ Preserve behavior while producing an installable target
 
-**Status 2026-11-19:** built in `agentic-desk` and running on the Ubuntu host (analyze mode). The first entries, protection and exits ran on 19 November; dispatch timings are not yet recorded. The cutover path in this text is superseded: legacy was lost on 13 November; fresh start (SLICE-15). D-015 (19 November) removed the history import and cutover in build `b90fdffe`.
+**Status 2026-11-19:** built in `agentic-desk` and running on the Ubuntu host (analyze mode). The first entries, protection and exits ran on 19 November; dispatch intervals were measured from the ledger (see Still open, item 2). The cutover path in this text is superseded: legacy was lost on 13 November; fresh start (SLICE-15). D-015 (19 November) removed the history import and cutover in build `b90fdffe`.
 
 Define target ownership and pure/effect boundaries first, then inventory current contracts, schemas, entrypoints and evidence to decide what fits. Reuse existing Tier-1 ledger, planner, gateway, replay, cognition, research, and operational code where target requirements and named compatibility proofs support it; source parity alone is insufficient. Keep compatibility readers during migration. Build a disarmed vertical slice and compare exact plans, refusals, reservations, lifecycle transitions, identities, and evidence before moving any financial authority.
 

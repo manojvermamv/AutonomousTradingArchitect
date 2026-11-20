@@ -369,7 +369,7 @@ The installer (`deploy/install.py`, [runtime spec](runtime-isolation-observabili
 
 ## Risks and limits
 
-* **The activation boundary keeps every release change flat** (and, since D-008, after the close only by the owner's safeguard). A defect found during the session is fixed in the next post-close release; the broker-held stop and the running kernel stand meanwhile.
+* **The activation boundary keeps every release change flat** (and, since D-008, after the close only by the owner's safeguard). A defect found during the session is normally fixed in the next post-close release, the broker-held stop and the running kernel standing meanwhile; the owner may authorize an activation during the session (D-008), which restarts the kernel and so ends that day's trading (D-007) unless a fresh ledger follows (19 November: the false-hold fix, activated at 12:05 IST).
 * **`RECORD` verification proves integrity of what is installed,** not that the wheel was built from reviewed source; provenance (Git SHA, builder) is recorded but not verified.
 * **Same-host activation only.** The `current` link is exclusive on one host; moving a host is the migration spec's fenced handoff, never this flow (A04-F2).
 * **The licence gate blocks production staging** until the owner chooses one, by the standing rules.
