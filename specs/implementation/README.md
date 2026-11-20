@@ -121,7 +121,7 @@ This package labels its own content **proposed**. A master decision it cites is 
 |---|---|---|
 | ATA | The AutonomousTradingArchitect repository (paths) **or** the ATA-01…09 audit findings (IDs with a number) | — |
 | AutonomousTrading | The **target** application | The legacy checkout, which is "AT" or "legacy" (`OA@445eb116`) |
-| Tier-1 | The legacy `src/tier1` package, or the master's authority tier in diagrams | The target module name (`kernel.*`) |
+| Tier-1 | The legacy `src/tier1@445eb116` package, or the master's authority tier in diagrams | The target module name (`kernel.*`) |
 | Obligation | A financial obligation (reservation or exposure, D16; continuity, Combined-F6) | A proof obligation, which is called a "proof" here |
 | Session | A **financial session** (ATA-05): scoped, recorded and validated by the kernel | A process lifetime or a calendar day by itself |
 | Owner | The human **Owner** (decisions); "specified in" (the spec that details a module); "owning module" (code) | — |

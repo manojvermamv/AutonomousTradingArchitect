@@ -228,7 +228,7 @@ Times are exchange-domain timestamps in the calendar's timezone (IST for NSE), c
 | `SESSION_OPEN_FAILED` | `kernel.lifecycle` | `scope`, `trading_date`, `reason` (`calendar_unavailable`, `holiday`, `SES-R08`, `continuity`) | none |
 | `RECOVERY_STAGE` | `kernel.recovery` | `from`, `to` (`OPERATING`, or `null` for a declined routine advance; `INSPECTING → RECOVERY_WRITING` is recorded by `EPOCH_ACTIVATED`), `principal`, `basis` (`human` or `routine_standing`), `release_binding_digest` (the `RELEASE_BOUND` receipt digest for a routine advance; `null` otherwise), `declined` (the failed routine check numbers, for `to` `null`), `unverified` (items for the human who advances), `leases` (accounts whose send lease was taken) | none |
 | `RECOVERY_GAP` | `kernel.recovery`, from the restore path | `last_restored_sequence`, `lost_from`, `lost_to` (legacy `OA/src/tier1/events.py:86`) | none |
-| `OLD_HOST_FENCED` | `kernel.recovery`, through `recovery.record_fence` by a human principal holding `recovery_advance`, in `RECOVERY_WRITING` | the `FenceEvidence` fields ([operator entry points](#operator-entry-points-kernelrecoverypy); legacy `recovery.py:808-851`) | none |
+| `OLD_HOST_FENCED` | `kernel.recovery`, through `recovery.record_fence` by a human principal holding `recovery_advance`, in `RECOVERY_WRITING` | the `FenceEvidence` fields ([operator entry points](#operator-entry-points-kernelrecoverypy); legacy `recovery.py@445eb116:808-851`) | none |
 | `CLOCK_QUALITY` | `kernel.recovery` (clock adapter) | `kind` (`backward_jump`, `forward_jump`), `wall_delta_ms`, `monotonic_delta_ms`, `detected_at` | none |
 
 `RECOVERY_ADVANCED` is the `RECOVERY_STAGE` record whose `to` is `OPERATING`.

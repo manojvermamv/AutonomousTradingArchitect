@@ -341,7 +341,7 @@ All citations are at 445eb116. The live host is `scripts/run_framework_live.py`,
   * Before every cycle, a higher broker stop recorded by the gateway replaces `sl` (`:5468-5470`). After a successful move, that is the tick-rounded level.
 * **Restart.** The host rebuilds a cold ladder from the higher of the plan stop and the recorded `trail_stop`, and loses the peaks (`:5188-5196`, `:5457-5463`).
 * **No tick exits run live.** Nothing in the host calls `premium_exit`, `check_exit` or `on_tick`. The target rested at the broker (the basket), and the deep-OTM delta exit never ran. The owner keeps it anyway ([Q-026](../../decisions/owner-questions.md#q-026), option A).
-* **No re-placement.** No legacy code places a new stop after the broker rejects, expires or cancels one. A modify that returns a new order ID is a replacement of the same stop (`registry.py:1603`).
+* **No re-placement.** No legacy code places a new stop after the broker rejects, expires or cancels one. A modify that returns a new order ID is a replacement of the same stop (`registry.py@445eb116:1603`).
 * **Square-off** (`src/runtime/session_close.py:92-270`), on every pass after `square_off_time` in IST.
   * It skips a partly filled entry (`:146-152`).
   * It waits while any exit order is in flight (`:165-169`), and never resends a close the broker rejected (`:170-175`).

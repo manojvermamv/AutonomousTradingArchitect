@@ -243,7 +243,7 @@ A review produced for intent digest `d1` is submitted for an entry whose intent 
 
 ### Providers and run records (`cognition/providers.py`, `cognition/records.py`)
 
-* **Backends** keep legacy's: `rule`, `http` (an OpenAI-compatible endpoint), `chain`, `replay` (`src/runtime/advisor/backends/`). `http` makes one request per call with no in-call retry, except one retry without `response_format` after a 400 (`http.py:698-710`).
+* **Backends** keep legacy's: `rule`, `http` (an OpenAI-compatible endpoint), `chain`, `replay` (`src/runtime/advisor/backends@445eb116/`). `http` makes one request per call with no in-call retry, except one retry without `response_format` after a 400 (`http.py:698-710`).
 * **Retry-After (POL-032).** A finite hint is honoured in full but never past the session close, recorded as `provider_retry_after_clamped`; a 429 opens the circuit at once; a non-finite hint takes the capped backoff (`http.py:770-795`, `:1055-1076`). A pause longer than `operations.telemetry.advisor_pause_warn_minutes` (approved 15) raises one warning through `operations/telemetry.py`, as legacy's monitor (`monitoring/advisor_availability.py:142`, `:154`; `config/defaults.yaml:1792`).
 * **Budgets (POL-033).** `cognition.providers.budgets` is `{}`: with no call or amount cap nothing is refused for budget (`src/runtime/advisor/budget.py:131-151`, `:183-186`).
 * **Fallback (POL-036, open).** The chain backend is built; it falls through only on `provider_error`, `timeout`, `backend_error`, `not_configured` or `budget_exhausted` (`chain.py:17-18`, `:112-118`). Whether any blueprint may name it is `cognition.providers.fallback`, a refusing setting: the loader refuses a composition that does not bind it, and the first release binds `inactive`.
@@ -278,7 +278,7 @@ A review produced for intent digest `d1` is submitted for an entry whose intent 
 ### Exit advice (`cognition/advice.py`)
 
 * Legacy's exit advice is a recommendation, recorded with its position and evidence identity (`src/runtime/ai_management/advice.py:868-897`); it never produces an action by itself (POL-028).
-* `application_request(advice_id, principal, reason)` turns an authenticated human's application into one typed close or protection-modify request, as legacy's `apply_advice` issues one close or protection request (`advice.py:899-991`), which then passes normal admission, where the position is revalidated. The human route and its confirmation are SLICE-10's (`interfaces/authorization.py`).
+* `application_request(advice_id, principal, reason)` turns an authenticated human's application into one typed close or protection-modify request, as legacy's `apply_advice` issues one close or protection request (`advice.py@445eb116:899-991`), which then passes normal admission, where the position is revalidated. The human route and its confirmation are SLICE-10's (`interfaces/authorization.py`).
 
 ### The AI twin of BuyerEdge and late starts (SLICE-17, SLICE-16; as built 2026-11-14)
 
@@ -322,7 +322,7 @@ Added after the build; the slice files are the record ([SLICE-17](../plan/slices
 | `strategies.host.seal_wait_ms` | How long a pass waits for the newest window's seal | Refusing; measured (TASK-S11-07) |
 | `strategies.host.review_retry_ms` | Interval between `ADM-R15` resubmissions | Refusing; measured (TASK-S11-07) |
 | `market.views.buyer_edge` | BuyerEdge's view policy: exact-minute chain and Greeks, spot at or before, `stale: report`, corrections excluded | Every field named (D08); values from legacy (above) |
-| `cognition.review.blueprint` | The bound team blueprint, in `config/teams.yaml` | Bound per session (its digest is in the binding) |
+| `cognition.review.blueprint` | The bound team blueprint, in the cognition blueprint (`src/autonomous_trading/cognition/blueprint.py`; the planned config/teams.yaml was not built) | Bound per session (its digest is in the binding) |
 | `cognition.providers.budgets` | Provider call and amount caps | `{}` (POL-033) |
 | `cognition.providers.fallback` | Whether a blueprint may name the chain backend | Refusing; first release `inactive` (POL-036 open) |
 | `cognition.committee.risk_critic` | The committee's risk role | Refusing; the only accepted value is `deferred` (POL-035 open) |

@@ -266,7 +266,7 @@ Stage B first repeats A2, A3, A4 and the pause read, since a grant, session, saf
 |---|---|---|
 | View age: wall-clock time minus the decision bar's stamp, which `market.view_age_stamp` selects; the first release binds `bar_close`, the bar's **close** ([Q-003 answer](../decisions/owner-answers-2026-10-27.md); one bar more lenient than legacy's open stamp) | ≤ 90 s (POL-018) | Live entries only |
 | Spot and chain age, in the wall domain | ≤ 2 × `market.poll_interval_secs` (POL-020) | Live entries |
-| Broker observation of the account's orders, positions and funds | `abs(now − as_of)` ≤ 60 s, `as_of` stamped before the read and not in the future (POL-021; legacy `not_fresh`, `reservations.py:366`) | All verbs |
+| Broker observation of the account's orders, positions and funds | `abs(now − as_of)` ≤ 60 s, `as_of` stamped before the read and not in the future (POL-021; legacy `not_fresh`, `reservations.py@445eb116:366`) | All verbs |
 
 * POL-018's record says "replays and re-plans **of a past day** are not judged" (`OA/docs/OWNER-DECISIONS.md:405-431`). A replay composition is flagged when built and skips the view limit. A same-day retry after CP-A1 is a live entry and is judged.
 * An incomplete observation (`complete = no`, pages missing) is also `ADM-R05`; empty is never taken as flat (`README.md:745`).
@@ -370,7 +370,7 @@ The ledger crash points CP-L1 and CP-L5 apply ([ledger](ledger-and-atomic-transa
 * **One-leg orchestrator / structure planner: reuse behind one versioned planning port** (`README.md:1147`). Extraction removes `orchestrator.py:528-548` latch I/O (LD-03).
 * **Advisor/team/AI management: relocate review application** (`README.md:1152`). `src/runtime/ai_management/service.py` (`:117`, `:430`; pause first `:366-371`; deadline `:278-282`; lineage `:390-411`; validity `:413-429`; cleared pause `:487-493`) is the behavioural reference.
 * **Pause store: reuse its rules, move its storage.** `src/runtime/ai_management/pause.py`: constants (`:15-16`), activity test (`:88`), unavailable status (`:229-231`), `request_pause` (`:233`), human-only `clear` (`:298`). The target records the same facts as ledger events with a `pause` index table.
-* **Reservation and capacity:** `reserve()` and `_external_commitments` (`reservations.py:352-437`, `:473-497`).
+* **Reservation and capacity:** `reserve()` and `_external_commitments` (`reservations.py@445eb116:352-437`, `:473-497`).
 * **Gateway admission** (`src/runtime/execution_gateway/__init__.py:389`, `README.md:96`) is evidence, not a template.
 
 ## Alternatives considered

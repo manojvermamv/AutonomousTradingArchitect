@@ -94,8 +94,8 @@ Marks: **C** correct already. **D** defect. **M=** money behaviour that already 
 | 19 | `strategies/worker.py:118-128` | `BarContext` carries no fact about how much of the day exists. A partial day is invisible to a strategy and its record. | D |
 | 20 | `strategies/buyer_edge.py:1012-1024`, `:2692-2705` | `get_ist_now` reads the host's time zone, but scoring binds it to the bar stamp | C |
 | 21 | `strategies/buyer_edge.py:2018-2029` | Bound to NIFTY; the framework is multi-underlying (`MarketLoop(instruments=…)`, `market/ingest.py:145-151`) | C |
-| 22 | `deploy/systemd/at-strategy-host.service:1-3`, `:20` | No calendar `ExecCondition` and no session preflight: "SLICE-09's" to decide, never decided. SLICE-15's waiting row names a check that does not exist. | M? F-4 (`deploy/systemd/at-strategy.service:46-50`) |
-| 23 | `deploy/systemd/at-strategy-host.timer:7-8` | Weekdays at the session-start time, `Persistent=false` | M= `deploy/systemd/at-strategy.timer:16-19` |
+| 22 | `deploy/systemd/at-strategy-host.service@a0c1bce81:1-3`, `:20` | No calendar `ExecCondition` and no session preflight: "SLICE-09's" to decide, never decided. SLICE-15's waiting row names a check that does not exist. | M? F-4 (`deploy/systemd/at-strategy.service:46-50`) |
+| 23 | `deploy/systemd/at-strategy-host.timer@a0c1bce81:7-8` | Weekdays at the session-start time, `Persistent=false` | M= `deploy/systemd/at-strategy.timer:16-19` |
 
 > **Owner amendment, 20 November 2026 (D-009).** Row 23's timer is now the template `deploy/systemd/at-strategy-host@.timer` (SLICE-18 step 6), which also fires 1 s after the timer starts (`OnActiveSec=1s`), so a late activation or boot runs the strategy that day.
 
@@ -149,7 +149,7 @@ Marks: **C** correct already. **D** defect. **M=** money behaviour that already 
 
 | Deliverable | Built | Missing (planned) |
 |---|---|---|
-| 1 Late start warm-up; views say what they cover | Coverage rows `covered`/`interrupted`/`gap`/`process_stopped` (rows 7, 8); `quality.assess` expected/present/gaps/warm (`market/quality.py:119-164`); reference facts on a late start (10) | Recorded session in views (2, 5); `day_coverage` on every view (14); same-day spot backfill (11, F-3) — steps 2, 3 |
+| 1 Late start warm-up; views say what they cover | Coverage rows `covered`/`interrupted`/`gap`/`process_stopped` (rows 7, 8); `quality.assess` expected/present/gaps/warm (`market/quality.py@a0c1bce81:119-164`); reference facts on a late start (10) | Recorded session in views (2, 5); `day_coverage` on every view (14); same-day spot backfill (11, F-3) — steps 2, 3 |
 | 2 Restart and recovery from the ledger | All of it in code: recovery stages and Q-009 (28), earlier-epoch refusal and pending-send recovery (29), latch (30), protection (33), holds, kill and reservations (36), stats (32); crash-point tests | The end-to-end proof on the converted days (44, 45) — step 4 |
 | 3 Host and cognition independent of the start | Host walks from any point (15, 16); cognition is stateless per request (24) | The partial day as a fact in `BarContext` and the record (19) — step 3 |
 | 4 Research on any time range | Causal RL observations (41); `ReplaySpec` window hook (38) | Windows in datasets, trials and results; look-ahead property tests (37, 39) — step 5 |

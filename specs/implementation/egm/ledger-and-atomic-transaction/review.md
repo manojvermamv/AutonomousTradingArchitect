@@ -13,7 +13,7 @@ All ten were applied in one rewrite of the spec:
 | Schema v1 incomplete; `release_binding`, session and protection tables unplaced | FIX: table list with the slice that adds each |
 | `command_key` vs legacy `idempotency_key` unexplained | FIX: rationale with `gateway_route.py:652` |
 | Float money; legacy quantities and states dropped | FIX: exact decimals, legacy amount/margin/worst-case loss and states; `money.rounding` refusing |
-| Legacy reservation fold not reused | FIX: `reservations.py:160-224` named as the reuse candidate |
+| Legacy reservation fold not reused | FIX: `reservations.py@445eb116:160-224` named as the reuse candidate |
 | CP-L3 split into near-identical points | FIX: merged |
 | Execution contract types incomplete; request carried the plan and review result | FIX: full type list; requests carry neither |
 | Writer recorded refusals itself | FIX: writer returns refusals; callers record them |
@@ -87,7 +87,7 @@ All ten were applied in one rewrite of the spec:
 | # | Sev | Finding (short) | Resolution |
 |---|---|---|---|
 | 7D-1 | Blocker | `RESERVATION_REDUCED` cannot be folded without the ledger rounding money | FIX: every reservation change carries `reservation_after` as decided by `kernel.reservations`; the fold only copies; the writer checks the amount arithmetic |
-| 7D-2 | Major | Fills left the reservation whole (legacy reduces per fill, re-read at `reservations.py:130-133`, `:644`); double count with broker funds; no head invariant | FIX: fill-driven reduction kept from legacy; I-6 head reconciliation; PRF-LED-09 extended |
+| 7D-2 | Major | Fills left the reservation whole (legacy reduces per fill, re-read at `reservations.py@445eb116:130-133`, `:644`); double count with broker funds; no head invariant | FIX: fill-driven reduction kept from legacy; I-6 head reconciliation; PRF-LED-09 extended |
 | 7D-3 | Major | No legs in the state machine; reduction split from its outcome; per-leg resolution; proportional rule wrong for spreads | FIX: per-leg attempt state; outcome and resolution carry the reservation change in one transaction; mixed baskets go `WORKING` and are never resent; proportional rule for single-leg only, spreads keep margin and worst-case loss (`README.md:776`); `RESIDUAL_RECORDED` |
 | 7D-4 | Major | Outcome-commit refusals lose broker IDs | FIX: adapter results published as evidence first; recovery rebuilds outcomes from it; claimed-attempt outcomes pass the `LED-R05` gate |
 | 7D-5 | Major | Epoch guard blocks recovery's `interrupted` outcome | FIX: guard compares the attempt's epoch (active for coordinator outcomes, retired for recovery) |

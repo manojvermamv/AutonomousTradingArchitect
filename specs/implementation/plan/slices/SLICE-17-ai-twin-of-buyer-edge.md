@@ -121,7 +121,7 @@ There is **one** model-driven mechanism, built in SLICE-09 step 6, and **no ship
 | `intent_proposal` output: `direction` CE/PE, `conviction` 0…1, `reason` | `cognition/blueprint.py:43-50` | As is: "no trade" is an abstention |
 | Test fakes: the scripted child (`raw:<output>`), the local HTTP server | `tests/unit/test_model_strategy.py:38-50`, `tests/unit/test_provider_records.py:272` | As is |
 | Legacy's pairing | `src/strategies/ai_ema_cross.py` @445eb116 (`kind="ai_worker"`, `authority="none"`, `should_consult=worth_asking`), not ported (SLICE-09, "Not ported") | Pattern only (D-2) |
-| Legacy's declared features | `WorkerSpec.features` and `src/runtime/features/` @445eb116 | Not ported; step 2 rebuilds the idea for BuyerEdge's statistics |
+| Legacy's declared features | `WorkerSpec.features` and `src/runtime/features@445eb116/` @445eb116 | Not ported; step 2 rebuilds the idea for BuyerEdge's statistics |
 
 Gaps found: no shipped model descriptor; no declared feature list; no consult filter; proposals have no channel route and `serve_strategy` passes no proposals port, so a model strategy refuses `STR-R15` in production today (`bootstrap.py:411-412`, `:1532-1563`); `serve_cognition` binds no teams (`bootstrap.py:1587`); the research replay feeds a model strategy only queued proposals (`bootstrap.py:1614-1631`, `:1880`) and records an empty prompt identity (`research/replay.py:1684-1685`).
 
@@ -262,7 +262,7 @@ The five-day report is run by hand once with `AT_REPLAY_DATA` and its output sav
 
 ### Files
 
-`tests/replay/replay_harness.py`, `tests/replay/compare_twin.py`, `tests/replay/test_twin_replay.py`, `docs/measurements/slice-17-twin-five-days.json` (by hand; not produced, see step 4 as built).
+`tests/replay/replay_harness.py`, `tests/replay/compare_twin.py`, `tests/replay/test_twin_replay.py`, docs/measurements/slice-17-twin-five-days.json (by hand; never produced, see step 4 as built).
 
 ### Step 4 as built (2026-11-14, `slice-17`)
 
@@ -275,7 +275,7 @@ The five-day report is run by hand once with `AT_REPLAY_DATA` and its output sav
 
 > **Amendment, 20 November 2026.** `test_converted_day_side_by_side` re-run on the Ubuntu server on today's code (`1465c4b`, after D-011 to D-014; 7 min 34 s, then again in the five-day refresh; passed both times). Identity holds: BuyerEdge 340 decided bars, 42 commands, 18 fills, equal with and without the twin (the twin adds none). The twin's figures are unchanged: agreement 0.4444 over 144 compared bars (64 / 23 / 57 / 196), BuyerEdge 87 entries, hit 0.48 / 0.64 / 0.39, the fake model 144 entries, hit 0.54 / 0.59 / 0.51, 0 score mismatches. BuyerEdge's own trades moved with the trading changes: 9 trades, gross −1,680.25, costs 571.03, net −2,251.28 rupees. Report `~/at-test/replay-data/reports/twin-side-by-side.json` on the server.
 * **Deviations.** The report's net for the twin comes from the separate `alone` run, done in the by-hand five-day run, not in the one-day test (the test is two replays, as the reviewer sized it). Costs use the shipped `costs.*` values; `promotion.directional.*` uses legacy's 5/15/30, 30, 1.96, bound for the report only.
-* **The five-day by-hand run was not completed (2026-11-16).** `compare_twin.py main` over 2026-08-03…07 finished its `beside` replay and was stopped by the owner during the `alone` replay (about 3.6 hours of computing time over 38 hours, the PC asleep most of it); the report is written only at the end, so `docs/measurements/slice-17-twin-five-days.json` does not exist. The one-day report above stands. With a fake model and data without bid/ask the five-day figures would decide nothing; rerun it when a real model or recorded bid/ask days exist.
+* **The five-day by-hand run was not completed (2026-11-16).** `compare_twin.py main` over 2026-08-03…07 finished its `beside` replay and was stopped by the owner during the `alone` replay (about 3.6 hours of computing time over 38 hours, the PC asleep most of it); the report is written only at the end, so no slice-17-twin-five-days.json was written. The one-day report above stands. With a fake model and data without bid/ask the five-day figures would decide nothing; rerun it when a real model or recorded bid/ask days exist.
 * **After the merge into `agentic-desk` (2026-11-16).** Merge b5085df: `replay_harness` keeps SLICE-16's `restart` and the twin's hosts (`_hosts`, `_one`; a restart recomposes every host); a research row carries both SLICE-16's `window` and the twin's `lineage`. The split full run (PC and the owner's Ubuntu server) found two defects, both fixed: (a) f7e453c, the two new `owner only` settings refused every production install `CFG-R08` (74 Linux-only cutover and release tests); they join `REPORTED_WHILE_UNBOUND`, and a cross-platform guard now classes every owner-only setting; (b) e3cf65f, `test_research_windows`'s stand-in receipt lacked `prompt_identity`, which the merged row lineage reads (8 tests).
 
 ---

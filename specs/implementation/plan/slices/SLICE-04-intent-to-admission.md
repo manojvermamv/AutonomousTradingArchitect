@@ -392,7 +392,7 @@ Commit `575c897` on `slice-04`, after `2ed1c39`. It changes exactly the 16 paths
 
 ## Step 3 — the planning port (`one_leg_v1`)
 
-Deepened after step 2 landed, from two line-by-line reads of the legacy planners at `OA@445eb116`, then reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-04-step-3-review-2026-10-27)); this text includes their fixes. Abbreviations: **O** `src/core/framework/runtime/orchestrator.py`, **G** `sizing/gates.py`, **Q** `sizing/quantity.py`, **S** `selection/strikes.py`, **P** `protection/stops.py`, **R** `execution/orders.py`, **SP** `structures/planner.py`, all under `src/core/framework/`; **L** `scripts/run_framework_live.py`; **SS** `src/runtime/session_state.py`; **RF** `src/data/reference/store.py`. The owner's [Q-019 answer](../../decisions/owner-answers-2026-10-27.md) fixes the plan's money figures.
+Deepened after step 2 landed, from two line-by-line reads of the legacy planners at `OA@445eb116`, then reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-04-step-3-review-2026-10-27)); this text includes their fixes. Abbreviations: **O** `src/core/framework/runtime/orchestrator.py`, **G** `sizing/gates.py`, **Q** `sizing/quantity.py`, **S** `selection/strikes.py`, **P** `protection/stops.py`, **R** `execution/orders.py`, **SP** `structures/planner.py`, all under `src/core/framework@445eb116/`; **L** `scripts/run_framework_live.py`; **SS** `src/runtime/session_state.py`; **RF** `src/data/reference/store.py`. The owner's [Q-019 answer](../../decisions/owner-answers-2026-10-27.md) fixes the plan's money figures.
 
 ### What legacy does, and what that decides
 

@@ -127,7 +127,7 @@ For each `design/` spec, run the EGM loop.
 - If a reviewer is blocked reading its persona under the plugin cache, approve the read; it is a known Windows hook limitation.
 
 ### Phase 4 — Cross-cutting documents
-Build `03-requirements.md`, `04-capabilities-and-scope.md`, `05-repository-tree.md`, `traceability.md`, `tests/test-strategy.md` and `plan/`. Package names, owners, contracts and task paths must be identical across all of them.
+Build `03-requirements.md`, `04-capabilities-and-scope.md`, `05-repository-tree.md`, `traceability.md`, `specs/implementation/tests/test-strategy.md` and `plan/`. Package names, owners, contracts and task paths must be identical across all of them.
 
 ### Phase 5 — Package review and consistency pass
 - Run one final EGM zoom-out and implementation-readiness review over the whole package.

@@ -127,7 +127,7 @@ Recommended treatment:
 
 Recommended treatment:
 * SLICE-01 is a synthetic, disarmed Phase 3 subset against the simulated broker (README.md:1183). It needs no open policy.
-* Every open policy becomes a typed parameter loaded from the policy schema (`config/policies.example.yaml`, README.md:967). It ships with no default, and the loader refuses a missing value.
+* Every open policy becomes a typed parameter loaded from the policy schema (`config/live.example.yaml` `policies:` (the planned `policies.example.yaml` was folded into it), README.md:967). It ships with no default, and the loader refuses a missing value.
 * Tests use values labelled "synthetic test value, not a default" and exercise every branch of a matrix.
 * A slice can be "engineering-complete, blocked on Q-n for production values only".
 * Never fill an open policy with a legacy value (README.md:442).
@@ -252,7 +252,7 @@ Recommended treatment:
 * "Obligations" means proof obligations, financial exposure and Combined-F6 obligations.
 * "Canvas" is defined only by a tree comment (README.md:999). Grep finds no Canvas code in legacy `src`, so it is new work.
 
-A glossary should link each term to its master anchor. A short legacy-to-target name map is also needed, for example `src/tier1` to `kernel.ledger`, with each mapping marked verified or proposed.
+A glossary should link each term to its master anchor. A short legacy-to-target name map is also needed, for example `src/tier1@445eb116` to `kernel.ledger`, with each mapping marked verified or proposed.
 
 **Major. The reading path for SLICE-01 is too long.** Recommended order:
 1. README.md:1-40.

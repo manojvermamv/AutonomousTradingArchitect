@@ -336,8 +336,8 @@ TASK-S07-02 (commits; `attempt_resolve`), TASK-S07-03, and the commit side of TA
 ### What legacy does, and what that decides
 
 * **A fill reduces the reservation proportionally, in floats.** Legacy `_fold_events` takes the fill's amount off `amount` and scales `margin` and `worst_case_loss` by `ratio = (amount − r) / amount`, with no rounding (`src/core/framework/execution/reservations.py:205-216` @445eb116; `reduce()` at `:644`). The target keeps the rule in exact decimals, so it needs a rounding rule where legacy had none: `money.rounding`, a refusing parameter. Any rounding differs from legacy's floats, so binding a production value needs the owner's confirmation (the [register](../../design/cross-cutting-invariants.md#refusing-parameter-pattern-req-xc-003)'s rule). Tests bind a labelled synthetic value.
-* **A reduction needs fill evidence attributed to the reservation's own order** (`reservations.py:670-675`, "fill is not attributed to reservation"). It also refuses when the reservation head changed since it was read (`:664-665`). The target keeps both: a `FILL` reduces only its own entry's reservation, and carries the amount it read.
-* **Legacy refuses a reduction larger than the remaining amount** (`reservations.py:209-210`). The target clamps it instead (a **Deviation**, below).
+* **A reduction needs fill evidence attributed to the reservation's own order** (`reservations.py@445eb116:670-675`, "fill is not attributed to reservation"). It also refuses when the reservation head changed since it was read (`:664-665`). The target keeps both: a `FILL` reduces only its own entry's reservation, and carries the amount it read.
+* **Legacy refuses a reduction larger than the remaining amount** (`reservations.py@445eb116:209-210`). The target clamps it instead (a **Deviation**, below).
 
 ### Decisions
 

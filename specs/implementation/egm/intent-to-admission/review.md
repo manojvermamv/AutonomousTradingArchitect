@@ -32,7 +32,7 @@ Process record (not normative). Target: [design/intent-to-admission.md](../../de
 | 6-12 | Major | B6 mechanism | FIX: digest and field comparisons listed |
 | 6-13 | Major | Gap between stage A and stage B | FIX: stage B repeats the stage A state checks under serialization |
 | 6-14 | Major | Idempotency position | FIX: identity lookup right after A1; refusals not sticky |
-| 6-15 | Major | Reservation and capacity open | FIX: linked to TASK-S04-03 and the legacy capacity check (`reservations.py:352-400`) as the characterized rule |
+| 6-15 | Major | Reservation and capacity open | FIX: linked to TASK-S04-03 and the legacy capacity check (`reservations.py@445eb116:352-400`) as the characterized rule |
 | 6-16 | Major | Pause timing and clearing | FIX: expiry exclusive (legacy `pause.py:88`); session-end source; clear semantics; `reason` field |
 | 6-17 | Major | Replay and pause events | FIX: replay derives its own pause events in its own ledger |
 | 6-18 | Major | Abstaining intent | FIX: no entry request; recorded by the host as evidence; admission refuses one with `ADM-R01` |

@@ -86,7 +86,7 @@ Recorded here, not run on this PC. Each one is run in step 7 or is marked as wai
 | `--shadow` copier sudoers line (`/etc/sudoers.d/autonomous-trading-shadow-copier`) | `sudoers_files`, `deploy/install.py:294-295` | Whenever a running copy exists |
 | `cutover-root` accepted as a valid line ending | `sudoers_problems`, `deploy/install.py:307` | Always |
 | Legacy polkit rule | `legacy_polkit_rule`, `operations/isolation.py:145` | **Not rendered by `install.py` today**: `polkit_files` (`:272-276`) renders only the supervisor and installer rules. The planning check found nothing that calls `legacy_polkit_rule` outside its definition. The deepening confirms whether the cutover was meant to render it; either way a fresh host never does |
-| Key probe | `_key_probed` (`install.py:2813`), `operations/key_probe.py`, `key_probe_unit_properties` (`isolation.py:170`); `isolated_work.py` has **no** `--key-probe` option yet ("not yet wired") | Only inside the `cutover` state machine (`KEY_PROBED`) |
+| Key probe | `_key_probed` (`install.py@f202caaad:2813`), `operations/key_probe.py`, `key_probe_unit_properties` (`isolation.py:170`); `isolated_work.py` has **no** `--key-probe` option yet ("not yet wired") | Only inside the `cutover` state machine (`KEY_PROBED`) |
 | `cutover.legacy_units` | `legacy_units(eff)` (`install.py:2213`), refusing `CFG-R08` when unbound; `unit_name_clash` (`:2538`) | Only inside `cutover`, `continue-legacy` and `cutover-root` |
 | Legacy's senders at `OLD_WRITER_GONE` | `act.LEGACY_SENDERS` (`operations/activation.py`), checked in `FIRST_INSTALL` too (`install.py:1894-1898`) | Always; on a fresh host the units do not exist, so `_gone` passes (to confirm against a unit that does not exist under real systemd, a waiting row) |
 | Legacy's limits drop-in | `limits_problems` (`install.py:863`) | Only when the file exists; on a fresh host it returns nothing (Fork call 1) |
@@ -166,7 +166,7 @@ The owner accepted `%at-operators ALL=(root) NOPASSWD: …/isolated_work.py --wo
 
 ### Decisions
 
-`sudo`'s `*` matches any further arguments, spaces included, so everything after `--work-dir` comes from the caller. Today's guard is `_sudo_args` and `_sudo_work_dir` (`scripts/isolated_work.py:197-240`), with tests in `tests/isolation/test_resource_storage_scope.py:891-967`. What is already covered and what is new:
+`sudo`'s `*` matches any further arguments, spaces included, so everything after `--work-dir` comes from the caller. Today's guard is `_sudo_args` and `_sudo_work_dir` (`scripts/isolated_work.py:197-240`), with tests in `tests/isolation/test_resource_storage_scope.py@f202caaad:891-967`. What is already covered and what is new:
 
 | Unsafe argument | Today | Step 2 |
 |---|---|---|
@@ -261,7 +261,7 @@ Checked in `strategies/buyer_edge.py`:
 
 ### Tests
 
-`tests/tools/test_convert_recorded_days.py` runs on small synthetic inputs shaped like the originals (the real files are never in the suite). It checks: one leg record per side with `d.symbol`; the `src` mapping; arrival = close + lag; spot cut at 15:15, chain cut after 15:29; missing legs dropped and counted; output read by `LegacyMarketFeed` with **zero** `interrupted` rows from mapping; the originals' bytes unchanged (sha256 before and after); refusal when the output directory is inside either repository.
+`tests/unit/test_convert_recorded_days.py` (planned under tests/tools/; built in tests/unit/) runs on small synthetic inputs shaped like the originals (the real files are never in the suite). It checks: one leg record per side with `d.symbol`; the `src` mapping; arrival = close + lag; spot cut at 15:15, chain cut after 15:29; missing legs dropped and counted; output read by `LegacyMarketFeed` with **zero** `interrupted` rows from mapping; the originals' bytes unchanged (sha256 before and after); refusal when the output directory is inside either repository.
 
 ### Step 3 as built
 
@@ -289,13 +289,13 @@ The missing legs total 25, as validated. The carried-forward legs (zero volume, 
 
 Read back through `LegacyMarketFeed(origin="history")`: for each underlying, 0 problems, 1,800 spot and 1,875 chain records, every coverage row `covered` (3,675), every origin `history`, and the first arrival at 09:16:07 IST on 3 August. Every present BANKNIFTY leg carries lot 30; the only legs without one are the 3 excluded ones.
 
-**Run.** Targeted, twice: `tests/contracts`, `tests/unit/test_convert_recorded_days.py`, `test_legacy_market.py`, `test_settings_resolver.py`, `tests/integration/test_shadow_day.py`, `tests/recovery/test_crash_boundaries.py` (the feed's importers). **662 passed, 5 skipped** both times. After one fixture fix (below), the converter and feed unit files were run twice more: 15 passed both times.
+**Run.** Targeted, twice: `tests/contracts`, `tests/unit/test_convert_recorded_days.py`, `test_legacy_market.py`, `test_settings_resolver.py`, `tests/integration/test_shadow_day.py@f202caaad`, `tests/recovery/test_crash_boundaries.py` (the feed's importers). **662 passed, 5 skipped** both times. After one fixture fix (below), the converter and feed unit files were run twice more: 15 passed both times.
 
 **Break checks** (`breaks_s3.json`): **12 of 12 caught** after one test was tightened. Every file was restored and its md5 checked. The breaks: the feed ignores `origin`; the feed's default origin changed; chain `src` left as `openalgo.history`; arrival left as the backfill evening; the spot cut removed; the chain cut removed; a lot applied to every expiry; a capture with two lot sizes accepted; output inside the source allowed; missing legs kept; the chain's `spot` carried; a foreign output overwritten. **"Missing legs kept" first passed:** the fixture omitted the leg, but the backfill records it as an empty object. The fixture now uses `{}`, and the rerun failed the test.
 
 **Differences from the text above**, each smaller than a decision:
 
-* **The test lives in `tests/unit/`**, beside `test_legacy_market.py`, not in a new `tests/tools/`.
+* **The test lives in `tests/unit/`**, beside `test_legacy_market.py`, not in a new tests/tools/.
 * **`spot` is dropped from every chain leg**, not only from 15:15 to 15:29. A live chain leg has no `spot` and the market view never reads one (`market/view.py:845-862`), so dropping it everywhere is the shape production sees.
 * **One gzip member per record**, as legacy's appends wrote them.
 * **NIFTY carries no lot**, so in step 4 NIFTY days refuse `lot_size` with that stated reason until the owner answers the open question.
@@ -389,7 +389,7 @@ other runs sharing the CPU); per BANKNIFTY day 86–156 s. Store sizes per NIFTY
 3.2 MB, the whole run directory ≈ 21 MB.
 
 **Run.** Targeted, twice: `tests/contracts`, `tests/replay`, `tests/unit/test_convert_recorded_days.py`,
-`test_legacy_market.py`, `tests/integration/test_shadow_day.py`, `tests/recovery/test_release_activation.py`:
+`test_legacy_market.py`, `tests/integration/test_shadow_day.py@f202caaad`, `tests/recovery/test_release_activation.py`:
 **662 passed, 10 skipped** both times (the five `replay` days skip there; they ran in the table above). `ast.parse`
 passes on every edited file.
 

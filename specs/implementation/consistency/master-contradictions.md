@@ -165,7 +165,7 @@ See [POL-002, POL-004, POL-041, POL-047](../02-policy-inventory.md).
 
 **Evidence.**
 - The first-release row says "a candidate cannot bypass its applicable promotion rules" (`README.md:1172`).
-- Legacy has `advisor.promotion.enforce` (`config/defaults.yaml:766` @445eb116); when false, `may_promote` returns allowed (`promotion.py:477-478`).
+- Legacy has `advisor.promotion.enforce` (`config/defaults.yaml:766` @445eb116); when false, `may_promote` returns allowed (`promotion.py@445eb116:477-478`).
 - On 2026-10-30 the owner chose "the old system's rules" for promotion; the package keeps `promotion.enforce`, set to true ([answers](../decisions/owner-answers-2026-10-27.md), "Combined answers, slices 09–14"; [SLICE-12](../plan/slices/SLICE-12-research-rl-custody-promotion.md)).
 
 **Effect if left.** An operator who sets the switch to false lets an unpromoted candidate reach admission. The binding check of SLICE-03 still applies.
