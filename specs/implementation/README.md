@@ -3,7 +3,7 @@
 * **Status (2026-11-19 UTC):** the first analyze-mode day with entries ran on 19 November (five BuyerEdge trades).
   D-011 to D-014 (leftover protective orders cancelled under a hold, stop and target anchored to the fill, entries
   priced from the newest chain, the kernel's own square-off at 15:13) are built and activated. Release
-  `20261120T105629Z-8d005bda889e` (build `7d97c03`, the tick-gap fix) is active since 20 Nov 16:27 IST. The kernel is operating on the same ledger.
+  `20261120T133204Z-d4bdf35f1671` (build `1e1f821`, the tick-gap and PE exit fixes) is active since 20 Nov 19:03 IST. The kernel is operating on the same ledger.
   D-015 removed legacy history import and cutover. See [current delivery status](../../ROADMAP.md#current-delivery-status--2026-11-20-utc).
 * **Status (2026-11-18 UTC, history):** the first release is installed on the Ubuntu host in analyze mode; the early close
   (D-007), activation without the market-hours check (D-008), late starts (D-009) and the owner's read access (D-010)

@@ -12,8 +12,8 @@ Implemented, committed and pushed as source `b88014e` (`agentic-desk`), with thi
 
 ## Current delivery status — 2026-11-20 UTC
 
-Updated the evening of 20 November 2026 (IST). Running: release `20261120T105629Z-8d005bda889e` (build `7d97c03`,
-the 09:15 tick-gap fix), converged 16:27 IST, kernel operating; Monday 23 November's binding (ledger 700) and entry
+Updated the evening of 20 November 2026 (IST). Running: release `20261120T133204Z-d4bdf35f1671` (build `1e1f821`, the 09:15
+tick-gap fix and the PE exit fix), converged 19:03 IST, kernel operating; Monday 23 November's binding (ledger 700) and entry
 grant (702) issued with it. Decision D-016 is in the source repository's `docs/decisions.md`.
 
 **Done (20 November 2026):**
@@ -24,13 +24,13 @@ grant (702) issued with it. Decision D-016 is in the source repository's `docs/d
   exit → reconciliation is proven by the 19 and 20 November sessions.
 - **The 09:15 tick gap** fixed (`1465c4b`) and released (above).
 - **The deep-OTM exit** compared a put's signed delta with +0.10, so every PE position left at its first tick; fixed to
-  `abs(delta)` as the original strategy (`8c7d99e`, SLICE-06 step 2's amendment). **Not yet released.**
+  `abs(delta)` as the original strategy (`8c7d99e`, SLICE-06 step 2's amendment). Released 19:03 IST.
 - **Replay re-measured** on today's code (SLICE-15/16/17 amendments); R1 under D-007 done.
 - **Codex's 17 Markdown findings** fixed; CI green with Gitleaks.
 
 **Still open, in order:**
 
-1. Release `8c7d99e` (owner's word), before Monday's open.
+1. ~~Release `8c7d99e`~~ released 20 Nov 19:03 IST.
 2. Verify the first market-session kernel square-off when a position crosses 15:13 IST (D-014).
 3. Monday's open: the first index tick within seconds of 09:15 (the tick-gap fix live).
 4. Review OPS09 formally and update the provisional runtime settings (an owner decision). **Measured 19–20 November**
