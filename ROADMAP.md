@@ -28,7 +28,8 @@ Updated after the evening deployment on 19 November 2026. The running build is
   15:15 MIS square-off, whose order was foreign to the ledger and left a phantom position.
 - **Two fresh ledgers on the owner's word** (13:28 IST, and 15:49 IST to clear the phantom and the recovery hold it
   caused); the old ledgers are archived, not deleted.
-- **Running:** release `20261119T141735Z-c4ee7cf5c588` converged at 19:49 IST. The kernel is operating.
+- **Running:** release `20261120T105629Z-8d005bda889e` (build `7d97c03`, the 09:15 tick-gap fix) since 20 Nov 16:27 IST; before it
+  `20261119T141735Z-c4ee7cf5c588` from 19 Nov 19:49 IST. The kernel is operating; 23 Nov binding and grant issued.
   The ledger and OpenAlgo analyze books were flat, with the original 20 November binding (19) and entry grant (56).
 - **D-015:** deployed the removal of the legacy history import, cutover, shadow and legacy order projection.
   The prior D-014 release remains available for restore. The unfinished 17 November release was retained.
