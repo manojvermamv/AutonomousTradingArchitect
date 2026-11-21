@@ -1,8 +1,8 @@
 # SLICE-15 — Fresh start: a first install with no legacy, rehearsed on this PC
 
-> Owner storage update, 2026-11-17: shared main-disk assessment storage is permitted. A separate volume is optional, not a step-7 deployment prerequisite. Capacity protection and local sealed daily assessment copies are specified in the [current decision](../../../../ROADMAP.md#assessment-storage-correction--owner-decision-2026-11-17-utc). Remote backup/restore work remains deferred until requested. Historical build results below are not verification of this change.
+> Owner storage update, 2026-11-17: shared main-disk assessment storage is permitted. A separate volume is optional, not a step-7 deployment prerequisite. Capacity protection and local sealed daily assessment copies are specified in the [current decision](../../../../ROADMAP.md#assessment-storage-correction--owner-decision-2026-11-17-utc). Remote backup/restore work remains deferred until requested (21 November 2026: superseded for the backup by D-017, which runs nightly; the clean-host restore rehearsal is still open). Historical build results below are not verification of this change.
 
-* **Status:** steps 1–6 built (2026-11-13 to 2026-11-14), each recorded "as built" below; step 7 (the new server) is under way on the owner's Ubuntu 24.04 host: first install 18 Nov 2026 (`20261118T024927Z-1a4b7b40a60d`), the running release in the ROADMAP's current delivery status; 7.2 and 7.4 done; 7.3 (backup) deferred by the owner; 7.5 partly run; 7.6 analyze sessions with entries on 19 and 20 Nov; 7.7 not started (see [the 18 November amendment](#step-7--the-new-server-outline-needs-the-owner-and-a-server)). Proposed 2026-11-13. Every step below began as an outline in the standing rules' sense: each step's exact detail (files, signatures, test tables, break checks) is written just before it is built, then reviewed by two fresh EGM reviewers, built, run twice with the suite, break-checked and recorded "as built".
+* **Status:** steps 1–6 built (2026-11-13 to 2026-11-14), each recorded "as built" below; step 7 (the new server) is under way on the owner's Ubuntu 24.04 host: first install 18 Nov 2026 (`20261118T024927Z-1a4b7b40a60d`), the running release in the ROADMAP's current delivery status; 7.2 and 7.4 done; 7.3 (backup) done 21 Nov 2026 (D-017: nightly to R2 as plain objects; scratch restore proved; see SLICE-11 step 8's amendment); 7.5 partly run; 7.6 analyze sessions with entries on 19 and 20 Nov; 7.7 not started (see [the 18 November amendment](#step-7--the-new-server-outline-needs-the-owner-and-a-server)). Proposed 2026-11-13. Every step below began as an outline in the standing rules' sense: each step's exact detail (files, signatures, test tables, break checks) is written just before it is built, then reviewed by two fresh EGM reviewers, built, run twice with the suite, break-checked and recorded "as built".
 * **Why this slice exists.** The production EC2 (`debian-oa`) was lost with all its data ([Server lost: start fresh](../../decisions/owner-answers-2026-10-27.md#server-lost-start-fresh-2026-11-13)). The owner chose a fresh start with the new system only. The steps that needed live legacy — SLICE-11 steps 9–11 (in part), SLICE-13 steps 6–7 and SLICE-14 steps 3–5 — are void or moved here. This slice replaces them with a fresh first install, rehearsed in full on the owner's Windows PC, then carried out on a new server.
 * **Precedence:** the master README, then the ROADMAP, then this package. Authorities: the [configuration spec](../../design/configuration-artifacts-release.md) (installer, release transitions), the [runtime spec](../../design/runtime-isolation-observability-deployment.md) (isolation, measurement), the [migration spec](../../design/migration-recovery-rollback-continuity.md) (recovery set, backup, restore). Every intentional difference from legacy is marked **Deviation**; every money-touching fork keeps legacy's live behaviour at 445eb116 and is marked **Fork call** ([standing rules](../../decisions/owner-answers-2026-10-27.md#standing-rules-2026-10-30)). **No score, threshold, entry gate or money value is set or changed here.**
 * **Owner answers applied:** Server lost: start fresh (2026-11-13); The new system's own root rules (2026-11-13); Unit names that clash with legacy (2026-11-13); Standing rules (2026-10-30); Margin limit when OpenAlgo reports none (2026-11-05).
@@ -60,7 +60,7 @@ Recorded here, not run on this PC. Each one is run in step 7 or is marked as wai
 | SLICE-16's R1 and R2 with the kernel, market and strategy hosts as separate units over the kernel channel, restarted by systemd (`Restart=` policies): the lease wait (`wait_for_lease`) observed, a pending send resolved once through the books. Owner amendment, 18 Nov 2026 (D-007): a restart after the open now ends that day (`SESSION_CLOSING` `restarted`; entries refused `SES-R07` for the rest of the day). Re-measure R1 under that rule | SLICE-16 step 4 |
 | The market unit's `Restart=always` producing SLICE-16 R4's `process_stopped` row and the gap in the day's coverage | SLICE-16 step 4 |
 | The supervisor's assessment staying fresh across a kernel restart | SLICE-16 step 4 |
-| The backup timer and `ResticDestination` against the real B2 or R2 repository, with anchors. Deferred with the backup (owner, 18 Nov 2026). | SLICE-11 step 8 carry |
+| The backup timer and `ResticDestination` against the real B2 or R2 repository, with anchors. Deferred with the backup (owner, 18 Nov 2026). **21 Nov 2026 (D-017):** `ResticDestination` is removed; `ObjectStoreDestination` writes anchors to the real R2 bucket, proved by `scripts/verify_backup.py`; the timer runs nightly since the 21 Nov release. | SLICE-11 step 8 carry |
 | The supervisor's emergency stop of `at.slice` | SLICE-11 step 4 |
 | The production-profile rows carried to the EC2: PRF-PRT-06's frozen-kernel half, real `systemctl show`, `SIGTERM` handling (`tests/contracts/test_capabilities.py:1210` skips with "Linux, the EC2"), the network fence, kill release across users, `install-root-copy` | SLICE-11 lines 1534, 2552 (added by the 2026-11-14 check) |
 | Crash points CP-R2…CP-R7, the PRF-CFG-05 Rollback row and the PRF-CFG-07 Composition row through the real installer (SLICE-11's PRF-CFG-01…08 completion condition) | SLICE-11 line 2550 "not built, carried" (2026-11-14 check) |
@@ -107,7 +107,7 @@ Recorded here, not run on this PC. Each one is run in step 7 or is marked as wai
 
 #### Backup while unbound
 
-No change. The four `backup.*` items stay in `REPORTED_WHILE_UNBOUND` (`install.py:605`): reported at staging, never refusing. `convergence` reports `backup: unavailable` until the step 7 account exists (owner's answer: "Do the four backup settings block staging: No"). Since 2026-11-16 the set also holds SLICE-17's `strategies.consult_filters` and `cognition.proposal_teams` (OA_NEW f7e453c; guard `test_every_owner_only_setting_is_classed_as_blocking_or_reported`).
+No change. The four `backup.*` items stay in `REPORTED_WHILE_UNBOUND` (`install.py:605`): reported at staging, never refusing. `convergence` reports `backup: unavailable` until the step 7 account exists (owner's answer: "Do the four backup settings block staging: No"). Since 2026-11-16 the set also holds SLICE-17's `strategies.consult_filters` and `cognition.proposal_teams` (OA_NEW f7e453c; guard `test_every_owner_only_setting_is_classed_as_blocking_or_reported`). (21 Nov 2026, D-017: three `backup.*` items; `backup.passphrase_held_offbox` was removed.)
 
 ### Tests
 
@@ -591,6 +591,8 @@ Every part is asked first. Order:
 
 > **Owner amendment, 20 November 2026 (D-014).** `protection.session_close` is bound `square_off` since 19 November (SLICE-18 step 2's amendment); positions opened under `broker` keep it.
 
+> **Owner amendment, 21 November 2026 (D-017, D-018).** **7.3** done: the backup goes to R2 as plain objects (no restic, no passphrase; the anchor gap is closed, since `ObjectStoreDestination` writes anchors). `backup.destination`, `backup.retention` and the provider are bound. It was proved on the real bucket and runs nightly. `backup.storage_credential_held_offbox` is the owner's to set. Kernel evidence files are 0640 (D-018).
+
 ## Completion conditions
 
 * Steps 1–6 are built, tested twice and break-checked, each recorded "as built" here.
@@ -599,6 +601,7 @@ Every part is asked first. Order:
 * Step 5 ran on `DirectoryDestination`; the restic anchor gap is carried to step 7. Deferred with the backup (owner, 18 Nov 2026).
 * Step 7 is done on the owner's word, or recorded as waiting, with the server, the backup account and the licence named.
   * Recorded 18 Nov 2026: host: the owner's Ubuntu 24.04 server; backup: deferred (owner, 18 Nov 2026); licence: not recorded.
+  * Recorded 21 Nov 2026: backup: R2, nightly (D-017); clean-host restore rehearsal: not started; licence: not recorded.
 
 ## Carried after the fresh check (2026-11-14)
 

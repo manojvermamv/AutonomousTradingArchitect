@@ -1,6 +1,9 @@
 # AutonomousTrading — specification and implementation-plan package
 
-* **Status (2026-11-19 UTC):** the first analyze-mode day with entries ran on 19 November (five BuyerEdge trades).
+* **Status (2026-11-21 UTC):** D-016 (20 Nov) counts an analyze session as a live-broker check. D-017: the nightly
+  backup goes to Cloudflare R2 as plain objects (no restic); it is proved on the real bucket and runs nightly. D-018:
+  kernel evidence files are 0640. The running release is in the ROADMAP's [current delivery status](../../ROADMAP.md#current-delivery-status--2026-11-21-utc).
+* **Status (2026-11-19 UTC, history):** the first analyze-mode day with entries ran on 19 November (five BuyerEdge trades).
   D-011 to D-014 (leftover protective orders cancelled under a hold, stop and target anchored to the fill, entries
   priced from the newest chain, the kernel's own square-off at 15:13) are built and activated. The running release and its
   build are written once, in the ROADMAP's current delivery status (below), not here.
