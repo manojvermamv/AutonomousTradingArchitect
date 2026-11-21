@@ -37,7 +37,7 @@ Findings are grouped by theme. Severity is the highest any lens assigned. Where 
 
 ### 1. Duplicate authorities
 
-**Blocker. The policy inventory would compete with README §9.** All six lenses raised this. README.md:440 says the inventory "belongs with the owner choices in §9, not in a new service or competing policy register". ROADMAP.md:255 says approvals are reconciled "into README §9". README is protected (AGENTS.md:79). 00-provenance.md:57 already points at a planned `02-policy-inventory.md`.
+**Blocker. The policy inventory would compete with README §9.** All six lenses raised this. README.md:440 says the inventory "belongs with the owner choices in §9, not in a new service or competing policy register". ROADMAP.md:262 says approvals are reconciled "into README §9". README is protected (AGENTS.md:79). 00-provenance.md:57 already points at a planned `02-policy-inventory.md`.
 
 A package-owned inventory would become the copy an engineer actually opens. It would then drift once §9 is populated. (Synthesizer verified README.md:440 and AGENTS.md:34, :72, :79.)
 
@@ -57,7 +57,7 @@ Recommended treatment:
 * the D11 requirement rows (README.md:23-39);
 * the A10-F2 first-release table (README.md:1165-1172, verified);
 * Phases 0-8 (README.md:1178-1188, verified);
-* the delivery order (ROADMAP.md:282);
+* the delivery order (ROADMAP.md:289);
 * the A08 test method (README.md:34).
 
 Separate package files for each would be a third copy. A10-F2 also says first-release scope is recorded "through existing settings/bootstrap/deployment" and that strategy/account scope "remain explicit selection work; this decision does not silently choose them" (README.md:1165). A scope document that fills in cells would choose scope by accident.
@@ -152,7 +152,7 @@ Each item needs:
 
 SLICE-01 excludes protection, sessions across day boundaries, conflicts and real money values.
 
-**Blocker (implementation readiness). No ledger schema is fixed, and the master leaves the question open.** The §6 entry for `001_initial.sql` reads "Define target schema after upgrade versus import evaluation" (README.md:987). ROADMAP.md:276 calls the method "evidence-dependent". The legacy Tier-1 schema has three gaps:
+**Blocker (implementation readiness). No ledger schema is fixed, and the master leaves the question open.** The §6 entry for `001_initial.sql` reads "Define target schema after upgrade versus import evaluation" (README.md:987). ROADMAP.md:283 calls the method "evidence-dependent". The legacy Tier-1 schema has three gaps:
 * It has no tables for session, protection state, reservation or execution domain.
 * Its provenance CHECK allows only `native`, `legacy_import` and `broker_observation` (`OA/src/tier1/schema.py:25`), so it cannot hold the unknown or contradictory attribution that ATA-06 requires.
 * It refuses any version mismatch and has no migration path (`schema.py:130-136`).
@@ -162,7 +162,7 @@ Recommended treatment:
 * Fix the version rule: forward-only numbered migrations; readers refuse unknown versions.
 * Upgrade-versus-import becomes a Q item that blocks only the Phase 4 and Phase 7 slices.
 
-**Major. Phases and slices are not mapped.** A separate dependency-ordered plan could reorder or gate work differently from Phases 0-8 and ROADMAP.md:282. Each slice should declare:
+**Major. Phases and slices are not mapped.** A separate dependency-ordered plan could reorder or gate work differently from Phases 0-8 and ROADMAP.md:289. Each slice should declare:
 * its phase;
 * the decision IDs it proves;
 * the contracts it consumes and their versions;

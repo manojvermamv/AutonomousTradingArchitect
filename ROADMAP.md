@@ -28,6 +28,12 @@ grant (702) issued with it. Decision D-016 is in the source repository's `docs/d
 - **Replay re-measured** on today's code (SLICE-15/16/17 amendments); R1 under D-007 done.
 - **Codex's 17 Markdown findings** fixed; CI green with Gitleaks.
 
+**21 November 2026:** **D-017 (owner):** the nightly backup goes to Cloudflare R2 by default, as plain objects over the
+S3 API: no encryption, no passphrase, no restic. Backblaze B2 is supported, untested, deferred; switching is settings
+only (`backup.provider`, `backup.destination`, the backup's credential). Built and tested against a local S3
+stand-in; `backup.retention` stays the owner's (`keep:<n>`, ships unbound). SLICE-11 step 8 is closed by it.
+Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one set of 551 MB, 122 objects, uploaded, read back, checked and restored into scratch; every hash, the ledger head (712) and rows, the 120 evidence files and the market store match the live stores (the market store had only moved on: new watermark rows); the bucket held exactly the set.
+
 **Still open, in order:**
 
 1. ~~Release `8c7d99e`~~ released 20 Nov 19:03 IST.
@@ -40,8 +46,13 @@ grant (702) issued with it. Decision D-016 is in the source repository's `docs/d
 5. Owner drills: stop OpenAlgo for 3 minutes with a position open; the emergency stop tried once.
 6. ~~The recorded calendar checked against NSE's published holiday list.~~ **Done 20 November 2026 (owner):** the
    recorded NFO list (16 dates) matches NSE's; Tuesday 24 November is a holiday. Recheck each December.
+7. ~~The backup (D-017): bind `backup.destination` on the server, then the first proof on the real bucket.~~
+   **Done 21 November 2026:** bound in the deploy's settings and proved on the real bucket (above). Left: the
+   evidence files' mode (owner's decision, below), then the nightly timer starts with the next release. The
+   clean-host restore rehearsal stays deferred.
+8. Open before the nightly timer runs: the kernel's evidence files are private (0600, `EvidenceStore`), so the backup unit, in at-ledger-readers, cannot read them and its first night would fail with PermissionError; the proof read them with a one-off read-only capability. The owner decides: evidence 0640 like the ledger (recommended), or another way.
 
-Backup integration stays deferred until the owner asks. Live mode only on the owner's word. The AI twin (SLICE-17),
+ Live mode only on the owner's word. The AI twin (SLICE-17),
 the web console and MCP are not in the first release.
 
 <a id="current-delivery-status--2026-11-19-utc"></a>
