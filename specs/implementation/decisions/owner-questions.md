@@ -106,7 +106,7 @@ Proof: A matrix test (ambiguous entry, modify and cancel against each later acti
 
 ## Q-005
 
-**First-release workflow scope.** This is not asked yet. The accepted baseline requires an explicit first-release composition and forbids choosing it silently (`README.md:1165`, `ROADMAP.md:244`). The delivery plan builds every slice on synthetic fixtures and recorded interfaces first, which needs no answer. Only the production-bound steps of SLICE-11 (restore rehearsal on the real backup) and SLICE-14 (initial cutover) wait for it. It will be asked with a Requirement/Owner/Proof block when those slices are reached.
+**First-release workflow scope.** This is not asked yet. The accepted baseline requires an explicit first-release composition and forbids choosing it silently (`README.md:1165`, `ROADMAP.md` row A10-F2). The delivery plan builds every slice on synthetic fixtures and recorded interfaces first, which needs no answer. Only the production-bound steps of SLICE-11 (restore rehearsal on the real backup) and SLICE-14 (initial cutover) wait for it. It will be asked with a Requirement/Owner/Proof block when those slices are reached.
 
 ---
 
@@ -120,7 +120,7 @@ Owner: kernel.reconciliation (settlement rule), with adapters.openalgo recording
 Proof: Recorded-interface tests with unmarked responses give the bound value's outcome; an unbound value refuses to load; analyzer and unknown evidence never count as live performance either way.
 ```
 
-**Why it matters.** ATA-06 requires reconciliation to validate attributable domain and identity before settlement (`README.md:458`). The first ATA-06 disposition reported that the checked OpenAlgo mirror has live response paths without an explicit mode field (`ROADMAP.md` at `461f9c2`, ATA-06 row). The current row (`ROADMAP.md:277` at `b9bb32c`) keeps "Endpoint/deployment proof pending". If that holds for the deployment, strict reading means no production obligation can ever settle. The obligations stay reserved and capacity is never released. This is not decided anywhere. Every other part of the package proceeds on simulated and recorded interfaces, which carry known domains.
+**Why it matters.** ATA-06 requires reconciliation to validate attributable domain and identity before settlement (`README.md:458`). The first ATA-06 disposition reported that the checked OpenAlgo mirror has live response paths without an explicit mode field (`ROADMAP.md` at `461f9c2`, ATA-06 row). The current row (`ROADMAP.md:270` at `b9bb32c`) keeps "Endpoint/deployment proof pending". If that holds for the deployment, strict reading means no production obligation can ever settle. The obligations stay reserved and capacity is never released. This is not decided anywhere. Every other part of the package proceeds on simulated and recorded interfaces, which carry known domains.
 
 **Options.**
 
