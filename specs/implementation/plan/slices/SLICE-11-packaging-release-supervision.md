@@ -2761,7 +2761,7 @@ As the migration spec specifies, with these build choices:
 > `DirectoryDestination`'s layout and writes anchors; `backup.py main` is wired to the bound destination; `backup.retention`
 > accepts `keep:<n>` and ships unbound. The rows above that name restic or both custody lines are history. Tested
 > against a local S3 stand-in. Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one set of 551 MB, 122 objects, uploaded, read back, checked and restored into scratch; every hash, the ledger head (712) and rows, the 120 evidence files and the market store match the live stores (the market store had only moved on: new watermark rows); the bucket held exactly the set.
-> Open before the nightly timer runs: the kernel's evidence files are private (0600, `EvidenceStore`), so the backup unit, in at-ledger-readers, cannot read them and its first night would fail with PermissionError; the proof read them with a one-off read-only capability. The owner decides: evidence 0640 like the ledger (recommended), or another way.
+> The kernel's evidence files were private (0600), so the backup unit could not read them: D-018 (owner, the same day) makes them 0640 like the ledger, and the 533 files on the server were changed once. Release `20261121T111857Z-c01ea97a2b55` (build `fe25f1f`) started the nightly timer (11:45 UTC, with `backup.retention: keep:14`); its first run as `at-backup` backed up, checked, restore-tested and pruned, all ok.
 
 ## Step 9 — measurement on recorded sessions (outline)
 

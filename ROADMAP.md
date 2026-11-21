@@ -47,10 +47,8 @@ Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one 
 6. ~~The recorded calendar checked against NSE's published holiday list.~~ **Done 20 November 2026 (owner):** the
    recorded NFO list (16 dates) matches NSE's; Tuesday 24 November is a holiday. Recheck each December.
 7. ~~The backup (D-017): bind `backup.destination` on the server, then the first proof on the real bucket.~~
-   **Done 21 November 2026:** bound in the deploy's settings and proved on the real bucket (above). Left: the
-   evidence files' mode (owner's decision, below), then the nightly timer starts with the next release. The
+   **Done 21 November 2026:** bound in the deploy's settings and proved on the real bucket (above). The kernel's evidence files were private (0600), so the backup unit could not read them: D-018 (owner, the same day) makes them 0640 like the ledger, and the 533 files on the server were changed once. Release `20261121T111857Z-c01ea97a2b55` (build `fe25f1f`) started the nightly timer (11:45 UTC, with `backup.retention: keep:14`); its first run as `at-backup` backed up, checked, restore-tested and pruned, all ok. The
    clean-host restore rehearsal stays deferred.
-8. Open before the nightly timer runs: the kernel's evidence files are private (0600, `EvidenceStore`), so the backup unit, in at-ledger-readers, cannot read them and its first night would fail with PermissionError; the proof read them with a one-off read-only capability. The owner decides: evidence 0640 like the ledger (recommended), or another way.
 
  Live mode only on the owner's word. The AI twin (SLICE-17),
 the web console and MCP are not in the first release.
