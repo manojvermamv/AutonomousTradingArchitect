@@ -1,6 +1,11 @@
 # AutonomousTrading — specification and implementation-plan package
 
-* **Status (2026-11-21 UTC):** D-016 (20 Nov) counts an analyze session as a live-broker check. D-017: the nightly
+* **Status (2026-11-23 UTC):** an earlier exchange day's protective orders no longer block entries (PRT-R10); D-019
+  reads live Upstox funds strings as money; D-020 compresses the backup sets and market day files with zstd; D-021 keeps
+  10 trading days in the live market store, every older day a checked file in the bucket; the backup's off-machine
+  setting is removed (A1) and an owner restore command exists (A2). The running release is in the ROADMAP's
+  [current delivery status](../../ROADMAP.md#current-delivery-status--2026-11-21-utc).
+* **Status (2026-11-21 UTC, history):** D-016 (20 Nov) counts an analyze session as a live-broker check. D-017: the nightly
   backup goes to Cloudflare R2 as plain objects (no restic); it is proved on the real bucket and runs nightly. D-018:
   kernel evidence files are 0640. The running release is in the ROADMAP's [current delivery status](../../ROADMAP.md#current-delivery-status--2026-11-21-utc).
 * **Status (2026-11-19 UTC, history):** the first analyze-mode day with entries ran on 19 November (five BuyerEdge trades).

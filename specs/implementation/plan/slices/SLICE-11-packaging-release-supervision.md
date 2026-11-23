@@ -2,7 +2,7 @@
 
 > Owner correction, 2026-11-17: the separate-filesystem refusal described in the historical as-built sections below is superseded. Main-disk assessments are allowed, with capacity checks and optional mounted storage. See [current decision](../../../../ROADMAP.md#assessment-storage-correction--owner-decision-2026-11-17-utc). See the current decision and workspace result for implementation verification; historical test counts do not prove the new policy.
 
-* **Status:** built (2026-11-03 to 2026-11-12): steps 1–8 and 3a, each recorded "as built" below (step 7 in part, as its record says); step 8 closed 2026-11-21 by D-017 (its amendment). Steps 9–11 changed or moved to [SLICE-15](SLICE-15-fresh-start.md) on 2026-11-13 (server lost). Proposed 2026-10-30; revised the same day after the coordinator's design review (findings F-1…F-14, each resolved in this file and the two specs). Every step below began as an outline: by the owner's [standing rules](../../decisions/owner-answers-2026-10-27.md#standing-rules-2026-10-30), each step's exact detail is written just before it is built, then reviewed by two fresh EGM reviewers, built, run twice with the suite, break-checked and recorded "as built".
+* **Status:** built (2026-11-03 to 2026-11-12): steps 1–8 and 3a, each recorded "as built" below (step 7 in part, as its record says); step 8 closed 2026-11-21 by D-017 (its amendment), changed 2026-11-23 by D-020 and D-021 (its second amendment). Steps 9–11 changed or moved to [SLICE-15](SLICE-15-fresh-start.md) on 2026-11-13 (server lost). Proposed 2026-10-30; revised the same day after the coordinator's design review (findings F-1…F-14, each resolved in this file and the two specs). Every step below began as an outline: by the owner's [standing rules](../../decisions/owner-answers-2026-10-27.md#standing-rules-2026-10-30), each step's exact detail is written just before it is built, then reviewed by two fresh EGM reviewers, built, run twice with the suite, break-checked and recorded "as built".
 * **Precedence:** the master README, then the ROADMAP, then this package. The authorities are the [configuration spec](../../design/configuration-artifacts-release.md) and the [runtime spec](../../design/runtime-isolation-observability-deployment.md); for step 8, the [migration spec](../../design/migration-recovery-rollback-continuity.md). Every intentional difference from legacy is marked **Deviation**; every money-touching fork keeps legacy's live behaviour and is marked **Fork call** ([table](#fork-calls)). No score, threshold or money value is set here: measured values stay unbound until step 9 measures them and the owner approves them.
 * **Phase:** master Phase 2 (D05, A02-F1…F4, D06), with Phase 7's D10 rehearsal only (steps 10 and 11). Environment class S for steps 1–8; step 9 reads recorded sessions in an isolated copy on the EC2 (class R, pre-approved read-only work); steps 10 and 11 are production-sensitive (class P) and **need the owner's word**.
 * **Builds on:** SLICE-02, SLICE-03, SLICE-06, SLICE-07 and SLICE-10 as built (the delivery plan's prerequisites), and SLICE-08 and SLICE-09 as built (the build order puts both before SLICE-11). The branch `slice-11` is cut from the latest built slice on `agentic-desk`.
@@ -2764,6 +2764,19 @@ As the migration spec specifies, with these build choices:
 > The kernel's evidence files were private (0600), so the backup unit could not read them: D-018 (owner, the same day) makes them 0640 like the ledger, and the 533 files on the server were changed once. Release `20261121T111857Z-c01ea97a2b55` (build `fe25f1f`) started the nightly timer (11:45 UTC, with `backup.retention: keep:14`); its first run as `at-backup` backed up, checked, restore-tested and pruned, all ok.
 > Later the same day, release `20261121T123604Z-72a02e23f1dc` (build `2de581c`): each set records the real host id and the bundle digest. The log is `/var/lib/autonomous-trading/backups/backup.jsonl` (off `/run`; the old log carried once). The read-back is streamed. Sets without a manifest are deleted after the next good night. A night stops after 2 hours. The three earlier sets record host id `rehearsal`.
 
+> **Owner amendment, 23 November 2026 (D-020, D-021; source repository `docs/decisions.md`; `docs/operations.md` "Data management (23 November 2026)").**
+> `backup.storage_credential_held_offbox` is removed (A1): the owner's Cloudflare account is the token's off-machine copy.
+> Sets are format 2 (`at-recovery-set/2`, B5): each object stored once under `objects/` by its raw SHA-256, as one zstd
+> frame at level 9 (D-020); a set is only its manifest; a night uploads only new objects (a night with nothing new: 0
+> bytes, 7.1 s); prune goes by manifests. A set holds the ledger, the evidence, the market store's live window, the
+> strategy host stores and the assessments files. Each closed trading day is exported, uploaded once to
+> `days/<date>.sqlite.zst`, read back, copied to `backup.day_files` and receipted in `backup.day_receipts` (B4); day files
+> are never deleted, and the market writer deletes a day older than the newest 10 trading days only against a matching
+> receipt (D-021, B6). Files over 64 MiB go up as multipart uploads, and each store copy is SQLite's backup API in one
+> step (B1). The restore has an owner command (A2): `python -m autonomous_trading.operations.restore list|run` and at-ops
+> `restore-backup.sh list|rehearse|live`. Format 1 sets stay readable until they age out. The rows above about the set's
+> layout and the restore's entry point are history.
+
 ## Step 9 — measurement on recorded sessions (outline)
 
 **Changed (2026-11-13, server lost; see SLICE-15).** The server part (copying recorded sessions and legacy's records on the EC2, legacy's own read load on the account) is void. What can still be measured without a server moves to SLICE-15 step 6 (on the replayed recorded days); OpenAlgo's real load waits for SLICE-15 step 7.
@@ -2789,6 +2802,8 @@ Production-sensitive: "any deploy" is asked first under the standing rules. Deep
 ## Step 11 — the real restore rehearsal (outline; needs the owner's word)
 
 > **Owner amendment — 21 November 2026 (D-017):** the destination is R2 plain objects, not a restic repository, and it is bound. A scratch restore is proved (`scripts/verify_backup.py`). The clean-host rehearsal (D10, the master README's "D10:" paragraph under the phases) is still to do.
+>
+> **Owner amendment, 23 November 2026 (D-020, D-021).** The restore has an owner command (at-ops `restore-backup.sh`: `list`, `rehearse` into a throwaway folder, `live` onto a new server; source repository guide 01 section 6). It has not yet been run against the real bucket; the clean-host rehearsal is still to do.
 
 **Moved (2026-11-13, server lost) to SLICE-15 step 7**, against the owner's B2 or R2 restic repository (POL-O01 answered 2026-11-13); SLICE-15 step 5 rehearses it first on this PC with a local destination.
 

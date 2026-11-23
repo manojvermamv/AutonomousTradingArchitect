@@ -12,12 +12,38 @@ Implemented, committed and pushed as source `b88014e` (`agentic-desk`), with thi
 
 **21 November 2026 (D-017):** superseded for the backup. The nightly backup goes to R2 as plain objects, without restic, and runs nightly. The clean-host restore rehearsal stays deferred.
 
-<a id="current-delivery-status--2026-11-20-utc"></a>
-## Current delivery status — 2026-11-21 UTC
+**23 November 2026 (B9; D-020, D-021):** superseded for new days. Assessments are one append-only SQLite file per IST day (`days/<date>.sqlite`), sealed by the supervisor (a seal row, then read-only), weekends and holidays too; no tar copy is written. Old days keep their layout and readers read both. Every nightly set holds the assessments files; the market store keeps the newest 10 trading days, each older day a checked, compressed file in the bucket. An owner command restores after losing the server (A2); the clean-host restore rehearsal (D10) stays open.
 
-Updated the evening of 21 November 2026 (IST). Running: release `20261121T123604Z-72a02e23f1dc` (build `2de581c`, the
-backup review's fixes), converged 18:07 IST, kernel operating. Monday 23 November's binding (ledger 700) and entry grant
-(702) were issued on 20 November. Decisions D-016 to D-018 are in the source repository's `docs/decisions.md`.
+<a id="current-delivery-status--2026-11-20-utc"></a>
+<a id="current-delivery-status--2026-11-21-utc"></a>
+## Current delivery status — 2026-11-23 UTC
+
+Updated the evening of 23 November 2026 (IST). Running: release `20261123T102509Z-c8b112fc7707` (head `c3a314b`: the
+PRT-R10 fix and D-019), activated after the close; Wednesday 25 November's binding and entry grant issued (Tuesday
+24 November is an NSE holiday). A second release with the data-management work follows the same evening; the source
+repository's `HANDOFF.md` section 1 names the running release and heads. Decisions D-016 to D-021 are in the source
+repository's `docs/decisions.md`.
+
+**Done (23 November 2026):**
+
+- **PRT-R10 (`a822a30`).** OpenAlgo's orderbook holds today's orders only, so Friday's ten protective orders (all
+  ended at Friday's close) were absent on Monday and every Monday entry was refused. The kernel sends only DAY orders,
+  so an owned order first recorded on an earlier exchange day now counts as ended; an order of today the book does not
+  show still blocks. Monday's session made no entries.
+- **D-019 (`5782a93`):** live Upstox funds come as exact two-decimal strings; they are money now. The out-of-hours
+  all-`"0.00"` answer is unavailable. Analyze mode sends numbers, so live funds reads would have failed every entry.
+- **The fake OpenAlgo audited against upstream** (`5f2060c`, test-only).
+- **A1:** `backup.storage_credential_held_offbox` removed; the owner's Cloudflare account can make a new token at any
+  time (D-017's 23 November line). `status` has no UNSURE line.
+- **Data management B1–B10 (D-020, D-021):** multipart uploads and one-step store copies (B1); the market writer's
+  seal pass reads only what a commit can change, 358 ms to 1–3 ms a commit (B2); a date index (B3); market day files
+  exported, uploaded once, receipted (B4); format 2 sets, each object once by hash, zstd level 9, a night with nothing
+  new uploads 0 bytes (B5); the live market store keeps 10 trading days, an older day deleted only with a matching
+  receipt (B6); replay reads one day, and a DuckDB Parquet research copy (B7); the strategy host caches sealed bars,
+  18.7 s to 0.56 s CPU a pass (B8); assessments one file per day, no tar (B9); replay days one zstd stream, 33.9 MB to
+  2.56 MB (B10). Measurements: source repository `docs/operations.md` "Data management (23 November 2026)".
+- **A2:** restore after losing the server: `python -m autonomous_trading.operations.restore list|run` and at-ops
+  `restore-backup.sh list|rehearse|live` (source repository guide 01 section 6). Not yet run against the real bucket.
 
 **Done (20 November 2026):**
 
@@ -53,11 +79,31 @@ Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one 
    **Done 21 November 2026:** bound in the deploy's settings and proved on the real bucket (above). The kernel's evidence files were private (0600), so the backup unit could not read them: D-018 (owner, the same day) makes them 0640 like the ledger, and the 533 files on the server were changed once. Release `20261121T111857Z-c01ea97a2b55` (build `fe25f1f`) started the nightly timer (11:45 UTC, with `backup.retention: keep:14`); its first run as `at-backup` backed up, checked, restore-tested and pruned, all ok.
    Release `20261121T123604Z-72a02e23f1dc` (build `2de581c`, 18:07 IST) carries the backup review's fixes. Each set now records the real host id and the release's bundle digest. The log moved off `/run` to `/var/lib/autonomous-trading/backups/backup.jsonl`, and the old log was carried across. The read-back is streamed. Sets cut short are deleted after the next good night. A night stops after 2 hours. The three sets taken before it record host id `rehearsal`, so restore from a newer set. at-ops `backup-verify.sh` re-proves the newest set at any time; at-ops health flags a failed backup run. The
    clean-host restore rehearsal stays deferred.
-8. Owner: put the backup token in the password manager, then set `backup.storage_credential_held_offbox`. Until then
-   `status` says UNSURE.
+8. ~~Owner: put the backup token in the password manager, then set `backup.storage_credential_held_offbox`.~~
+   **Closed 23 November 2026 (A1):** the setting is removed; the owner's Cloudflare account is the token's off-machine
+   copy (D-017's 23 November line).
 9. `security.journal` is unbound, so every backup set records an authorization gap (no authorization snapshot). This
    predates D-017. It is the owner's to bind.
 10. Prune old releases after Monday 23 November.
+11. ~~Restore after losing the server: no owner command.~~ **Built 23 November 2026 (A2):** `restore-backup.sh`. Still
+    open: its first `rehearse` against the real bucket, and the clean-host restore rehearsal (D10).
+12. ~~Data management: the market store and the nightly set grow about 170 MB each trading day.~~ **Done 23 November
+    2026 (D-020, D-021, B1–B10).** Still open: carry `backup.day_receipts` and `backup.day_files` into the server's
+    settings with the release that brings them, then confirm the first night's day files and the first 16:00 prune.
+13. **Defects found 23 November 2026** (none blocks trading; each is a correctness or tidiness item):
+    - `market/store.py`: a tick key revised into another window while its first window is unsealed wedges every
+      later commit (`ValueError`, rollback). B2 kept the behaviour identical; live keys are unique per receipt.
+    - `market/view.py` detects a pruned day by inference (no watermark or seal rows). Exact alternative: a
+      `pruned_day` table written by `days.prune`.
+    - `market/view.py`'s incremental read queries `reader.conn` directly; cleaner is `tick_records(..., after=)` in
+      `market/store.py`.
+    - The research user is not in `at-market-readers`, so it cannot read `backup.day_files`.
+    - Restored sealed assessment days come back 0640, not 0440 (`operations/restore.py`).
+    - A day whose live rows changed after its export keeps its receipt and is never pruned (kept for good; safe).
+    - at-ops `health.sh` exits 1 when its attention lines are only informational (waiting timers), so a checkpoint
+      unit shows "failed".
+    - `deploy/install.py` `latest_assessment` keeps the old index scan as a fallback for the rehearsal's fake
+      supervisor.
 
  Live mode only on the owner's word. The AI twin (SLICE-17),
 the web console and MCP are not in the first release.
@@ -231,7 +277,7 @@ The [master README](README.md#25-october-follow-up-audit-and-accepted-target-dec
 | 4 — prove integrity | **D04: event-derived state verification** — `kernel.ledger.projections` | Alter epoch/command/broker indexes without changing events: mismatch is detected before financial authority proceeds. Clean reconstruction agrees at the required head. |
 | Parallel after contracts | **D08: explicit causal Canvas** — market/view/Canvas | Explicit cutoff, availability and freshness policies; late corrections and future bars cannot change earlier as-known facts. Geometry and interpretation remain distinct. |
 | Parallel after contracts | **D09: enforced cognition capabilities** — cognition ports and operations isolation | Native descendants cannot reach financial sockets/keys, mutable production files or protected evidence; permitted egress and resource caps work; job submission does not require mutual implementation imports. |
-| Before activation | **D10: recovery proof before cutover** — operations/recovery | Restore the candidate artifact/schema/backup on a clean isolated host; prove crash recovery, identity/custody continuity, refusal before fencing and exclusive activation. Actual cutover still needs fresh reconciliation and external old-writer fencing. **Owner note — 18 November 2026:** there is no cutover. The legacy host was lost on 13 November; SLICE-15's fresh start replaced the cutover. The first release runs in analyze mode with backup deferred; the backup and clean-host restore rehearsal stay open before live. **Owner amendment — 19 November 2026 (D-015, source `docs/decisions.md`):** no history import and no cutover; the shadow, legacy adapters, history import and installer cutover commands are being removed. **Owner amendment — 21 November 2026 (D-017):** the nightly backup runs, to R2 as plain objects, proved on the real bucket. The clean-host restore rehearsal stays open before live. |
+| Before activation | **D10: recovery proof before cutover** — operations/recovery | Restore the candidate artifact/schema/backup on a clean isolated host; prove crash recovery, identity/custody continuity, refusal before fencing and exclusive activation. Actual cutover still needs fresh reconciliation and external old-writer fencing. **Owner note — 18 November 2026:** there is no cutover. The legacy host was lost on 13 November; SLICE-15's fresh start replaced the cutover. The first release runs in analyze mode with backup deferred; the backup and clean-host restore rehearsal stay open before live. **Owner amendment — 19 November 2026 (D-015, source `docs/decisions.md`):** no history import and no cutover; the shadow, legacy adapters, history import and installer cutover commands are being removed. **Owner amendment — 21 November 2026 (D-017):** the nightly backup runs, to R2 as plain objects, proved on the real bucket. The clean-host restore rehearsal stays open before live. **Owner amendment — 23 November 2026 (D-020, D-021):** an owner restore command exists (A2: list, rehearse into a throwaway folder, restore onto a new server); the clean-host restore rehearsal stays open before live. |
 
 The six later choices refine the delivery order above; they do not add six serial release gates or replace the original decisions:
 
@@ -546,7 +592,7 @@ The order below reflects the current audit's risk and dependencies. It is not a 
 | 3 | **F4 / D05 — installable application and deployment portability** | Explicit shipping manifest, resources and executable entrypoints without checkout/`.git`; versioned artifact/environment staging and failure-safe handoff; preserve current history on software rollback. |
 | 4 | **F5 / D06 — shared worker configuration contract** | Render both offline and advisor service environments from the shared schema; intentional paths pass, forbidden credentials refuse, and one job per profile completes in isolation. |
 | 5 | **F3 — derived authority state integrity** | Rebuild/compare mutable indexes and epochs against event-derived truth after startup, recovery, and external modification; preserve existing release-binding and projection checks. |
-| 6 | **F9 / D10 — recovery before cutover** | Before production activation, rehearse the candidate artifact/schema/backup restoration on a clean separate host; prove the old writer cannot act, reconcile accepted/pending/unknown commands, preserve identities, and activate only one writer. Initial migration additionally requires the ATA-03 naturally flat scope and retirement at first target attempt; later target upgrades retain Combined-F6. **Owner note — 18 November 2026:** there is no old writer and no migration (fresh start). Activation was in analyze mode; the backup and clean-host restore rehearsal stay open before live. **Owner amendment — 19 November 2026 (D-015):** the import and cutover code is being removed. **Owner amendment — 21 November 2026 (D-017):** the backup runs nightly and was proved on the real bucket; the clean-host restore rehearsal stays open before live. |
+| 6 | **F9 / D10 — recovery before cutover** | Before production activation, rehearse the candidate artifact/schema/backup restoration on a clean separate host; prove the old writer cannot act, reconcile accepted/pending/unknown commands, preserve identities, and activate only one writer. Initial migration additionally requires the ATA-03 naturally flat scope and retirement at first target attempt; later target upgrades retain Combined-F6. **Owner note — 18 November 2026:** there is no old writer and no migration (fresh start). Activation was in analyze mode; the backup and clean-host restore rehearsal stay open before live. **Owner amendment — 19 November 2026 (D-015):** the import and cutover code is being removed. **Owner amendment — 21 November 2026 (D-017):** the backup runs nightly and was proved on the real bucket; the clean-host restore rehearsal stays open before live. **Owner amendment — 23 November 2026 (D-020, D-021):** the restore command is built (A2); the clean-host restore rehearsal stays open before live. |
 | 7 | **F6–F8 — bounded compatibility and dormant API cleanup** | Auth contract tests; exact legacy replay shape/provenance checks; production-caller search and checkpoint consistency proof or removal. |
 | 8 | **Dashboard claims that are conditional or unverified** | Claim-specific load, runtime, custody, observability, or resilience evidence before changing their status. No implementation is implied by a scorecard number. |
 | 9 | **Production and broker acceptance** | Release-specific session evidence, exact broker observations, protection/reconciliation outcomes, resource use, and recovery proof. Analyze-mode evidence does not establish a real-broker lifecycle. 18 November: analyze session without entries (R2 lease, OpenAlgo, market data, services measured). 19 November: five analyze-mode trades with entries, protection and exits; dispatch timings not yet recorded. 20 November: a second analyze day; dispatch and completion timings measured for 19–20 November (`docs/measurements/session-timings-2026-11-19-20.md` in the source repository). 21 November: the off-box backup proved on the real bucket and running nightly (D-017). |
@@ -597,6 +643,7 @@ Dates are preserved as evidence windows. The date of a report, the date of a sou
 | **13–18 November 2026** | Legacy host lost 13 November; SLICE-15 fresh start; first release installed 18 November, replaced 17:29 IST by `20261118T115832Z-bb7baf172aaa` (`d63928d`); kernel `OPERATING`; BuyerEdge entry grant for 19 November. | First deployed evidence (analyze mode). Production and live acceptance pending. |
 | **19 November 2026** | First analyze-mode day with entries: five BuyerEdge trades; fixes `fae71f9`, D-011–D-014; two fresh ledgers; release `20261119T100828Z-91a2667a6d14` (`1f7de02`) running. | Analyze-mode evidence of entries, protection and exits. Production and live acceptance pending. |
 | **20–21 November 2026** | Second analyze-mode day (D-016); put-delta exit fix released; D-017 nightly backup to R2 as plain objects, proved on the real bucket; D-018 evidence files 0640. | Off-box backup running; clean-host restore rehearsal, production and live acceptance pending. |
+| **23 November 2026** | PRT-R10 fix (an earlier day's protective orders count as ended); D-019 live funds strings; release after the close; D-020 zstd, D-021 10 trading days live; data management B1–B10; restore command (A2). | Monday's entries were all refused (PRT-R10) before the fix; restore not yet run against the real bucket; clean-host restore rehearsal, production and live acceptance pending. |
 | **Future scoped review: date TBD** | Name the target documents and/or source branch and SHA actually inspected. | Review affected requirements or findings only; source re-audit is not a prerequisite for isolated specifications or implementation. Record evidence limits and preserve prior dates. |
 
 ## Direction changes
@@ -629,6 +676,7 @@ This log records when newer dated evidence changes what the roadmap asks for. Do
 | **18 November 2026** | CUJ-SES-1: a restart continues the session; activation only with the market closed; strategies start at the session clock; cutover from legacy. | D-007 to D-010 (early close, activation without the market-hours check, late start, host stays on with owner read access); the fresh start replaced the cutover (13 November). | Source repository `docs/decisions.md`. |
 | **19 November 2026** | A held leg is never touched; stop and target at the plan's levels; entries priced from the decision's exact-minute chain; the broker squares off at the close (`session_close: broker`); legacy history enters by import (D-001). | D-011 a leftover protective order is cancelled even under a hold; D-012 stop and target re-anchored to the real fill, both ways; D-013 entries priced from the newest chain the view sees; D-014 `session_close: square_off`; D-015 no history import and no cutover (their code is being removed). | Source repository `docs/decisions.md`; 19 November analyze session. |
 | **20–21 November 2026** | Analyze sessions did not count as live-broker checks; the backup was a restic, encrypted repository, deferred; kernel evidence files were private (0600). | D-016 an analyze session counts as a live-broker check; D-017 the nightly backup goes to R2 as plain objects over S3, no passphrase, no restic (B2 supported, untested); D-018 evidence files are 0640, read by `at-ledger-readers`. | Source repository `docs/decisions.md`. |
+| **23 November 2026** | An order missing from OpenAlgo's today-only orderbook could still rest at the broker; live funds were numbers; a copy of the backup token held off the machine had to be recorded; the market store and the nightly set grew without bound; assessments kept a tar copy per day. | PRT-R10: an earlier exchange day's protective order counts as ended (DAY validity); D-019 two-decimal strings are money; A1 the off-machine setting removed; D-020 zstd for sets and day files; D-021 the live market store keeps 10 trading days; B9 one sealed file per assessment day. | Source repository `docs/decisions.md` and `docs/operations.md`. |
 | **Future dated review: TBD** | Current accepted design and scoped outstanding evidence. | Record the next authorized target/source review at its actual revision. | Identify changed conclusions and affected work; preserve historical baselines and do not require an unrelated source audit. |
 
 <details>

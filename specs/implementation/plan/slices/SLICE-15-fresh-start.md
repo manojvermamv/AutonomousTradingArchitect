@@ -1,6 +1,6 @@
 # SLICE-15 — Fresh start: a first install with no legacy, rehearsed on this PC
 
-> Owner storage update, 2026-11-17: shared main-disk assessment storage is permitted. A separate volume is optional, not a step-7 deployment prerequisite. Capacity protection and local sealed daily assessment copies are specified in the [current decision](../../../../ROADMAP.md#assessment-storage-correction--owner-decision-2026-11-17-utc). Remote backup/restore work remains deferred until requested (21 November 2026: superseded for the backup by D-017, which runs nightly; the clean-host restore rehearsal is still open). Historical build results below are not verification of this change.
+> Owner storage update, 2026-11-17: shared main-disk assessment storage is permitted. A separate volume is optional, not a step-7 deployment prerequisite. Capacity protection and local sealed daily assessment copies are specified in the [current decision](../../../../ROADMAP.md#assessment-storage-correction--owner-decision-2026-11-17-utc). Remote backup/restore work remains deferred until requested (21 November 2026: superseded for the backup by D-017, which runs nightly; the clean-host restore rehearsal is still open). 23 November 2026 (B9): the local sealed daily copy is the day's own append-only SQLite file, sealed in place; no tar is written; an owner restore command exists (A2). Historical build results below are not verification of this change.
 
 * **Status:** steps 1–6 built (2026-11-13 to 2026-11-14), each recorded "as built" below; step 7 (the new server) is under way on the owner's Ubuntu 24.04 host: first install 18 Nov 2026 (`20261118T024927Z-1a4b7b40a60d`), the running release in the ROADMAP's current delivery status; 7.2 and 7.4 done; 7.3 (backup) done 21 Nov 2026 (D-017: nightly to R2 as plain objects; scratch restore proved; see SLICE-11 step 8's amendment); 7.5 partly run; 7.6 analyze sessions with entries on 19 and 20 Nov; 7.7 not started (see [the 18 November amendment](#step-7--the-new-server-outline-needs-the-owner-and-a-server)). Proposed 2026-11-13. Every step below began as an outline in the standing rules' sense: each step's exact detail (files, signatures, test tables, break checks) is written just before it is built, then reviewed by two fresh EGM reviewers, built, run twice with the suite, break-checked and recorded "as built".
 * **Why this slice exists.** The production EC2 (`debian-oa`) was lost with all its data ([Server lost: start fresh](../../decisions/owner-answers-2026-10-27.md#server-lost-start-fresh-2026-11-13)). The owner chose a fresh start with the new system only. The steps that needed live legacy — SLICE-11 steps 9–11 (in part), SLICE-13 steps 6–7 and SLICE-14 steps 3–5 — are void or moved here. This slice replaces them with a fresh first install, rehearsed in full on the owner's Windows PC, then carried out on a new server.
@@ -593,6 +593,8 @@ Every part is asked first. Order:
 
 > **Owner amendment, 21 November 2026 (D-017, D-018).** **7.3** done: the backup goes to R2 as plain objects (no restic, no passphrase; the anchor gap is closed, since `ObjectStoreDestination` writes anchors). `backup.destination`, `backup.retention` and the provider are bound. It was proved on the real bucket and runs nightly. `backup.storage_credential_held_offbox` is the owner's to set. Kernel evidence files are 0640 (D-018).
 
+> **Owner amendment, 23 November 2026 (D-020, D-021).** `backup.storage_credential_held_offbox` is removed (A1). The sets are compressed and store each object once (D-020); every closed market day is a day file in the bucket, and the live market store keeps 10 trading days (D-021). The restore after losing the server has an owner command (A2, at-ops `restore-backup.sh`). See SLICE-11 step 8's second amendment.
+
 ## Completion conditions
 
 * Steps 1–6 are built, tested twice and break-checked, each recorded "as built" here.
@@ -602,6 +604,7 @@ Every part is asked first. Order:
 * Step 7 is done on the owner's word, or recorded as waiting, with the server, the backup account and the licence named.
   * Recorded 18 Nov 2026: host: the owner's Ubuntu 24.04 server; backup: deferred (owner, 18 Nov 2026); licence: not recorded.
   * Recorded 21 Nov 2026: backup: R2, nightly (D-017); clean-host restore rehearsal: not started; licence: not recorded.
+  * Recorded 23 Nov 2026: restore command built (A2), not yet run against the real bucket; clean-host restore rehearsal: not started.
 
 ## Carried after the fresh check (2026-11-14)
 
