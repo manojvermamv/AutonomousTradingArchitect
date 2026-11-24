@@ -25,10 +25,11 @@ checkpoint "failure"), a holiday's cleanly ended strategy host is no alarm, `ale
 mode` (source `docs/operations.md` "Health checks and day watches (24 November 2026)"). The running release is
 unchanged (the 23 November evening's fourth); Wednesday 25 November's binding and grant are in place.
 
-Updated the evening of 23 November 2026 (IST). Running: release `20261123T102509Z-c8b112fc7707` (head `c3a314b`: the
-PRT-R10 fix and D-019), activated after the close; Wednesday 25 November's binding and entry grant issued (Tuesday
-24 November is an NSE holiday). A second release with the data-management work follows the same evening; the source
-repository's `HANDOFF.md` section 1 names the running release and heads. Decisions D-016 to D-021 are in the source
+Updated the evening of 23 November 2026 (IST). Running since 18:31 IST: release `20261123T125948Z-200363068b91`
+(built from `d7347a1`), the fourth of that evening, all after the close: `c8b112fc7707` (`c3a314b`, the PRT-R10 fix
+and D-019), then the data-management work and two backup fixes. Wednesday 25 November's binding and entry grant are
+issued (Tuesday 24 November is an NSE holiday). The source repository's `HANDOFF.md` section 1 names the running
+release and heads. Decisions D-016 to D-021 are in the source
 repository's `docs/decisions.md`.
 
 **Done (23 November 2026):**
@@ -80,7 +81,9 @@ Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one 
 
 1. ~~Release `8c7d99e`~~ released 20 Nov 19:03 IST.
 2. Verify the first market-session kernel square-off when a position crosses 15:13 IST (D-014).
-3. Monday's open: the first index tick within seconds of 09:15 (the tick-gap fix live).
+3. ~~Monday's open: the first index tick within seconds of 09:15 (the tick-gap fix live).~~ **Done 23 November
+   2026:** the first NIFTY and BANKNIFTY ticks arrived at 09:15:00.99 IST (the market store's arrival time against
+   the tick's own time); on 20 November, before the fix, the first came at 09:20.
 4. Review OPS09 formally and update the provisional runtime settings (an owner decision). **Measured 19–20 November**
    with the source repository's `scripts/measure_session.py` (`docs/measurements/session-timings-2026-11-19-20.md`):
    sends under 6% of their deadlines, completions under 17% of the escalation limit; one chain stored 6.5 s after its
@@ -106,7 +109,7 @@ Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one 
 12. ~~Data management: the market store and the nightly set grow about 170 MB each trading day.~~ **Done 23 November
     2026 (D-020, D-021, B1–B10).** The server's settings carry `backup.day_receipts` and `backup.day_files`, and the
     first nights archived 5 day files (23 Nov). Still open: the first real 16:00 prune, once more than 10 trading days
-    are held (about 4 December). B10's optional recent ledger: built 24 November 2026, awaiting its release.
+    are held: Wed 2 December from 16:00 IST (any date with market records counts, 24 November's holiday rows included). B10's optional recent ledger: built 24 November 2026, awaiting its release.
 13. **Defects found 23 November 2026** (none blocks trading; each is a correctness or tidiness item):
     - `market/store.py`: a tick key revised into another window while its first window is unsealed wedges every
       later commit (`ValueError`, rollback). B2 kept the behaviour identical; live keys are unique per receipt.
@@ -114,7 +117,12 @@ Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one 
       `pruned_day` table written by `days.prune`.
     - `market/view.py`'s incremental read queries `reader.conn` directly; cleaner is `tick_records(..., after=)` in
       `market/store.py`.
-    - The research user is not in `at-market-readers`, so it cannot read `backup.day_files`.
+    - No research account exists on the server (research is outside the first release); one added later must join
+      `at-market-readers` to read `backup.day_files` (`settings/schema.py` gives `research-offline` no groups).
+    - (Found 24 November 2026.) D-021 counts any date with market records as a "trading day": on the 24 November
+      holiday the market process polled 432 rows (chain, Greeks, spot), so that date fills one of the 10 kept, and
+      the store keeps 9 real sessions while it is in the window (`market/days.py` `_days`). An owner decision: count
+      only session dates, or accept it.
     - Restored sealed assessment days come back 0640, not 0440 (`operations/restore.py`).
     - A day whose live rows changed after its export keeps its receipt and is never pruned (kept for good; safe).
     - ~~at-ops `health.sh` exits 1 when its attention lines are only informational~~ **Fixed 24 November 2026.**
