@@ -52,8 +52,7 @@ repository's `docs/decisions.md`.
   2.56 MB (B10). Measurements: source repository `docs/operations.md` "Data management (23 November 2026)".
 - **B10's optional step (24 November 2026, the owner's word):** the recent ledger. Every 5 minutes
   (`at-ledger-recent.timer`), when the ledger's head moved, a checked whole copy (about 0.3 MB compressed) goes to
-  the bucket by hash with its evidence; `restore run` takes it when it continues the set's chain. The recovery point
-  falls from up to about 24 hours to 5 minutes. Built and tested (source `docs/operations.md` "B10b"); runs from the
+  the bucket by hash with its evidence; `restore run` takes it when it continues the set's chain. Built and tested (source `docs/operations.md` "B10b"); runs from the
   first release that carries it.
 - **A2:** restore after losing the server: `python -m autonomous_trading.operations.restore list|run` and at-ops
   `restore-backup.sh list|rehearse|live` (source repository guide 01 section 6). Rehearsed on the real bucket on
