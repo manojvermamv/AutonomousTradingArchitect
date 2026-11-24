@@ -19,11 +19,11 @@ Implemented, committed and pushed as source `b88014e` (`agentic-desk`), with thi
 <a id="current-delivery-status--2026-11-23-utc"></a>
 ## Current delivery status — 2026-11-24 UTC
 
-**24 November 2026 (an NSE holiday; no session).** Built and pushed, not released: the recent ledger every 5 minutes
-(B10's optional step, below). Fixed in the source repository's at-ops skill: `health.sh` runs to its end (item 13's
+**24 November 2026 (an NSE holiday; no session).** Built and released that evening (`20261124T132627Z-55f838f52897`, on the
+owner's word): the recent ledger every 5 minutes (B10's optional step, below) and D-021 counting sessions only. Fixed in the source repository's at-ops skill: `health.sh` runs to its end (item 13's
 checkpoint "failure"), a holiday's cleanly ended strategy host is no alarm, `alerts.sh --alive MIN`, `openalgo_books
-mode` (source `docs/operations.md` "Health checks and day watches (24 November 2026)"). The running release is
-unchanged (the 23 November evening's fourth); Wednesday 25 November's binding and grant are in place.
+mode` (source `docs/operations.md` "Health checks and day watches (24 November 2026)"). Wednesday 25 November's
+binding and grant are in place.
 
 Updated the evening of 23 November 2026 (IST). Running since 18:31 IST: release `20261123T125948Z-200363068b91`
 (built from `d7347a1`), the fourth of that evening, all after the close: `c8b112fc7707` (`c3a314b`, the PRT-R10 fix
@@ -110,8 +110,8 @@ Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one 
 12. ~~Data management: the market store and the nightly set grow about 170 MB each trading day.~~ **Done 23 November
     2026 (D-020, D-021, B1–B10).** The server's settings carry `backup.day_receipts` and `backup.day_files`, and the
     first nights archived 5 day files (23 Nov). Still open: the first real 16:00 prune, once more than 10 trading days
-    are held: Wed 2 December from 16:00 IST with the running release, which counts 24 November's holiday rows; Thu
-    3 December once a release carries the owner's session-only count (24 November). B10's optional recent ledger: built 24 November 2026, awaiting its release.
+    are held: Thu 3 December from 16:00 IST (the owner's session-only count, released 24 November). B10's optional
+    recent ledger: released 24 November 2026, its first upload ok.
 13. **Defects found 23 November 2026** (none blocks trading; each is a correctness or tidiness item):
     - `market/store.py`: a tick key revised into another window while its first window is unsealed wedges every
       later commit (`ValueError`, rollback). B2 kept the behaviour identical; live keys are unique per receipt.
@@ -124,7 +124,7 @@ Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one 
     - ~~(Found 24 November 2026.) D-021 counted any date with market records as a "trading day", so the 24
       November holiday (432 polled rows) took one of the 10.~~ **Owner, 24 November 2026: count sessions only.**
       Built (`market/days.py` `_session`: a recorded closed day does not count; no recorded status counts on a
-      weekday, as before); not released yet. D-021's dated line in the source repository's `docs/decisions.md`.
+      weekday, as before); released 24 November 2026. D-021's dated line in the source repository's `docs/decisions.md`.
     - Restored sealed assessment days come back 0640, not 0440 (`operations/restore.py`).
     - A day whose live rows changed after its export keeps its receipt and is never pruned (kept for good; safe).
     - ~~at-ops `health.sh` exits 1 when its attention lines are only informational~~ **Fixed 24 November 2026.**
