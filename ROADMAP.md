@@ -109,7 +109,8 @@ Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one 
 12. ~~Data management: the market store and the nightly set grow about 170 MB each trading day.~~ **Done 23 November
     2026 (D-020, D-021, B1–B10).** The server's settings carry `backup.day_receipts` and `backup.day_files`, and the
     first nights archived 5 day files (23 Nov). Still open: the first real 16:00 prune, once more than 10 trading days
-    are held: Wed 2 December from 16:00 IST (any date with market records counts, 24 November's holiday rows included). B10's optional recent ledger: built 24 November 2026, awaiting its release.
+    are held: Wed 2 December from 16:00 IST with the running release, which counts 24 November's holiday rows; Thu
+    3 December once a release carries the owner's session-only count (24 November). B10's optional recent ledger: built 24 November 2026, awaiting its release.
 13. **Defects found 23 November 2026** (none blocks trading; each is a correctness or tidiness item):
     - `market/store.py`: a tick key revised into another window while its first window is unsealed wedges every
       later commit (`ValueError`, rollback). B2 kept the behaviour identical; live keys are unique per receipt.
@@ -119,10 +120,10 @@ Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one 
       `market/store.py`.
     - No research account exists on the server (research is outside the first release); one added later must join
       `at-market-readers` to read `backup.day_files` (`settings/schema.py` gives `research-offline` no groups).
-    - (Found 24 November 2026.) D-021 counts any date with market records as a "trading day": on the 24 November
-      holiday the market process polled 432 rows (chain, Greeks, spot), so that date fills one of the 10 kept, and
-      the store keeps 9 real sessions while it is in the window (`market/days.py` `_days`). An owner decision: count
-      only session dates, or accept it.
+    - ~~(Found 24 November 2026.) D-021 counted any date with market records as a "trading day", so the 24
+      November holiday (432 polled rows) took one of the 10.~~ **Owner, 24 November 2026: count sessions only.**
+      Built (`market/days.py` `_session`: a recorded closed day does not count; no recorded status counts on a
+      weekday, as before); not released yet. D-021's dated line in the source repository's `docs/decisions.md`.
     - Restored sealed assessment days come back 0640, not 0440 (`operations/restore.py`).
     - A day whose live rows changed after its export keeps its receipt and is never pruned (kept for good; safe).
     - ~~at-ops `health.sh` exits 1 when its attention lines are only informational~~ **Fixed 24 November 2026.**
