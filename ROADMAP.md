@@ -96,7 +96,10 @@ Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one 
    **Closed 23 November 2026 (A1):** the setting is removed; the owner's Cloudflare account is the token's off-machine
    copy (D-017's 23 November line).
 9. `security.journal` is unbound, so every backup set records an authorization gap (no authorization snapshot). This
-   predates D-017. It is the owner's to bind.
+   predates D-017. **Corrected 24 November 2026:** it is not a binding to make: no part of the running system writes a security journal (the off-host adapter SLICE-11 step 8 planned was never built; the kernel starts with `journal=None`), so binding the setting alone closes nothing. Nothing is lost: every
+   grant is also in the ledger, which the backup holds, and a restored kernel treats the journal as untrusted and
+   fails closed on delegated grants only (the owner issues a fresh grant each trading day anyway). Building the adapter
+   is worth it only with several operators or delegated grants; until then the gap is an honest note, not a fault.
 10. Prune old releases after Monday 23 November.
 11. ~~Restore after losing the server: no owner command.~~ **Built 23 November 2026 (A2):** `restore-backup.sh`,
     rehearsed on the real bucket that night (ok, 5 minutes). Still open: the clean-host restore rehearsal (D10).
