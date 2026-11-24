@@ -16,7 +16,14 @@ Implemented, committed and pushed as source `b88014e` (`agentic-desk`), with thi
 
 <a id="current-delivery-status--2026-11-20-utc"></a>
 <a id="current-delivery-status--2026-11-21-utc"></a>
-## Current delivery status — 2026-11-23 UTC
+<a id="current-delivery-status--2026-11-23-utc"></a>
+## Current delivery status — 2026-11-24 UTC
+
+**24 November 2026 (an NSE holiday; no session).** Built and pushed, not released: the recent ledger every 5 minutes
+(B10's optional step, below). Fixed in the source repository's at-ops skill: `health.sh` runs to its end (item 13's
+checkpoint "failure"), a holiday's cleanly ended strategy host is no alarm, `alerts.sh --alive MIN`, `openalgo_books
+mode` (source `docs/operations.md` "Health checks and day watches (24 November 2026)"). The running release is
+unchanged (the 23 November evening's fourth); Wednesday 25 November's binding and grant are in place.
 
 Updated the evening of 23 November 2026 (IST). Running: release `20261123T102509Z-c8b112fc7707` (head `c3a314b`: the
 PRT-R10 fix and D-019), activated after the close; Wednesday 25 November's binding and entry grant issued (Tuesday
@@ -107,8 +114,13 @@ Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one 
     - The research user is not in `at-market-readers`, so it cannot read `backup.day_files`.
     - Restored sealed assessment days come back 0640, not 0440 (`operations/restore.py`).
     - A day whose live rows changed after its export keeps its receipt and is never pruned (kept for good; safe).
-    - at-ops `health.sh` exits 1 when its attention lines are only informational (waiting timers), so a checkpoint
-      unit shows "failed".
+    - ~~at-ops `health.sh` exits 1 when its attention lines are only informational~~ **Fixed 24 November 2026.**
+      The cause was otherwise: a checkpoint unit's `at holds status` was refused (`SEC-R12`: the operator CLI admits
+      no caller inside a service, by design) and `lib.sh`'s `set -e` ended the report there with exit 1. `health.sh`
+      now runs to its end (a part it cannot read is an ATTENTION line) and inside a unit reads holds from the ledger;
+      `alerts.sh --alive MIN` gives a day watch a heartbeat; `openalgo_books mode` reads OpenAlgo's mode without a
+      session handling the key. And on a closed day (a holiday) a strategy host that ended cleanly is no longer an
+      ATTENTION line (`lib.sh` `unit_problems` asks the recorded calendar).
     - `deploy/install.py` `latest_assessment` keeps the old index scan as a fallback for the rehearsal's fake
       supervisor.
 
@@ -650,7 +662,8 @@ Dates are preserved as evidence windows. The date of a report, the date of a sou
 | **13–18 November 2026** | Legacy host lost 13 November; SLICE-15 fresh start; first release installed 18 November, replaced 17:29 IST by `20261118T115832Z-bb7baf172aaa` (`d63928d`); kernel `OPERATING`; BuyerEdge entry grant for 19 November. | First deployed evidence (analyze mode). Production and live acceptance pending. |
 | **19 November 2026** | First analyze-mode day with entries: five BuyerEdge trades; fixes `fae71f9`, D-011–D-014; two fresh ledgers; release `20261119T100828Z-91a2667a6d14` (`1f7de02`) running. | Analyze-mode evidence of entries, protection and exits. Production and live acceptance pending. |
 | **20–21 November 2026** | Second analyze-mode day (D-016); put-delta exit fix released; D-017 nightly backup to R2 as plain objects, proved on the real bucket; D-018 evidence files 0640. | Off-box backup running; clean-host restore rehearsal, production and live acceptance pending. |
-| **23 November 2026** | PRT-R10 fix (an earlier day's protective orders count as ended); D-019 live funds strings; release after the close; D-020 zstd, D-021 10 trading days live; data management B1–B10; restore command (A2). | Monday's entries were all refused (PRT-R10) before the fix; restore not yet run against the real bucket; clean-host restore rehearsal, production and live acceptance pending. |
+| **23 November 2026** | PRT-R10 fix (an earlier day's protective orders count as ended); D-019 live funds strings; release after the close; D-020 zstd, D-021 10 trading days live; data management B1–B10; restore command (A2). | Monday's entries were all refused (PRT-R10) before the fix; the restore rehearsed on the real bucket that night (ok, 5 minutes); clean-host restore rehearsal, production and live acceptance pending. |
+| **24 November 2026** | NSE holiday. The recent ledger every 5 minutes (built, not released); at-ops `health.sh`, `alerts.sh --alive`, `openalgo_books mode`, a holiday no alarm. | Full suite 3,479 passed on the server; live `health.sh` clean from a login and inside a unit; release pending the owner's word. |
 | **Future scoped review: date TBD** | Name the target documents and/or source branch and SHA actually inspected. | Review affected requirements or findings only; source re-audit is not a prerequisite for isolated specifications or implementation. Record evidence limits and preserve prior dates. |
 
 ## Direction changes
@@ -684,6 +697,7 @@ This log records when newer dated evidence changes what the roadmap asks for. Do
 | **19 November 2026** | A held leg is never touched; stop and target at the plan's levels; entries priced from the decision's exact-minute chain; the broker squares off at the close (`session_close: broker`); legacy history enters by import (D-001). | D-011 a leftover protective order is cancelled even under a hold; D-012 stop and target re-anchored to the real fill, both ways; D-013 entries priced from the newest chain the view sees; D-014 `session_close: square_off`; D-015 no history import and no cutover (their code is being removed). | Source repository `docs/decisions.md`; 19 November analyze session. |
 | **20–21 November 2026** | Analyze sessions did not count as live-broker checks; the backup was a restic, encrypted repository, deferred; kernel evidence files were private (0600). | D-016 an analyze session counts as a live-broker check; D-017 the nightly backup goes to R2 as plain objects over S3, no passphrase, no restic (B2 supported, untested); D-018 evidence files are 0640, read by `at-ledger-readers`. | Source repository `docs/decisions.md`. |
 | **23 November 2026** | An order missing from OpenAlgo's today-only orderbook could still rest at the broker; live funds were numbers; a copy of the backup token held off the machine had to be recorded; the market store and the nightly set grew without bound; assessments kept a tar copy per day. | PRT-R10: an earlier exchange day's protective order counts as ended (DAY validity); D-019 two-decimal strings are money; A1 the off-machine setting removed; D-020 zstd for sets and day files; D-021 the live market store keeps 10 trading days; B9 one sealed file per assessment day. | Source repository `docs/decisions.md` and `docs/operations.md`. |
+| **24 November 2026** | A lost server lost up to a day of ledger; a checkpoint unit "failed" when the operator CLI refused it; a holiday raised an alarm. | The recent ledger: a checked whole copy every 5 minutes, restored when it continues the set's chain; `health.sh` never stops at a refused part and inside a unit reads holds from the ledger (SEC-R12 stays); the recorded calendar excuses a closed day's ended host. | Source repository `docs/operations.md` "B10b" and "Health checks and day watches (24 November 2026)". |
 | **Future dated review: TBD** | Current accepted design and scoped outstanding evidence. | Record the next authorized target/source review at its actual revision. | Identify changed conclusions and affected work; preserve historical baselines and do not require an unrelated source audit. |
 
 <details>
