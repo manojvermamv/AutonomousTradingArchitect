@@ -338,7 +338,7 @@ Why not the production `OpenAlgoMarketSource` for market reads: it stamps record
 
 ### Completion conditions (step 4)
 
-Part A reaches `CONVERGED` on a fresh profile. Part B runs all five days for both underlyings, each day reconciled, with the decision and fill counts recorded in `docs/migration.md` (renamed in the deepening if "migration" no longer fits) under the label above. The rehearsal directory, the fake's port and the synthetic key live under a temporary directory and are removed afterwards. The step records that list of temporary items and confirms each one is gone.
+Part A reaches `CONVERGED` on a fresh profile. Part B runs all five days for both underlyings, each day reconciled, with the decision and fill counts recorded in `docs/migration.md@3113242` (renamed in the deepening if "migration" no longer fits) under the label above. The rehearsal directory, the fake's port and the synthetic key live under a temporary directory and are removed afterwards. The step records that list of temporary items and confirms each one is gone.
 
 ### Decision (coordinator, 2026-11-13): NIFTY's lot size
 
@@ -359,7 +359,7 @@ out-of-period lot never overrides a same-expiry one. Simulation data only: produ
 | The fake OpenAlgo: `ThreadingHTTPServer` on `127.0.0.1:0` only, analyze-shaped answers to the four books and `placeorder`/`basketorder`/`cancelorder`/`modifyorder`; MARKET fills at the leg's bar for the arrival minute, SL-M and LIMIT SELL on later closed bars, the 15:15 MIS square-off, funds = start cash (2 Aug capture's `availablecash`) + realised − held premium | `tests/replay/fake_openalgo.py` |
 | `compose_replay` (test support, never in `COMPOSITIONS`): `rehearsal_guard(environ, base_url)` first, production profile refused, root inside the rehearsal directory, a synthetic `Secret` built in place (no `secrets.resolve`), `OpenAlgoAdapter` + `OpenAlgoBooks` on the fake, a plain kill file. `ReplayDriver` = `ShadowDriver` with `refresh` reading the whole converted day; the per-day reconciliation | `tests/replay/replay_harness.py` |
 | Tests: the fence (guard first; six refusals before anything opens), the fake on loopback port 0, a synthetic afternoon with the scripted rule reconciled, and the five converted NIFTY days (`-m replay`, skipped unless `AT_REPLAY_DATA`) | `tests/replay/test_replayed_days.py`; `replay` marker in `pyproject.toml` |
-| The per-day table | `docs/migration.md` "The replayed days" |
+| The per-day table | `docs/operations.md` "Replay records", "The replayed days" (moved from `docs/migration.md@3113242`, 24 Nov 2026) |
 
 **Part A** (installer rehearsal to `CONVERGED` on a fresh profile) is step 1's
 `test_fresh_first_install_converges_with_no_legacy_rules`, run in both suite runs below; nothing new was needed.
@@ -377,7 +377,7 @@ but the fake's port; no `ADM-R09 observation_field_missing`; no command after th
 | 2026-08-06 | 340 | 29 | 45 PRT-R10 | 10 | flat | −1,140.75 |
 | 2026-08-07 | 340 | 39 | 43 PRT-R10 | 18 | flat | −1,472.25 |
 
-> **Amendment, 20 November 2026.** Re-measured on the Ubuntu server on today's code (`1465c4b`, after the 19 November trading changes D-011 to D-014), counted from the kept ledgers; every day reconciled with no difference and ended flat, all refusals `PRT-R10`: 3 Aug 42 admitted, 78 refused, 18 fills, −1,680.25; 4 Aug 24, 80, 12, −5,063.50; 5 Aug 49, 33, 20, −773.50; 6 Aug 26, 45, 10, −1,140.75; 7 Aug 22, 47, 10, −2,002.00 (about 3 minutes a day). The table above is the 13 November build's; `docs/migration.md` carries the current one.
+> **Amendment, 20 November 2026.** Re-measured on the Ubuntu server on today's code (`1465c4b`, after the 19 November trading changes D-011 to D-014), counted from the kept ledgers; every day reconciled with no difference and ended flat, all refusals `PRT-R10`: 3 Aug 42 admitted, 78 refused, 18 fills, −1,680.25; 4 Aug 24, 80, 12, −5,063.50; 5 Aug 49, 33, 20, −773.50; 6 Aug 26, 45, 10, −1,140.75; 7 Aug 22, 47, 10, −2,002.00 (about 3 minutes a day). The table above is the 13 November build's; `docs/migration.md@3113242` carries the current one.
 
 BANKNIFTY: 0 decisions on all five days, by construction, not a replay defect: BuyerEdge is bound to NIFTY only, in
 the port's descriptor (`strategies/buyer_edge.py:2021` `"underlying": "NIFTY"`; `create` at `:2753` builds the
@@ -453,7 +453,7 @@ One full backup → read-back → clean restore → kernel start on the restored
 | The five days on one ledger, `-m replay`, skipped unless `AT_REPLAY_DATA` | `test_converted_five_nifty_days_on_one_ledger_reconcile` |
 | D10's checks over a real-size ledger with the real wheel, `-m replay`, skipped unless `AT_REPLAY_LEDGER`/`AT_REPLAY_WHEEL` | `test_verify_recovery_synthetic_over_a_replayed_ledger` |
 | The rehearsal: wheel → blank venv → set → full read-back → restore into empty directories (exact-artifact refusal first) → the replay's kernel on the restored ledger via `restore-start.json` → the unit entry `backup scheduled`/`status` in a rehearsal | `scripts/rehearse_fresh_start.py backup` (dev tool, never shipped) |
-| Docs | `docs/operations.md` (backup paragraph; the real-size rehearsal), `docs/migration.md` (the five-day table) |
+| Docs | `docs/operations.md` (backup paragraph; the real-size rehearsal), `docs/migration.md@3113242` (the five-day table) |
 
 **The five-day ledger** (converted simulation data, not legacy-comparable): reconciled with no difference; 1,700
 decisions, 41 admitted, 18 fills, 5 sessions opened and closed, flat, 4 nights skipped, 29,105 steps, head 2,860.

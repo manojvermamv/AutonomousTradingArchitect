@@ -178,7 +178,7 @@ Updated after the evening deployment on 19 November 2026. The running build is
 3. Owner drill: stop OpenAlgo for 3 minutes with a position open.
 4. ~~Re-run the R1 start-anytime matrix under D-007.~~ **Done 20 November 2026** on the Ubuntu server, with the
    converted days rebuilt the same day: R1's 09:44 crash ends the day (`SESSION_CLOSING`): 4 admitted, 2 fills,
-   48 decisions refused `SES-R07`, flat (source repository `docs/migration.md`, "Start at any time").
+   48 decisions refused `SES-R07`, flat (source repository `docs/operations.md`, "Replay records", "Start at any time").
 
 Backup integration stays deferred until the owner asks. Live mode only on the owner's word. The AI twin (SLICE-17),
 the web console and MCP are not in the first release.

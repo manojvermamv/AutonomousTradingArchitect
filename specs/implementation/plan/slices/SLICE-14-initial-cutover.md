@@ -494,7 +494,7 @@ Deepened after step 1 is built; held until the owner's word, which the owner has
 * stopped at once, with the finding recorded, on any sign of load on legacy or the host beyond the measured shadow load.
 
 * **Does:** walks every cutover state in the installer's rehearsal mode on the EC2, in an isolated directory, with a fake `systemctl` standing in for legacy's units and the copied books standing in for the broker; imports the full copied history into a rehearsal ledger with complete accounting; seals a genesis; starts the candidate's kernel in that directory to `RECOVERY_WRITING`; walks `continue-legacy` once before a simulated first claim and once after it.
-* **Records:** the duration of each state, the import accounting, every refusal met and why, in `docs/migration.md`.
+* **Records:** the duration of each state, the import accounting, every refusal met and why, in `docs/migration.md@3113242`.
 
 ## Step 4 — the production cutover (outline; needs the owner's word)
 
@@ -512,7 +512,7 @@ Production-sensitive: "the cutover (SLICE-14)" is asked first under the standing
 
 Deepened after step 4. Production-sensitive because it changes the configuration of tools on the production host.
 
-* **Records** the sequence of the first `DISPATCH_CLAIMED` after the genesis as the old route's retirement in `docs/migration.md`; from that commit `continue-legacy` refuses.
+* **Records** the sequence of the first `DISPATCH_CLAIMED` after the genesis as the old route's retirement in `docs/migration.md@3113242`; from that commit `continue-legacy` refuses.
 * **Points** the retained consumers of the registry format (legacy's monitor, the `at orders` view, analysis and acceptance tools, as the migration spec lists) at `paths.compat`, on the owner's word per consumer; legacy's money-path readers stay retired. Legacy's monitor and gateways were masked because they hold the key (`deploy/systemd/at-monitor-v2-sweep.service:10` loads the shared settings file, as the runtime spec cites); a retained legacy tool runs only as a transient unit through `scripts/isolated_work.py` with no credential and no broker network (`PrivateNetwork=yes`), or, where it must read the broker, through the observation route only. A tool that cannot run that way stays masked. Whether legacy's monitor runs at all without its key is **not checked**.
 * **Keeps** legacy's run directory and ledger read-only in the next recovery set, as evidence; nothing of it is deleted (A10-F3).
 
