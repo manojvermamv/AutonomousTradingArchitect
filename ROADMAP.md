@@ -84,7 +84,9 @@ Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one 
 3. ~~Monday's open: the first index tick within seconds of 09:15 (the tick-gap fix live).~~ **Done 23 November
    2026:** the first NIFTY and BANKNIFTY ticks arrived at 09:15:00.99 IST (the market store's arrival time against
    the tick's own time); on 20 November, before the fix, the first came at 09:20.
-4. Review OPS09 formally and update the provisional runtime settings (an owner decision). **Measured 19–20 November**
+4. Review OPS09 formally and update the provisional runtime settings (an owner decision; every timing is bound, so
+   what is left is keeping or changing them; 23 November re-measured in the 24 November report: chain data at most
+   2.73 s late, book at most 0.61 s old). **Measured 19–20 November**
    with the source repository's `scripts/measure_session.py` (`docs/measurements/session-timings-2026-11-19-20.md`):
    sends under 6% of their deadlines, completions under 17% of the escalation limit; one chain stored 6.5 s after its
    minute against `market.http_timeout_ms` 5,000.
