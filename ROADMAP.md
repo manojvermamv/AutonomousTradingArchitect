@@ -42,8 +42,14 @@ repository's `docs/decisions.md`.
   receipt (B6); replay reads one day, and a DuckDB Parquet research copy (B7); the strategy host caches sealed bars,
   18.7 s to 0.56 s CPU a pass (B8); assessments one file per day, no tar (B9); replay days one zstd stream, 33.9 MB to
   2.56 MB (B10). Measurements: source repository `docs/operations.md` "Data management (23 November 2026)".
+- **B10's optional step (24 November 2026, the owner's word):** the recent ledger. Every 5 minutes
+  (`at-ledger-recent.timer`), when the ledger's head moved, a checked whole copy (about 0.3 MB compressed) goes to
+  the bucket by hash with its evidence; `restore run` takes it when it continues the set's chain. The recovery point
+  falls from up to about 24 hours to 5 minutes. Built and tested (source `docs/operations.md` "B10b"); runs from the
+  first release that carries it.
 - **A2:** restore after losing the server: `python -m autonomous_trading.operations.restore list|run` and at-ops
-  `restore-backup.sh list|rehearse|live` (source repository guide 01 section 6). Not yet run against the real bucket.
+  `restore-backup.sh list|rehearse|live` (source repository guide 01 section 6). Rehearsed on the real bucket on
+  23 November 2026: ok in 5 minutes, every store equal to the set.
 
 **Done (20 November 2026):**
 
@@ -85,11 +91,12 @@ Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one 
 9. `security.journal` is unbound, so every backup set records an authorization gap (no authorization snapshot). This
    predates D-017. It is the owner's to bind.
 10. Prune old releases after Monday 23 November.
-11. ~~Restore after losing the server: no owner command.~~ **Built 23 November 2026 (A2):** `restore-backup.sh`. Still
-    open: its first `rehearse` against the real bucket, and the clean-host restore rehearsal (D10).
+11. ~~Restore after losing the server: no owner command.~~ **Built 23 November 2026 (A2):** `restore-backup.sh`,
+    rehearsed on the real bucket that night (ok, 5 minutes). Still open: the clean-host restore rehearsal (D10).
 12. ~~Data management: the market store and the nightly set grow about 170 MB each trading day.~~ **Done 23 November
-    2026 (D-020, D-021, B1–B10).** Still open: carry `backup.day_receipts` and `backup.day_files` into the server's
-    settings with the release that brings them, then confirm the first night's day files and the first 16:00 prune.
+    2026 (D-020, D-021, B1–B10).** The server's settings carry `backup.day_receipts` and `backup.day_files`, and the
+    first nights archived 5 day files (23 Nov). Still open: the first real 16:00 prune, once more than 10 trading days
+    are held (about 4 December). B10's optional recent ledger: built 24 November 2026, awaiting its release.
 13. **Defects found 23 November 2026** (none blocks trading; each is a correctness or tidiness item):
     - `market/store.py`: a tick key revised into another window while its first window is unsealed wedges every
       later commit (`ValueError`, rollback). B2 kept the behaviour identical; live keys are unique per receipt.
