@@ -107,6 +107,7 @@ Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one 
 1. ~~Release `8c7d99e`~~ released 20 Nov 19:03 IST.
 2. Verify the first market-session kernel square-off when a position crosses 15:13 IST (D-014). Not on a drill day:
    the OpenAlgo-off and kernel-stop drills each end the day and square the position off at once (25 November 2026).
+   Also still to see: the kernel-stop drill closing an open position (on 25 November it ran with the book flat).
 3. ~~Monday's open: the first index tick within seconds of 09:15 (the tick-gap fix live).~~ **Done 23 November
    2026:** the first NIFTY and BANKNIFTY ticks arrived at 09:15:00.99 IST (the market store's arrival time against
    the tick's own time); on 20 November, before the fix, the first came at 09:20.
