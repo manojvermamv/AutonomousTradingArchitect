@@ -27,7 +27,17 @@ D-007) and the kernel squared the position off at 215.55 once OpenAlgo answered:
 flat, its realised P&L equal to the ledger's. The kernel-stop drill proved R-4's automatic path (`routine_standing`).
 Still open from the day: a PE trade past its first tick, and the 15:13 square-off (item 2).
 
-**25 November 2026, evening: messages to the trader through OpenAlgo (built and landed, not released).** The owner
+**25 November 2026, after the close: released.** On the owner's word, release `20261125T121017Z-31af10d63d50`
+(built from the source repository's `ebde1cc`) converged at 17:41 IST with the two evening pieces below, the `at.slice`
+fix and the kill-switch fix with its bound kill file (item 13). The first try (built from `80a09cb`) refused at
+`UNITS_WRITTEN`: the installer's `apply-root` built its directory table before creating system users, so the new
+`at-messenger` user did not exist; its undo then stopped on a polkit file the installer cannot read and left the kernel,
+market and operator stopped, with the book flat after the close. Both fixed (`8afc491`, item 13). After the release:
+`at.slice` with no placeholder and no reload warning, the kill folder in place, `at-messenger` created and disabled
+(no channel), taflow loading in the release; Thursday 26 November's binding and grant issued for the same BuyerEdge
+candidate as 25 November's.
+
+**25 November 2026, evening: messages to the trader through OpenAlgo (built, landed, released after the close).** The owner
 asked for OpenAlgo's messaging to be used from the system. Built: one adapter for OpenAlgo's four `notify` endpoints
 (Telegram, WhatsApp, Slack, Discord) and a separate process, `at-messenger`, that follows the ledger and sends what
 OpenAlgo cannot know (fills, exits with P&L, the trading day, kill, holds, the loss latch, escalations); OpenAlgo's own
@@ -37,7 +47,7 @@ exact format) are a setting, off by default (source D-023). Both are off until t
 OpenAlgo has its Telegram bot stopped and WhatsApp unpaired. Two independent reviews; every finding fixed and tested.
 Landed on `agentic-desk` (the source repository's `HANDOFF.md` names the commit); source `docs/openalgo-messaging.md`.
 
-**25 November 2026, evening: the owner's indicator library inside the source repository (landed, not released).**
+**25 November 2026, evening: the owner's indicator library inside the source repository (landed, released after the close).**
 The owner asked for taflow, their Rust indicator library, to be copied into the project with one import surface.
 Source D-024: taflow 0.2.0 is vendored (`native/taflow/`, with prebuilt binaries for Windows and Linux x86_64 inside
 the package, so no Rust on any machine) and reached only through `autonomous_trading.indicators` (`series` on taflow;
@@ -172,7 +182,7 @@ Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one 
       file, even though the kernel recorded `KILL_ENGAGED`: the server binds no `risk_guard.kill_switch_file`, and the
       fallback `<deployment root>/run/KILL` does not exist (`interfaces/cli.py` `_on`). An owner item goes with it:
       bind a kill file the operators can write, so the emergency stop also works when the kernel cannot be reached.~~
-      **Fixed 25 November 2026 (owner), not released:** `on` now ends with `KILL SWITCH ENGAGED in the ledger` and
+      **Fixed 25 November 2026 (owner), released that evening:** `on` now ends with `KILL SWITCH ENGAGED in the ledger` and
       exit 0 when the kernel recorded the kill but no file was written (source repository `interfaces/cli.py` `_on`,
       test `test_cli_on_recorded_without_a_file`); `risk_guard.kill_switch_file` is bound in the deploy settings to
       the operators' kill directory under `paths.run`, live from the next release.
@@ -181,16 +191,22 @@ Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one 
       `__CPU_QUOTA__`, `__MEMORY_HIGH__`, `__MEMORY_MAX__`, `__TASKS_MAX__` and `__IO_WEIGHT__`. systemd ignores
       those lines (5 warnings on every reload), so the optional work under it (backups, the ledger copy, isolated
       work) runs with no limits. `operations/isolation.py` `render_slice` refuses while the envelope is unbound.
-      Trading units are never in `at.slice` (`isolation.py:5`).~~ **Fixed 25 November 2026 (owner), not released:**
+      Trading units are never in `at.slice` (`isolation.py:5`).~~ **Fixed 25 November 2026 (owner), released that evening:**
       the installer writes `isolation.installed_slice`: the accounting and only the bound `envelope.optional.*`
       limits (all bound: `render_slice`'s text); tests `test_the_installed_slice_carries_no_placeholder`,
       `test_the_installed_slice_renders_each_bound_limit`. Binding the limits waits on their measurement.
-14. **Messaging (D-022, D-023), built 25 November 2026:** release it (it changes the installed units: a new
-    `at-messenger.service`, off until `messaging.channels` names a channel), then the owner chooses a channel and sets
+    - ~~(Found 25 November 2026, the after-close release.) `apply-root` built the directory table before
+      `systemd-sysusers`, so a release adding a participant (`at-messenger`) refused at `chown`; the refused
+      activation's undo then read the polkit rules as the installer, which polkit's `root:polkitd 0750` folder denies,
+      and stopped with the old release down.~~ **Fixed and released 25 November 2026:** users first, the table after,
+      a table refusal puts the files back; the restore-set check leaves the polkit rules to `apply-root` (source
+      `8afc491`, three tests in `tests/recovery/test_release_activation.py`).
+14. **Messaging (D-022, D-023), built and released 25 November 2026** (`at-messenger.service` installed, disabled
+    until `messaging.channels` names a channel). Next, the owner chooses a channel and sets
     it up in OpenAlgo (start the Telegram bot and `/link`, or pair WhatsApp, or a Slack or Discord webhook switched on
     at OpenAlgo's `/alerts`), copies the OpenAlgo key for the messenger (source guide 01 section 3.6) and, if wanted,
     turns on `messaging.trade_alerts.enabled`. First live check: one real message per channel, on the owner's word.
-15. **Indicators (D-024), built 25 November 2026:** on the owner's word, move BuyerEdge and AI BuyerEdge onto
+15. **Indicators (D-024), built and released 25 November 2026:** on the owner's word, move BuyerEdge and AI BuyerEdge onto
     `autonomous_trading.indicators` in one change at a session start (their files are part of their candidate
     identity, so the session's binding is issued again), and the trail only if its standard-library rule is lifted.
     Found with it: the strike selector's IV-rank gate never acts (the planner passes no IV rank, as legacy live did).
