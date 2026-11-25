@@ -27,6 +27,16 @@ D-007) and the kernel squared the position off at 215.55 once OpenAlgo answered:
 flat, its realised P&L equal to the ledger's. The kernel-stop drill proved R-4's automatic path (`routine_standing`).
 Still open from the day: a PE trade past its first tick, and the 15:13 square-off (item 2).
 
+**25 November 2026, evening: messages to the trader through OpenAlgo (built and landed, not released).** The owner
+asked for OpenAlgo's messaging to be used from the system. Built: one adapter for OpenAlgo's four `notify` endpoints
+(Telegram, WhatsApp, Slack, Discord) and a separate process, `at-messenger`, that follows the ledger and sends what
+OpenAlgo cannot know (fills, exits with P&L, the trading day, kill, holds, the loss latch, escalations); OpenAlgo's own
+`/alerts` already sends every order placed, modified or cancelled, so those are not repeated (source D-022). The owner's
+legacy BuyerEdge messages (entry, exit, the 60-second P&L line and the naked-short check, in the standalone script's
+exact format) are a setting, off by default (source D-023). Both are off until the owner names a channel; the running
+OpenAlgo has its Telegram bot stopped and WhatsApp unpaired. Two independent reviews; every finding fixed and tested.
+Landed on `agentic-desk` (the source repository's `HANDOFF.md` names the commit); source `docs/openalgo-messaging.md`.
+
 **24 November 2026 (an NSE holiday; no session).** Built and released that evening (`20261124T132627Z-55f838f52897`, on the
 owner's word): the recent ledger every 5 minutes (B10's optional step, below) and D-021 counting sessions only. Fixed in the source repository's at-ops skill: `health.sh` runs to its end (item 13's
 checkpoint "failure"), a holiday's cleanly ended strategy host is no alarm, `alerts.sh --alive MIN`, `openalgo_books
@@ -153,6 +163,11 @@ Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one 
       file, even though the kernel recorded `KILL_ENGAGED`: the server binds no `risk_guard.kill_switch_file`, and the
       fallback `<deployment root>/run/KILL` does not exist (`interfaces/cli.py` `_on`). An owner item goes with it:
       bind a kill file the operators can write, so the emergency stop also works when the kernel cannot be reached.
+14. **Messaging (D-022, D-023), built 25 November 2026:** release it (it changes the installed units: a new
+    `at-messenger.service`, off until `messaging.channels` names a channel), then the owner chooses a channel and sets
+    it up in OpenAlgo (start the Telegram bot and `/link`, or pair WhatsApp, or a Slack or Discord webhook switched on
+    at OpenAlgo's `/alerts`), copies the OpenAlgo key for the messenger (source guide 01 section 3.6) and, if wanted,
+    turns on `messaging.trade_alerts.enabled`. First live check: one real message per channel, on the owner's word.
 
  Live mode only on the owner's word. The AI twin (SLICE-17),
 the web console and MCP are not in the first release.
