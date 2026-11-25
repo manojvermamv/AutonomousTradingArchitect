@@ -17,7 +17,15 @@ Implemented, committed and pushed as source `b88014e` (`agentic-desk`), with thi
 <a id="current-delivery-status--2026-11-20-utc"></a>
 <a id="current-delivery-status--2026-11-21-utc"></a>
 <a id="current-delivery-status--2026-11-23-utc"></a>
-## Current delivery status — 2026-11-24 UTC
+<a id="current-delivery-status--2026-11-24-utc"></a>
+## Current delivery status — 2026-11-25 UTC
+
+**25 November 2026 (analyze session).** The first entry since the PRT-R10 fix: NIFTY 01 Dec 25800 CE × 65 at 09:44 IST,
+filled 214.70 against a plan of 213.20, stop and target at the broker, the trail raised the stop to 204.45. The three
+owner drills ran with it open (item 5). The OpenAlgo-off drill ended the day (`SESSION_CLOSING broker_unreachable`,
+D-007) and the kernel squared the position off at 215.55 once OpenAlgo answered: +55.25 rupees before costs, broker
+flat, its realised P&L equal to the ledger's. The kernel-stop drill proved R-4's automatic path (`routine_standing`).
+Still open from the day: a PE trade past its first tick, and the 15:13 square-off (item 2).
 
 **24 November 2026 (an NSE holiday; no session).** Built and released that evening (`20261124T132627Z-55f838f52897`, on the
 owner's word): the recent ledger every 5 minutes (B10's optional step, below) and D-021 counting sessions only. Fixed in the source repository's at-ops skill: `health.sh` runs to its end (item 13's
@@ -79,7 +87,8 @@ Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one 
 **Still open, in order:**
 
 1. ~~Release `8c7d99e`~~ released 20 Nov 19:03 IST.
-2. Verify the first market-session kernel square-off when a position crosses 15:13 IST (D-014).
+2. Verify the first market-session kernel square-off when a position crosses 15:13 IST (D-014). Not on a drill day:
+   the OpenAlgo-off and kernel-stop drills each end the day and square the position off at once (25 November 2026).
 3. ~~Monday's open: the first index tick within seconds of 09:15 (the tick-gap fix live).~~ **Done 23 November
    2026:** the first NIFTY and BANKNIFTY ticks arrived at 09:15:00.99 IST (the market store's arrival time against
    the tick's own time); on 20 November, before the fix, the first came at 09:20.
@@ -89,7 +98,11 @@ Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one 
    with the source repository's `scripts/measure_session.py` (`docs/measurements/session-timings-2026-11-19-20.md`):
    sends under 6% of their deadlines, completions under 17% of the escalation limit; one chain stored 6.5 s after its
    minute against `market.http_timeout_ms` 5,000.
-5. Owner drills: stop OpenAlgo for 3 minutes with a position open; the emergency stop tried once.
+5. ~~Owner drills: stop OpenAlgo for 3 minutes with a position open; the emergency stop tried once.~~ **Done 25
+   November 2026** with one position open, on the owner's word (source repository at-ops `owner-commands.md`
+   "Drills"): the emergency stop 10:03–10:05 IST, the broker's stop and target unchanged; OpenAlgo off 10:05:50–10:08:52
+   IST, `SESSION_CLOSING broker_unreachable` after 117 s, the square-off sent 4 s after OpenAlgo's API answered
+   (10:10:03), filled 10:10:36; a kernel stop 10:12:35, `OPERATING` by `routine_standing` 2 s after its start.
 6. ~~The recorded calendar checked against NSE's published holiday list.~~ **Done 20 November 2026 (owner):** the
    recorded NFO list (16 dates) matches NSE's; Tuesday 24 November is a holiday. Recheck each December.
 7. ~~The backup (D-017): bind `backup.destination` on the server, then the first proof on the real bucket.~~
@@ -136,6 +149,10 @@ Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one 
       ATTENTION line (`lib.sh` `unit_problems` asks the recorded calendar).
     - `deploy/install.py` `latest_assessment` keeps the old index scan as a fallback for the rehearsal's fake
       supervisor.
+    - (Found 25 November 2026, the emergency-stop drill.) `at kill-switch on` exits 1 when it cannot write a kill
+      file, even though the kernel recorded `KILL_ENGAGED`: the server binds no `risk_guard.kill_switch_file`, and the
+      fallback `<deployment root>/run/KILL` does not exist (`interfaces/cli.py` `_on`). An owner item goes with it:
+      bind a kill file the operators can write, so the emergency stop also works when the kernel cannot be reached.
 
  Live mode only on the owner's word. The AI twin (SLICE-17),
 the web console and MCP are not in the first release.
