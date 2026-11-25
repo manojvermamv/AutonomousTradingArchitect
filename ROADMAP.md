@@ -37,6 +37,14 @@ exact format) are a setting, off by default (source D-023). Both are off until t
 OpenAlgo has its Telegram bot stopped and WhatsApp unpaired. Two independent reviews; every finding fixed and tested.
 Landed on `agentic-desk` (the source repository's `HANDOFF.md` names the commit); source `docs/openalgo-messaging.md`.
 
+**25 November 2026, evening: the owner's indicator library inside the source repository (landed, not released).**
+The owner asked for taflow, their Rust indicator library, to be copied into the project with one import surface.
+Source D-024: taflow 0.2.0 is vendored (`native/taflow/`, with prebuilt binaries for Windows and Linux x86_64 inside
+the package, so no Rust on any machine) and reached only through `autonomous_trading.indicators` (`series` on taflow;
+`options` for the chain statistics and gamma exposure; `excursion` for MFE and MAE). Each call is pinned bit for bit
+to the code it mirrors on recorded NIFTY minutes and chains. Moved: the rule provider's EMA and breakout, the Canvas
+swings. BuyerEdge and the trail match exactly but stay on their own code until the owner moves them (item 15).
+
 **24 November 2026 (an NSE holiday; no session).** Built and released that evening (`20261124T132627Z-55f838f52897`, on the
 owner's word): the recent ledger every 5 minutes (B10's optional step, below) and D-021 counting sessions only. Fixed in the source repository's at-ops skill: `health.sh` runs to its end (item 13's
 checkpoint "failure"), a holiday's cleanly ended strategy host is no alarm, `alerts.sh --alive MIN`, `openalgo_books
@@ -168,6 +176,10 @@ Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one 
     it up in OpenAlgo (start the Telegram bot and `/link`, or pair WhatsApp, or a Slack or Discord webhook switched on
     at OpenAlgo's `/alerts`), copies the OpenAlgo key for the messenger (source guide 01 section 3.6) and, if wanted,
     turns on `messaging.trade_alerts.enabled`. First live check: one real message per channel, on the owner's word.
+15. **Indicators (D-024), built 25 November 2026:** on the owner's word, move BuyerEdge and AI BuyerEdge onto
+    `autonomous_trading.indicators` in one change at a session start (their files are part of their candidate
+    identity, so the session's binding is issued again), and the trail only if its standard-library rule is lifted.
+    Found with it: the strike selector's IV-rank gate never acts (the planner passes no IV rank, as legacy live did).
 
  Live mode only on the owner's word. The AI twin (SLICE-17),
 the web console and MCP are not in the first release.
