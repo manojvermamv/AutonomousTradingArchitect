@@ -1,5 +1,7 @@
 # SLICE-14 — Initial cutover
 
+> **Owner note — 25 November 2026 (status, checked against the source repository and the server):** Superseded by D-015 (19 November 2026): there is no cutover. Still in use: `CFG-R11` (`continuity_reasons`) and the fence rules. The rest is history.
+
 * **Status:** built (2026-11-12): steps 1–2, each recorded "as built" below. Steps 3–5 are void or moved (2026-11-13, server lost; see [SLICE-15](SLICE-15-fresh-start.md)). Proposed 2026-10-30. Every step below began as an outline: by the owner's [standing rules](../../decisions/owner-answers-2026-10-27.md#standing-rules-2026-10-30), each step's exact detail is written just before it is built, then reviewed by two fresh EGM reviewers, built, run twice with the suite, break-checked and recorded "as built".
 
   > **Owner amendment — 19 November 2026 (D-015, OA_NEW `docs/decisions.md`).** No cutover: the installer's cutover commands and this slice's step 1 were removed from the code in `d0133c5`. Kept: step 2's continuity check (`CFG-R11`, `continuity_reasons`) and the kernel's fence rules for `MIGRATION_GENESIS` and `ROLLBACK_CONTINUATION`.

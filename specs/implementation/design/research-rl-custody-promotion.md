@@ -1,5 +1,7 @@
 # Research, RL, custody and promotion
 
+> **Owner note — 25 November 2026 (status, checked against the source repository and the server):** built through its slices and running in analyze mode since 17 November 2026; the design text below is as accepted, with dated amendments where the build changed it. Changed since: the SLICE-13/14 import of a production custody chain is void (D-015); research reads day files and a DuckDB Parquet copy (D-021, B7); no research account exists on the server.
+
 * **Status:** proposed (package spec), deepened from the stub this file was when the SLICE-12 design was written (2026-10-30), together with the [SLICE-12 slice file](../plan/slices/SLICE-12-research-rl-custody-promotion.md). Not yet reviewed by fresh EGM reviewers; the slice file's cycle does that before step 1 is built. Implements accepted master decisions; adds no new ones. Depth follows slices (`README.md:1133`).
 * **Precedence:** master README, then ROADMAP, then this file. A disagreement is an X item in [master-contradictions](../consistency/master-contradictions.md), never an edit here. The owner's [standing rules](../decisions/owner-answers-2026-10-27.md#standing-rules-2026-10-30) apply: where a choice touches money or a promotion gate (what a candidate must prove before it may trade, custody consumption, the statistics of the gate), legacy's behaviour at 445eb116 is kept, and the slice file logs it as a **Fork call**.
 * **Specified here (exclusive), and where:**

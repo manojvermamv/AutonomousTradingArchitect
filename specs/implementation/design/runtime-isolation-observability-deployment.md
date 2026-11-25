@@ -1,5 +1,7 @@
 # Runtime isolation, observability and deployment
 
+> **Owner note — 25 November 2026 (status, checked against the source repository and the server):** built through its slices and running in analyze mode since 17 November 2026; the design text below is as accepted, with dated amendments where the build changed it. Changed since: the backup is bound (D-017), and two timers run: `at-ledger-backup` (nightly) and `at-ledger-recent` (every 5 minutes, B10b). `at.slice` is installed with only its bound limits (25 November 2026); its limits wait on a measurement.
+
 * **Status:** proposed (package spec), deepened when SLICE-11 started (2026-10-30) from the stub this file was. Not yet reviewed by EGM; it is reviewed with the [SLICE-11 slice file](../plan/slices/SLICE-11-packaging-release-supervision.md). Implements accepted master decisions; adds no new ones. Depth follows slices (`README.md:1133`).
 * **Precedence:** master README, then ROADMAP, then this file. A disagreement is an X item in [master-contradictions](../consistency/master-contradictions.md), never an edit here.
 * **Specified here (exclusive), and where:**

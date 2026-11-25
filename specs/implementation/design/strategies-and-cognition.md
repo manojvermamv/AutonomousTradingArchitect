@@ -1,5 +1,7 @@
 # Strategies and cognition
 
+> **Owner note — 25 November 2026 (status, checked against the source repository and the server):** built through its slices and running in analyze mode since 17 November 2026; the design text below is as accepted, with dated amendments where the build changed it. Since written: `cognition/memory.py` and `reflection.py` exist, and the Unix channel and isolation adapters are built; "not built" lines below are history as of 2 November 2026. `ai_buyer_edge` and `at-cognition` are not in the first release. D-024: indicator math on taflow.
+
 * **Status:** proposed (package spec), deepened from the stub this file was when the SLICE-09 design was written (2026-10-30), together with the [SLICE-09 slice file](../plan/slices/SLICE-09-strategies-and-cognition.md). Not yet reviewed by fresh EGM reviewers; the slice file's cycle does that before step 1 is built. Implements accepted master decisions; adds no new ones. Depth follows slices (`README.md:1133`).
 * **Precedence:** master README, then ROADMAP, then this file. A disagreement is an X item in [master-contradictions](../consistency/master-contradictions.md), never an edit here. The owner's [standing rules](../decisions/owner-answers-2026-10-27.md#standing-rules-2026-10-30) apply: where a choice touches money, legacy's live behaviour at 445eb116 is kept, and the slice file logs it as a **Fork call**.
 * **Specified here (exclusive), and where:**

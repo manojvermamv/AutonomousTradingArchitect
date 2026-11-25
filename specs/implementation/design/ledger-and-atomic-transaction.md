@@ -1,5 +1,7 @@
 # Ledger and the atomic financial transaction
 
+> **Owner note — 25 November 2026 (status, checked against the source repository and the server):** built through its slices and running in analyze mode since 17 November 2026; the design text below is as accepted, with dated amendments where the build changed it. Changed since: D-015 (19 November 2026) removed the legacy import and the compatibility projection: `compat_projection` is always `none` (`contracts/execution.py`), `import_manifest` stays an empty table, and PRF-LED-06, CUJ-LED-1 and CP-L4 are void; REQ-LED-006's upgrade-versus-import question is settled by D-001 and D-015.
+
 * **Status:** proposed (package spec), revised after EGM stages 5–7 ([review](../egm/ledger-and-atomic-transaction/review.md)). Implements accepted master decisions; adds no new ones.
 * **Precedence:** master README, then ROADMAP, then this file. A disagreement is an X item in [master-contradictions](../consistency/master-contradictions.md), never an edit here.
 * **Specified here (exclusive), and where:**

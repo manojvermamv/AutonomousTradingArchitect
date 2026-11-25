@@ -1,5 +1,7 @@
 # SLICE-16 — Start at any time: late starts, mid-session restarts, partial days and windowed research
 
+> **Owner note — 25 November 2026 (status, checked against the source repository and the server):** D-007 (18 November 2026) reverses "a restart resumes": any restart after the open ends that day (`SESSION_CLOSING restarted`, entries refused `SES-R07`, then the square-off). R1 was re-run under D-007 on 20 November; R2 is not recorded as re-run. A late start before any session opened (D-009) still trades.
+
 * **Status:** built (2026-11-14): steps 1–5 as built below. Step 1 (the audit) is built: it is this file's [Step 1 — audit (as built)](#step-1--audit-as-built). Steps 2–5 began as outlines in the standing rules' sense: each step's exact detail was written just before it is built, reviewed by two fresh EGM reviewers, built, run twice with the suite, break-checked and recorded "as built".
 
 > **Owner amendments, 17–18 November 2026 (D-005, D-007).** Polling and the start gate follow recorded sessions. A mid-session restart now ends the day, so R1 and the clean-stop row must be re-run.

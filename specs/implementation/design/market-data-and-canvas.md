@@ -1,5 +1,7 @@
 # Market data and Canvas
 
+> **Owner note — 25 November 2026 (status, checked against the source repository and the server):** built through its slices and running in analyze mode since 17 November 2026; the design text below is as accepted, with dated amendments where the build changed it. Changed since: D-005 (polling and preflight follow recorded sessions, including 15:40 and special days; the static `nse-fo/v1` calendar stays 09:15-15:30), D-013 and D-021 (inline), D-024 (indicator math on taflow behind `autonomous_trading.indicators`).
+
 * **Status:** proposed (package spec), deepened when SLICE-08 started (2026-10-29) from the stub this file was; reviewed with the [SLICE-08 slice file](../plan/slices/SLICE-08-market-data-and-views.md). Implements accepted master decisions; adds no new ones. Depth follows slices (`README.md:1133`; owner choice recorded in [00-provenance](../00-provenance.md)).
 * **Precedence:** master README, then ROADMAP, then this file. A disagreement is an X item in [master-contradictions](../consistency/master-contradictions.md), never an edit here.
 * **Specified here (exclusive), and where:**

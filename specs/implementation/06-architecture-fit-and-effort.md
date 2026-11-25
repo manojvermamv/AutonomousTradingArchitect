@@ -106,6 +106,8 @@ Reuse what fits, rewrite what does not (`README.md:1164-1184`):
 | CLI, MCP, UI | Keep surfaces; migrate reads | Medium |
 | Full engine rewrite | Rejected | Very high risk |
 
+> **Owner note — 25 November 2026:** D-015 (19 November 2026) removed the shadow and the cutover, and legacy's server was lost on 13 November: there is no period of running two systems. The text below is the plan as of 26 October.
+
 **Hidden cost: running two systems.** The legacy owner keeps trading until Phase 7 while the target runs disarmed in shadow (Phases 3–4); results must be compared at the same ledger head.
 
 ### Upkeep (maintenance)

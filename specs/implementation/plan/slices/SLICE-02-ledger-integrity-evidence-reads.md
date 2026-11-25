@@ -1,5 +1,7 @@
 # SLICE-02 — Ledger integrity, evidence store and independent reads
 
+> **Owner note — 25 November 2026 (status, checked against the source repository and the server):** built, merged into `agentic-desk` and running on the Ubuntu server in OpenAlgo's analyze mode since 17 November 2026 (ROADMAP "Current delivery status"). The `slice-NN` branches and per-step commit ids below are history.
+
 * **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-02-review-2026-10-27)). Built once on 2026-10-27 in a local repository (commit `b1c4002`, branch `slice-02`): 78 tests passed, including SLICE-01's, and every break check failed as required. That is a build record, not production acceptance.
 * **Precedence:** the master README, then the master ROADMAP, then this package. This slice adds no decision; where it fills a gap the specs leave, the choice is named here and is engineering, not money policy.
 * **Phase:** master Phase 1 (D04 and the ledger rules "in isolated target slices", `README.md:1181`). It adds no gate.

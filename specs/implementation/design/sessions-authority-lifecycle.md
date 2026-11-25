@@ -1,5 +1,7 @@
 # Sessions, authority and recovery stages
 
+> **Owner note — 25 November 2026 (status, checked against the source repository and the server):** built through its slices and running in analyze mode since 17 November 2026; the design text below is as accepted, with dated amendments where the build changed it. Changed since: D-007 (an abnormal stop ends the day; inline). PRF-SES-07 (cross-host fencing after the cutover) has no cutover (D-015); its live form is restore onto a new server (A2, at-ops `restore-backup.sh`), whose clean-host rehearsal is still open.
+
 * **Status:** proposed (package spec), revised after EGM stages 5–7 ([review](../egm/sessions-authority-lifecycle/review.md)). Implements accepted master decisions; adds no new ones.
 * **Precedence:** master README, then ROADMAP, then this file. A disagreement is an X item in [master-contradictions](../consistency/master-contradictions.md), never an edit here.
 * **Specified here (exclusive), and where:**

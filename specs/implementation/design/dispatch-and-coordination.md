@@ -1,5 +1,7 @@
 # Dispatch and coordination
 
+> **Owner note — 25 November 2026 (status, checked against the source repository and the server):** built through its slices and running in analyze mode since 17 November 2026; the design text below is as accepted, with dated amendments where the build changed it. Changed since: `DSP-R05 stopping` (the kernel stop and an earlier-epoch start refuse admitted entries; `kernel/coordinator.py`); row 4 also refuses on `SESSION_CLOSING` (`SES-R07`, D-007); the conflict relation counts an owned DAY order first recorded on an earlier exchange day as ended (PRT-R10, 23 November 2026).
+
 * **Status:** proposed (package spec), revised after EGM stages 5–7 ([review](../egm/dispatch-and-coordination/review.md)). Implements accepted master decisions; adds no new ones.
 * **Precedence:** master README, then ROADMAP, then this file. A disagreement is an X item in [master-contradictions](../consistency/master-contradictions.md), never an edit here.
 * **Specified here (exclusive):** `kernel/coordinator.py` and the read-only `command_status` query. The simulated broker it is tested against is specified with the other broker adapter ([execution-domain spec](execution-domain-and-observations.md#simulated-broker-adapterssimulated_brokerpy)).

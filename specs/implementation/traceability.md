@@ -1,5 +1,7 @@
 # Traceability matrix
 
+> **Owner note — 25 November 2026:** the server has run since 17 November 2026 (SLICE-15 step 7 is analyze-mode commissioning, not waiting). The SLICE-13 and SLICE-14 rows are removed by D-015, except `CFG-R11` and the fence rules. The status cells below are the generated 16 November record.
+
 * **Status:** non-normative. Built in OA_NEW (`agentic-desk`) through SLICE-17, except SLICE-15 step 7 (the new server, waiting on the owner), as of 2026-11-16; each [slice file's](plan/slices/) "as built" sections are the record of which proofs pass. Generated from the requirement-key tables in [design/](design/) by a read-only script kept outside the repository (described in [consistency/cross-document-check.md](consistency/cross-document-check.md)).
 * **Precedence:** a key is a pointer. Its requirement is the cited master decision or policy row. If this file and a spec disagree, the spec's key table wins and the matrix is regenerated.
 * **Proof status:** *specified* = expected outcomes written, no code yet; *pointer* = the master acceptance row that the slice turns into named proofs when its full spec is written ([test strategy](tests/test-strategy.md#proof-classes-and-status)); *built* = the named tests pass in the slice's as-built record. The generated rows below keep their generation-time status; the slice files' as-built sections supersede it.

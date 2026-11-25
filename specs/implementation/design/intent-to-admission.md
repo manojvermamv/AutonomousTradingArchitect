@@ -1,5 +1,7 @@
 # Intent to admission
 
+> **Owner note — 25 November 2026 (status, checked against the source repository and the server):** built through its slices and running in analyze mode since 17 November 2026; the design text below is as accepted, with dated amendments where the build changed it. Changed since: besides inert, kill, hold and latch, every entry (never an exit) is refused `PRT-R06` by two injected gates: storage pressure and OpenAlgo logged in to another broker (`kernel/safety.py` `storage_check`, `broker_check`; D-004).
+
 * **Status:** proposed (package spec), revised after EGM stages 5–7 ([review](../egm/intent-to-admission/review.md)). Implements accepted master decisions; adds no new ones.
 * **Precedence:** master README, then ROADMAP, then this file. A disagreement is an X item in [master-contradictions](../consistency/master-contradictions.md), never an edit here.
 * **Specified here (exclusive), and where:**

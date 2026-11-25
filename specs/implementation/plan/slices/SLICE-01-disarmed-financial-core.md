@@ -1,5 +1,7 @@
 # SLICE-01 — Disarmed financial core
 
+> **Owner note — 25 November 2026 (status, checked against the source repository and the server):** built, merged into `agentic-desk` and running on the Ubuntu server in OpenAlgo's analyze mode since 17 November 2026 (ROADMAP "Current delivery status"). The `slice-NN` branches and per-step commit ids below are history.
+
 * **Status:** proposed; revised after EGM stage 9 ([review](../../egm/plan/review.md)). Built once on 2026-10-27 in a local repository (commit `a917a64`, branch `slice-01`): 47 tests passed and every break check failed as required. The build's six findings are folded into this file (`reserve`'s key argument, `wire`, `NotJsonData`, the reader's schema refusal, the unparsable amount, the identity break check). This is a build record, not production acceptance.
 * **Precedence:** the master README (`AutonomousTradingArchitect/README.md`), then the master ROADMAP, then this package. This slice adds no decision.
 * **Phase:** master Phase 1 (D01, D13 and D14 "in isolated target slices", master `README.md:1181`), plus the minimal Phase 2 packaging it needs (`README.md:1182`). D02's atomic commit is also proved here, in a disarmed simulation ledger only; Phase 4 (`README.md:1184`) proves D02 ownership in the disarmed shadow (SLICE-13). It adds no gate to any phase.

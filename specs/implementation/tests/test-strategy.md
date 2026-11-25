@@ -15,7 +15,7 @@
 
 | Status | Meaning |
 |---|---|
-| *specified* | Expected outcomes are written; no code yet. **All package proofs are at this status on 2026-10-26.** |
+| *specified* | Expected outcomes are written; no code yet. **All package proofs were at this status on 2026-10-26** (since built: each slice file's "as built" sections record which proofs pass, and the suite runs in OA_NEW's CI). |
 | *executable* | The test exists and runs |
 | *passing* | The test passed on a named commit, recorded with that commit |
 

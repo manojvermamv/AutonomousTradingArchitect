@@ -8,7 +8,7 @@ This package is derived from two pinned repositories. Every citation in it refer
 
 | Field | Value |
 |---|---|
-| Local path | `C:\Users\Manoj\Desktop\Office_2016\AutonomousTradingArchitect` (fresh clone made for this package) |
+| Local path | `C:\Users\Manoj\Desktop\Office_2016\AutonomousTradingArchitect` (fresh clone made for this package; since moved to `OA_NEW\.workspace\specifications`) |
 | Remote | `https://github.com/manojvermamv/AutonomousTradingArchitect` |
 | Branch | `main`, tracking `origin/main`, 0 ahead / 0 behind |
 | Pinned HEAD | `b9bb32c2f29dfd7c49e059497aa89d7afd5ffe18` — "Align architecture diagrams contracts and roadmap with accepted decisions" (2026-10-26 10:33:31 UTC) |

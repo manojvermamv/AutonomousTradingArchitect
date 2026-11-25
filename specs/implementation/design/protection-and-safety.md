@@ -1,5 +1,7 @@
 # Protection and safety
 
+> **Owner note — 25 November 2026 (status, checked against the source repository and the server):** built through its slices and running in analyze mode since 17 November 2026; the design text below is as accepted, with dated amendments where the build changed it. Changed since: D-011, D-012, D-014 (inline); PRT-R10 (an earlier-day DAY order counts as ended; absence alone never does); the permission matrix also refuses every entry, never an exit, with `PRT-R06` from the storage and broker-login gates (D-004).
+
 * **Status:** proposed (package spec), revised after EGM stages 5–7 ([review](../egm/protection-and-safety/review.md)). Implements accepted master decisions; adds no new ones.
 * **Precedence:** master README, then ROADMAP, then this file. A disagreement is an X item in [master-contradictions](../consistency/master-contradictions.md), never an edit here.
 * **Specified here (exclusive), and where:**

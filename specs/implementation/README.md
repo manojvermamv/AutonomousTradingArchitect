@@ -1,6 +1,11 @@
 # AutonomousTrading — specification and implementation-plan package
 
-* **Status (2026-11-23 UTC):** an earlier exchange day's protective orders no longer block entries (PRT-R10); D-019
+* **Status (2026-11-25 UTC):** release `20261125T121017Z-31af10d63d50` runs: messages through OpenAlgo's channels (D-022,
+  D-023, off until a channel is named), the owner's taflow indicators behind `autonomous_trading.indicators` (D-024), the
+  `at.slice` and kill-switch fixes and an installer fix. The first entry since PRT-R10 and the owner's three drills ran on
+  25 November. Every slice and design file opens with a dated status note checked against the code. See the ROADMAP's
+  [current delivery status](../../ROADMAP.md#current-delivery-status--2026-11-24-utc).
+* **Status (2026-11-23 UTC, history):** an earlier exchange day's protective orders no longer block entries (PRT-R10); D-019
   reads live Upstox funds strings as money; D-020 compresses the backup sets and market day files with zstd; D-021 keeps
   10 trading days in the live market store, every older day a checked file in the bucket; the backup's off-machine
   setting is removed (A1) and an owner restore command exists (A2). The running release is in the ROADMAP's
@@ -66,8 +71,8 @@
 | [plan/delivery-plan.md](plan/delivery-plan.md) | the slices (SLICE-01 to SLICE-18) inside the master phases, plus the task index | built (SLICE-14 replaced by SLICE-15) |
 | [plan/slices/SLICE-01-disarmed-financial-core.md](plan/slices/SLICE-01-disarmed-financial-core.md) | First slice, prepared for execution | proposed |
 | [tests/test-strategy.md](tests/test-strategy.md) | Proof classes, A08 rules, fault injection, coverage map | proposed |
-| [decisions/owner-questions.md](decisions/owner-questions.md) | Open owner questions (Q-nnn) with their dependent tasks | open |
-| [consistency/master-contradictions.md](consistency/master-contradictions.md) | Proposed master corrections (X-nnn) for the master's owner | open |
+| [decisions/owner-questions.md](decisions/owner-questions.md) | Owner questions (Q-nnn) with their dependent tasks | answered 2026-10-27 |
+| [consistency/master-contradictions.md](consistency/master-contradictions.md) | Proposed master corrections (X-nnn) for the master's owner | answered 2026-10-27 |
 
 **Specs.** Full depth (early slices need these):
 
@@ -111,6 +116,7 @@ This package labels its own content **proposed**. A master decision it cites is 
 | ID family | Meaning | Owner |
 |---|---|---|
 | D01–D16, A01-Fn … A10-Fn, Combined-F1–F6, AUD-01–05, ATA-01–09 | Accepted (or dispositioned) master decisions | Master README/ROADMAP |
+| D-001 … D-024 | The owner's decisions during the build (from 17 November 2026), not the master's D01–D16 | OA_NEW `docs/decisions.md` |
 | F1–F9 | Legacy defects found by the 24 Oct audit (`README.md:195-205`) | Master |
 | POL-nnn | Proposed README §9 policy row (staging) | This package |
 | REQ-XXX-nnn | Requirement key: a pointer to a decision or POL row; three-letter domain codes (LED, SES, ADM, DSP, DOM, PRT, XC, MKT, STR, RES, SEC, CFG, OPS, MIG) | This package |

@@ -1,5 +1,7 @@
 # SLICE-03 — Sessions, authority, clocks and recovery stages
 
+> **Owner note — 25 November 2026 (status, checked against the source repository and the server):** built, merged into `agentic-desk` and running on the Ubuntu server in OpenAlgo's analyze mode since 17 November 2026 (ROADMAP "Current delivery status"). Since then D-007 (an abnormal stop ends the day) changes the session rules; its amendments are inline.
+
 * **Status:** proposed; reviewed by fresh EGM design and implementation-readiness reviewers ([review](../../egm/plan/review.md#slice-03-review-2026-10-27)). Built once on 2026-10-27 in a local repository (commit `13a8115`, branch `slice-03`): 146 tests passed, including every SLICE-01 and SLICE-02 test, and every break check failed as required. That is a build record, not production acceptance.
 * **Precedence:** the master README, then the master ROADMAP, then this package. This slice adds no decision; where the [sessions spec](../../design/sessions-authority-lifecycle.md) leaves an engineering gap, the choice is named here, and each deviation from it is marked **Deviation**. No money policy, score or threshold is set: refusing settings are bound only to labelled synthetic values in tests.
 * **Phase:** master Phase 1 (ATA-05, A04-F1/F2 local, A06-F1 kernel side, Combined-F1, Combined-F4 kernel side). It adds no gate.

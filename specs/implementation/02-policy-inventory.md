@@ -125,6 +125,8 @@ Every row with status A is carried as a requirement key in [traceability.md](tra
 
 ## I. Open owner items carried from the record
 
+> **Owner note — 25 November 2026:** POL-047 and POL-O01: no restic and no passphrase; the nightly backup goes to Cloudflare R2 as plain zstd objects (D-017, D-020), bound since 21 November 2026; OpenAlgo's database stays out until the owner decides. POL-048: the legacy EC2 was lost on 13 November 2026; trading runs on one Ubuntu server (fresh start, SLICE-15).
+
 | ID | Item | Record | Dependent requirement or task |
 |---|---|---|---|
 | POL-O01 | Backup destination (Restic repository, key, off-box passphrase) | `OD:68` | TASK-S11-* restore rehearsal ([plan/delivery-plan.md](plan/delivery-plan.md)) |

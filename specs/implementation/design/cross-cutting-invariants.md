@@ -1,5 +1,7 @@
 # Cross-cutting invariants
 
+> **Owner note — 25 November 2026 (status, checked against the source repository and the server):** built through its slices and running in analyze mode since 17 November 2026; the design text below is as accepted, with dated amendments where the build changed it. Changed since: `unknown_domain_settlement` is bound `accounting_only` (Q-006 revisited 14 November 2026), not `forbid`.
+
 * **Status:** proposed (package spec). It owns **no module** and creates no package. It states rules every spec and slice must keep.
 * **Precedence:** master README, then ROADMAP, then this file.
 

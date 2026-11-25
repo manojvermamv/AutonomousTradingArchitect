@@ -1,5 +1,7 @@
 # Execution domain, observations and reconciliation
 
+> **Owner note — 25 November 2026 (status, checked against the source repository and the server):** built through its slices and running in analyze mode since 17 November 2026; the design text below is as accepted, with dated amendments where the build changed it. Changed since: `unknown_domain_settlement` is bound `accounting_only` (Q-006 revisited 14 November 2026; `forbid` held every entry's money and refused all entries from the third replayed day), so the first-release `forbid` below is history. D-019: live funds as two-decimal strings are money. D-016: an analyze-mode session counts as a live-broker check; `ModeRead` stays informational.
+
 * **Status:** proposed (package spec), revised after EGM stages 5–7 ([review](../egm/execution-domain-and-observations/review.md)). Implements accepted master decisions; adds no new ones.
 * **Precedence:** master README, then ROADMAP, then this file. A disagreement is an X item in [master-contradictions](../consistency/master-contradictions.md), never an edit here.
 * **Specified here (exclusive):** `adapters/openalgo.py`, `adapters/simulated_broker.py`, `kernel/reconciliation.py`, `kernel/ports.py`, `contracts/evidence.py`.

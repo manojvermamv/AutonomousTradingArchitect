@@ -67,6 +67,8 @@ Status: **proposed**, non-normative. The canonical, fully commented target tree 
 
 > **As built, 19 November 2026 (code `3f2b09b`).** Modules in the code with no row above: `operations/assessment_storage.py` (local assessment cutoff snapshots, the 17 November storage decision), `operations/supervisor_verification.py` (the offline OPS09 evidence check), `operations/parity.py` (legacy parity without legacy running, SLICE-18) and `adapters/openalgo_identity.py` (which broker OpenAlgo is logged in to, D-004).
 
+> **Owner note — 25 November 2026:** every row for SLICE-13 and SLICE-14 (the shadow, the legacy adapters, the history import and the cutover) is removed by D-015 (`d0133c5`), except `CFG-R11` and the fence rules; the rows are kept as history and not marked one by one.
+
 > **Owner amendment — 19 November 2026 (D-015, OA_NEW `docs/decisions.md`).** No legacy history import and no cutover: the shadow composition, the legacy adapters, the history import and the installer's cutover commands (among them the SLICE-13 and SLICE-14 tree deltas, `adapters/compatibility.py` and `scripts/migrate_legacy.py@3f2b09b`) were removed in code commit `d0133c5`; the code repository's D-015 names exactly what went. Rows below marked "Removed by D-015" cite the files as they were at `3f2b09b`.
 
 `kernel/lifecycle.py` is the one module split across two specs. Session transitions and order/position transitions are specified separately because they change on different triggers. **Both commit through the single transaction defined in [ledger-and-atomic-transaction](design/ledger-and-atomic-transaction.md)**, which is the only spec that defines the atomic commit.

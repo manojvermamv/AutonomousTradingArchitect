@@ -61,14 +61,15 @@ checkpoint "failure"), a holiday's cleanly ended strategy host is no alarm, `ale
 mode` (source `docs/operations.md` "Health checks and day watches (24 November 2026)"). Wednesday 25 November's
 binding and grant are in place.
 
-Updated the evening of 23 November 2026 (IST). Running since 18:31 IST: release `20261123T125948Z-200363068b91`
+*History, the evening of 23 November 2026 (IST); the running release is in the source repository's `HANDOFF.md`
+section 1.* Running since 18:31 IST: release `20261123T125948Z-200363068b91`
 (built from `d7347a1`), the fourth of that evening, all after the close: `c8b112fc7707` (`c3a314b`, the PRT-R10 fix
 and D-019), then the data-management work and two backup fixes. Wednesday 25 November's binding and entry grant are
 issued (Tuesday 24 November is an NSE holiday). The source repository's `HANDOFF.md` section 1 names the running
 release and heads. Decisions D-016 to D-021 are in the source
-repository's `docs/decisions.md`.
+repository's `docs/decisions.md` (D-001 … D-024 since 25 November).
 
-**Done (23 November 2026):**
+**Done (23 November 2026; history):**
 
 - **PRT-R10 (`a822a30`).** OpenAlgo's orderbook holds today's orders only, so Friday's ten protective orders (all
   ended at Friday's close) were absent on Monday and every Monday entry was refused. The kernel sends only DAY orders,
@@ -94,7 +95,7 @@ repository's `docs/decisions.md`.
   `restore-backup.sh list|rehearse|live` (source repository guide 01 section 6). Rehearsed on the real bucket on
   23 November 2026: ok in 5 minutes, every store equal to the set.
 
-**Done (20 November 2026):**
+**Done (20 November 2026; history):**
 
 - **Second analyze-mode day.** Five BuyerEdge trades (one 25500 CE, four 25400 PE, 65 each): +₹702.00 before costs,
   flat, every fill matched (source repository `.workspace/reports/2026-11-20-owner-report.md`).
@@ -106,7 +107,7 @@ repository's `docs/decisions.md`.
 - **Replay re-measured** on today's code (SLICE-15/16/17 amendments); R1 under D-007 done.
 - **Codex's 17 Markdown findings** fixed; CI green with Gitleaks.
 
-**21 November 2026:** **D-017 (owner):** the nightly backup goes to Cloudflare R2 by default, as plain objects over the
+**21 November 2026 (history):** **D-017 (owner):** the nightly backup goes to Cloudflare R2 by default, as plain objects over the
 S3 API: no encryption, no passphrase, no restic. Backblaze B2 is supported, untested, deferred; switching is settings
 only (`backup.provider`, `backup.destination`, the backup's credential). Built and tested against a local S3
 stand-in; `backup.retention` stays the owner's (`keep:<n>`, ships unbound). SLICE-11 step 8 is closed by it.
@@ -118,35 +119,26 @@ Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one 
 2. Verify the first market-session kernel square-off when a position crosses 15:13 IST (D-014). Not on a drill day:
    the OpenAlgo-off and kernel-stop drills each end the day and square the position off at once (25 November 2026).
    Also still to see: the kernel-stop drill closing an open position (on 25 November it ran with the book flat).
-3. ~~Monday's open: the first index tick within seconds of 09:15 (the tick-gap fix live).~~ **Done 23 November
-   2026:** the first NIFTY and BANKNIFTY ticks arrived at 09:15:00.99 IST (the market store's arrival time against
-   the tick's own time); on 20 November, before the fix, the first came at 09:20.
+3. ~~Monday's open: the first index tick within seconds of 09:15.~~ Done 23 November 2026 (09:15:00.99 IST).
 4. Review OPS09 formally and update the provisional runtime settings (an owner decision; every timing is bound, so
    what is left is keeping or changing them; 23 November re-measured in the 24 November report: chain data at most
    2.73 s late, book at most 0.61 s old). **Measured 19–20 November**
    with the source repository's `scripts/measure_session.py` (`docs/measurements/session-timings-2026-11-19-20.md`):
    sends under 6% of their deadlines, completions under 17% of the escalation limit; one chain stored 6.5 s after its
    minute against `market.http_timeout_ms` 5,000.
-5. ~~Owner drills: stop OpenAlgo for 3 minutes with a position open; the emergency stop tried once.~~ **Done 25
-   November 2026** with one position open, on the owner's word (source repository at-ops `owner-commands.md`
-   "Drills"): the emergency stop 10:03–10:05 IST, the broker's stop and target unchanged; OpenAlgo off 10:05:50–10:08:52
-   IST, `SESSION_CLOSING broker_unreachable` after 117 s, the square-off sent 4 s after OpenAlgo's API answered
-   (10:10:03), filled 10:10:36; a kernel stop 10:12:35, `OPERATING` by `routine_standing` 2 s after its start.
-6. ~~The recorded calendar checked against NSE's published holiday list.~~ **Done 20 November 2026 (owner):** the
-   recorded NFO list (16 dates) matches NSE's; Tuesday 24 November is a holiday. Recheck each December.
-7. ~~The backup (D-017): bind `backup.destination` on the server, then the first proof on the real bucket.~~
-   **Done 21 November 2026:** bound in the deploy's settings and proved on the real bucket (above). The kernel's evidence files were private (0600), so the backup unit could not read them: D-018 (owner, the same day) makes them 0640 like the ledger, and the 533 files on the server were changed once. Release `20261121T111857Z-c01ea97a2b55` (build `fe25f1f`) started the nightly timer (11:45 UTC, with `backup.retention: keep:14`); its first run as `at-backup` backed up, checked, restore-tested and pruned, all ok.
-   Release `20261121T123604Z-72a02e23f1dc` (build `2de581c`, 18:07 IST) carries the backup review's fixes. Each set now records the real host id and the release's bundle digest. The log moved off `/run` to `/var/lib/autonomous-trading/backups/backup.jsonl`, and the old log was carried across. The read-back is streamed. Sets cut short are deleted after the next good night. A night stops after 2 hours. The three sets taken before it record host id `rehearsal`, so restore from a newer set. at-ops `backup-verify.sh` re-proves the newest set at any time; at-ops health flags a failed backup run. The
-   clean-host restore rehearsal stays deferred.
-8. ~~Owner: put the backup token in the password manager, then set `backup.storage_credential_held_offbox`.~~
-   **Closed 23 November 2026 (A1):** the setting is removed; the owner's Cloudflare account is the token's off-machine
-   copy (D-017's 23 November line).
+5. ~~Owner drills: OpenAlgo off 3 minutes with a position open; the emergency stop once.~~ Done 25 November 2026
+   (the 25 November paragraph above; source at-ops `owner-commands.md` "Drills").
+6. ~~The recorded calendar checked against NSE's list.~~ Done 20 November 2026; recheck each December.
+7. ~~The backup (D-017): bound and proved on the real bucket.~~ Done 21 November 2026 (D-017, D-018; the 21 November
+   paragraph above); nightly since. The clean-host restore rehearsal stays open (item 11).
+8. ~~The backup token off the machine (`backup.storage_credential_held_offbox`).~~ Closed 23 November 2026 (A1).
 9. `security.journal` is unbound, so every backup set records an authorization gap (no authorization snapshot). This
    predates D-017. **Corrected 24 November 2026:** it is not a binding to make: no part of the running system writes a security journal (the off-host adapter SLICE-11 step 8 planned was never built; the kernel starts with `journal=None`), so binding the setting alone closes nothing. Nothing is lost: every
    grant is also in the ledger, which the backup holds, and a restored kernel treats the journal as untrusted and
    fails closed on delegated grants only (the owner issues a fresh grant each trading day anyway). Building the adapter
    is worth it only with several operators or delegated grants; until then the gap is an honest note, not a fault.
-10. Prune old releases after Monday 23 November.
+10. ~~Prune old releases.~~ Done 25 November 2026, 17:52 IST, on the owner's word: 3 releases, 0.56 GB, records
+    archived on the server.
 11. ~~Restore after losing the server: no owner command.~~ **Built 23 November 2026 (A2):** `restore-backup.sh`,
     rehearsed on the real bucket that night (ok, 5 minutes). Still open: the clean-host restore rehearsal (D10).
 12. ~~Data management: the market store and the nightly set grow about 170 MB each trading day.~~ **Done 23 November
@@ -163,44 +155,20 @@ Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one 
       `market/store.py`.
     - No research account exists on the server (research is outside the first release); one added later must join
       `at-market-readers` to read `backup.day_files` (`settings/schema.py` gives `research-offline` no groups).
-    - ~~(Found 24 November 2026.) D-021 counted any date with market records as a "trading day", so the 24
-      November holiday (432 polled rows) took one of the 10.~~ **Owner, 24 November 2026: count sessions only.**
-      Built (`market/days.py` `_session`: a recorded closed day does not count; no recorded status counts on a
-      weekday, as before); released 24 November 2026. D-021's dated line in the source repository's `docs/decisions.md`.
+    - ~~D-021 counted a holiday as a trading day.~~ Fixed and released 24 November 2026 (sessions only; D-021).
     - Restored sealed assessment days come back 0640, not 0440 (`operations/restore.py`).
     - A day whose live rows changed after its export keeps its receipt and is never pruned (kept for good; safe).
-    - ~~at-ops `health.sh` exits 1 when its attention lines are only informational~~ **Fixed 24 November 2026.**
-      The cause was otherwise: a checkpoint unit's `at holds status` was refused (`SEC-R12`: the operator CLI admits
-      no caller inside a service, by design) and `lib.sh`'s `set -e` ended the report there with exit 1. `health.sh`
-      now runs to its end (a part it cannot read is an ATTENTION line) and inside a unit reads holds from the ledger;
-      `alerts.sh --alive MIN` gives a day watch a heartbeat; `openalgo_books mode` reads OpenAlgo's mode without a
-      session handling the key. And on a closed day (a holiday) a strategy host that ended cleanly is no longer an
-      ATTENTION line (`lib.sh` `unit_problems` asks the recorded calendar).
+    - ~~at-ops `health.sh` exits 1 on informational lines.~~ Fixed 24 November 2026 (source `docs/operations.md`
+      "Health checks and day watches").
     - `deploy/install.py` `latest_assessment` keeps the old index scan as a fallback for the rehearsal's fake
       supervisor.
-    - ~~(Found 25 November 2026, the emergency-stop drill.) `at kill-switch on` exits 1 when it cannot write a kill
-      file, even though the kernel recorded `KILL_ENGAGED`: the server binds no `risk_guard.kill_switch_file`, and the
-      fallback `<deployment root>/run/KILL` does not exist (`interfaces/cli.py` `_on`). An owner item goes with it:
-      bind a kill file the operators can write, so the emergency stop also works when the kernel cannot be reached.~~
-      **Fixed 25 November 2026 (owner), released that evening:** `on` now ends with `KILL SWITCH ENGAGED in the ledger` and
-      exit 0 when the kernel recorded the kill but no file was written (source repository `interfaces/cli.py` `_on`,
-      test `test_cli_on_recorded_without_a_file`); `risk_guard.kill_switch_file` is bound in the deploy settings to
-      the operators' kill directory under `paths.run`, live from the next release.
-    - ~~(Found 25 November 2026, the after-close check.) `at.slice` is installed unrendered: `deploy/install.py:504`
-      copies `deploy/systemd/at.slice` as text, so `/etc/systemd/system/at.slice` on the server keeps
-      `__CPU_QUOTA__`, `__MEMORY_HIGH__`, `__MEMORY_MAX__`, `__TASKS_MAX__` and `__IO_WEIGHT__`. systemd ignores
-      those lines (5 warnings on every reload), so the optional work under it (backups, the ledger copy, isolated
-      work) runs with no limits. `operations/isolation.py` `render_slice` refuses while the envelope is unbound.
-      Trading units are never in `at.slice` (`isolation.py:5`).~~ **Fixed 25 November 2026 (owner), released that evening:**
-      the installer writes `isolation.installed_slice`: the accounting and only the bound `envelope.optional.*`
-      limits (all bound: `render_slice`'s text); tests `test_the_installed_slice_carries_no_placeholder`,
-      `test_the_installed_slice_renders_each_bound_limit`. Binding the limits waits on their measurement.
-    - ~~(Found 25 November 2026, the after-close release.) `apply-root` built the directory table before
-      `systemd-sysusers`, so a release adding a participant (`at-messenger`) refused at `chown`; the refused
-      activation's undo then read the polkit rules as the installer, which polkit's `root:polkitd 0750` folder denies,
-      and stopped with the old release down.~~ **Fixed and released 25 November 2026:** users first, the table after,
-      a table refusal puts the files back; the restore-set check leaves the polkit rules to `apply-root` (source
-      `8afc491`, three tests in `tests/recovery/test_release_activation.py`).
+    - ~~`at kill-switch on` exits 1 when no kill file is bound.~~ Fixed and released 25 November 2026: exit 0 with
+      `KILL SWITCH ENGAGED in the ledger`; `risk_guard.kill_switch_file` bound in the deploy settings, live since that
+      release (test `test_cli_on_recorded_without_a_file`).
+    - ~~`at.slice` installed with the template's placeholders.~~ Fixed and released 25 November 2026
+      (`isolation.installed_slice`); binding the limits waits on measuring one night's backup and ledger copy.
+    - ~~The installer built its directory table before creating system users; the refused activation's undo could not
+      read polkit's rules.~~ Fixed and released 25 November 2026 (source `8afc491`).
 14. **Messaging (D-022, D-023), built and released 25 November 2026** (`at-messenger.service` installed, disabled
     until `messaging.channels` names a channel). Next, the owner chooses a channel and sets
     it up in OpenAlgo (start the Telegram bot and `/link`, or pair WhatsApp, or a Slack or Discord webhook switched on
@@ -337,11 +305,14 @@ Source: `AutonomousTrading/agentic-desk` at `b58abca058938878d892f4441f4758045ce
 
 Backup integration, restic anchors and backup/restore rehearsal stay deferred until the owner asks. Cognition, model approval and console work stay with their own slices. No trading service is active.
 
+## About this roadmap
+
 This document tracks the audit and architecture path toward a later production-ready AutonomousTrading build. It is directional: dates describe evidence windows and review snapshots, not delivery promises. A roadmap status follows the default branch of this repository; a source-code audit always names the separate source repository, branch, and revision it actually inspected.
 
 **Scope and change control:** audits here optimize the module boundaries and architecture of the future AutonomousTrading project, using current and historical source audits as evidence; `AutonomousTradingArchitect` is the documentation workspace, not the implementation target. Prefer an available local source directory and/or GitHub repository for code claims. If neither is available in context, the published [target architecture review](https://manojvermamv.github.io/AutonomousTradingArchitect/) may clarify diagrams and ongoing design documents, but it is not implementation evidence. For audit-only work, report findings first and make no file edits until the user confirms the recommendations; a confirmed batch may be applied together when document edits are authorized. After confirmation, record accepted target decisions in this roadmap; update the protected master README only when the user's active-turn confirmation explicitly authorizes that edit.
 
-Historical baseline: as of **24 October 2026 (Asia/Kolkata)**, this roadmap lives on `AutonomousTradingArchitect` branch `main`, at baseline revision `cd40cfc07e57899e2aabb643cbc80228dc433322`. For future source audits, use `AutonomousTrading/claude/openalgo-trading-architecture-uu1bxn/` as the default target branch, consistent with that repository's `AGENTS.md`, unless the user names another branch. The current code-audit snapshot described by the existing master README inspected `AutonomousTrading` branch `claude/openalgo-trading-architecture-uu1bxn` at revision `445eb116514d97c2574c44d4d5374f938dec57a3` on 24 October 2026 UTC. Those are different repositories and different revisions.
+Historical baseline: as of **24 October 2026 (Asia/Kolkata)**, this roadmap lives on `AutonomousTradingArchitect` branch `main`, at baseline revision `cd40cfc07e57899e2aabb643cbc80228dc433322`. For future source audits, use `AutonomousTrading/claude/openalgo-trading-architecture-uu1bxn/` as the default target branch, consistent with that repository's `AGENTS.md`, unless the user names another branch. *(Since 29 October 2026 that branch is deleted: legacy evidence is branch
+`legacy`, and the build is `agentic-desk` in OA_NEW; this repository lives at `OA_NEW/.workspace/specifications`.)* The current code-audit snapshot described by the existing master README inspected `AutonomousTrading` branch `claude/openalgo-trading-architecture-uu1bxn` at revision `445eb116514d97c2574c44d4d5374f938dec57a3` on 24 October 2026 UTC. Those are different repositories and different revisions.
 
 **25 October 2026 UTC update:** the owner accepted all ten target recommendations and explicitly authorized updates to both README.md and ROADMAP.md. Architecture pre-update baseline: `AutonomousTradingArchitect/main` at `a4c6308641d12b1a15898c05ce2bbd022cd46822`. Follow-up source audit: `AutonomousTrading/claude/openalgo-trading-architecture-uu1bxn` at unchanged revision `445eb116514d97c2574c44d4d5374f938dec57a3`. Design acceptance is recorded; implementation, tests and production acceptance remain pending. No source fixes or money-policy changes were authorized by this document update.
 
@@ -398,7 +369,7 @@ The six later choices refine the delivery order above; they do not add six seria
 
 Specify D13–D16 as one connected contract after D11–D12, then prove it in the disarmed vertical slice and canonical-state work. Retain the clean package structure: no new financial journal, sender or service. Lower-level deadlines, valuation changes and emergency permissions are not implicitly approved. Existing D10 recovery/fencing proof remains attached to activation; independent development and research do not wait for broker acceptance or market close.
 
-This order does not require patching `~/AutonomousTrading` before building the target. That source remains read-only under the current instruction. Work on a later implementation needs its own authorized workspace; these files do not create one. Candidate reuse mappings may change when evidence supports a better implementation. A broad rewrite is not assumed, and an existing implementation is not presumed best merely because it exists. (Since built: `AutonomousTrading/agentic-desk` in OA_NEW.)
+This order does not require patching `~/AutonomousTrading` before building the target. That source remains read-only under the current instruction. Work on a later implementation needs its own authorized workspace; these files do not create one. Candidate reuse mappings may change when evidence supports a better implementation. A broad rewrite is not assumed, and an existing implementation is not presumed best merely because it exists. (Since built: `AutonomousTrading/agentic-desk` in OA_NEW; `~/AutonomousTrading` no longer exists.)
 
 Dated acceptance sections below preserve the instructions and next-step notes from their original sessions; historical pauses or commit restrictions do not supersede current user authorization. Current accepted scope and continuation are summarized above and in the affected ATA section.
 
@@ -645,6 +616,10 @@ For each audit, report target gaps, recommended behavior, alternatives/trade-off
 
 ## Milestones
 
+*Owner note — 25 November 2026: every milestone below is built and running in analyze mode except scaling and
+providers (⚪); a "Still open, item N" in a milestone's text refers to the list as it stood then. The live state is
+Current delivery status above.*
+
 ### ✅ Establish a dated, evidence-grounded audit baseline
 
 The 24 October code-first report identifies what the inspected source proves and records the scope limits. It remains the historical baseline, supplemented by the 25 October follow-up; neither is proof of deployment, broker behavior, or production acceptance. Keep the full source branch and SHA beside each future snapshot so a later audit can show what changed.
@@ -688,6 +663,9 @@ Preserve research custody and RL as non-authoritative. Candidate artifacts remai
 Start with the proposed single-host SQLite WAL design and OpenAlgo boundary; A09 sizing and performance measurements remain pending. Benchmark actual write contention, retained data volume, latency, outage frequency, and recovery objectives before selecting PostgreSQL, replication, another broker, or a distributed workflow service. A second broker is an extension decision, not an automatic response to “vendor lock-in.” Distributed or active-passive Tier-1 requires a proven exclusive-authority and split-brain prevention design, not a shared SQLite file or an unmeasured leader-election service.
 
 ## Open work and evidence
+
+*Dated 26 October 2026 (history): the legacy-defect priorities below. The live list is "Still open" under
+Current delivery status.*
 
 The order below reflects the current audit's risk and dependencies. It is not a serial release gate. Isolated implementation, debugging, architecture review, and synthetic testing can proceed while a separate production proof is pending.
 
@@ -800,7 +778,8 @@ The bundle does not include source-level citations for each issue. The drawn flo
 
 Each audit update must make the time range and direction change legible:
 
-1. Record the audit date and timezone, target repository, target branch, full source SHA, scope, and artifacts inspected. Use the actual source branch audited, even though this roadmap itself follows `AutonomousTradingArchitect/main`.
+1. Record the audit date and timezone, target repository, target branch, full source SHA, scope, and artifacts inspected. Use the actual source branch audited, even though this roadmap itself follows `AutonomousTradingArchitect/main` (since 30 October 2026 the working branch
+   is `claude/spec-implementation-package`).
 2. Keep a finding identity stable when its underlying issue is the same. Record `open`, `partially proven`, `closed`, `reopened`, or `reclassified` with evidence and date; do not erase old status or reuse an ID for a different defect.
 3. Separate source-verified behavior, dashboard hypotheses, target proposals, and missing evidence. A failed check is evidence only for the condition it exercised.
 4. When evidence changes direction, add a dated row naming prior conclusion, new conclusion, source revision, and reason. Preserve the audit's original date range rather than silently rewriting history.
@@ -820,6 +799,6 @@ Each audit update must make the time range and direction change legible:
 
 ## Working on the roadmap
 
-Use this document to choose the next evidence-backed architecture or implementation slice. Link each future correction to an audit finding and its target acceptance proof. Keep source-code changes in the `AutonomousTrading` repository when requested; keep this repository's work to architecture and audit documents. Do not edit the master README or the rebuild prompt unless the active user turn explicitly requests it. An owner-policy question remains an open decision until answered.
+Use this document to choose the next evidence-backed architecture or implementation slice. Link each future correction to an audit finding and its target acceptance proof. Keep source-code changes in the `AutonomousTrading` repository (branch `agentic-desk`, checked out as OA_NEW) when requested; keep this repository's work to architecture and audit documents. Do not edit the master README or the rebuild prompt unless the active user turn explicitly requests it. An owner-policy question remains an open decision until answered.
 
 The [Paperclip roadmap](https://github.com/paperclipai/paperclip/blob/master/ROADMAP.md) is a formatting and tone reference only. Statuses, milestones, claims, and dates here are specific to this project's audit evidence.
