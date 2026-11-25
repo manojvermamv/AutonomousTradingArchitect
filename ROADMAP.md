@@ -167,16 +167,23 @@ Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one 
       ATTENTION line (`lib.sh` `unit_problems` asks the recorded calendar).
     - `deploy/install.py` `latest_assessment` keeps the old index scan as a fallback for the rehearsal's fake
       supervisor.
-    - (Found 25 November 2026, the emergency-stop drill.) `at kill-switch on` exits 1 when it cannot write a kill
+    - ~~(Found 25 November 2026, the emergency-stop drill.) `at kill-switch on` exits 1 when it cannot write a kill
       file, even though the kernel recorded `KILL_ENGAGED`: the server binds no `risk_guard.kill_switch_file`, and the
       fallback `<deployment root>/run/KILL` does not exist (`interfaces/cli.py` `_on`). An owner item goes with it:
-      bind a kill file the operators can write, so the emergency stop also works when the kernel cannot be reached.
-    - (Found 25 November 2026, the after-close check.) `at.slice` is installed unrendered: `deploy/install.py:504`
+      bind a kill file the operators can write, so the emergency stop also works when the kernel cannot be reached.~~
+      **Fixed 25 November 2026 (owner), not released:** `on` now ends with `KILL SWITCH ENGAGED in the ledger` and
+      exit 0 when the kernel recorded the kill but no file was written (source repository `interfaces/cli.py` `_on`,
+      test `test_cli_on_recorded_without_a_file`); `risk_guard.kill_switch_file` is bound in the deploy settings to
+      the operators' kill directory under `paths.run`, live from the next release.
+    - ~~(Found 25 November 2026, the after-close check.) `at.slice` is installed unrendered: `deploy/install.py:504`
       copies `deploy/systemd/at.slice` as text, so `/etc/systemd/system/at.slice` on the server keeps
       `__CPU_QUOTA__`, `__MEMORY_HIGH__`, `__MEMORY_MAX__`, `__TASKS_MAX__` and `__IO_WEIGHT__`. systemd ignores
       those lines (5 warnings on every reload), so the optional work under it (backups, the ledger copy, isolated
       work) runs with no limits. `operations/isolation.py` `render_slice` refuses while the envelope is unbound.
-      Trading units are never in `at.slice` (`isolation.py:5`). The fix is the owner's decision.
+      Trading units are never in `at.slice` (`isolation.py:5`).~~ **Fixed 25 November 2026 (owner), not released:**
+      the installer writes `isolation.installed_slice`: the accounting and only the bound `envelope.optional.*`
+      limits (all bound: `render_slice`'s text); tests `test_the_installed_slice_carries_no_placeholder`,
+      `test_the_installed_slice_renders_each_bound_limit`. Binding the limits waits on their measurement.
 14. **Messaging (D-022, D-023), built 25 November 2026:** release it (it changes the installed units: a new
     `at-messenger.service`, off until `messaging.channels` names a channel), then the owner chooses a channel and sets
     it up in OpenAlgo (start the Telegram bot and `/link`, or pair WhatsApp, or a Slack or Discord webhook switched on
