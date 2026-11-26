@@ -169,8 +169,8 @@ Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one 
    6% of their deadlines, completions under 17% of the escalation limit, one chain stored 6.5 s after its minute
    against `market.http_timeout_ms` 5,000; 23 November: chain data at most 2.73 s late, book at most 0.61 s old.
 5. ~~Owner drills: OpenAlgo off 3 minutes with a position open; the emergency stop once.~~ Done 25 November 2026
-   (source at-ops `owner-commands.md` "Drills"). Still to see, on an analyze day: a kernel stop with a position open
-   (on 25 November the drill ran with the book flat; the 26 November unplanned stop also found it flat).
+   (source at-ops `owner-commands.md` "Drills"). The kernel stop with a position open (25 November's drill and the
+   26 November unplanned stop both found the book flat) is proven by a one-day replay on 26 November 2026 (`tests/replay/test_kernel_stop_with_position.py`): a position open from 11:00, the kernel stopped at 11:30 cancels the broker's stop and target, closes at market and is flat 11 s later (40 s budget); the restart resumes by `routine_standing` and refuses the next entry `SES-R07`. The server's observation interval is 10 s, so the exit needs about 20 s, inside the budget and systemd's 60 s stop timeout.
 6. ~~The recorded calendar checked against NSE's list.~~ Done 20 November 2026; recheck each December.
 7. ~~The backup (D-017) bound and proved on the real bucket.~~ Done 21 November 2026 (D-017, D-018); nightly since.
 8. ~~The backup token off the machine (`backup.storage_credential_held_offbox`).~~ Closed 23 November 2026 (A1).

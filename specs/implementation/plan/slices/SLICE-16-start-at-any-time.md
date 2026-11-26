@@ -42,7 +42,7 @@ Each one keeps legacy at 445eb116 unless the owner chooses otherwise. **All are 
 | Step | Builds | Reuses | Proofs |
 |---|---|---|---|
 | 1 | The audit: every place that assumes a full day, a 09:15 start or a complete set of bars, and which deliverables are already built | — | This file (as built) |
-| 2 | The recorded session and the day coverage. `SessionTiming` is built from the recorded `trading_day` fact. Quality's expected windows follow it. Each view gets `day_coverage`. Polls and the host keep legacy's fixed 15:30 end (owner, 2026-11-14). | `StoreMarket.trading_day` (`market/view.py:985-1009`), `quality._expected`, coverage rows | Unit tests (named in step 2) |
+| 2 | The recorded session and the day coverage. `SessionTiming` is built from the recorded `trading_day` fact. Quality's expected windows follow it. Each view gets `day_coverage`. Polls and the host keep legacy's fixed 15:30 end (owner, 2026-11-14). | `StoreMarket.trading_day` (`market/view.py:1258-1276`), `quality._expected`, coverage rows | Unit tests (named in step 2) |
 | 3 | The late start. `BarContext.day` and a per-window `DAY_COVERAGE` record in the host; the start gate follows F-4 as answered (legacy's calendar skip and preflight refusals). No backfill: `market.source.backfill_on_start` was answered `false` and nothing reads backfilled bars (see step 3). | `View.day_coverage` (step 2), the host store | Unit tests |
 | 4 | The replay proofs: starts at 09:15 (baseline), 10:30, 14:00 and one minute after the baseline's last admitted entry; restarts mid-day with an open position (routine and owner advance, crash and clean stop), a market outage and a strategy-host restart; synthetic always-run versions. | SLICE-15 harness (`tests/replay/`) | `-m replay` runs; synthetic always-run versions |
 | 5 | Windowed research: any day ranges, intraday windows, a few minutes, non-contiguous slices and gappy data. Nothing looks ahead, and each result records its windows and the data it used, in custody. | `ReplaySpec.session_open/close` and `clock_identity` (`research/replay.py:1451-1466`, `:1689`), `datasets.build` | Property tests (hypothesis); golden identity unchanged |
@@ -74,7 +74,7 @@ Marks: **C** correct already. **D** defect. **M=** money behaviour that already 
 |---|---|---|---|
 | 1 | `contracts/market.py:229-275` | One calendar `nse-fo/v1`, regular hours 09:15–15:30, Mon–Fri. It labels windows; the kernel's sessions come from recorded facts (row 12). | C |
 | 2 | `contracts/market.py:286-306` | `SessionTiming` (open, closed, special, unknown) is defined and unit-tested (`tests/unit/test_market_windows.py:68-77`) but **never built** in `src/`, so special and shortened days never reach a view | D |
-| 3 | `contracts/market.py:637-638`; `market/view.py:119` | Views use the one-minute base. Higher bars are resampled to the descriptor's `timeframe`, and the warm-up is the descriptor's `warmup_bars`. Bar size and warm-up are already settings. | C |
+| 3 | `contracts/market.py:637-638`; `market/view.py:191` | Views use the one-minute base. Higher bars are resampled to the descriptor's `timeframe`, and the warm-up is the descriptor's `warmup_bars`. Bar size and warm-up are already settings. | C |
 | 4 | `market/quality.py:46-48` | `session_reset` must be True: warm-up counts from the session's first window | M= `src/core/framework/runtime/runner.py:96-102` |
 | 5 | `market/quality.py:98-111`, `:164` | Expected windows come from the regular hours, labelled `regular_hours`. A late start is reported correctly (windows before the start count as gaps), but an early close or a special session is not. | D |
 | 6 | `market/ingest.py:120`, `:181-186`, `:298-312` | Polls run on weekdays from 09:00 to the regular close. A special session is never polled, and an early close is polled until 15:30. | M? F-1 (`scheduler.py:174-178`; `marketpull.py:888-896`) |
@@ -83,8 +83,8 @@ Marks: **C** correct already. **D** defect. **M=** money behaviour that already 
 | 9 | `market/ingest.py:501`, `:519-531` | Tick watch only in hours 9–15 on weekdays (legacy's `*/5 9-15`) | M? F-1 |
 | 10 | `market/ingest.py:503`, `:533-536` | Reference facts are recorded from 09:05 until stored, so a late start records them at once | C |
 | 11 | `adapters/openalgo.py:855-866` | History is used only to repair a broken quote row inside a poll. A late start has nothing before its first poll. | M? F-3 (`src/interfaces/mcp/core/marketheal.py:43-58`, past days only) |
-| 12 | `market/view.py:980-1009` | The calendar port reads the recorded `trading_day` fact: a window means open, `open: false` is a holiday, no fact means unknown. It fails closed. | C |
-| 13 | `market/view.py:1012-1020` | `coverage(view_id, instrument)` returns the day's raw coverage rows through the view's head | C (raw rows only; see 14) |
+| 12 | `market/view.py:1252-1276` | The calendar port reads the recorded `trading_day` fact: a window means open, `open: false` is a holiday, no fact means unknown. It fails closed. | C |
+| 13 | `market/view.py:1288-1297` | `coverage(view_id, instrument)` returns the day's raw coverage rows through the view's head | C (raw rows only; see 14) |
 | 14 | (absent) | No view or decision says how much of the day it covers: first and last window, expected against present, gaps, interruptions | D |
 
 ### Strategy host and BuyerEdge
