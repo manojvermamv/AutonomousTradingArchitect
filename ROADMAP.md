@@ -18,7 +18,16 @@ Implemented, committed and pushed as source `b88014e` (`agentic-desk`), with thi
 <a id="current-delivery-status--2026-11-21-utc"></a>
 <a id="current-delivery-status--2026-11-23-utc"></a>
 <a id="current-delivery-status--2026-11-24-utc"></a>
-## Current delivery status — 2026-11-25 UTC
+<a id="current-delivery-status--2026-11-25-utc"></a>
+## Current delivery status — 2026-11-26 UTC
+
+**26 November 2026 (analyze session).** Five BuyerEdge trades on the 25 November release, +711.75 rupees before
+costs, every exit by the stop or the trail, the broker's realised P&L equal to the ledger's. PE trades stayed in past
+their first tick (13 and 27 minutes) and left by the trail: the 20 November put-delta fix is proven live. Measured in
+the session: the strategy host at 0.7% of one core; last night's backup at a 1.2 GB memory peak (`at.slice`, item
+13). At 11:44 IST Ubuntu's automatic upgrade restarted every trading service (item 16), which ended the day
+(`SESSION_CLOSING kernel_stopped`, D-007) with the book flat and the day's 5-trade limit already reached; the kernel
+resumed by itself 4 s later (`routine_standing`).
 
 **25 November 2026 (analyze session).** The first entry since the PRT-R10 fix: NIFTY 01 Dec 25800 CE × 65 at 09:44 IST,
 filled 214.70 against a plan of 213.20, stop and target at the broker, the trail raised the stop to 204.45. The three
@@ -118,7 +127,8 @@ Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one 
 1. ~~Release `8c7d99e`~~ released 20 Nov 19:03 IST.
 2. Verify the first market-session kernel square-off when a position crosses 15:13 IST (D-014). Not on a drill day:
    the OpenAlgo-off and kernel-stop drills each end the day and square the position off at once (25 November 2026).
-   Also still to see: the kernel-stop drill closing an open position (on 25 November it ran with the book flat).
+   Also still to see: the kernel-stop drill closing an open position (on 25 November it ran with the book flat; on
+   26 November an unplanned kernel stop also found the book flat).
 3. ~~Monday's open: the first index tick within seconds of 09:15.~~ Done 23 November 2026 (09:15:00.99 IST).
 4. Review OPS09 formally and update the provisional runtime settings (an owner decision; every timing is bound, so
    what is left is keeping or changing them; 23 November re-measured in the 24 November report: chain data at most
@@ -166,7 +176,9 @@ Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one 
       `KILL SWITCH ENGAGED in the ledger`; `risk_guard.kill_switch_file` bound in the deploy settings, live since that
       release (test `test_cli_on_recorded_without_a_file`).
     - ~~`at.slice` installed with the template's placeholders.~~ Fixed and released 25 November 2026
-      (`isolation.installed_slice`); binding the limits waits on measuring one night's backup and ledger copy.
+      (`isolation.installed_slice`). Measured 26 November: the nightly backup peaks at 1.2 GB of memory (the slice at
+      1.30 GB), the ledger copy about 1 s of CPU; binding `envelope.optional.*` (proposed `MemoryHigh` 2 GB,
+      `MemoryMax` 3 GB) is the owner's decision.
     - ~~The installer built its directory table before creating system users; the refused activation's undo could not
       read polkit's rules.~~ Fixed and released 25 November 2026 (source `8afc491`).
 14. **Messaging (D-022, D-023), built and released 25 November 2026** (`at-messenger.service` installed, disabled
@@ -178,6 +190,11 @@ Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one 
     `autonomous_trading.indicators` in one change at a session start (their files are part of their candidate
     identity, so the session's binding is issued again), and the trail only if its standard-library rule is lifted.
     Found with it: the strike selector's IV-rank gate never acts (the planner passes no IV rank, as legacy live did).
+16. **Host updates restart the trading services (found 26 November 2026).** Ubuntu's `apt-daily-upgrade.timer` runs
+    `unattended-upgrade` at a random time each day, and `needrestart` restarts every service using an upgraded
+    library, the kernel included: on 26 November at 11:44 IST that ended the session (D-007). On the owner's word:
+    move the timer after the close and tell `needrestart` never to restart `at-*` units (source `docs/operations.md`
+    "Host package updates"). Until then any session can end early, with an open position squared off.
 
  Live mode only on the owner's word. The AI twin (SLICE-17),
 the web console and MCP are not in the first release.
