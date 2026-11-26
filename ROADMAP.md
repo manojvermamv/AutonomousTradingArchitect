@@ -36,6 +36,11 @@ D-007) and the kernel squared the position off at 215.55 once OpenAlgo answered:
 flat, its realised P&L equal to the ledger's. The kernel-stop drill proved R-4's automatic path (`routine_standing`).
 Still open from the day: a PE trade past its first tick, and the 15:13 square-off (item 2).
 
+**26 November 2026, after the close: released.** On the owner's word, release `20261126T105806Z-f11c1f35dfa3` (built from the
+source repository's `94830da`) converged at 16:29 IST with the host package update fix (item 16: the upgrade timer at
+16:15-16:30 IST and needrestart never restarting `at-*` or containerd, both checked on the host); 27 November's
+binding and grant issued. The 15:13 square-off (item 2) is proven by simulation.
+
 **25 November 2026, after the close: released.** On the owner's word, release `20261125T121017Z-31af10d63d50`
 (built from the source repository's `ebde1cc`) converged at 17:41 IST with the two evening pieces below, the `at.slice`
 fix and the kill-switch fix with its bound kill file (item 13). The first try (built from `80a09cb`) refused at
@@ -125,7 +130,7 @@ Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one 
 **Still open, in order:**
 
 1. ~~Release `8c7d99e`~~ released 20 Nov 19:03 IST.
-2. Verify the first market-session kernel square-off when a position crosses 15:13 IST (D-014). Not on a drill day:
+2. ~~Verify the first market-session kernel square-off when a position crosses 15:13 IST (D-014)~~ proven end to end by simulation on 26 November 2026 (`tests/replay/test_square_off_day.py`: the real kernel, protection loop and ledger against the fake OpenAlgo; a position open from 14:56 is exited by the kernel at 15:13:07, flat at 15:13:30, stop and target cancelled first, the book flat at the close); live sessions end flat before 15:13 (the 5-trade limit), so no live observation is awaited. Not on a drill day:
    the OpenAlgo-off and kernel-stop drills each end the day and square the position off at once (25 November 2026).
    Also still to see: the kernel-stop drill closing an open position (on 25 November it ran with the book flat; on
    26 November an unplanned kernel stop also found the book flat).
