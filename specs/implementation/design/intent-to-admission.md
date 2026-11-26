@@ -2,6 +2,8 @@
 
 > **Owner note — 25 November 2026 (status, checked against the source repository and the server):** built through its slices and running in analyze mode since 17 November 2026; the design text below is as accepted, with dated amendments where the build changed it. Changed since: besides inert, kill, hold and latch, every entry (never an exit) is refused `PRT-R06` by two injected gates: storage pressure and OpenAlgo logged in to another broker (`kernel/safety.py` `storage_check`, `broker_check`; D-004).
 
+> **Owner note — 26 November 2026 (status, checked against the source repository and the server):** The entry cutoff `account.limits.no_new_trade_after: '15:10'` is bound on the server (owner, 26 November, release `20261126T111601Z-389023c79c86`; from 27 November's session): the planner refuses an entry at or after 15:10 IST (`kernel/planner.py:110-121`); the earliest of the account's and the strategy's cutoffs wins (`kernel/admission.py:264-267`). The example profile ships it unset (`config/live.example.yaml:245`).
+
 * **Status:** proposed (package spec), revised after EGM stages 5–7 ([review](../egm/intent-to-admission/review.md)). Implements accepted master decisions; adds no new ones.
 * **Precedence:** master README, then ROADMAP, then this file. A disagreement is an X item in [master-contradictions](../consistency/master-contradictions.md), never an edit here.
 * **Specified here (exclusive), and where:**

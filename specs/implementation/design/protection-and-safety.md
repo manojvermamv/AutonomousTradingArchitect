@@ -2,6 +2,8 @@
 
 > **Owner note — 25 November 2026 (status, checked against the source repository and the server):** built through its slices and running in analyze mode since 17 November 2026; the design text below is as accepted, with dated amendments where the build changed it. Changed since: D-011, D-012, D-014 (inline); PRT-R10 (an earlier-day DAY order counts as ended; absence alone never does); the permission matrix also refuses every entry, never an exit, with `PRT-R06` from the storage and broker-login gates (D-004).
 
+> **Owner note — 26 November 2026 (status, checked against the source repository and the server):** D-014's 15:13 square-off is proven by simulation (source `tests/replay/test_square_off_day.py`, `test_the_kernel_squares_off_an_open_position_at_1513_and_the_day_ends_flat`: the real kernel, protection loop and ledger against the fake OpenAlgo; a position open from 14:56 exits at 15:13:07, flat at 15:13:30, and the test fails with `session_close: broker`). Live sessions end flat before 15:13 (the 5-trade limit), so no live observation is awaited (ROADMAP item 2).
+
 * **Status:** proposed (package spec), revised after EGM stages 5–7 ([review](../egm/protection-and-safety/review.md)). Implements accepted master decisions; adds no new ones.
 * **Precedence:** master README, then ROADMAP, then this file. A disagreement is an X item in [master-contradictions](../consistency/master-contradictions.md), never an edit here.
 * **Specified here (exclusive), and where:**

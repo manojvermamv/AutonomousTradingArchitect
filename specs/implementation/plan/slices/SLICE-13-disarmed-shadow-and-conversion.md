@@ -2,6 +2,8 @@
 
 > **Owner note — 25 November 2026 (status, checked against the source repository and the server):** Superseded by D-015 (19 November 2026): the shadow, the legacy adapters, the `orders/1` projection and the importer were removed (source `d0133c5`). Only `legacy_market.py` and the replay harness remain. Kept as history; the code still cites it.
 
+> **Owner note — 26 November 2026 (where the live content is):** the surviving code is `adapters/legacy_market.py` (test `tests/unit/test_legacy_market.py`) and the replay harness (`tests/replay/replay_harness.py`); both are described by SLICE-15 and SLICE-16 for current use. Source and test files still cite this slice by name, so it stays as history (three-question doc test: referenced).
+
 * **Status:** built (2026-11-04; step 5 part 2 merged 2026-11-12): steps 1–5, each recorded "as built" below. Steps 6–7 are void (2026-11-13, server lost; see [SLICE-15](SLICE-15-fresh-start.md)). Proposed 2026-10-30. Every step below began as an outline: by the owner's [standing rules](../../decisions/owner-answers-2026-10-27.md#standing-rules-2026-10-30), each step's exact detail (files, signatures, test tables, break checks) is written just before it is built, then reviewed by two fresh EGM reviewers, built, run twice with the suite, break-checked and recorded "as built".
 
   > **Owner amendment — 19 November 2026 (D-015, OA_NEW `docs/decisions.md`).** No legacy history import and no cutover: this slice's shadow composition, legacy adapters, `orders/1` projection and history import were removed from the code in `d0133c5`. Kept for the replay: `src/autonomous_trading/adapters/legacy_market.py` (with `read_market_file`), and the shadow driver, moved into `tests/replay/replay_harness.py`.

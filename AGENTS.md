@@ -9,7 +9,7 @@
 - When the task concerns the trading implementation, distinguish this repository's current branch from the separately inspected `AutonomousTrading` source branch and record both branch names and commit SHAs with audit dates.
 - Default future source-code audits to the build, `AutonomousTrading` branch `agentic-desk` (checked out as `OA_NEW`, this repository's parent folder), unless the user names another target branch; legacy evidence is branch `legacy` (`claude/openalgo-trading-architecture-uu1bxn` was deleted on 29 October 2026). Preserve historical snapshots from other branches as explicitly scoped evidence; do not silently treat them as current `main` state.
 
-## Current state (25 November 2026)
+## Current state (checked 26 November 2026)
 
 - The target is built and running in OpenAlgo's analyze mode on one Ubuntu server since 17 November 2026; legacy's server was lost on 13 November (fresh start, SLICE-15), and D-015 removed the legacy import, the shadow and the cutover.
 - The owner's decisions are D-001 onward in `OA_NEW/docs/decisions.md`; what runs and what is open is `ROADMAP.md` "Current delivery status" and `OA_NEW/HANDOFF.md`. A slice or design file's dated owner notes win over its older text.

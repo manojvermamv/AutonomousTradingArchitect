@@ -1,6 +1,11 @@
 # AutonomousTrading — specification and implementation-plan package
 
-* **Status (2026-11-25 UTC):** release `20261125T121017Z-31af10d63d50` runs: messages through OpenAlgo's channels (D-022,
+* **Status (2026-11-26 UTC):** three releases after the close, on the owner's word: the host update fix (needrestart
+  never restarts `at-*`; Ubuntu's upgrade after the close), then the 15:10 entry cutoff and the `at.slice` limits, then
+  an installer fix that lets the bound `envelope.*` values reach the units. The 15:13 square-off is proven by
+  simulation. The running release, its build and what is open are written once, in the ROADMAP's
+  [current delivery status](../../ROADMAP.md#current-delivery-status--2026-11-26-utc).
+* **Status (2026-11-25 UTC, history):** release `20261125T121017Z-31af10d63d50` ran from that evening: messages through OpenAlgo's channels (D-022,
   D-023, off until a channel is named), the owner's taflow indicators behind `autonomous_trading.indicators` (D-024), the
   `at.slice` and kill-switch fixes and an installer fix. The first entry since PRT-R10 and the owner's three drills ran on
   25 November. Every slice and design file opens with a dated status note checked against the code. See the ROADMAP's

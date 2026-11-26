@@ -21,30 +21,56 @@ Implemented, committed and pushed as source `b88014e` (`agentic-desk`), with thi
 <a id="current-delivery-status--2026-11-25-utc"></a>
 ## Current delivery status — 2026-11-26 UTC
 
+**Running now (26 November 2026, 17:15 IST; market closed).** Release `20261126T112532Z-1e649113052d` (built from the
+source repository's `fb0ad49`): converged, kernel `OPERATING`, no restarts, no holds, kill switch off, book flat.
+OpenAlgo in analyze mode (an analyze session counts as a live-broker check, D-016), broker Upstox. Its restore target
+is the previous release, `20261126T111601Z-389023c79c86`. At 17:15 IST the owner's prune removed `55f838f52897`,
+`31af10d63d50` and `f11c1f35dfa3` (records archived); on disk now: the current, the previous and the never-activated
+`e50268362cac`, 12 GB free. Friday 27 November: binding `commissioning-binding-20261127-buyer-edge` and entry grant
+`commissioning-grant-20261127-buyer-edge-entry` (03:45–10:10 UTC); the 15:10 IST entry cutoff applies from that
+session. The source repository's `HANDOFF.md` section 1 holds the same facts. Live mode only on the owner's word. The
+AI twin (SLICE-17), the web console and MCP are not in the first release.
+
+**26 November 2026, after the close: three releases, each on the owner's word.**
+
+1. `20261126T105806Z-f11c1f35dfa3` (16:29 IST, built from `94830da`): the host package update fix (item 16). The
+   installer now owns two host files: `/etc/needrestart/conf.d/autonomous-trading.conf` (needrestart never restarts an
+   `at-*` unit or containerd; docker is already excluded by needrestart's default) and
+   `/etc/systemd/system/apt-daily-upgrade.timer.d/autonomous-trading.conf` (the upgrade at 10:45 UTC plus up to
+   15 minutes, so 16:15–16:30 IST). Both checked on the host. Also the history-bars quality fix (item 19). Friday
+   27 November's binding and grant issued (ledger rows 2838 and 2840).
+2. `20261126T111601Z-389023c79c86` (16:46 IST, `dc3fe21`): the entry cutoff `account.limits.no_new_trade_after: '15:10'`
+   (item 17) and the `at.slice` envelope settings (item 18). The settings diff held exactly those lines.
+3. `20261126T112532Z-1e649113052d` (16:55 IST, `fb0ad49`): an installer fix. Both render paths passed no `caps`, so no
+   bound `envelope.*` value ever reached a unit. Now `systemctl show at.slice` reads `MemoryHigh` 2 GiB, `MemoryMax`
+   3 GiB, `TasksMax` 512.
+
+The 15:13 square-off (item 2) was proven by simulation the same afternoon.
+
+**26 November 2026, afternoon: the Canvas audit.** Three outside reports on the Market Canvas were audited (the owner's
+`Desktop/reports/Market-Chart-Canvas-Audit-of-A-B-C(26Nov-By-Claude).md`). Fixed in the source repository: the
+pruned-day codes per call in `docs/operations.md` B8 (`view` `CNV-R07`; `compute_overlay`, `compare_timeframes` and
+`annotate` `CNV-R06`) with a test, and the history-bars quality count (item 19). Measured: the payload
+(`docs/measurements/canvas-payload-2026-11-26.md`). The Canvas stays a library with no importer, not deployed, with no
+`canvas.*` bound on the server ([Milestones](#-build-the-deterministic-market-canvas-on-the-existing-market-seam)).
+
 **26 November 2026 (analyze session).** Five BuyerEdge trades on the 25 November release, +711.75 rupees before
 costs, every exit by the stop or the trail, the broker's realised P&L equal to the ledger's. PE trades stayed in past
 their first tick (13 and 27 minutes) and left by the trail: the 20 November put-delta fix is proven live. Measured in
 the session: the strategy host at 0.7% of one core; last night's backup at a 1.2 GB memory peak (`at.slice`, item
-13). At 11:44 IST Ubuntu's automatic upgrade restarted every trading service (item 16), which ended the day
-(`SESSION_CLOSING kernel_stopped`, D-007) with the book flat and the day's 5-trade limit already reached; the kernel
-resumed by itself 4 s later (`routine_standing`).
+18). At 11:44 IST Ubuntu's automatic upgrade restarted every trading service (item 16), which ended the day
+(`SESSION_CLOSING kernel_stopped`, D-007) with the book flat and the day's 5-trade limit already reached (11:41); the
+kernel resumed by itself 4 s later (`routine_standing`).
 
-**25 November 2026 (analyze session).** The first entry since the PRT-R10 fix: NIFTY 01 Dec 25800 CE × 65 at 09:44 IST,
-filled 214.70 against a plan of 213.20, stop and target at the broker, the trail raised the stop to 204.45. The three
-owner drills ran with it open (item 5). The OpenAlgo-off drill ended the day (`SESSION_CLOSING broker_unreachable`,
-D-007) and the kernel squared the position off at 215.55 once OpenAlgo answered: +55.25 rupees before costs, broker
-flat, its realised P&L equal to the ledger's. The kernel-stop drill proved R-4's automatic path (`routine_standing`).
-Still open from the day: a PE trade past its first tick, and the 15:13 square-off (item 2).
+**25 November 2026 (analyze session; history).** The first entry since the PRT-R10 fix: NIFTY 01 Dec 25800 CE × 65 at
+09:44 IST, filled 214.70 against a plan of 213.20, stop and target at the broker, the trail raised the stop to 204.45.
+The three owner drills ran with it open (item 5). The OpenAlgo-off drill ended the day (`SESSION_CLOSING
+broker_unreachable`, D-007) and the kernel squared the position off at 215.55 once OpenAlgo answered: +55.25 rupees
+before costs, broker flat, its realised P&L equal to the ledger's. The kernel-stop drill proved R-4's automatic path
+(`routine_standing`). Still open from the day: a PE trade past its first tick, and the 15:13 square-off (item 2).
+*Both closed 26 November 2026.*
 
-**26 November 2026, after the close: released.** On the owner's word, release `20261126T105806Z-f11c1f35dfa3` (built from the
-source repository's `94830da`) converged at 16:29 IST with the host package update fix (item 16: the upgrade timer at
-16:15-16:30 IST and needrestart never restarting `at-*` or containerd, both checked on the host); 27 November's
-binding and grant issued. The 15:13 square-off (item 2) is proven by simulation. Then, on the owner's word,
-`20261126T111601Z-389023c79c86` bound the entry cutoff `account.limits.no_new_trade_after: '15:10'` and the `at.slice`
-envelope, and `20261126T112532Z-1e649113052d` (`fb0ad49`) fixed the installer, whose render paths had never passed the bound
-`envelope.*` values: `at.slice` now `MemoryHigh` 2 GiB, `MemoryMax` 3 GiB, `TasksMax` 512.
-
-**25 November 2026, after the close: released.** On the owner's word, release `20261125T121017Z-31af10d63d50`
+**25 November 2026, after the close: released (history).** On the owner's word, release `20261125T121017Z-31af10d63d50`
 (built from the source repository's `ebde1cc`) converged at 17:41 IST with the two evening pieces below, the `at.slice`
 fix and the kill-switch fix with its bound kill file (item 13). The first try (built from `80a09cb`) refused at
 `UNITS_WRITTEN`: the installer's `apply-root` built its directory table before creating system users, so the new
@@ -54,7 +80,7 @@ market and operator stopped, with the book flat after the close. Both fixed (`8a
 (no channel), taflow loading in the release; Thursday 26 November's binding and grant issued for the same BuyerEdge
 candidate as 25 November's.
 
-**25 November 2026, evening: messages to the trader through OpenAlgo (built, landed, released after the close).** The owner
+**25 November 2026, evening (history): messages to the trader through OpenAlgo (built, landed, released after the close).** The owner
 asked for OpenAlgo's messaging to be used from the system. Built: one adapter for OpenAlgo's four `notify` endpoints
 (Telegram, WhatsApp, Slack, Discord) and a separate process, `at-messenger`, that follows the ledger and sends what
 OpenAlgo cannot know (fills, exits with P&L, the trading day, kill, holds, the loss latch, escalations); OpenAlgo's own
@@ -64,7 +90,7 @@ exact format) are a setting, off by default (source D-023). Both are off until t
 OpenAlgo has its Telegram bot stopped and WhatsApp unpaired. Two independent reviews; every finding fixed and tested.
 Landed on `agentic-desk` (the source repository's `HANDOFF.md` names the commit); source `docs/openalgo-messaging.md`.
 
-**25 November 2026, evening: the owner's indicator library inside the source repository (landed, released after the close).**
+**25 November 2026, evening (history): the owner's indicator library inside the source repository (landed, released after the close).**
 The owner asked for taflow, their Rust indicator library, to be copied into the project with one import surface.
 Source D-024: taflow 0.2.0 is vendored (`native/taflow/`, with prebuilt binaries for Windows and Linux x86_64 inside
 the package, so no Rust on any machine) and reached only through `autonomous_trading.indicators` (`series` on taflow;
@@ -72,7 +98,7 @@ the package, so no Rust on any machine) and reached only through `autonomous_tra
 to the code it mirrors on recorded NIFTY minutes and chains. Moved: the rule provider's EMA and breakout, the Canvas
 swings. BuyerEdge and the trail match exactly but stay on their own code until the owner moves them (item 15).
 
-**24 November 2026 (an NSE holiday; no session).** Built and released that evening (`20261124T132627Z-55f838f52897`, on the
+**24 November 2026 (an NSE holiday; no session; history).** Built and released that evening (`20261124T132627Z-55f838f52897`, on the
 owner's word): the recent ledger every 5 minutes (B10's optional step, below) and D-021 counting sessions only. Fixed in the source repository's at-ops skill: `health.sh` runs to its end (item 13's
 checkpoint "failure"), a holiday's cleanly ended strategy host is no alarm, `alerts.sh --alive MIN`, `openalgo_books
 mode` (source `docs/operations.md` "Health checks and day watches (24 November 2026)"). Wednesday 25 November's
@@ -130,40 +156,36 @@ only (`backup.provider`, `backup.destination`, the backup's credential). Built a
 stand-in; `backup.retention` stays the owner's (`keep:<n>`, ships unbound). SLICE-11 step 8 is closed by it.
 Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one set of 551 MB, 122 objects, uploaded, read back, checked and restored into scratch; every hash, the ledger head (712) and rows, the 120 evidence files and the market store match the live stores (the market store had only moved on: new watermark rows); the bucket held exactly the set.
 
-**Still open, in order:**
+**Still open, in order** (a closed item is one line; numbers are kept):
 
-1. ~~Release `8c7d99e`~~ released 20 Nov 19:03 IST.
-2. ~~Verify the first market-session kernel square-off when a position crosses 15:13 IST (D-014)~~ proven end to end by simulation on 26 November 2026 (`tests/replay/test_square_off_day.py`: the real kernel, protection loop and ledger against the fake OpenAlgo; a position open from 14:56 is exited by the kernel at 15:13:07, flat at 15:13:30, stop and target cancelled first, the book flat at the close); live sessions end flat before 15:13 (the 5-trade limit), so no live observation is awaited. Not on a drill day:
-   the OpenAlgo-off and kernel-stop drills each end the day and square the position off at once (25 November 2026).
-   Also still to see: the kernel-stop drill closing an open position (on 25 November it ran with the book flat; on
-   26 November an unplanned kernel stop also found the book flat).
+1. ~~Release `8c7d99e`.~~ Released 20 November 2026, 19:03 IST.
+2. ~~The kernel's 15:13 square-off with a position open (D-014).~~ Proven by simulation 26 November 2026
+   (`tests/replay/test_square_off_day.py`: the real kernel, protection loop and ledger against the fake OpenAlgo; a
+   position open from 14:56 exits at 15:13:07, flat at 15:13:30). Live sessions end flat before 15:13 (the 5-trade
+   limit), so no live observation is awaited.
 3. ~~Monday's open: the first index tick within seconds of 09:15.~~ Done 23 November 2026 (09:15:00.99 IST).
-4. Review OPS09 formally and update the provisional runtime settings (an owner decision; every timing is bound, so
-   what is left is keeping or changing them; 23 November re-measured in the 24 November report: chain data at most
-   2.73 s late, book at most 0.61 s old). **Measured 19–20 November**
-   with the source repository's `scripts/measure_session.py` (`docs/measurements/session-timings-2026-11-19-20.md`):
-   sends under 6% of their deadlines, completions under 17% of the escalation limit; one chain stored 6.5 s after its
-   minute against `market.http_timeout_ms` 5,000.
+4. Review OPS09 and keep or change the provisional runtime timings (an owner decision; recommended: keep). Every
+   timing is bound. Measured 19–20 November (source `docs/measurements/session-timings-2026-11-19-20.md`): sends under
+   6% of their deadlines, completions under 17% of the escalation limit, one chain stored 6.5 s after its minute
+   against `market.http_timeout_ms` 5,000; 23 November: chain data at most 2.73 s late, book at most 0.61 s old.
 5. ~~Owner drills: OpenAlgo off 3 minutes with a position open; the emergency stop once.~~ Done 25 November 2026
-   (the 25 November paragraph above; source at-ops `owner-commands.md` "Drills").
+   (source at-ops `owner-commands.md` "Drills"). Still to see, on an analyze day: a kernel stop with a position open
+   (on 25 November the drill ran with the book flat; the 26 November unplanned stop also found it flat).
 6. ~~The recorded calendar checked against NSE's list.~~ Done 20 November 2026; recheck each December.
-7. ~~The backup (D-017): bound and proved on the real bucket.~~ Done 21 November 2026 (D-017, D-018; the 21 November
-   paragraph above); nightly since. The clean-host restore rehearsal stays open (item 11).
+7. ~~The backup (D-017) bound and proved on the real bucket.~~ Done 21 November 2026 (D-017, D-018); nightly since.
 8. ~~The backup token off the machine (`backup.storage_credential_held_offbox`).~~ Closed 23 November 2026 (A1).
-9. `security.journal` is unbound, so every backup set records an authorization gap (no authorization snapshot). This
-   predates D-017. **Corrected 24 November 2026:** it is not a binding to make: no part of the running system writes a security journal (the off-host adapter SLICE-11 step 8 planned was never built; the kernel starts with `journal=None`), so binding the setting alone closes nothing. Nothing is lost: every
-   grant is also in the ledger, which the backup holds, and a restored kernel treats the journal as untrusted and
-   fails closed on delegated grants only (the owner issues a fresh grant each trading day anyway). Building the adapter
-   is worth it only with several operators or delegated grants; until then the gap is an honest note, not a fault.
-10. ~~Prune old releases.~~ Done 25 November 2026, 17:52 IST, on the owner's word: 3 releases, 0.56 GB, records
-    archived on the server.
-11. ~~Restore after losing the server: no owner command.~~ **Built 23 November 2026 (A2):** `restore-backup.sh`,
-    rehearsed on the real bucket that night (ok, 5 minutes). Still open: the clean-host restore rehearsal (D10).
-12. ~~Data management: the market store and the nightly set grow about 170 MB each trading day.~~ **Done 23 November
-    2026 (D-020, D-021, B1–B10).** The server's settings carry `backup.day_receipts` and `backup.day_files`, and the
-    first nights archived 5 day files (23 Nov). Still open: the first real 16:00 prune, once more than 10 trading days
-    are held: Thu 3 December from 16:00 IST (the owner's session-only count, released 24 November). B10's optional
-    recent ledger: released 24 November 2026, its first upload ok.
+9. `security.journal` is unbound, so every backup set records an `authorization_unavailable` gap. A note, not a fault
+   (corrected 24 November 2026): no part of the running system writes a security journal (the off-host adapter of
+   SLICE-11 step 8 was never built; the kernel starts with `journal=None`), every grant is also in the ledger the
+   backup holds, and the owner issues a fresh grant each trading day. Build the adapter only with several operators or
+   delegated grants.
+10. ~~Prune old releases.~~ Done 25 November 2026 (3 releases, 0.56 GB) and 26 November 2026, 17:15 IST (3 more), on
+    the owner's word; records archived on the server.
+11. ~~Restore after losing the server: no owner command.~~ Built 23 November 2026 (A2, `restore-backup.sh`), rehearsed
+    on the real bucket (ok, 5 minutes). Still open: the clean-host restore rehearsal (D10).
+12. ~~Data management: the market store and the nightly set grow about 170 MB each trading day.~~ Done 23 November
+    2026 (D-020, D-021, B1–B10); the recent ledger every 5 minutes since 24 November. Still open: the first real
+    market-store prune, Thu 3 December from 16:00 IST (once more than 10 trading sessions are held).
 13. **Defects found 23 November 2026** (none blocks trading; each is a correctness or tidiness item):
     - `market/store.py`: a tick key revised into another window while its first window is unsealed wedges every
       later commit (`ValueError`, rollback). B2 kept the behaviour identical; live keys are unique per receipt.
@@ -173,39 +195,46 @@ Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one 
       `market/store.py`.
     - No research account exists on the server (research is outside the first release); one added later must join
       `at-market-readers` to read `backup.day_files` (`settings/schema.py` gives `research-offline` no groups).
-    - ~~D-021 counted a holiday as a trading day.~~ Fixed and released 24 November 2026 (sessions only; D-021).
     - Restored sealed assessment days come back 0640, not 0440 (`operations/restore.py`).
     - A day whose live rows changed after its export keeps its receipt and is never pruned (kept for good; safe).
-    - ~~at-ops `health.sh` exits 1 on informational lines.~~ Fixed 24 November 2026 (source `docs/operations.md`
-      "Health checks and day watches").
     - `deploy/install.py` `latest_assessment` keeps the old index scan as a fallback for the rehearsal's fake
       supervisor.
-    - ~~`at kill-switch on` exits 1 when no kill file is bound.~~ Fixed and released 25 November 2026: exit 0 with
-      `KILL SWITCH ENGAGED in the ledger`; `risk_guard.kill_switch_file` bound in the deploy settings, live since that
-      release (test `test_cli_on_recorded_without_a_file`).
-    - ~~`at.slice` installed with the template's placeholders.~~ Fixed and released 25 November 2026
-      (`isolation.installed_slice`). Measured 26 November: the nightly backup peaks at 1.2 GB of memory (the slice at
-      1.30 GB), the ledger copy about 1 s of CPU; binding `envelope.optional.*` (proposed `MemoryHigh` 2 GB,
-      `MemoryMax` 3 GB) is the owner's decision.
-    - ~~The installer built its directory table before creating system users; the refused activation's undo could not
-      read polkit's rules.~~ Fixed and released 25 November 2026 (source `8afc491`).
+    - Fixed and released: D-021 counting a holiday (24 November); at-ops `health.sh` exiting 1 on informational lines
+      (24 November); `at kill-switch on` exiting 1 with no kill file, now exit 0 with `risk_guard.kill_switch_file`
+      bound (25 November); `at.slice` installed with the template's placeholders (25 November); the installer
+      creating system users after its directory table, and the refused activation's undo reading polkit's rules
+      (25 November, source `8afc491`).
 14. **Messaging (D-022, D-023), built and released 25 November 2026** (`at-messenger.service` installed, disabled
-    until `messaging.channels` names a channel). Next, the owner chooses a channel and sets
-    it up in OpenAlgo (start the Telegram bot and `/link`, or pair WhatsApp, or a Slack or Discord webhook switched on
-    at OpenAlgo's `/alerts`), copies the OpenAlgo key for the messenger (source guide 01 section 3.6) and, if wanted,
-    turns on `messaging.trade_alerts.enabled`. First live check: one real message per channel, on the owner's word.
-15. **Indicators (D-024), built and released 25 November 2026:** on the owner's word, move BuyerEdge and AI BuyerEdge onto
-    `autonomous_trading.indicators` in one change at a session start (their files are part of their candidate
-    identity, so the session's binding is issued again), and the trail only if its standard-library rule is lifted.
-    Found with it: the strike selector's IV-rank gate never acts (the planner passes no IV rank, as legacy live did).
-16. **Host updates restart the trading services (found 26 November 2026).** Ubuntu's `apt-daily-upgrade.timer` runs
-    `unattended-upgrade` at a random time each day, and `needrestart` restarts every service using an upgraded
-    library, the kernel included: on 26 November at 11:44 IST that ended the session (D-007). On the owner's word:
-    move the timer after the close and tell `needrestart` never to restart `at-*` units (source `docs/operations.md`
-    "Host package updates"). Until then any session can end early, with an open position squared off.
-
- Live mode only on the owner's word. The AI twin (SLICE-17),
-the web console and MCP are not in the first release.
+    until `messaging.channels` names a channel). Next, the owner chooses a channel and sets it up in OpenAlgo (start
+    the Telegram bot and `/link`, or pair WhatsApp, or a Slack or Discord webhook switched on at OpenAlgo's `/alerts`),
+    copies the OpenAlgo key for the messenger (source guide 01 section 3.6) and, if wanted, turns on
+    `messaging.trade_alerts.enabled`. First live check: one real message per channel, on the owner's word.
+15. **Indicators (D-024), built and released 25 November 2026:** on the owner's word (recommended), move BuyerEdge and
+    AI BuyerEdge onto `autonomous_trading.indicators` in one change at a session start (their files are part of their
+    candidate identity, so the session's binding is issued again), and the trail only if its standard-library rule is
+    lifted. Found with it: the strike selector's IV-rank gate never acts (the planner passes no IV rank, as legacy
+    live did); record only.
+16. ~~Host package updates restart the trading services (found 26 November 2026, 11:44 IST).~~ Fixed and released
+    26 November 2026 (release `f11c1f35dfa3`; source `4fda2ec`, tests `test_the_release_owns_the_host_update_files`,
+    `test_needrestart_reads_the_exclusion_as_intended`): needrestart never restarts `at-*` or containerd, and the
+    upgrade timer runs 16:15–16:30 IST; both checked on the host (source `docs/operations.md` "Host package updates").
+17. ~~An entry cutoff.~~ Bound 26 November 2026 (release `389023c79c86`, owner): `account.limits.no_new_trade_after:
+    '15:10'`; from 27 November the planner refuses an entry at or after 15:10 IST (source `kernel/planner.py:110-121`).
+18. ~~`at.slice` limits.~~ Bound 26 November 2026 (owner): `envelope.optional.memory_high` 2 GiB, `memory_max` 3 GiB,
+    `tasks_max` 512; `envelope.backup_reserve.memory` 1.5 GiB, `tasks` 64. Basis: the 25 November backup's 1.2 GB
+    memory peak (journal), the backup as one process with 16 upload threads, the 5-minute ledger copy at 2 tasks and
+    49 MB. They reach the unit since the installer fix (`fb0ad49`, test
+    `test_the_render_paths_pass_the_bound_envelope`). `CPUQuota` and `IOWeight` stay unbound. The admission check
+    `isolation.admit` is used only by `scripts/isolated_work.py`; the backup is not admitted, only capped by the slice.
+    The first backup under them (26 November 17:18 IST): `ok`, 136.5 s, 25 November's day file archived, head 2857,
+    only the known `security.journal` note; the slice's peak stays 1.30 GB.
+19. **Canvas (D08):** built as a library with no importer and not deployed; the owner decides whether agents may use it
+    and whether to build a chart renderer. The history-bars quality count was fixed 26 November 2026 (source
+    `2d88333`; [Milestones](#-build-the-deterministic-market-canvas-on-the-existing-market-seam)).
+20. **Later, no owner step needed now:** a real late start once (D-009); the fill-above-reservation rows (recommended:
+    leave); the basket-legs protection design, before live; the C-1 capture of OpenAlgo's option Greeks; B2 untested
+    until wanted; `/var/lib/containerd` holds 21 GB of another project's containers (not touched); the office PC's
+    `.venv-slice01` lacks `zstandard`, so 3 recovery test files fail to collect there (the environment, not the code).
 
 <a id="current-delivery-status--2026-11-19-utc"></a>
 ## Delivery status — 2026-11-19 UTC (history; superseded by 20 November above)
@@ -358,7 +387,7 @@ The supplied React/TypeScript and HTML files are a 24 October audit presentation
 | 🎯 **Target** | A boundary-first architecture with selective reuse around deterministic financial authority, one live execution owner, OpenAlgo as the current live boundary, isolated simulation/replay, bounded cognition, reproducible research, and explainable recovery. |
 | 🧭 **Roadmap and audit branches** | This roadmap lives in `OA_NEW/.workspace/specifications`, branch `claude/spec-implementation-package`. The implementation is `AutonomousTrading/agentic-desk`; the running release is in [Current delivery status](#current-delivery-status--2026-11-21-utc). The legacy audits at `445eb116` are history. |
 | 🔎 **Current source audit** | Historical (legacy, 24–26 October): `AutonomousTrading` at `445eb116514d97c2574c44d4d5374f938dec57a3`, branch `claude/openalgo-trading-architecture-uu1bxn`; 24 October baseline, 25 October follow-up and scoped 26 October test/policy checks recorded below; no new runtime acceptance. Historical findings remain dated; accepted target changes are integrated in the master README. |
-| 📅 **Current evidence window** | Historical audit and design records run from 25 August–4 September, 10–11 October, 20 October, and 24–26 October 2026, including later target-only reviews. The dashboard files were downloaded on 24 October at 19:12–19:13 IST; that timestamp does not establish the audit's actual creation time; first deployed-host session evidence 18 November 2026 (analyze mode, no entries); first entries, protection and exits 19 November 2026 (analyze mode); second analyze day 20 November 2026; first off-box backup proved on the real bucket and running nightly 21 November 2026. |
+| 📅 **Current evidence window** | Historical audit and design records run from 25 August–4 September, 10–11 October, 20 October, and 24–26 October 2026, including later target-only reviews. The dashboard files were downloaded on 24 October at 19:12–19:13 IST; that timestamp does not establish the audit's actual creation time; first deployed-host session evidence 18 November 2026 (analyze mode, no entries); first entries, protection and exits 19 November 2026 (analyze mode); second analyze day 20 November 2026; first off-box backup proved on the real bucket and running nightly 21 November 2026; the owner's drills 25 November 2026; the 15:13 square-off proven by simulation, the host update fix, the entry cutoff and the `at.slice` limits 26 November 2026 (Current delivery status). |
 | 🧱 **Delivery shape** | Define justified boundaries, select reusable code, prove isolated target slices, and consolidate authority only after parity, recovery and fencing proof. Canvas and research may progress in parallel against stable contracts. |
 | 🛡 **Decision boundary** | No roadmap item changes scores, thresholds, entry policy, emergency permissions, or live activation without the required evidence and owner decision. No audit label alone authorizes a broker-changing action. |
 
@@ -673,7 +702,7 @@ The master README phases now implement the accepted sequence: establish D11 requ
 
 **Status 2026-11-18:** built (SLICE-08 Canvas facts and history; SLICE-09, SLICE-12 and SLICE-17 cognition, research and the AI twin). Not in the first release; no Canvas UI.
 
-**Status 2026-11-26 (code check):** the Canvas is a library with no importer (no host, no composition, no role tool). It has one algorithm, `confirmed_swings`. It is not deployed: the deployment lists it optional, with no unit. Its settings (`canvas.swings.k`, `canvas.swings.intervals_secs`, `canvas.budgets.<caller>`) are bound in no config. The differences between the code and the [market-data design](specs/implementation/design/market-data-and-canvas.md) are recorded there as dated status notes. Open owner decisions: whether agents may use the Canvas, and whether to build a chart renderer. Payload measured offline (OA_NEW `docs/measurements/canvas-payload-2026-11-26.md`, `scripts/measure_canvas_payload.py`): in the same 40-minute window, trimmed swing facts are 0.07x–0.22x the bytes of the model's 40-bar input; the full overlay is 2.8x–21x; synthetic ticks, tokens unmeasured. Traced 26 Nov, no change: both quirks are in `market.view.session_windows`, shared by `quality.assess` and `View.day_coverage`. (1) It counts the session's windows from open to close both inclusive, so 09:15-15:30 is 376; live tick days do hold a 15:30 IST window (NIFTY about 600 ticks, BANKNIFTY 250-300 on 20, 23 and 25 Nov, read-only from the server's market store), so only history bars that end at 15:29 (the 2026-08-03 fixture) show 15:30 as a gap and `complete`/`warm` false after the close. (2) It applies the tick seal lag (7 s) and the watermark to every view, while history bars are final at start + 60 s with no lag, so on history bars `expected` can trail the bars shown by one window at the cutoff. Both read low, never count a missing bar as present, and no trading path acts on them (Canvas unused; `day_coverage` is informational, and its history fallback applies only to a day without ticks). A change would alter `day_coverage`, which the AI BuyerEdge team prompt reads, so it is left as is.
+**Status 2026-11-26 (code check):** the Canvas is a library with no importer (no host, no composition, no role tool). It has one algorithm, `confirmed_swings`. It is not deployed: the deployment lists it optional, with no unit. Its settings (`canvas.swings.k`, `canvas.swings.intervals_secs`, `canvas.budgets.<caller>`) are bound in no config. The differences between the code and the [market-data design](specs/implementation/design/market-data-and-canvas.md) are recorded there as dated status notes. Open owner decisions: whether agents may use the Canvas, and whether to build a chart renderer. Payload measured offline (OA_NEW `docs/measurements/canvas-payload-2026-11-26.md`, `scripts/measure_canvas_payload.py`): in the same 40-minute window, trimmed swing facts are 0.07x–0.22x the bytes of the model's 40-bar input; the full overlay is 2.8x–21x; synthetic ticks, tokens unmeasured. Traced 26 Nov, no change: both quirks are in `market.view.session_windows`, shared by `quality.assess` and `View.day_coverage`. (1) It counts the session's windows from open to close both inclusive, so 09:15-15:30 is 376; live tick days do hold a 15:30 IST window (NIFTY about 600 ticks, BANKNIFTY 250-300 on 20, 23 and 25 Nov, read-only from the server's market store), so only history bars that end at 15:29 (the 2026-08-03 fixture) show 15:30 as a gap and `complete`/`warm` false after the close. (2) It applies the tick seal lag (7 s) and the watermark to every view, while history bars are final at start + 60 s with no lag, so on history bars `expected` can trail the bars shown by one window at the cutoff. Both read low, never count a missing bar as present, and no trading path acts on them (Canvas unused; `day_coverage` is informational, and its history fallback applies only to a day without ticks). A change would alter `day_coverage`, which the AI BuyerEdge team prompt reads, so it is left as is. **Correction, later on 26 November 2026:** quirk (2) is fixed (source `2d88333`, released in `20261126T105806Z-f11c1f35dfa3`): under `bars == "history"` `session_windows` uses no lag, as the history bars show; `ticks` and `ticks_else_history` keep the tick lag (test `tests/unit/test_market_quality.py::test_history_bars_are_expected_at_their_end`). Quirk (1) stays by design (`test_the_close_window_is_expected`).
 
 The supplied module assessment describes a Canvas as if versioned geometry and bounded tools already exist. Treat that as a target proposal until source evidence proves otherwise. Adopt D08 explicit cutoff/availability/freshness policy for new APIs, using existing provider and MarketView implementations only where they satisfy it; implement accepted A01-F1–F5 stable views, history/live handoff, consumer quality/window semantics and correction reconstruction; version facts, algorithms, inputs, and availability; distinguish computed facts from agent interpretation; and test that later bars cannot alter earlier as-of views. Keep chart rendering downstream of structured evidence.
 
