@@ -168,6 +168,8 @@ Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one 
    timing is bound. Measured 19–20 November (source `docs/measurements/session-timings-2026-11-19-20.md`): sends under
    6% of their deadlines, completions under 17% of the escalation limit, one chain stored 6.5 s after its minute
    against `market.http_timeout_ms` 5,000; 23 November: chain data at most 2.73 s late, book at most 0.61 s old.
+   25-26 November (source `docs/measurements/session-timings-2026-11-25-26.md`): on 26 November every timing under
+   45% of its bound; 25 November's slowest chain (5.01 s) fell on the OpenAlgo-off drill day.
 5. ~~Owner drills: OpenAlgo off 3 minutes with a position open; the emergency stop once.~~ Done 25 November 2026
    (source at-ops `owner-commands.md` "Drills"). The kernel stop with a position open (25 November's drill and the
    26 November unplanned stop both found the book flat) is proven by a one-day replay on 26 November 2026 (`tests/replay/test_kernel_stop_with_position.py`): a position open from 11:00, the kernel stopped at 11:30 cancels the broker's stop and target, closes at market and is flat 11 s later (40 s budget); the restart resumes by `routine_standing` and refuses the next entry `SES-R07`. The server's observation interval is 10 s, so the exit needs about 20 s, inside the budget and systemd's 60 s stop timeout.
@@ -231,8 +233,10 @@ Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one 
 19. **Canvas (D08):** built as a library with no importer and not deployed; the owner decides whether agents may use it
     and whether to build a chart renderer. The history-bars quality count was fixed 26 November 2026 (source
     `2d88333`; [Milestones](#-build-the-deterministic-market-canvas-on-the-existing-market-seam)).
-20. **Later, no owner step needed now:** a real late start once (D-009); the fill-above-reservation rows (recommended:
-    leave); the basket-legs protection design, before live; the C-1 capture of OpenAlgo's option Greeks; B2 untested
+20. **Later, no owner step needed now:** D-009's late start: a late session open ran live on 19 November (opened
+    13:28 IST after a fresh ledger, entries from 13:34), a cold whole-stack start is proven by replay only
+    (`tests/replay/test_start_anytime.py`); the fill-above-reservation rows (`over_reduction`, 9 cases since 19 November,
+    informational; recommended: leave); the basket-legs protection design, before live; the C-1 capture of OpenAlgo's option Greeks; B2 untested
     until wanted; `/var/lib/containerd` holds 21 GB of another project's containers (not touched); the office PC's
     `.venv-slice01` lacks `zstandard`, so 3 recovery test files fail to collect there (the environment, not the code).
 
