@@ -39,7 +39,10 @@ Still open from the day: a PE trade past its first tick, and the 15:13 square-of
 **26 November 2026, after the close: released.** On the owner's word, release `20261126T105806Z-f11c1f35dfa3` (built from the
 source repository's `94830da`) converged at 16:29 IST with the host package update fix (item 16: the upgrade timer at
 16:15-16:30 IST and needrestart never restarting `at-*` or containerd, both checked on the host); 27 November's
-binding and grant issued. The 15:13 square-off (item 2) is proven by simulation.
+binding and grant issued. The 15:13 square-off (item 2) is proven by simulation. Then, on the owner's word,
+`20261126T111601Z-389023c79c86` bound the entry cutoff `account.limits.no_new_trade_after: '15:10'` and the `at.slice`
+envelope, and `20261126T112532Z-1e649113052d` (`fb0ad49`) fixed the installer, whose render paths had never passed the bound
+`envelope.*` values: `at.slice` now `MemoryHigh` 2 GiB, `MemoryMax` 3 GiB, `TasksMax` 512.
 
 **25 November 2026, after the close: released.** On the owner's word, release `20261125T121017Z-31af10d63d50`
 (built from the source repository's `ebde1cc`) converged at 17:41 IST with the two evening pieces below, the `at.slice`
