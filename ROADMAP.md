@@ -234,7 +234,7 @@ Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one 
     `test_the_render_paths_pass_the_bound_envelope`). `CPUQuota` and `IOWeight` stay unbound. The admission check
     `isolation.admit` is used only by `scripts/isolated_work.py`; the backup is not admitted, only capped by the slice.
     The first backup under them (26 November 17:18 IST): `ok`, 136.5 s, 25 November's day file archived, head 2857,
-    only the known `security.journal` note; the slice's peak stays 1.30 GB.
+    only the known `security.journal` note; the slice's peak stays 1.30 GB. **Owner, 27 November 2026:** the 27 November backup peaked at 1.75 GiB (17 tasks), above the 1.5 GiB reserve, so the reserve is 2.5 GiB (`envelope.backup_reserve.memory` 2684354560; staged in the server's settings file, in force from the next release; with `memory_max` 3 GiB optional jobs then have 0.5 GiB of room). The one-off backup watcher (`measure-unit.sh`) is removed from the host and the project; this item is closed for good.
 19. **Canvas (D08):** built as a library with no importer and not deployed; the owner decides whether agents may use it
     and whether to build a chart renderer. The history-bars quality count was fixed 26 November 2026 (source
     `2d88333`; [Milestones](#-build-the-deterministic-market-canvas-on-the-existing-market-seam)).
