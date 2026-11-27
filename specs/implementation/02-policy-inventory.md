@@ -2,6 +2,8 @@
 
 Status: **proposed, non-normative staging.** The accepted scoped policy baseline puts the inventory in README §9, "not in a new service or competing policy register" (`README.md:440`; [accepted scoped policy baseline](../../README.md#accepted-scoped-policy-baseline)). Master edits are outside this package's authorization, so the rows are staged here until the master's owner moves them into §9 ([X-001](consistency/master-contradictions.md#x-001)). Until then:
 
+> **Owner amendment — 27 November 2026 (checked against the owner's answers and the code):** (1) The classifications were accepted on 27 October 2026: the owner's answers record X-006 as "Accepted: the 54 rows and statuses of the policy inventory are the accepted scoped baseline" ([owner answers](decisions/owner-answers-2026-10-27.md)). The rows stay staged here; this package does not edit the master's §9. (2) POL-001's clause "cut over only at a quiescent, freshly reconciled boundary" does not apply to the first release: there is no cutover and no legacy import (D-015, 19 November 2026); a fresh start replaced it. "One transactional authority and ledger" stands.
+
 - **README §9 and the decision IDs are the authority.** These rows only show where each approval was found, its scope and how far it is verified.
 - **How other documents cite a policy.** Specs and the traceability matrix cite a policy by its decision ID, with a POL ID as a pointer only.
 - **No new approvals.** Nothing here approves, changes or chooses a policy. Where the record and the code disagree, the row says **conflict** and links an owner question; the target does not pick a side.
