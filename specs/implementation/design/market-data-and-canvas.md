@@ -4,6 +4,8 @@
 
 > **Owner note — 26 November 2026 (status, checked against the source repository and the server):** A history-bars view now expects a window at its end, with no tick lag (`market/view.py:828` in `session_windows`, source `2d88333`; test `tests/unit/test_market_quality.py::test_history_bars_are_expected_at_their_end`); the inclusive 15:30 close window stays by design (`test_the_close_window_is_expected`). The Canvas is still a library with no importer and is not deployed; whether agents may use it and whether to build a renderer are owner decisions (ROADMAP item 19).
 
+> **Owner amendment — 27 November 2026 (D-021):** The failure-table row "records retained no longer … none in this slice (retention is SLICE-11)" is superseded: the live market store keeps the newest 10 trading days, an older day is deleted only once its day file is in the bucket with a matching receipt, and a view of a pruned day answers with the pruned-day codes in the source repository's `docs/operations.md` B8 (`view` `CNV-R07`; overlay, compare and annotate `CNV-R06`). The first real prune is Thu 3 December 2026.
+
 * **Status:** proposed (package spec), deepened when SLICE-08 started (2026-10-29) from the stub this file was; reviewed with the [SLICE-08 slice file](../plan/slices/SLICE-08-market-data-and-views.md). Implements accepted master decisions; adds no new ones. Depth follows slices (`README.md:1133`; owner choice recorded in [00-provenance](../00-provenance.md)).
 * **Precedence:** master README, then ROADMAP, then this file. A disagreement is an X item in [master-contradictions](../consistency/master-contradictions.md), never an edit here.
 * **Specified here (exclusive), and where:**

@@ -4,6 +4,8 @@
 
 > **Owner note — 26 November 2026 (status, checked against the source repository and the server):** The entry cutoff `account.limits.no_new_trade_after: '15:10'` is bound on the server (owner, 26 November, release `20261126T111601Z-389023c79c86`; from 27 November's session): the planner refuses an entry at or after 15:10 IST (`kernel/planner.py:110-121`); the earliest of the account's and the strategy's cutoffs wins (`kernel/admission.py:264-267`). The example profile ships it unset (`config/live.example.yaml:245`).
 
+> **Owner amendment — 27 November 2026 (correction):** The example profile now ships the account cutoff set: `account.limits.no_new_trade_after: "15:10"` (`config/live.example.yaml:119`). The 26 November note's "ships it unset (`config/live.example.yaml:245`)" is wrong for that row (`:245` is `max_daily_profit_amount`); only the per-strategy example row (`:251`) and the shipped default (`resources/defaults.yaml:109`) stay unset.
+
 * **Status:** proposed (package spec), revised after EGM stages 5–7 ([review](../egm/intent-to-admission/review.md)). Implements accepted master decisions; adds no new ones.
 * **Precedence:** master README, then ROADMAP, then this file. A disagreement is an X item in [master-contradictions](../consistency/master-contradictions.md), never an edit here.
 * **Specified here (exclusive), and where:**

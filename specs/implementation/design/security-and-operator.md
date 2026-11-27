@@ -2,6 +2,8 @@
 
 > **Owner note — 25 November 2026 (status, checked against the source repository and the server):** built through its slices and running in analyze mode since 17 November 2026; the design text below is as accepted, with dated amendments where the build changed it. Changed since: only the `at` CLI and the operator relay are deployed (MCP and the console are not in the first release, F-2 A). The off-host security journal was never built; `SEC-R23` and the revoke-on-restore path run only with a journal (ROADMAP item 9). Push alerts: `at-messenger` (D-022). The kill file is bound on the server since 25 November 2026.
 
+> **Owner amendment — 27 November 2026 (correction):** The owner API's reachability refusal is HTTP 403 `owner_access_refused` (`interfaces/api.py:1400-1404`: no route, or a loopback peer that is not the owner's local user). No `SEC-R02` appears anywhere in `src/`; read this file's `SEC-R02` rows as that refusal.
+
 * **Status:** proposed (package spec), deepened when SLICE-10 started (2026-10-30) from the 45-line stub this file was; revised the same day after the SLICE-10 design review (findings F-1…F-13). Implements accepted master decisions; adds no new ones.
 * **Precedence:** master README, then ROADMAP, then this file. A disagreement is an X item in [master-contradictions](../consistency/master-contradictions.md), never an edit here.
 * **Specified here (exclusive), and where:**

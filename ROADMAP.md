@@ -19,7 +19,10 @@ Implemented, committed and pushed as source `b88014e` (`agentic-desk`), with thi
 <a id="current-delivery-status--2026-11-23-utc"></a>
 <a id="current-delivery-status--2026-11-24-utc"></a>
 <a id="current-delivery-status--2026-11-25-utc"></a>
-## Current delivery status — 2026-11-26 UTC
+<a id="current-delivery-status--2026-11-26-utc"></a>
+## Current delivery status — 2026-11-27 UTC
+
+**27 November 2026 (analyze session; no release today: the running release is the one below, built from `fb0ad49`).** Work in the source repository on `agentic-desk`: D-025 (routine verifications record, never block), D-026 (a window left with no current tick is sealed with 0 ticks: item 13's first defect, fixed in source `4a3967c`, in the next release) and D-027 (the office PC verifies by reading: `pc-office.ps1`, four scheduled observation tasks, an evidence standard; source guide 02 section 10). The C-1 capture ran (item 20): CE deltas positive and PE deltas negative at the source, the test now runs. The two replay proofs (the 15:13 square-off; the kernel stop with a position open) were re-run on the server: 3 passed. Every status line in this specification was reread against the code; the corrections are dated amendments at the top of each file. The session's trades and result are in the 27 November owner report, written after the close.
 
 **Running now (26 November 2026, 17:15 IST; market closed).** Release `20261126T112532Z-1e649113052d` (built from the
 source repository's `fb0ad49`): converged, kernel `OPERATING`, no restarts, no holds, kill switch off, book flat.
@@ -191,6 +194,8 @@ Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one 
 13. **Defects found 23 November 2026** (none blocks trading; each is a correctness or tidiness item):
     - `market/store.py`: a tick key revised into another window while its first window is unsealed wedges every
       later commit (`ValueError`, rollback). B2 kept the behaviour identical; live keys are unique per receipt.
+      **Fixed in source 27 November 2026** (owner, D-026, `4a3967c`): a window left with no current tick is sealed
+      with 0 ticks; it reaches the server in the next release (`tests/unit/test_market_store_tick_revision.py`).
     - `market/view.py` detects a pruned day by inference (no watermark or seal rows). Exact alternative: a
       `pruned_day` table written by `days.prune`.
     - `market/view.py`'s incremental read queries `reader.conn` directly; cleaner is `tick_records(..., after=)` in
@@ -236,9 +241,9 @@ Proved on the real bucket on 21 November 2026 (`scripts/verify_backup.py`): one 
 20. **Later, no owner step needed now:** D-009's late start: a late session open ran live on 19 November (opened
     13:28 IST after a fresh ledger, entries from 13:34), a cold whole-stack start is proven by replay only
     (`tests/replay/test_start_anytime.py`); the fill-above-reservation rows (`over_reduction`, 9 cases since 19 November,
-    informational; recommended: leave); the basket-legs protection design, before live; the C-1 capture of OpenAlgo's option Greeks; B2 untested
+    informational; recommended: leave); the basket-legs protection design, before live; ~~the C-1 capture of OpenAlgo's option Greeks~~ (done 27 November 2026); B2 untested
     until wanted; `/var/lib/containerd` holds 21 GB of another project's containers (not touched); the office PC's
-    `.venv-slice01` lacks `zstandard`, so 3 recovery test files fail to collect there (the environment, not the code).
+    `.venv-slice01` lacked `zstandard` (installed 27 November 2026; the 3 recovery test files collect there now).
 
 <a id="current-delivery-status--2026-11-19-utc"></a>
 ## Delivery status — 2026-11-19 UTC (history; superseded by 20 November above)
@@ -678,6 +683,8 @@ For each audit, report target gaps, recommended behavior, alternatives/trade-off
 providers (⚪); a "Still open, item N" in a milestone's text refers to the list as it stood then. The live state is
 Current delivery status above.*
 
+*Owner note — 27 November 2026 (corrects the 25 November note): the Market Canvas (a library with no importer, not deployed, no `canvas.*` bound) and the AI twin (`ai_buyer_edge` disabled, not in the first release) are built but not running; the other milestones run in analyze mode as above.*
+
 ### ✅ Establish a dated, evidence-grounded audit baseline
 
 The 24 October code-first report identifies what the inspected source proves and records the scope limits. It remains the historical baseline, supplemented by the 25 October follow-up; neither is proof of deployment, broker behavior, or production acceptance. Keep the full source branch and SHA beside each future snapshot so a later audit can show what changed.
@@ -788,7 +795,10 @@ Dates are preserved as evidence windows. The date of a report, the date of a sou
 | **19 November 2026** | First analyze-mode day with entries: five BuyerEdge trades; fixes `fae71f9`, D-011–D-014; two fresh ledgers; release `20261119T100828Z-91a2667a6d14` (`1f7de02`) running. | Analyze-mode evidence of entries, protection and exits. Production and live acceptance pending. |
 | **20–21 November 2026** | Second analyze-mode day (D-016); put-delta exit fix released; D-017 nightly backup to R2 as plain objects, proved on the real bucket; D-018 evidence files 0640. | Off-box backup running; clean-host restore rehearsal, production and live acceptance pending. |
 | **23 November 2026** | PRT-R10 fix (an earlier day's protective orders count as ended); D-019 live funds strings; release after the close; D-020 zstd, D-021 10 trading days live; data management B1–B10; restore command (A2). | Monday's entries were all refused (PRT-R10) before the fix; the restore rehearsed on the real bucket that night (ok, 5 minutes); clean-host restore rehearsal, production and live acceptance pending. |
-| **24 November 2026** | NSE holiday. The recent ledger every 5 minutes (built, not released); at-ops `health.sh`, `alerts.sh --alive`, `openalgo_books mode`, a holiday no alarm. | Full suite 3,479 passed on the server; live `health.sh` clean from a login and inside a unit; release pending the owner's word. |
+| **24 November 2026** | NSE holiday. The recent ledger every 5 minutes (built; released that evening, `20261124T132627Z-55f838f52897`, on the owner's word); at-ops `health.sh`, `alerts.sh --alive`, `openalgo_books mode`, a holiday no alarm. | Full suite 3,479 passed on the server; live `health.sh` clean from a login and inside a unit; release pending the owner's word. |
+| **25 November 2026** | The three owner drills (OpenAlgo off 3 minutes; the emergency stop; the kernel stop); the first entry since the PRT-R10 fix; messaging (D-022, D-023) and taflow (D-024) built; release `20261125T121017Z-31af10d63d50`. | Item 5's drills done; item 13's installer bugs fixed (`8afc491`). |
+| **26 November 2026** | Five trades, +711.75 rupees before costs; Ubuntu's upgrade restarted the trading services at 11:44 IST; three releases after the close (the host-update fix, the 15:10 entry cutoff, the `at.slice` limits and an installer fix); the 15:13 square-off and the kernel stop with a position proven by replay; the Canvas audited; `fail2ban`. | Items 2, 16, 17 and 18 closed; item 5's kernel stop proven. |
+| **27 November 2026** | The C-1 capture of OpenAlgo's option Greeks ran (analyze mode); the item 13 tick-revision defect fixed in source (D-026, `4a3967c`); the square-off and kernel-stop replays re-run on the server (3 passed); the office-PC verification workflow and its evidence standard (D-025, D-027); every specification status reread against the code. | C-1 closed; item 13's first bullet fixed in source, awaiting a release. |
 | **Future scoped review: date TBD** | Name the target documents and/or source branch and SHA actually inspected. | Review affected requirements or findings only; source re-audit is not a prerequisite for isolated specifications or implementation. Record evidence limits and preserve prior dates. |
 
 ## Direction changes
@@ -823,6 +833,7 @@ This log records when newer dated evidence changes what the roadmap asks for. Do
 | **20–21 November 2026** | Analyze sessions did not count as live-broker checks; the backup was a restic, encrypted repository, deferred; kernel evidence files were private (0600). | D-016 an analyze session counts as a live-broker check; D-017 the nightly backup goes to R2 as plain objects over S3, no passphrase, no restic (B2 supported, untested); D-018 evidence files are 0640, read by `at-ledger-readers`. | Source repository `docs/decisions.md`. |
 | **23 November 2026** | An order missing from OpenAlgo's today-only orderbook could still rest at the broker; live funds were numbers; a copy of the backup token held off the machine had to be recorded; the market store and the nightly set grew without bound; assessments kept a tar copy per day. | PRT-R10: an earlier exchange day's protective order counts as ended (DAY validity); D-019 two-decimal strings are money; A1 the off-machine setting removed; D-020 zstd for sets and day files; D-021 the live market store keeps 10 trading days; B9 one sealed file per assessment day. | Source repository `docs/decisions.md` and `docs/operations.md`. |
 | **24 November 2026** | A lost server lost up to a day of ledger; a checkpoint unit "failed" when the operator CLI refused it; a holiday raised an alarm. | The recent ledger: a checked whole copy every 5 minutes, restored when it continues the set's chain; `health.sh` never stops at a refused part and inside a unit reads holds from the ledger (SEC-R12 stays); the recorded calendar excuses a closed day's ended host. | Source repository `docs/operations.md` "B10b" and "Health checks and day watches (24 November 2026)". |
+| **26–27 November 2026** | Ubuntu's automatic upgrade could restart the trading services; no entry cutoff; the optional work was unbounded; C-1 was pending; a verification check could be read as a gate. | The upgrade runs 16:15–16:30 IST and never restarts `at-*`; entries stop at 15:10 IST; `at.slice` limits are bound; C-1 is closed; routine verifications record and never block (D-025). | Items 16–18 closed above; D-025 to D-027 are in the source repository's `docs/decisions.md`. |
 | **Future dated review: TBD** | Current accepted design and scoped outstanding evidence. | Record the next authorized target/source review at its actual revision. | Identify changed conclusions and affected work; preserve historical baselines and do not require an unrelated source audit. |
 
 <details>

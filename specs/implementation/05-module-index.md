@@ -2,6 +2,8 @@
 
 Status: **proposed**, non-normative. The canonical, fully commented target tree is [README §6](../../README.md#6-fully-commented-target-repository) at `b9bb32c` (`README.md:951-1129`). This file does not copy it. It adds, for each module, the spec that details it, its first-release treatment and its first slice. If this index and README §6 disagree, README §6 wins and the difference is an X item. The package checker reads the module list from README §6 itself, never from this file.
 
+> **Owner amendment — 27 November 2026:** Modules built after this index was derived and not listed in it: `operations/messenger.py` and `adapters/openalgo_messaging.py` (D-022), `operations/trade_alerts.py` (D-023), `indicators/` (D-024) and `adapters/object_store.py` (the backup's S3 client, D-017). This file stays the staged derivation; the source tree is the record.
+
 ## Columns
 
 | Column | Meaning |
